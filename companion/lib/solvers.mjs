@@ -939,6 +939,259 @@ export function solveUnlockStatus(graph) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 8. Site selection
+ * ------------------------------------------------------------------ */
+
+/**
+ * Miner output scales with node purity. These are the documented extraction
+ * multipliers, not snapshot facts, so they are configurable and echoed back.
+ */
+const PURITY_EXTRACTION_WEIGHT = { impure: 0.5, normal: 1, pure: 2 };
+
+const DEFAULT_SITE_WEIGHTS = {
+  resource_diversity: 25,
+  purity_weighted_nodes: 4,
+  required_coverage: 120,
+  distance_penalty_per_100m: 6,
+};
+
+/** `RP_Inpure` is the engine's spelling; `RP_Impure` is not a thing. */
+export function normalizeResourcePurity(purity) {
+  const text = String(purity ?? "").toUpperCase();
+  if (text.includes("INPURE") || text.includes("IMPURE")) return "impure";
+  if (text.includes("PURE")) return "pure";
+  if (text.includes("NORMAL")) return "normal";
+  return "unknown";
+}
+
+function matchesResourceQuery(node, query) {
+  const needle = String(query).toLowerCase();
+  return (
+    String(node.resource_name ?? "").toLowerCase().includes(needle) ||
+    String(node.resource_class ?? "").toLowerCase().includes(needle)
+  );
+}
+
+export function solveSiteSelection(
+  graph,
+  {
+    radius_meters = 300,
+    top = 5,
+    required_resources = null,
+    include_deposits = false,
+    weights = null,
+    center = null,
+  } = {},
+) {
+  const radiusMeters = finitePositive(radius_meters) ?? 300;
+  const radiusCm = radiusMeters * 100;
+  const scoreWeights = { ...DEFAULT_SITE_WEIGHTS, ...(weights ?? {}) };
+  const required = Array.isArray(required_resources) ? required_resources : null;
+
+  const allNodes = [];
+  for (const node of graph.nodes.values()) {
+    if (node.role !== "resource_node") continue;
+    const raw = node.raw ?? {};
+    const location = raw.location;
+    if (!location || ![location.x, location.y, location.z].every((value) => Number.isFinite(value))) {
+      continue;
+    }
+    const nodeType = String(raw.node_type ?? "");
+    allNodes.push({
+      actor_id: node.actor_id,
+      name: node.name,
+      location,
+      resource_class: raw.resource_class ?? null,
+      resource_name: raw.resource_name ?? null,
+      purity: normalizeResourcePurity(raw.purity),
+      node_type: nodeType,
+      occupied: Boolean(raw.occupied),
+      has_resources: raw.has_resources !== false,
+      // Deposits are hand-mined and cannot host a miner.
+      minable: nodeType === "Node" || nodeType === "FrackingCore",
+    });
+  }
+
+  const usableNodes = allNodes.filter(
+    (node) => !node.occupied && node.has_resources && (include_deposits || node.minable),
+  );
+
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (location, origin, actorId = null) => {
+    if (!location || ![location.x, location.y, location.z].every((value) => Number.isFinite(value))) return;
+    const key = `${Math.round(location.x / 5000)}:${Math.round(location.y / 5000)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push({ location, origin, actor_id: actorId });
+  };
+
+  // Older snapshots carry no interaction_context, so fall back to the captured
+  // player actor before giving up on a player position.
+  let playerLocation = graph.snapshot?.interaction_context?.player?.pawn_location ?? null;
+  if (!playerLocation) {
+    for (const node of graph.nodes.values()) {
+      if (node.kind === "player" && node.raw?.location) {
+        playerLocation = node.raw.location;
+        break;
+      }
+    }
+  }
+
+  if (center) {
+    addCandidate(center, "caller_supplied_center");
+  } else {
+    for (const node of usableNodes) addCandidate(node.location, "resource_node", node.actor_id);
+    if (playerLocation) addCandidate(playerLocation, "current_player_position");
+  }
+  const sites = [];
+
+  for (const candidate of candidates) {
+    const byResource = new Map();
+    let purityWeightTotal = 0;
+
+    for (const node of usableNodes) {
+      const distanceCm = Math.hypot(
+        node.location.x - candidate.location.x,
+        node.location.y - candidate.location.y,
+        node.location.z - candidate.location.z,
+      );
+      if (distanceCm > radiusCm) continue;
+
+      const key = node.resource_class ?? node.resource_name ?? "unknown";
+      if (!byResource.has(key)) {
+        byResource.set(key, {
+          resource_class: node.resource_class,
+          resource_name: node.resource_name,
+          node_count: 0,
+          by_purity: { pure: 0, normal: 0, impure: 0, unknown: 0 },
+          purity_weight_total: 0,
+          nearest_distance_meters: Infinity,
+          nearest_actor_id: null,
+        });
+      }
+      const entry = byResource.get(key);
+      const weight = PURITY_EXTRACTION_WEIGHT[node.purity] ?? 1;
+      entry.node_count += 1;
+      entry.by_purity[node.purity] = (entry.by_purity[node.purity] ?? 0) + 1;
+      entry.purity_weight_total += weight;
+      purityWeightTotal += weight;
+      if (distanceCm / 100 < entry.nearest_distance_meters) {
+        entry.nearest_distance_meters = distanceCm / 100;
+        entry.nearest_actor_id = node.actor_id;
+      }
+    }
+
+    if (byResource.size === 0) continue;
+
+    const resources = [...byResource.values()].map((entry) => ({
+      ...entry,
+      nearest_distance_meters: round(entry.nearest_distance_meters, 2),
+      purity_weight_total: round(entry.purity_weight_total, 3),
+    }));
+    resources.sort((a, b) => b.purity_weight_total - a.purity_weight_total);
+
+    const missingRequired = [];
+    if (required) {
+      for (const query of required) {
+        const found = resources.some((entry) =>
+          matchesResourceQuery({ resource_name: entry.resource_name, resource_class: entry.resource_class }, query),
+        );
+        if (!found) missingRequired.push(query);
+      }
+    }
+    const coverageFraction = required ? (required.length - missingRequired.length) / required.length : 1;
+
+    const meanNearestMeters =
+      resources.reduce((total, entry) => total + entry.nearest_distance_meters, 0) / resources.length;
+
+    const diversityScore = scoreWeights.resource_diversity * resources.length;
+    const purityScore = scoreWeights.purity_weighted_nodes * purityWeightTotal;
+    const coverageScore = scoreWeights.required_coverage * coverageFraction;
+    const distancePenalty = scoreWeights.distance_penalty_per_100m * (meanNearestMeters / 100);
+    const score = diversityScore + purityScore + coverageScore - distancePenalty;
+
+    sites.push({
+      center_cm: candidate.location,
+      candidate_origin: candidate.origin,
+      anchor_actor_id: candidate.actor_id,
+      score: round(score, 3),
+      score_breakdown: {
+        resource_diversity: round(diversityScore, 3),
+        purity_weighted_nodes: round(purityScore, 3),
+        required_coverage: round(coverageScore, 3),
+        distance_penalty: round(-distancePenalty, 3),
+        formula: "diversity + purity_weighted_nodes + required_coverage - distance_penalty",
+      },
+      distinct_resources: resources.length,
+      total_purity_weight: round(purityWeightTotal, 3),
+      mean_nearest_distance_meters: round(meanNearestMeters, 2),
+      distance_to_player_meters: playerLocation
+        ? round(
+            Math.hypot(
+              candidate.location.x - playerLocation.x,
+              candidate.location.y - playerLocation.y,
+              candidate.location.z - playerLocation.z,
+            ) / 100,
+            2,
+          )
+        : null,
+      resources_in_radius: resources,
+      missing_required_resources: missingRequired,
+      meets_all_required: missingRequired.length === 0,
+    });
+  }
+
+  sites.sort((a, b) => b.score - a.score);
+  const ranked = sites.slice(0, Math.max(1, Math.trunc(top) || 5)).map((site, index) => ({
+    rank: index + 1,
+    ...site,
+  }));
+
+  const scanRadius = finiteNumber(graph.snapshot?.world?.scan_radius_meters);
+  const partialWorld = scanRadius !== null && scanRadius > 0;
+
+  return {
+    solver: "site_selection",
+    world_revision: graph.world_revision,
+    query: {
+      radius_meters: radiusMeters,
+      top,
+      required_resources: required,
+      include_deposits,
+      weights: scoreWeights,
+      center: center ?? null,
+    },
+    resource_node_totals: {
+      captured: allNodes.length,
+      usable: usableNodes.length,
+      occupied: allNodes.filter((node) => node.occupied).length,
+      deposits_excluded: include_deposits ? 0 : allNodes.filter((node) => !node.minable).length,
+    },
+    candidates_evaluated: candidates.length,
+    sites: ranked,
+    scoring_basis: {
+      purity_extraction_weights: PURITY_EXTRACTION_WEIGHT,
+      purity_weight_source: "documented_extraction_multipliers_not_snapshot_facts",
+      note: "Ranking depends on these weights. Different weights give a different winner; the score breakdown shows exactly how each site earned its total.",
+    },
+    not_captured: {
+      terrain_flatness: "Ground slope and buildable area are not in the snapshot.",
+      obstructions: "Cliffs, water, and foliage blocking a footprint are not captured.",
+      water_availability: "Water extractors sit on water surfaces, not nodes, so water access is unknown.",
+      hostile_creatures: "Creature locations are not captured.",
+      consequence:
+        "This ranks resource access only. Confirm the winning spot is actually flat and buildable before committing.",
+    },
+    completeness_warning: partialWorld
+      ? `The snapshot was captured with a ${scanRadius} m scan radius, so this ranks only what was inside that bubble and cannot answer a world-scale siting question. Recapture with the whole-world snapshot before trusting it.`
+      : null,
+    source: "deterministic_geometry_over_authoritative_resource_nodes",
+    certainty: "calculated",
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Full report
  * ------------------------------------------------------------------ */
 

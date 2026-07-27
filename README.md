@@ -46,7 +46,17 @@ explicit unknown with the missing field named.
 | `get_power_circuits` | capacity, headroom, fuse state, battery runtime |
 | `diagnose_bottlenecks` | why a machine is stopped, and the upstream root cause |
 | `get_build_cost` | construction cost against captured player inventories |
+| `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | purchased schematics and tech tier |
+
+Siting questions are computed, not eyeballed. Ask *"where should I put the HUB?"*
+and `find_best_site` scores every usable resource node as a candidate centre by
+resource diversity, purity-weighted node count, coverage of the resources you
+named, and distance cost — returning exact coordinates, the runners-up, and the
+per-factor breakdown. Occupied nodes and hand-mined `Deposit` nodes are excluded,
+because a miner cannot be placed on either. Terrain flatness, obstructions, and
+water access are **not** captured and are reported as unknown, so confirm the
+winning spot is actually buildable before committing to it.
 
 Rates come from each machine's live production cycle time, so overclocking is
 never double-counted; production boost applies to products only; liquid and gas

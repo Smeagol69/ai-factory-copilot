@@ -13,6 +13,7 @@ import {
   solveMachineRates,
   solvePowerCircuits,
   solveRecipeOptions,
+  solveSiteSelection,
   solveTransportCapacity,
   solveUnlockStatus,
 } from "./solvers.mjs";
@@ -133,6 +134,38 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => solveBuildCost(graph, args),
+  },
+  {
+    name: "find_best_site",
+    description:
+      "Ranks places to build, scoring every candidate by the resource nodes within a radius: distinct resource types, purity-weighted node count, coverage of resources you require, and distance cost. Returns exact coordinates, the ranked runners-up, and the full score breakdown. Use this for any 'where should I put my HUB / base / factory' question instead of judging coordinates yourself. Terrain flatness and water access are not captured and are reported as unknown.",
+    parameters: {
+      type: "object",
+      properties: {
+        radius_meters: {
+          type: "number",
+          description: "How far from a candidate a node still counts as usable. Defaults to 300.",
+        },
+        top: { type: "number", description: "How many ranked sites to return. Defaults to 5." },
+        required_resources: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Resource names or class substrings that must be present, e.g. [\"Iron Ore\",\"Copper Ore\",\"Limestone\"] for a starter HUB. Sites missing any are reported but scored down.",
+        },
+        include_deposits: {
+          type: "boolean",
+          description: "Include hand-mined Deposit nodes, which cannot host a miner. Defaults to false.",
+        },
+        center: {
+          type: "object",
+          description: "Score one specific location instead of searching, as {x, y, z} in centimetres.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) => solveSiteSelection(graph, args),
   },
   {
     name: "get_unlock_status",

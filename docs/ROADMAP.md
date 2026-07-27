@@ -40,7 +40,9 @@ can never describe data the model was not given.
   invalid, inefficient, or unknown and walks upstream to the machine that
   actually has to change
 - construction-cost checks against captured player inventories
-- eight solver tools exposed to both providers, with bounded tool results that
+- site selection: ranks build locations by surrounding resource access, with
+  occupied and hand-mined nodes excluded and terrain declared unknown
+- nine solver tools exposed to both providers, with bounded tool results that
   report their own truncation
 - `POST /v1/analyze` for the whole solver report with no model involved
 - mock mode runs the solvers, so their output is verifiable without an API key
@@ -63,10 +65,23 @@ against the exact Starter Project headers before use.
 
 ## Next: spatial planning
 
+Site selection landed in 0.3.0 as the first piece: `find_best_site` scores every
+usable resource node as a candidate centre by resource diversity, purity-weighted
+node count, required-resource coverage, and distance cost, excluding occupied
+nodes and hand-mined `Deposit` nodes. It answers "where should the HUB go" with
+exact coordinates and an auditable breakdown.
+
+What it deliberately does not claim: terrain slope, obstructions, buildable
+footprint, and water access are absent from the snapshot and are returned as
+explicit unknowns. Closing that needs `LineTraceSingleByChannel` terrain sampling
+in the scanner, which is the real blocker for the rest of this stage.
+
+Remaining:
+
+- terrain and obstruction sampling (blocks everything below)
 - foundation-grid coordinate system
 - building clearance extraction
 - connection-port transforms
-- terrain and obstruction sampling
 - belt/pipe route generation
 - layout objective profiles
 - future expansion reservations
