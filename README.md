@@ -123,6 +123,21 @@ $env:AI_PROVIDER = 'mock'
 node server.mjs
 ```
 
+Free and unlimited, using any OpenAI-compatible local server (Ollama, LM Studio,
+llama.cpp, vLLM) — no key, no rate limits, no cost:
+
+```powershell
+cd companion
+$env:AI_PROVIDER = 'local'
+$env:LOCAL_AI_MODEL = 'qwen3'
+node server.mjs
+```
+
+`LOCAL_AI_BASE_URL` defaults to Ollama's `http://127.0.0.1:11434/v1`. Pick a model
+that supports tool calling, since the solvers are tools; with one that does not,
+set `LOCAL_AI_TOOLS=false` and the bridge will label its numbers unverified rather
+than passing them off as computed.
+
 OpenAI:
 
 ```powershell

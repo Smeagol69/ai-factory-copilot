@@ -2,7 +2,7 @@ import http from "node:http";
 import { pathToFileURL } from "node:url";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askProvider } from "./lib/providers.mjs";
-import { compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
+import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
 import { resolveSourcePolicy } from "./lib/sources.mjs";
 import { SOLVER_TOOLS } from "./lib/tools.mjs";
@@ -59,6 +59,11 @@ export function createBridgeServer({ env = process.env } = {}) {
     100,
   );
   const maximumSessions = Math.min(positiveInteger(env.AIFACTORY_MAX_SESSIONS, 64), 1000);
+  // "lean" keeps the catalog and reflection on the bridge for the solvers; "full"
+  // restores the original behaviour of sending the compacted snapshot itself.
+  const payloadView = String(env.AIFACTORY_PAYLOAD ?? "lean").toLowerCase();
+  const leanMaxActors = positiveInteger(env.AIFACTORY_LEAN_MAX_ACTORS, 120);
+  const leanMaxCharacters = positiveInteger(env.AIFACTORY_LEAN_MAX_CHARS, 200_000);
   const conveyorSpeedDivisor = Number.parseFloat(env.AIFACTORY_BELT_SPEED_DIVISOR ?? "") || 2;
   const graphOptions = { conveyorSpeedDivisor };
   const sessions = new Map();
@@ -154,25 +159,31 @@ export function createBridgeServer({ env = process.env } = {}) {
         });
       }
 
-      const compacted = compactSnapshot(
-        body.world_snapshot,
-        body.question,
-        maximumSnapshotCharacters,
-      );
+      // The solvers read the complete snapshot; only the model's view is reduced.
+      // A whole-world content catalog runs to hundreds of thousands of tokens and
+      // is answered better by a solver than by the model reading raw JSON.
+      const graph = buildGraph(body.world_snapshot, graphOptions);
+      const view =
+        payloadView === "full"
+          ? compactSnapshot(body.world_snapshot, body.question, maximumSnapshotCharacters)
+          : (() => {
+              const lean = buildLeanPayload(body.world_snapshot, {
+                maxActors: leanMaxActors,
+                maxCharacters: leanMaxCharacters,
+              });
+              return { snapshot: lean.payload, serialized: lean.serialized, omissions: lean.omissions };
+            })();
+
       const sessionId = String(body.session_id || "default").trim().slice(0, 256);
       const history = sessions.get(sessionId) ?? [];
-
-      // The solvers run on the same compacted snapshot the model is shown, so a
-      // tool result can never describe data the model was not given.
-      const graph = buildGraph(compacted.snapshot, graphOptions);
       const context = {
         question: body.question.trim(),
-        snapshot: compacted.snapshot,
-        serializedSnapshot: compacted.serialized,
-        serializedDerivedFacts: JSON.stringify(deriveSnapshotFacts(compacted.snapshot)),
+        snapshot: view.snapshot,
+        serializedSnapshot: view.serialized,
+        serializedDerivedFacts: JSON.stringify(deriveSnapshotFacts(view.snapshot)),
         serializedAnalysisDigest: JSON.stringify(deriveAnalysisDigest(graph)),
-        omissions: compacted.omissions,
-        summary: summarizeSnapshot(compacted.snapshot),
+        omissions: view.omissions,
+        summary: summarizeSnapshot(body.world_snapshot),
         graph,
         history,
       };
@@ -201,7 +212,8 @@ export function createBridgeServer({ env = process.env } = {}) {
         bridge_received_at_utc: bridgeReceivedAtUtc,
         bridge_answered_at_utc: new Date().toISOString(),
         retained_history_messages: sessions.get(sessionId)?.length ?? 0,
-        omissions: compacted.omissions,
+        omissions: view.omissions,
+        payload_view: payloadView,
         solver_calls: answer.solver_calls ?? [],
       });
     } catch (error) {

@@ -112,9 +112,15 @@ answers questions about it:
 
 Three rules keep the layer honest:
 
-1. **Solvers see exactly what the model sees.** The graph is built from the
-   *compacted* snapshot, after bridge omissions. A solver can never cite data the
-   model was not given.
+1. **Solvers see more than the model.** The graph is built from the *complete*
+   snapshot; the model gets a lean view. On a real save the item and recipe
+   catalog is around 700,000 tokens on its own — far past any context window, and
+   answered better by a solver than by the model reading raw JSON. So the catalog
+   and Unreal reflection stay on the bridge, and the model receives grounding,
+   the analysis digest, and the actors nearest to it: about 95× smaller.
+   Every omission is declared and names the solver that serves it, and the model
+   is told that an absence in its view is not an absence in the world. Set
+   `AIFACTORY_PAYLOAD=full` to send the compacted snapshot itself instead.
 2. **Derived values carry their basis.** Rates come from each machine's live
    `production_cycle_seconds`, which already includes overclocking, so potential
    is never multiplied in twice. Liquid and gas registry amounts are divided by
@@ -136,6 +142,23 @@ stop the walk.
 
 `POST /v1/analyze` returns the whole report with no model involved, and mock mode
 runs the solvers, so both are verifiable without an API key.
+
+## Providers
+
+| `AI_PROVIDER` | Endpoint | Notes |
+|---|---|---|
+| `mock` | none | Runs the solvers only; no key needed |
+| `local` / `ollama` | OpenAI-compatible Chat Completions | Free, no key, no rate limit. Needs `LOCAL_AI_MODEL` |
+| `openai` | Responses API | Web search plus solver tools |
+| `anthropic` | Messages API | Adaptive thinking, domain-restricted search |
+
+Tool definitions differ by surface and are generated separately: flat for the
+Responses API, nested under `function` for Chat Completions, and `input_schema`
+for the Messages API. All three dispatch into the same solvers.
+
+A 429 or 529 is transient, so the bridge waits for the interval the provider
+reports in `retry-after` / `retry-after-ms` and retries, bounded by
+`AIFACTORY_MAX_RATE_LIMIT_RETRIES`, rather than surfacing an error in the panel.
 
 ## AI provider isolation
 

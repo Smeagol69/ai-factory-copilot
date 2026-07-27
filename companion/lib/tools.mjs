@@ -262,6 +262,22 @@ export function openAIToolDefinitions() {
   }));
 }
 
+/**
+ * Chat Completions tool shape, nested under `function` — this is what
+ * OpenAI-compatible local servers (Ollama, LM Studio, llama.cpp) expect, and it
+ * differs from the flat Responses API shape above.
+ */
+export function chatCompletionsToolDefinitions() {
+  return SOLVER_TOOLS.map((tool) => ({
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    },
+  }));
+}
+
 /** Messages API tool shape. */
 export function anthropicToolDefinitions() {
   return SOLVER_TOOLS.map((tool) => ({

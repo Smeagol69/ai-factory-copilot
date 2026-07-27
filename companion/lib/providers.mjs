@@ -6,6 +6,7 @@ import {
 } from "./sources.mjs";
 import {
   anthropicToolDefinitions,
+  chatCompletionsToolDefinitions,
   openAIToolDefinitions,
   runSolverTool,
 } from "./tools.mjs";
@@ -63,10 +64,14 @@ factory arithmetic yourself:
 Never rank locations or estimate a distance by reading coordinates yourself;
 find_best_site computes both. If it warns that the snapshot was radius-limited,
 say the world was only partly captured instead of naming a winner.
-The solvers read the same current-turn snapshot you were given. If a solver
-reports a value as unresolved, unknown, or truncated, say so instead of
-substituting an estimate. If a solver contradicts your expectation, the solver
-is correct. State numbers with their unit exactly as the solver returned them.
+The solvers read the complete current-turn snapshot, which is larger than the
+view you were given: the full item and recipe catalog, every actor, and Unreal
+reflection all stay on the bridge for them. So an item, recipe, or machine absent
+from your view is not absent from the world — ask a solver before saying anything
+does not exist. If a solver reports a value as unresolved, unknown, or truncated,
+say so instead of substituting an estimate. If a solver contradicts your
+expectation, the solver is correct. State numbers with their unit exactly as the
+solver returned them.
 
 Diagnose with exact actor_id, class_path, owner_mod, recipe, rates, coordinates,
 and connection records when useful. Distinguish invalid, inefficient, and
@@ -121,6 +126,40 @@ export function providerMessages(context) {
     .filter((entry) => entry?.role === "user" || entry?.role === "assistant")
     .map((entry) => ({ role: entry.role, content: String(entry.text ?? "") }));
   return [...history, { role: "user", content: userInput(context) }];
+}
+
+const DEFAULT_MAXIMUM_RATE_LIMIT_RETRIES = 3;
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+/** Providers report how long to wait; prefer that over a guessed backoff. */
+function retryAfterMilliseconds(response, attempt) {
+  const headerMs = Number.parseFloat(response.headers?.get?.("retry-after-ms") ?? "");
+  if (Number.isFinite(headerMs) && headerMs > 0) return Math.min(headerMs, 60_000);
+  const headerSeconds = Number.parseFloat(response.headers?.get?.("retry-after") ?? "");
+  if (Number.isFinite(headerSeconds) && headerSeconds > 0) {
+    return Math.min(headerSeconds * 1000, 60_000);
+  }
+  return Math.min(2 ** attempt * 1000, 30_000);
+}
+
+/**
+ * A token-per-minute limit is transient: the provider says how long to wait, so
+ * the bridge waits rather than surfacing an error in the game panel.
+ */
+async function fetchWithRateLimitRetry(url, init, env = process.env) {
+  const maximumRetries =
+    Number.parseInt(env.AIFACTORY_MAX_RATE_LIMIT_RETRIES ?? "", 10) ||
+    DEFAULT_MAXIMUM_RATE_LIMIT_RETRIES;
+
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 && response.status !== 529) return response;
+    if (attempt >= maximumRetries) return response;
+    await sleep(retryAfterMilliseconds(response, attempt));
+  }
 }
 
 async function parseErrorResponse(response) {
@@ -220,14 +259,18 @@ export async function askOpenAI(context, env = process.env) {
       body.max_tool_calls = Number.parseInt(env.OPENAI_MAX_TOOL_CALLS ?? "", 10) || 12;
     }
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const response = await fetchWithRateLimitRetry(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+      env,
+    );
 
     if (!response.ok) {
       throw new Error(`OpenAI API HTTP ${response.status}: ${await parseErrorResponse(response)}`);
@@ -391,15 +434,19 @@ export async function askAnthropic(context, env = process.env) {
     const requestBody = { ...requestBase, messages };
     if (tools.length > 0) requestBody.tools = tools;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
+    const response = await fetchWithRateLimitRetry(
+      "https://api.anthropic.com/v1/messages",
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
       },
-      body: JSON.stringify(requestBody),
-    });
+      env,
+    );
 
     if (!response.ok) {
       throw new Error(`Anthropic API HTTP ${response.status}: ${await parseErrorResponse(response)}`);
@@ -468,6 +515,106 @@ export async function askAnthropic(context, env = process.env) {
   );
 }
 
+/**
+ * Any OpenAI-compatible Chat Completions endpoint — Ollama, LM Studio,
+ * llama.cpp, vLLM, or a hosted gateway. Free and rate-limit-free when the server
+ * is local, and it needs no API key.
+ *
+ * Solver accuracy depends on the model supporting tool calling. When it does not,
+ * the answer still has the deterministic digest to work from, and the bridge says
+ * so rather than letting the model invent numbers.
+ */
+export async function askLocal(context, env = process.env) {
+  const baseUrl = (env.LOCAL_AI_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/+$/, "");
+  const model = env.LOCAL_AI_MODEL;
+  if (!model) {
+    throw new Error(
+      "LOCAL_AI_MODEL must be set to a model your local server has pulled (for example: ollama pull qwen3, then LOCAL_AI_MODEL=qwen3).",
+    );
+  }
+
+  const maximumSolverRounds =
+    Number.parseInt(env.AIFACTORY_MAX_SOLVER_ROUNDS ?? "", 10) || DEFAULT_MAXIMUM_SOLVER_ROUNDS;
+  const toolsEnabled = Boolean(context.graph) && envFlag(env.LOCAL_AI_TOOLS, true);
+
+  const messages = [
+    { role: "system", content: buildSystemInstructions(env) },
+    ...providerMessages(context),
+  ];
+  const solverCalls = [];
+
+  for (let round = 0; round <= maximumSolverRounds; round += 1) {
+    const body = { model, messages, stream: false };
+    if (toolsEnabled) {
+      body.tools = chatCompletionsToolDefinitions();
+      body.tool_choice = "auto";
+    }
+    if (env.LOCAL_AI_MAX_TOKENS) {
+      body.max_tokens = Number.parseInt(env.LOCAL_AI_MAX_TOKENS, 10);
+    }
+
+    const headers = { "Content-Type": "application/json" };
+    // Local servers ignore the key; hosted OpenAI-compatible gateways need one.
+    if (env.LOCAL_AI_API_KEY) headers.Authorization = `Bearer ${env.LOCAL_AI_API_KEY}`;
+
+    const response = await fetchWithRateLimitRetry(
+      `${baseUrl}/chat/completions`,
+      { method: "POST", headers, body: JSON.stringify(body) },
+      env,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Local AI server HTTP ${response.status} at ${baseUrl}: ${await parseErrorResponse(response)}`,
+      );
+    }
+
+    const json = await response.json();
+    const message = json?.choices?.[0]?.message;
+    if (!message) throw new Error("Local AI server returned no choices.");
+
+    const toolCalls = message.tool_calls ?? [];
+    if (toolCalls.length === 0) {
+      const reply = String(message.content ?? "").trim();
+      if (!reply) throw new Error("Local AI server returned no message content.");
+      return {
+        reply: toolsEnabled
+          ? reply
+          : `${reply}\n\nNote: solver tools are disabled for this local model, so any number above that did not come from the deterministic digest is unverified.`,
+        provider: "local",
+        model,
+        sources: [],
+        solver_calls: solverCalls,
+      };
+    }
+
+    messages.push(message);
+    for (const call of toolCalls) {
+      let parsedArguments = {};
+      try {
+        parsedArguments = JSON.parse(call.function?.arguments || "{}");
+      } catch {
+        parsedArguments = {};
+      }
+      const result = runSolverTool(context.graph, call.function?.name, parsedArguments);
+      solverCalls.push({
+        tool: call.function?.name,
+        arguments: parsedArguments,
+        truncated: result.truncated,
+        result_characters: result.serialized.length,
+      });
+      messages.push({
+        role: "tool",
+        tool_call_id: call.id,
+        content: result.serialized,
+      });
+    }
+  }
+
+  throw new Error(
+    `Local AI model kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
+  );
+}
+
 export async function askMock(context) {
   const summary = context.summary;
   const owners = Object.entries(summary.actors_by_owner_mod ?? {})
@@ -523,6 +670,9 @@ export async function askMock(context) {
 export async function askProvider(provider, context, env = process.env) {
   if (provider === "openai") return askOpenAI(context, env);
   if (provider === "anthropic") return askAnthropic(context, env);
+  if (provider === "local" || provider === "ollama") return askLocal(context, env);
   if (provider === "mock") return askMock(context);
-  throw new Error(`Unsupported AI_PROVIDER "${provider}". Use mock, openai, or anthropic.`);
+  throw new Error(
+    `Unsupported AI_PROVIDER "${provider}". Use mock, local, openai, or anthropic.`,
+  );
 }
