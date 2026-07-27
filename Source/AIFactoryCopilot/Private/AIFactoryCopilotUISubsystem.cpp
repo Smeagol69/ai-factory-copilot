@@ -1,0 +1,549 @@
+#include "AIFactoryCopilotUISubsystem.h"
+
+#include "AIFactorySettings.h"
+#include "AIFactorySnapshot.h"
+#include "AIFactorySubsystem.h"
+#include "Command/CommandSender.h"
+#include "Containers/Ticker.h"
+#include "Engine/GameInstance.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
+#include "FGCharacterPlayer.h"
+#include "FGPlayerController.h"
+#include "FGUseableInterface.h"
+#include "Framework/Application/IInputProcessor.h"
+#include "Framework/Application/SlateApplication.h"
+#include "GameFramework/Pawn.h"
+#include "InputCoreTypes.h"
+#include "Player/SMLRemoteCallObject.h"
+#include "Styling/CoreStyle.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Text/STextBlock.h"
+
+namespace
+{
+    class FAIFactoryInputProcessor final : public IInputProcessor
+    {
+    public:
+        explicit FAIFactoryInputProcessor(UAIFactoryCopilotUISubsystem* InOwner)
+            : Owner(InOwner)
+        {
+        }
+
+        virtual void Tick(
+            const float DeltaTime,
+            FSlateApplication& SlateApplication,
+            TSharedRef<ICursor> Cursor) override
+        {
+        }
+
+        virtual bool HandleKeyDownEvent(
+            FSlateApplication& SlateApplication,
+            const FKeyEvent& InKeyEvent) override
+        {
+            if (!Owner.IsValid())
+            {
+                return false;
+            }
+            if (InKeyEvent.GetKey() == EKeys::Insert)
+            {
+                Owner->TogglePanel();
+                return true;
+            }
+            if (InKeyEvent.GetKey() == EKeys::Escape && Owner->IsPanelVisible())
+            {
+                Owner->HidePanel();
+                return true;
+            }
+            return false;
+        }
+
+    private:
+        TWeakObjectPtr<UAIFactoryCopilotUISubsystem> Owner;
+    };
+}
+
+void UAIFactoryCopilotUISubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+    Super::Initialize(Collection);
+
+    if (FSlateApplication::IsInitialized())
+    {
+        InputProcessor = MakeShared<FAIFactoryInputProcessor>(this);
+        FSlateApplication::Get().RegisterInputPreProcessor(InputProcessor, 0);
+    }
+
+    TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateUObject(this, &UAIFactoryCopilotUISubsystem::Tick),
+        0.2f);
+}
+
+void UAIFactoryCopilotUISubsystem::Deinitialize()
+{
+    HidePanel();
+
+    if (BoundSubsystem.IsValid() && BridgeResultHandle.IsValid())
+    {
+        BoundSubsystem->OnBridgeResult.Remove(BridgeResultHandle);
+    }
+    BridgeResultHandle.Reset();
+    BoundSubsystem.Reset();
+
+    if (TickerHandle.IsValid())
+    {
+        FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+        TickerHandle.Reset();
+    }
+
+    if (InputProcessor.IsValid() && FSlateApplication::IsInitialized())
+    {
+        FSlateApplication::Get().UnregisterInputPreProcessor(InputProcessor);
+    }
+    InputProcessor.Reset();
+    RootWidget.Reset();
+    InputBox.Reset();
+    TranscriptBox.Reset();
+    LiveStatusText.Reset();
+    RequestStatusText.Reset();
+
+    Super::Deinitialize();
+}
+
+void UAIFactoryCopilotUISubsystem::BuildPanel()
+{
+    if (RootWidget.IsValid())
+    {
+        return;
+    }
+
+    Transcript =
+        TEXT("COPILOT\n")
+        TEXT("I read the save directly. Every Send captures the whole world, your exact position, ")
+        TEXT("camera, and current interaction target. External search is labeled separately.\n");
+
+    RootWidget =
+        SNew(SOverlay)
+        + SOverlay::Slot()
+        .HAlign(HAlign_Right)
+        .VAlign(VAlign_Center)
+        .Padding(FMargin(32.0f))
+        [
+            SNew(SBox)
+            .WidthOverride(760.0f)
+            .HeightOverride(700.0f)
+            [
+                SNew(SBorder)
+                .Padding(FMargin(18.0f))
+                .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
+                .BorderBackgroundColor(FLinearColor(0.025f, 0.035f, 0.045f, 0.985f))
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0.0f, 0.0f, 0.0f, 10.0f)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .FillWidth(1.0f)
+                        .VAlign(VAlign_Center)
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(FText::FromString(TEXT("AI FACTORY COPILOT")))
+                                .ColorAndOpacity(FLinearColor(0.92f, 0.96f, 1.0f, 1.0f))
+                                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 20))
+                            ]
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            .Padding(0.0f, 3.0f, 0.0f, 0.0f)
+                            [
+                                SAssignNew(LiveStatusText, STextBlock)
+                                .Text(FText::FromString(TEXT("LIVE | waiting for a player")))
+                                .ColorAndOpacity(FLinearColor(0.25f, 0.86f, 0.63f, 1.0f))
+                                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+                            ]
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(8.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                            .Text(FText::FromString(TEXT("Reset")))
+                            .OnClicked_Lambda([this]()
+                            {
+                                ClearConversation();
+                                return FReply::Handled();
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        [
+                            SNew(SButton)
+                            .Text(FText::FromString(TEXT("Close")))
+                            .OnClicked_Lambda([this]()
+                            {
+                                HidePanel();
+                                return FReply::Handled();
+                            })
+                        ]
+                    ]
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    [
+                        SNew(SSeparator)
+                    ]
+                    + SVerticalBox::Slot()
+                    .FillHeight(1.0f)
+                    .Padding(0.0f, 12.0f)
+                    [
+                        SAssignNew(TranscriptBox, SMultiLineEditableTextBox)
+                        .Text(FText::FromString(Transcript))
+                        .IsReadOnly(true)
+                        .AutoWrapText(true)
+                        .AlwaysShowScrollbars(true)
+                        .BackgroundColor(FLinearColor(0.045f, 0.06f, 0.075f, 1.0f))
+                        .ForegroundColor(FLinearColor(0.92f, 0.94f, 0.96f, 1.0f))
+                    ]
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+                    [
+                        SAssignNew(RequestStatusText, STextBlock)
+                        .Text(FText::FromString(
+                            TEXT("Ready | Insert closes | Enter sends | advisory/read-only")))
+                        .ColorAndOpacity(FLinearColor(0.62f, 0.68f, 0.73f, 1.0f))
+                        .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+                    ]
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .FillWidth(1.0f)
+                        .Padding(0.0f, 0.0f, 10.0f, 0.0f)
+                        [
+                            SAssignNew(InputBox, SEditableTextBox)
+                            .HintText(FText::FromString(
+                                TEXT("Ask about this, here, your factory, a mod, or outside information...")))
+                            .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
+                            {
+                                if (CommitType == ETextCommit::OnEnter)
+                                {
+                                    SubmitQuestion();
+                                }
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        [
+                            SNew(SButton)
+                            .Text(FText::FromString(TEXT("Send")))
+                            .OnClicked_Lambda([this]()
+                            {
+                                SubmitQuestion();
+                                return FReply::Handled();
+                            })
+                        ]
+                    ]
+                ]
+            ]
+        ];
+}
+
+void UAIFactoryCopilotUISubsystem::TogglePanel()
+{
+    if (bPanelVisible)
+    {
+        HidePanel();
+    }
+    else
+    {
+        ShowPanel();
+    }
+}
+
+void UAIFactoryCopilotUISubsystem::ShowPanel()
+{
+    if (bPanelVisible)
+    {
+        return;
+    }
+
+    BuildPanel();
+    UGameInstance* GameInstance = GetGameInstance();
+    UGameViewportClient* Viewport =
+        IsValid(GameInstance) ? GameInstance->GetGameViewportClient() : nullptr;
+    AFGPlayerController* PlayerController = GetLocalPlayerController();
+    if (!IsValid(Viewport) || !RootWidget.IsValid() || !IsValid(PlayerController))
+    {
+        return;
+    }
+
+    Viewport->AddViewportWidgetContent(RootWidget.ToSharedRef(), 10000);
+    bPanelVisible = true;
+    bPreviousShowMouseCursor = PlayerController->bShowMouseCursor;
+    PlayerController->bShowMouseCursor = true;
+
+    FInputModeGameAndUI InputMode;
+    InputMode.SetHideCursorDuringCapture(false);
+    InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    InputMode.SetWidgetToFocus(InputBox);
+    PlayerController->SetInputMode(InputMode);
+    if (FSlateApplication::IsInitialized() && InputBox.IsValid())
+    {
+        FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
+    }
+    UpdateLiveStatus();
+}
+
+void UAIFactoryCopilotUISubsystem::HidePanel()
+{
+    if (!bPanelVisible)
+    {
+        return;
+    }
+
+    UGameInstance* GameInstance = GetGameInstance();
+    UGameViewportClient* Viewport =
+        IsValid(GameInstance) ? GameInstance->GetGameViewportClient() : nullptr;
+    if (IsValid(Viewport) && RootWidget.IsValid())
+    {
+        Viewport->RemoveViewportWidgetContent(RootWidget.ToSharedRef());
+    }
+
+    if (AFGPlayerController* PlayerController = GetLocalPlayerController())
+    {
+        PlayerController->bShowMouseCursor = bPreviousShowMouseCursor;
+        PlayerController->SetInputMode(FInputModeGameOnly());
+    }
+    bPanelVisible = false;
+}
+
+void UAIFactoryCopilotUISubsystem::SubmitQuestion()
+{
+    if (bWaitingForAnswer || !InputBox.IsValid())
+    {
+        return;
+    }
+
+    FString Question = InputBox->GetText().ToString().TrimStartAndEnd();
+    if (Question.IsEmpty())
+    {
+        return;
+    }
+
+    AFGPlayerController* PlayerController = GetLocalPlayerController();
+    UCommandSender* Sender = GetLocalCommandSender(PlayerController);
+    AAIFactorySubsystem* Subsystem = GetCopilotSubsystem();
+    if (!IsValid(PlayerController) || !IsValid(Sender) || !IsValid(Subsystem))
+    {
+        if (RequestStatusText.IsValid())
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("The save/player bridge is not ready yet. Load a save and try again.")));
+        }
+        return;
+    }
+
+    BindToBridge(Subsystem);
+    PendingSender = Sender;
+    bWaitingForAnswer = true;
+    InputBox->SetText(FText::GetEmpty());
+    AppendTranscript(TEXT("YOU"), Question);
+    if (RequestStatusText.IsValid())
+    {
+        RequestStatusText->SetText(FText::FromString(
+            TEXT("Capturing the authoritative world, exact position, and crosshair target...")));
+    }
+
+    const FAIFactorySettings& Settings = Subsystem->GetSettings();
+    FAIFactorySnapshotRequest Request;
+    Request.PlayerController = PlayerController;
+    Request.Center = IsValid(PlayerController->GetPawn())
+        ? PlayerController->GetPawn()->GetActorLocation()
+        : FVector::ZeroVector;
+    Request.RadiusMeters = Settings.DefaultScanRadiusMeters;
+    Request.bUseRadius = !Settings.bUIWholeWorldSnapshot;
+    Request.bIncludeContentCatalog = Settings.bIncludeContentCatalog;
+    Request.bIncludeReflectedProperties = Settings.bIncludeReflectedProperties;
+    Subsystem->AskBridge(Sender, Question, Request, false);
+}
+
+void UAIFactoryCopilotUISubsystem::ClearConversation()
+{
+    AFGPlayerController* PlayerController = GetLocalPlayerController();
+    UCommandSender* Sender = GetLocalCommandSender(PlayerController);
+    if (AAIFactorySubsystem* Subsystem = GetCopilotSubsystem(); IsValid(Subsystem) && IsValid(Sender))
+    {
+        Subsystem->ResetBridgeConversation(Sender);
+    }
+    Transcript =
+        TEXT("COPILOT\nConversation cleared. The next message will capture a new authoritative world state.\n");
+    if (TranscriptBox.IsValid())
+    {
+        TranscriptBox->SetText(FText::FromString(Transcript));
+    }
+    if (RequestStatusText.IsValid())
+    {
+        RequestStatusText->SetText(FText::FromString(TEXT("Conversation cleared.")));
+    }
+}
+
+void UAIFactoryCopilotUISubsystem::AppendTranscript(const FString& Speaker, const FString& Text)
+{
+    if (!Transcript.IsEmpty() && !Transcript.EndsWith(TEXT("\n")))
+    {
+        Transcript += TEXT("\n");
+    }
+    Transcript += FString::Printf(TEXT("\n%s\n%s\n"), *Speaker, *Text);
+    if (TranscriptBox.IsValid())
+    {
+        TranscriptBox->SetText(FText::FromString(Transcript));
+        TranscriptBox->ScrollTo(ETextLocation::EndOfDocument);
+    }
+}
+
+bool UAIFactoryCopilotUISubsystem::Tick(const float DeltaTime)
+{
+    if (bPanelVisible)
+    {
+        UpdateLiveStatus();
+    }
+    return true;
+}
+
+void UAIFactoryCopilotUISubsystem::UpdateLiveStatus()
+{
+    if (!LiveStatusText.IsValid())
+    {
+        return;
+    }
+
+    AFGPlayerController* PlayerController = GetLocalPlayerController();
+    APawn* Pawn = IsValid(PlayerController) ? PlayerController->GetPawn() : nullptr;
+    if (!IsValid(PlayerController) || !IsValid(Pawn))
+    {
+        LiveStatusText->SetText(FText::FromString(TEXT("LIVE | waiting for a controlled player")));
+        return;
+    }
+
+    AActor* FocusActor = nullptr;
+    if (AFGCharacterPlayer* Character = Cast<AFGCharacterPlayer>(PlayerController->GetControlledCharacter()))
+    {
+        if (FUseState* UseState = Character->GetCachedUseState();
+            UseState && UseState->bIsTraceHit)
+        {
+            FocusActor = UseState->UseHitResult.GetActor();
+        }
+    }
+
+    if (!IsValid(FocusActor))
+    {
+        FVector ViewLocation;
+        FRotator ViewRotation;
+        PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
+        FHitResult Hit;
+        FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(AIFactoryCopilotUILiveTrace), true, Pawn);
+        if (UWorld* World = PlayerController->GetWorld())
+        {
+            World->LineTraceSingleByChannel(
+                Hit,
+                ViewLocation,
+                ViewLocation + ViewRotation.Vector() * 25000.0,
+                ECC_Visibility,
+                QueryParams);
+            FocusActor = Hit.GetActor();
+        }
+    }
+
+    const FVector Location = Pawn->GetActorLocation() / 100.0;
+    const FString FocusName = IsValid(FocusActor) ? FocusActor->GetName() : TEXT("nothing");
+    LiveStatusText->SetText(FText::FromString(FString::Printf(
+        TEXT("LIVE | X %.2fm  Y %.2fm  Z %.2fm | looking at: %s"),
+        Location.X,
+        Location.Y,
+        Location.Z,
+        *FocusName)));
+}
+
+AFGPlayerController* UAIFactoryCopilotUISubsystem::GetLocalPlayerController() const
+{
+    const UGameInstance* GameInstance = GetGameInstance();
+    UWorld* World = IsValid(GameInstance) ? GameInstance->GetWorld() : nullptr;
+    return IsValid(World) ? Cast<AFGPlayerController>(World->GetFirstPlayerController()) : nullptr;
+}
+
+UCommandSender* UAIFactoryCopilotUISubsystem::GetLocalCommandSender(
+    AFGPlayerController* PlayerController) const
+{
+    if (!IsValid(PlayerController))
+    {
+        return nullptr;
+    }
+    USMLRemoteCallObject* RemoteCallObject = Cast<USMLRemoteCallObject>(
+        PlayerController->GetRemoteCallObjectOfClass(USMLRemoteCallObject::StaticClass()));
+    return IsValid(RemoteCallObject) ? RemoteCallObject->CommandSender : nullptr;
+}
+
+AAIFactorySubsystem* UAIFactoryCopilotUISubsystem::GetCopilotSubsystem() const
+{
+    AFGPlayerController* PlayerController = GetLocalPlayerController();
+    return IsValid(PlayerController) ? AAIFactorySubsystem::Get(PlayerController) : nullptr;
+}
+
+void UAIFactoryCopilotUISubsystem::BindToBridge(AAIFactorySubsystem* Subsystem)
+{
+    if (BoundSubsystem.Get() == Subsystem && BridgeResultHandle.IsValid())
+    {
+        return;
+    }
+    if (BoundSubsystem.IsValid() && BridgeResultHandle.IsValid())
+    {
+        BoundSubsystem->OnBridgeResult.Remove(BridgeResultHandle);
+    }
+    BoundSubsystem = Subsystem;
+    BridgeResultHandle = Subsystem->OnBridgeResult.AddUObject(
+        this,
+        &UAIFactoryCopilotUISubsystem::HandleBridgeResult);
+}
+
+void UAIFactoryCopilotUISubsystem::HandleBridgeResult(
+    UCommandSender* Sender,
+    const bool bSuccess,
+    const FString& Reply,
+    const FString& Provider,
+    const FString& Model)
+{
+    if (!PendingSender.IsValid() || PendingSender.Get() != Sender)
+    {
+        return;
+    }
+
+    PendingSender.Reset();
+    bWaitingForAnswer = false;
+    const FString Speaker = bSuccess
+        ? FString::Printf(TEXT("COPILOT  [%s / %s]"), *Provider, *Model)
+        : TEXT("COPILOT ERROR");
+    AppendTranscript(Speaker, Reply);
+    if (RequestStatusText.IsValid())
+    {
+        RequestStatusText->SetText(FText::FromString(
+            bSuccess
+                ? TEXT("Ready | answer grounded in the capture made when you pressed Send")
+                : TEXT("Request failed; the error is shown above.")));
+    }
+    if (bPanelVisible && InputBox.IsValid() && FSlateApplication::IsInitialized())
+    {
+        FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
+    }
+}

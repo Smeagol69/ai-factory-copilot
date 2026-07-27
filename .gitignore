@@ -1,0 +1,14 @@
+.vs/
+.upstream/
+.installer-test/
+.env
+node_modules/
+Saved/
+Intermediate/
+Binaries/
+DerivedDataCache/
+*.sln
+*.suo
+*.VC.db
+*.opensdf
+*.sdf

@@ -1,0 +1,14 @@
+{
+  "name": "aifactory-copilot-bridge",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Localhost-only AI bridge for the Satisfactory AI Factory Copilot mod.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
