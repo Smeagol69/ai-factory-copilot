@@ -7,8 +7,12 @@ model to identify machines from screenshots or guess undisclosed game state.
 
 This repository implements a working **read-only AI co-player**:
 
-- an Insert-toggled in-game conversation panel with transcript, input, and a
-  continuously updating exact player-position/current-focus status strip
+- an Insert-toggled in-game chat panel: type a question however you want to word
+  it, Enter to send, Shift+Enter for a new line, with a transcript, a live
+  elapsed indicator while the answer is being worked out, and a continuously
+  updating exact player-position/current-focus status strip
+- reasoning plus outside references: adaptive thinking, and web search
+  restricted to the official wiki, modding docs, and forums, cited in the answer
 - fresh whole-world capture for every panel message, including exact pawn,
   camera, crosshair hit, and Satisfactory cached interaction state
 - SML 3.12.0 native root module and server-authoritative mod subsystem
@@ -157,6 +161,30 @@ Invoke-RestMethod http://127.0.0.1:8142/health
 The health response lists the solver tools the bridge will offer the model. Mock
 mode runs the solvers too, so the deterministic analysis can be verified without
 any API key.
+
+## Outside references
+
+Save state answers most questions. When one genuinely needs outside knowledge —
+a recipe this save has not unlocked, a mod's documented behavior, a patch change,
+a community technique — the copilot searches, and by default it may only search
+the sources that are actually authoritative for Satisfactory:
+
+`satisfactorygame.com`, `questions.satisfactorygame.com`, `docs.ficsit.app`,
+`ficsit.app`, `satisfactory.wiki.gg`, `satisfactory.fandom.com`,
+`satisfactory-calculator.com`, `satisfactorytools.com`, `reddit.com`,
+`steamcommunity.com`
+
+On Anthropic this is enforced by the API through the search tool's
+`allowed_domains`, so an answer cannot cite anything off the list while the
+restriction is on. Pages used are cited under the reply. Three rules hold
+regardless of provider: the live save always outranks any page, the solvers
+outrank the model's own arithmetic, and a search failure is stated in the answer
+rather than passed off as a complete result.
+
+Override with `AIFACTORY_SOURCE_DOMAINS`, loosen with
+`AIFACTORY_RESTRICT_SOURCES=false`, or turn searching off entirely with
+`AIFACTORY_WEB_SEARCH=false` — the copilot then says search is off instead of
+answering from memory as though it were verified.
 
 The clean local installation uses `scripts/run-companion.ps1`. It selects
 OpenAI when `OPENAI_API_KEY` is available in the current user's environment,

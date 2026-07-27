@@ -163,6 +163,34 @@ each round; Anthropic gets the equivalent `tool_use`/`tool_result` turns. The lo
 stops after `AIFACTORY_MAX_SOLVER_ROUNDS` rounds rather than looping forever, and
 every solver call is reported back to the game in `solver_calls`.
 
+## Reasoning and outside references
+
+Reasoning is requested explicitly as adaptive thinking (`thinking:
+{type: "adaptive", display: "summarized"}`). A fixed thinking budget is not
+accepted by current models, and thinking tokens are drawn from `max_tokens` —
+which is why the Anthropic budget defaults to 16000. A small budget would spend
+the whole allowance on reasoning and truncate the answer.
+
+Web search is a server-side tool, so it costs no solver round, but it introduces
+two failure modes the bridge handles explicitly:
+
+1. **A paused turn.** A long search can exhaust its own iteration budget and
+   return `stop_reason: "pause_turn"` with the answer unfinished. The bridge
+   resends the assistant turn to resume it, bounded by
+   `AIFACTORY_MAX_PAUSE_RESUMES`, instead of returning a half-formed reply.
+2. **A failed search.** A search error arrives as a successful HTTP response
+   whose `web_search_tool_result.content` is a single error object rather than a
+   list of results. The bridge branches on that shape and states the failure in
+   the answer rather than silently omitting the references.
+
+Source restriction is enforced where the provider supports it: the Messages API
+search tool carries `allowed_domains`, so a restricted answer cannot cite a page
+outside the list. On the Responses API the restriction is carried in the prompt
+by default, because a filter shape the bridge has not verified could fail the
+whole request. `AIFACTORY_RESTRICT_SOURCES=false` loosens it to a preference;
+`AIFACTORY_WEB_SEARCH=false` removes the tool and tells the model to say so
+rather than answer from memory.
+
 ## Write-action architecture
 
 Future placement must not expose arbitrary Unreal mutation to the model. It

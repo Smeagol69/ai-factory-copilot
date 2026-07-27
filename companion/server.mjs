@@ -4,6 +4,7 @@ import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askProvider } from "./lib/providers.mjs";
 import { compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
+import { resolveSourcePolicy } from "./lib/sources.mjs";
 import { SOLVER_TOOLS } from "./lib/tools.mjs";
 
 const LOOPBACK_HOST = "127.0.0.1";
@@ -72,6 +73,15 @@ export function createBridgeServer({ env = process.env } = {}) {
           loopback_only: true,
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
           conveyor_speed_divisor: conveyorSpeedDivisor,
+          outside_references: (() => {
+            const policy = resolveSourcePolicy(env);
+            return {
+              web_search: policy.enabled,
+              restricted_to_official_sources: policy.restrictToOfficial,
+              source_domains: policy.domains,
+              using_configured_domains: policy.domainsAreConfigured,
+            };
+          })(),
         });
       }
 

@@ -1,10 +1,19 @@
 import {
+  anthropicWebSearchTool,
+  openAIWebSearchTool,
+  resolveSourcePolicy,
+  sourceInstructions,
+} from "./sources.mjs";
+import {
   anthropicToolDefinitions,
   openAIToolDefinitions,
   runSolverTool,
 } from "./tools.mjs";
 
 const DEFAULT_MAXIMUM_SOLVER_ROUNDS = 6;
+// A server-side search can pause a turn; each resume is bounded separately from
+// the solver rounds because it consumes no solver call.
+const DEFAULT_MAXIMUM_PAUSE_RESUMES = 4;
 
 export const SYSTEM_INSTRUCTIONS = `You are the player's conversational AI co-player inside Satisfactory.
 
@@ -21,6 +30,13 @@ Ground spatial language exactly:
   it refers to interaction_context.player.pawn_location.
 - If a referenced target is unavailable, ask the player to aim at it and resend.
 Never silently reuse an old target from conversation history.
+
+The player types freely and casually. Interpret loose, partial, or misspelled
+wording the way a knowledgeable friend sitting next to them would: map slang and
+shorthand to the real class and recipe names, accept a machine described by what
+it does rather than what it is called, and answer the question they meant. Ask
+for a clarification only when two readings would lead to genuinely different
+advice. Never tell the player to rephrase because their wording was informal.
 
 Use source layers correctly:
 - authoritative fields are captured game facts;
@@ -60,6 +76,16 @@ any unknowns. Be natural and concise enough for an in-game panel.
 The current release is advisory and read-only. Never claim you placed, removed,
 configured, or otherwise executed anything in the game. Never claim placement
 validity unless a deterministic game placement validator supplied that result.`;
+
+/**
+ * The system prompt for one request: the invariant rules plus the outside-source
+ * policy this bridge was configured with.
+ */
+export function buildSystemInstructions(env = process.env) {
+  return `${SYSTEM_INSTRUCTIONS}
+
+${sourceInstructions(resolveSourcePolicy(env))}`;
+}
 
 export function userInput({
   question,
@@ -157,19 +183,19 @@ export async function askOpenAI(context, env = process.env) {
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured in the companion environment.");
 
   const model = env.OPENAI_MODEL || "gpt-5.6-sol";
-  const webSearchEnabled = envFlag(env.OPENAI_WEB_SEARCH, true);
-  const webSearchContext = ["low", "medium", "high"].includes(env.OPENAI_WEB_SEARCH_CONTEXT)
-    ? env.OPENAI_WEB_SEARCH_CONTEXT
-    : "low";
   const maximumOutputTokens =
     Number.parseInt(env.OPENAI_MAX_OUTPUT_TOKENS ?? "", 10) || 2400;
   const maximumSolverRounds =
     Number.parseInt(env.AIFACTORY_MAX_SOLVER_ROUNDS ?? "", 10) || DEFAULT_MAXIMUM_SOLVER_ROUNDS;
+  const systemInstructions = buildSystemInstructions(env);
 
   const tools = [];
-  if (webSearchEnabled) {
-    tools.push({ type: "web_search", search_context_size: webSearchContext });
-  }
+  const policy = resolveSourcePolicy(env);
+  // OPENAI_WEB_SEARCH stays honoured for compatibility with existing configs.
+  const webSearchTool = envFlag(env.OPENAI_WEB_SEARCH, true)
+    ? openAIWebSearchTool(policy, env)
+    : null;
+  if (webSearchTool) tools.push(webSearchTool);
   if (context.graph) {
     tools.push(...openAIToolDefinitions());
   }
@@ -182,7 +208,7 @@ export async function askOpenAI(context, env = process.env) {
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
     const body = {
       model,
-      instructions: SYSTEM_INSTRUCTIONS,
+      instructions: systemInstructions,
       input,
       reasoning: { effort: env.OPENAI_REASONING_EFFORT || "medium" },
       text: { verbosity: env.OPENAI_VERBOSITY || "medium" },
@@ -262,6 +288,62 @@ export async function askOpenAI(context, env = process.env) {
   );
 }
 
+/**
+ * Pulls cited pages out of a Messages API response.
+ *
+ * A successful `web_search_tool_result` carries a list of results; a failed one
+ * carries a single error object instead, so the shape has to be checked before
+ * it is indexed. Search failures are surfaced rather than silently dropped.
+ */
+export function collectAnthropicSources(json, sources, searchErrors) {
+  const addSource = (url, title = "") => {
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+      sources.set(url, { url, title: typeof title === "string" ? title : "" });
+    }
+  };
+
+  for (const block of json?.content ?? []) {
+    if (block?.type === "web_search_tool_result") {
+      const content = block.content;
+      if (Array.isArray(content)) {
+        for (const result of content) {
+          if (result?.type === "web_search_result") addSource(result.url, result.title);
+        }
+      } else if (content && typeof content === "object") {
+        searchErrors.push({
+          error_code: content.error_code ?? "unknown",
+          tool_use_id: block.tool_use_id ?? null,
+        });
+      }
+      continue;
+    }
+    if (block?.type === "text") {
+      for (const citation of block.citations ?? []) {
+        addSource(citation?.url, citation?.title);
+      }
+    }
+  }
+}
+
+function formatSourceFooter(collected, searchErrors = []) {
+  const parts = [];
+  if (collected.length > 0) {
+    parts.push(
+      `External sources:\n${collected
+        .map((source) => `- ${source.title || source.url}: ${source.url}`)
+        .join("\n")}`,
+    );
+  }
+  if (searchErrors.length > 0) {
+    parts.push(
+      `Web search did not complete (${searchErrors
+        .map((entry) => entry.error_code)
+        .join(", ")}); outside references may be missing from this answer.`,
+    );
+  }
+  return parts.length > 0 ? `\n\n${parts.join("\n\n")}` : "";
+}
+
 export async function askAnthropic(context, env = process.env) {
   const apiKey = env.ANTHROPIC_API_KEY;
   const model = env.ANTHROPIC_MODEL;
@@ -272,21 +354,41 @@ export async function askAnthropic(context, env = process.env) {
     );
   }
 
-  const maximumTokens = Number.parseInt(env.ANTHROPIC_MAX_TOKENS ?? "", 10) || 1800;
+  // Thinking tokens are drawn from max_tokens, so a small budget here spends the
+  // whole allowance on reasoning and truncates the answer.
+  const maximumTokens = Number.parseInt(env.ANTHROPIC_MAX_TOKENS ?? "", 10) || 16000;
   const maximumSolverRounds =
     Number.parseInt(env.AIFACTORY_MAX_SOLVER_ROUNDS ?? "", 10) || DEFAULT_MAXIMUM_SOLVER_ROUNDS;
+  const maximumPauseResumes =
+    Number.parseInt(env.AIFACTORY_MAX_PAUSE_RESUMES ?? "", 10) || DEFAULT_MAXIMUM_PAUSE_RESUMES;
+
   const tools = context.graph ? anthropicToolDefinitions() : [];
+  const policy = resolveSourcePolicy(env);
+  const webSearchTool = anthropicWebSearchTool(policy, env);
+  if (webSearchTool) tools.push(webSearchTool);
+
+  const requestBase = {
+    model,
+    max_tokens: maximumTokens,
+    system: buildSystemInstructions(env),
+  };
+  // Adaptive thinking must be requested explicitly: on some current models
+  // omitting it means no thinking at all. budget_tokens is not accepted.
+  if (!["off", "disabled", "none"].includes(String(env.ANTHROPIC_THINKING ?? "").toLowerCase())) {
+    requestBase.thinking = { type: "adaptive", display: "summarized" };
+  }
+  if (env.ANTHROPIC_EFFORT) {
+    requestBase.output_config = { effort: env.ANTHROPIC_EFFORT };
+  }
 
   const messages = providerMessages(context);
   const solverCalls = [];
+  const sources = new Map();
+  const searchErrors = [];
+  let pauseResumes = 0;
 
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
-    const requestBody = {
-      model,
-      max_tokens: maximumTokens,
-      system: SYSTEM_INSTRUCTIONS,
-      messages,
-    };
+    const requestBody = { ...requestBase, messages };
     if (tools.length > 0) requestBody.tools = tools;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -303,7 +405,23 @@ export async function askAnthropic(context, env = process.env) {
       throw new Error(`Anthropic API HTTP ${response.status}: ${await parseErrorResponse(response)}`);
     }
     const json = await response.json();
+    collectAnthropicSources(json, sources, searchErrors);
     const toolUses = (json.content ?? []).filter((block) => block?.type === "tool_use");
+
+    // A server-side search can exhaust its own iteration budget and pause the
+    // turn. Resending the assistant turn resumes it; without this the answer
+    // would be returned half-finished with no error.
+    if (json.stop_reason === "pause_turn" && toolUses.length === 0) {
+      if (pauseResumes >= maximumPauseResumes) {
+        throw new Error(
+          `Anthropic paused the turn ${pauseResumes} times without finishing; the search may be looping.`,
+        );
+      }
+      pauseResumes += 1;
+      messages.push({ role: "assistant", content: json.content });
+      round -= 1;
+      continue;
+    }
 
     if (json.stop_reason !== "tool_use" || toolUses.length === 0) {
       const reply = (json.content ?? [])
@@ -312,9 +430,19 @@ export async function askAnthropic(context, env = process.env) {
         .join("\n")
         .trim();
       if (!reply) throw new Error("Anthropic returned no text content.");
-      return { reply, provider: "anthropic", model, sources: [], solver_calls: solverCalls };
+      const collected = [...sources.values()].slice(0, 8);
+      return {
+        reply: `${reply}${formatSourceFooter(collected, searchErrors)}`,
+        provider: "anthropic",
+        model,
+        sources: collected,
+        solver_calls: solverCalls,
+        search_errors: searchErrors,
+      };
     }
 
+    // Thinking and server-tool blocks travel back unchanged; only the client
+    // tool_use blocks get results.
     messages.push({ role: "assistant", content: json.content });
     const toolResults = [];
     for (const use of toolUses) {

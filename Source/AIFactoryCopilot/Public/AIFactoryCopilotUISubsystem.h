@@ -34,7 +34,8 @@ public:
 private:
     TSharedPtr<IInputProcessor> InputProcessor;
     TSharedPtr<SWidget> RootWidget;
-    TSharedPtr<SEditableTextBox> InputBox;
+    /** Multi-line so a question can be typed the way the player would say it. */
+    TSharedPtr<SMultiLineEditableTextBox> InputBox;
     TSharedPtr<SMultiLineEditableTextBox> TranscriptBox;
     TSharedPtr<STextBlock> LiveStatusText;
     TSharedPtr<STextBlock> RequestStatusText;
@@ -43,6 +44,7 @@ private:
     TWeakObjectPtr<AAIFactorySubsystem> BoundSubsystem;
     TWeakObjectPtr<UCommandSender> PendingSender;
     FString Transcript;
+    double RequestStartSeconds = 0.0;
     bool bPanelVisible = false;
     bool bWaitingForAnswer = false;
     bool bPreviousShowMouseCursor = false;

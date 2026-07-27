@@ -30,6 +30,7 @@ $requiredFiles = @(
     'companion\lib\graph.mjs',
     'companion\lib\solvers.mjs',
     'companion\lib\tools.mjs',
+    'companion\lib\sources.mjs',
     'scripts\package-local.ps1',
     'scripts\run-companion.ps1'
 )

@@ -31,6 +31,9 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
   assert.ok(body.solver_tools.includes("find_best_site"));
   assert.equal(body.solver_tools.length, 9);
+  assert.equal(body.outside_references.web_search, true);
+  assert.equal(body.outside_references.restricted_to_official_sources, true);
+  assert.ok(body.outside_references.source_domains.includes("docs.ficsit.app"));
 });
 
 test("ask endpoint accepts an authoritative snapshot", async () => {

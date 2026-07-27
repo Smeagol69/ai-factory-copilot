@@ -47,6 +47,21 @@ can never describe data the model was not given.
 - `POST /v1/analyze` for the whole solver report with no model involved
 - mock mode runs the solvers, so their output is verifiable without an API key
 
+## Implemented in 0.3.0: chat, reasoning, and cited sources
+
+- multi-line in-game input: type a question in your own words, Enter sends,
+  Shift+Enter adds a line, with a live elapsed indicator while the answer is
+  being worked out
+- the system prompt maps casual, partial, and misspelled wording onto real class
+  and recipe names instead of asking the player to rephrase
+- adaptive thinking requested explicitly, with `max_tokens` raised to match
+  because thinking is drawn from the same budget
+- web search restricted to the official wiki, modding docs, and forums, enforced
+  through the search tool's `allowed_domains` where the provider supports it
+- cited pages appended to the in-game reply; a failed search is stated rather
+  than passed off as a complete answer
+- paused search turns resumed instead of returned half-finished
+
 ### Known snapshot gaps
 
 These are the places the current scanner cannot answer, and each is reported as

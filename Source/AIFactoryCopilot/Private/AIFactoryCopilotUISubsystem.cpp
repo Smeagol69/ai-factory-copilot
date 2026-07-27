@@ -14,6 +14,7 @@
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/Pawn.h"
+#include "HAL/PlatformTime.h"
 #include "InputCoreTypes.h"
 #include "Player/SMLRemoteCallObject.h"
 #include "Styling/CoreStyle.h"
@@ -125,8 +126,10 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
 
     Transcript =
         TEXT("COPILOT\n")
-        TEXT("I read the save directly. Every Send captures the whole world, your exact position, ")
-        TEXT("camera, and current interaction target. External search is labeled separately.\n");
+        TEXT("Ask me anything, however you want to word it. I read the save directly: every Send ")
+        TEXT("captures the whole world, your exact position, camera, and what you are looking at. ")
+        TEXT("Numbers come from deterministic solvers, not guesswork, and when a question needs ")
+        TEXT("outside knowledge I check the official wiki, docs, and forums and cite what I used.\n");
 
     RootWidget =
         SNew(SOverlay)
@@ -219,8 +222,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                     .Padding(0.0f, 0.0f, 0.0f, 8.0f)
                     [
                         SAssignNew(RequestStatusText, STextBlock)
-                        .Text(FText::FromString(
-                            TEXT("Ready | Insert closes | Enter sends | advisory/read-only")))
+                        .Text(FText::FromString(TEXT(
+                            "Ready | Enter sends | Shift+Enter new line | Insert or Esc closes | advisory/read-only")))
                         .ColorAndOpacity(FLinearColor(0.62f, 0.68f, 0.73f, 1.0f))
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
                     ]
@@ -232,16 +235,29 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .FillWidth(1.0f)
                         .Padding(0.0f, 0.0f, 10.0f, 0.0f)
                         [
-                            SAssignNew(InputBox, SEditableTextBox)
-                            .HintText(FText::FromString(
-                                TEXT("Ask about this, here, your factory, a mod, or outside information...")))
-                            .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
-                            {
-                                if (CommitType == ETextCommit::OnEnter)
+                            SNew(SBox)
+                            .MinDesiredHeight(64.0f)
+                            .MaxDesiredHeight(150.0f)
+                            [
+                                // Enter sends; Shift+Enter adds a line, so a long
+                                // question can be written out in full.
+                                SAssignNew(InputBox, SMultiLineEditableTextBox)
+                                .HintText(FText::FromString(TEXT(
+                                    "Ask anything in your own words - this machine, here, your whole factory, "
+                                    "where to build, a mod, or the wiki. Enter sends, Shift+Enter for a new line.")))
+                                .AutoWrapText(true)
+                                .AllowMultiLine(true)
+                                .ModiferKeyForNewLine(EModifierKey::Shift)
+                                .BackgroundColor(FLinearColor(0.045f, 0.06f, 0.075f, 1.0f))
+                                .ForegroundColor(FLinearColor(0.92f, 0.94f, 0.96f, 1.0f))
+                                .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
                                 {
-                                    SubmitQuestion();
-                                }
-                            })
+                                    if (CommitType == ETextCommit::OnEnter)
+                                    {
+                                        SubmitQuestion();
+                                    }
+                                })
+                            ]
                         ]
                         + SHorizontalBox::Slot()
                         .AutoWidth()
@@ -358,6 +374,7 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
     BindToBridge(Subsystem);
     PendingSender = Sender;
     bWaitingForAnswer = true;
+    RequestStartSeconds = FPlatformTime::Seconds();
     InputBox->SetText(FText::GetEmpty());
     AppendTranscript(TEXT("YOU"), Question);
     if (RequestStatusText.IsValid())
@@ -418,6 +435,16 @@ bool UAIFactoryCopilotUISubsystem::Tick(const float DeltaTime)
     if (bPanelVisible)
     {
         UpdateLiveStatus();
+
+        // A grounded answer can involve solver calls and a wiki search, so show
+        // that the request is still alive rather than appearing to hang.
+        if (bWaitingForAnswer && RequestStatusText.IsValid())
+        {
+            const double ElapsedSeconds = FPlatformTime::Seconds() - RequestStartSeconds;
+            RequestStatusText->SetText(FText::FromString(FString::Printf(
+                TEXT("Thinking, running solvers, and checking sources... %.0fs"),
+                ElapsedSeconds)));
+        }
     }
     return true;
 }
