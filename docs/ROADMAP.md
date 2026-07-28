@@ -102,25 +102,41 @@ Remaining:
 - future expansion reservations
 - exact hologram-based placement validation
 
-## Next: construction observer
+## Done: controlled building
 
-- versioned plan records
-- expected-versus-actual transforms
-- invalid versus inefficient deviation classification
-- revised plans after player changes
-- in-world colored preview actors and arrows
+- typed action schemas — `companion/lib/actions.mjs` and `AIFactoryActions.cpp`
+- per-action server authority — refused outright on a client
+- stale-revision rejection — `expect_world_revision` on any action
+- explicit player approval — `allowWriteActions`, off by default, mod-side
+- construction through normal FactoryGame systems — `BeginSpawnBuildable` with
+  the build recipe bound, and `LoadStoredBlueprint` for blueprints
+- read-back verification — results report where the building actually landed
+  and how far that is from the request
+- recoverable failure handling — a plan stops at its first failure and reports
+  the remainder as skipped, rather than half-building a layout
 
-## Later: controlled building
+Material and unlock validation is **not** done: cost is priced against captured
+inventories before the fact, but the game's own construction is what enforces it.
 
-- typed action schemas
-- per-action server authority
-- stale-revision rejection
-- material and unlock validation
-- explicit player approval modes
-- construction through normal FactoryGame systems
-- read-back verification and recoverable failure handling
+## Done: in-world overlays
+
+- tracer lines, bounding boxes, and pillars via `ULineBatchComponent`
+- live query resolution against actors, not the snapshot
+- per-overlay batch ids so one can be cleared without disturbing the others
+
+## Next: connections in the designer
+
+`design_factory_layout` places machines and leaves a foundation-wide aisle
+between rows. What remains:
+
+- belt and pipe route generation between connection components
+- conveyor pole and power pole placement
+- layout objective profiles
+- exact hologram-based placement validation
 
 ## Later: AI blueprint compiler
+
+Placing a blueprint is done. *Writing* one is not:
 
 - Blueprint Designer volume and object-limit model
 - modular blueprint partitioning
@@ -129,8 +145,7 @@ Remaining:
 - designer population
 - saved blueprint read-back verification
 
-No write stage should begin until the read-only scanner and the solvers pass
-representative vanilla and modded save tests. The solvers are covered by unit
-tests against a synthetic snapshot; they have not yet been run against a real
-save, and the belt-speed convention and extractor reflection in particular need
-confirming there first.
+The solvers are covered by unit tests against a synthetic snapshot and have been
+spot-checked against a real 4.9 MB capture. The belt-speed convention and
+extractor reflection still need confirming against a built-up save; the current
+capture is a fresh start with nothing constructed.

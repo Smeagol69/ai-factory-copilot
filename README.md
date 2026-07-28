@@ -5,7 +5,9 @@ mod reads authoritative runtime state from Satisfactory and sends a bounded,
 evidence-bearing snapshot to a configurable AI provider. It never asks the
 model to identify machines from screenshots or guess undisclosed game state.
 
-This repository implements a working **read-only AI co-player**:
+This repository implements a working **AI co-player that can act**: it reads the
+world, computes answers deterministically, and — when asked — changes the world
+through server-authoritative actions the game itself executes and confirms.
 
 - an Insert-toggled in-game chat panel: type a question however you want to word
   it, Enter to send, Shift+Enter for a new line, with a transcript, a live
@@ -56,6 +58,10 @@ absence in the model's view is never treated as an absence in the world.
 | `list_blueprints` | saved blueprints: dimensions, cost, contents, and whether you can afford them |
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | purchased schematics and tech tier |
+| `design_factory_layout` | a placeable layout fitted to this base, with exact coordinates |
+| `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
+| `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
+| `clear_highlight` | removes an overlay |
 
 Siting questions are computed, not eyeballed. Ask *"where should I put the HUB?"*
 and `find_best_site` scores every usable resource node as a candidate centre by
@@ -87,10 +93,61 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8142/v1/analyze `
     ForEach-Object { "{`"schema`":`"aifactory.analyze`",`"schema_version`":1,`"world_snapshot`":$_}" })
 ```
 
-It does **not** yet place buildings, validate hypothetical holograms, generate
-Blueprint Designer layouts, or mutate saves. Those operations must be built
-on top of the verified scanner and executed through server-authoritative,
-revalidated game actions.
+## Acting on the world
+
+The copilot places buildings, stamps blueprints, teleports, dismantles, and
+draws overlays. Every action runs through the same contract:
+
+| Action | What it does |
+|---|---|
+| `place_building` | Places one machine from its build recipe, ground and clearance probed first |
+| `place_blueprint` | Stamps a saved blueprint via the game's own loader, so layout and wiring are Satisfactory's, not reconstructed |
+| `teleport_player` | Moves the player, snapping to measured ground so a bare coordinate cannot drop them through the map |
+| `dismantle` | Removes a building. The one action with no undo, and it says so everywhere |
+| `undo_last` | Reverses the previous action |
+| `highlight` / `clear_highlight` | Tracer lines and bounding boxes drawn in-world, visible through terrain |
+
+Five gates stand between a model deciding something and the world changing:
+server authority, an optional world-revision match so an action cannot land on
+a world the model never saw, per-action validation on both sides, the mod's own
+`allowWriteActions` switch, and `commit: true` on the action itself. The model
+can *request* a commit; only the game can grant one. With writes off, every
+action still runs its validation and reports exactly what it would have done.
+
+Results are read back from the world rather than assumed. A placement reports
+where the building actually landed and how far that is from where it was asked
+for — the two differ whenever the game snaps or refuses. A plan stops at its
+first failing step instead of pressing on, because a half-built layout is not
+the layout that was designed.
+
+Writes are **off by default**. Turn them on in the mod config:
+
+```json
+{ "allowWriteActions": true }
+```
+
+## Designing a factory, not just costing one
+
+`plan_production` says what to build. `design_factory_layout` says where, and
+fits it to the base that is already there:
+
+- machine footprints are **measured from the player's own machines**
+- so is the build recipe, read off `built_with_recipe` — which is why the
+  designer works for modded buildings with no table to maintain
+- the grid is rotated onto the alignment the existing buildings share, reported
+  with the percentage that agree, so a mixed base is a best guess and says so
+- the origin is phase-locked to the existing foundation lines, so new rows land
+  on the same grid rather than a half-foundation off it
+- occupied ground is detected from captured bounds; a blocked slot names what is
+  in the way and is never emitted as an action
+
+A building type the player has never placed is reported as unplaceable with the
+fix — place one by hand, then ask again — rather than guessed at. Both the
+footprint and the build recipe come from a real machine, so they fail together
+and they fail honestly.
+
+Belts, pipes, and power poles are not routed yet. The layout leaves a
+foundation-wide aisle between rows for them.
 
 ## In-game commands
 

@@ -15,8 +15,16 @@ Satisfactory + SML
   -> bridge (Node)            companion/
        -> graph + solvers     the model must call these for any number
        -> model provider      openai | anthropic | local | mock
-  -> answer in the in-game panel (Insert)
+  -> answer + actions[]       back to the mod
+  -> mod re-validates, executes server-side, reads the world back
+  -> answer + outcome in the in-game panel (Insert)
 ```
+
+The return path is the important half. A tool result goes into the *model's*
+context, not to the game, so an action tool validates the request and drops a
+typed action into a per-request sink; the response carries them in `actions`.
+The mod validates again and commits. Two independent checks, and the one that
+owns the world has the last word.
 
 ## Non-negotiable rules
 
@@ -29,8 +37,10 @@ These are the project's spine. Breaking one is a regression even if tests pass.
    payload names the solver that serves it.
 3. **Solvers read the complete snapshot; the model reads a lean view.** This is
    the inverse of the original design and it is deliberate — see below.
-4. **No write actions yet.** The mod is read-only. Nothing may claim it placed,
-   changed, or executed anything in the game.
+4. **Only the game commits a write.** The bridge proposes typed actions; the mod
+   re-validates every one server-side and is the only thing that can apply it.
+   Nothing may report an action as done — the mod reads the world back and
+   appends the real outcome.
 5. **Never guess an engine API.** Verify against the Starter Project headers
    first, then compile. Two real bugs were caught this way: a `protected`
    accessor, and the engine's misspelled `ModiferKeyForNewLine`.
@@ -92,6 +102,12 @@ succeed; only the final copy fails.
   `insufficient_quota` is a billing failure and must not be retried.
 - **Terrain probing is O(resolution²) traces per site.** Both the per-probe
   resolution and the total probe count are clamped in `FAIFactorySettings`.
+- **`DrawDebug*` is compiled out of Shipping.** `ENABLE_DRAW_DEBUG` is off, so
+  those helpers silently no-op in the packaged mod. Overlays use
+  `ULineBatchComponent` via `World->GetLineBatcher(...)`, which is a real render
+  component and survives.
+- **Unity builds share a translation unit.** An `anonymous namespace` helper in
+  one `.cpp` still collides with a same-named one in another. Prefix them.
 - **`allowed_domains` can 400 the whole request.** Anthropic rejects a search
   tool naming a site that blocks its crawler (reddit.com does). Blocked hosts
   are filtered per provider in `sources.mjs`, and an unknown one is parsed out
@@ -114,12 +130,14 @@ exist. `AIFACTORY_PAYLOAD=full` restores the old behaviour.
 
 | Path | What |
 |---|---|
-| `Source/AIFactoryCopilot/` | The scanner. `AIFactorySnapshot.cpp` emits the JSON; `AIFactoryTerrain.cpp` probes ground/slope/water; `AIFactoryCopilotUISubsystem.cpp` is the in-game panel |
+| `Source/AIFactoryCopilot/` | The scanner. `AIFactorySnapshot.cpp` emits the JSON; `AIFactoryTerrain.cpp` probes ground/slope/water; `AIFactoryActions.cpp` executes writes; `AIFactoryOverlay.cpp` draws in-world; `AIFactoryCopilotUISubsystem.cpp` is the in-game panel |
 | `companion/lib/graph.mjs` | Cached production graph: component→actor resolution, belt/pipe/power topology, chain tracing |
 | `companion/lib/solvers.mjs` | Every deterministic answer. One exported `solveX` per tool |
 | `companion/lib/tools.mjs` | Tool schemas + dispatch. **Three different shapes**: flat (Responses), nested under `function` (Chat Completions), `input_schema` (Messages) |
 | `companion/lib/sources.mjs` | Outside-reference policy and the official-source allowlist |
 | `companion/lib/blueprints.mjs` | `.sbp` / `.sbpcfg` parsing |
+| `companion/lib/actions.mjs` | Action validation. Refuses a bad plan whole rather than half-emitting it |
+| `companion/lib/designer.mjs` | Layout design. Every spatial constant is measured off the player's own base |
 | `companion/lib/snapshot.mjs` | `buildLeanPayload` (what the model sees) and the legacy compactor |
 | `companion/test/fixtures/factory.mjs` | The synthetic factory every solver test runs against |
 
@@ -134,12 +152,34 @@ exist. `AIFACTORY_PAYLOAD=full` restores the old behaviour.
 5. Bump the tool-count assertions in `tools.test.mjs`, `server.test.mjs`,
    `payload.test.mjs`.
 
+## Write actions
+
+`Source/AIFactoryCopilot/AIFactoryActions.cpp` executes these; `companion/lib/actions.mjs`
+validates them first. Adding one means touching both, plus `ACTION_KINDS`.
+
+| Action | Notes |
+|---|---|
+| `teleport_player` | Snaps to ground by default. A bare XY with a guessed Z drops the player through the world |
+| `place_building` | Needs the **build** recipe (`Recipe_ConstructorMk1`), not the production recipe |
+| `place_blueprint` | Uses the game's own `LoadStoredBlueprint`, so layout and wiring come from Satisfactory's serialiser |
+| `dismantle` | The one action with no undo. Warned about at every layer |
+| `undo_last` | Pops the journal; dismantles what was placed, restores where the player was |
+| `highlight` / `clear_highlight` | Draw only. Never gated, never counted as changes |
+
+Gates, in order: server-authority → optional world-revision match → per-action
+validation → `bAllowWriteActions` → `commit:true` on the action itself. All five
+must pass. `allowWriteActions` is **off by default** and lives in the mod config,
+not the bridge — the model can request a commit, only the game can grant one.
+
+A plan stops at its first failing step; remaining steps report as skipped.
+
 ## State of play
 
-Done: read-only scanner; eleven deterministic solvers; terrain probing; site
-selection scored on measured ground and existing-building overlap; production
-planning against the live base; official-source web search; adaptive thinking;
-multi-line in-game chat; blueprint header/cost reading.
+Done: the read-only scanner; fifteen tools (eleven solvers plus four action
+tools); terrain probing; site selection; production planning against the live
+base; the layout designer; server-authoritative writes; in-world overlays;
+official-source web search; adaptive thinking; multi-line in-game chat;
+blueprint header/cost/contents reading and placement.
 
 Open, in rough order:
 
@@ -147,22 +187,19 @@ Open, in rough order:
    `ITEM_SPACING` (120 cm) is authoritative from the header, but whether `mSpeed`
    is cm/s or cm/min is not — both readings give 60/min for a Mk1. Check one known
    belt in a live save and set `AIFACTORY_BELT_SPEED_DIVISOR` if it is 120.
-2. **Blueprint transforms.** Header, cost, and *contents* are decoded: the build
-   recipes a blueprint references are recovered by walking length-prefixed
-   `/Game/` paths in the object graph, then resolved through the catalog, so a
-   blueprint reports the buildings it places. What is still missing is where they
-   sit — positions, rotations, and wiring. That needs Satisfactory's save
-   serialiser; [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
-   implements it and is a Node library, so it drops into `companion/`. Note the
-   companion currently has zero dependencies, which is a deliberate property —
+2. **Belts, pipes, and power in the designer.** `design_factory_layout` places
+   machines and leaves a foundation-wide aisle between rows for them, but does
+   not run the connections. Belt routing needs a path between two connection
+   components plus conveyor-pole placement; the aisle exists so that work has
+   somewhere to go.
+3. **Blueprint transforms for *analysis*.** Placement does not need these — the
+   game's loader handles it. Reading where things sit *inside* a `.sbp`, to
+   answer "what is in this blueprint and how is it arranged", still needs
+   Satisfactory's save serialiser;
+   [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
+   implements it. The companion has zero dependencies, a deliberate property —
    decide consciously before breaking it.
-3. **Blueprint generation.** The goal is layouts tailored to the player's actual
-   base: terrain-aware, matching their existing scheme. The design half exists —
-   `plan_production` already computes machine counts, power, and cost against the
-   live base. What remains is the spatial half: needs (2) for transforms, plus the
-   designer volume and object-limit model, then plan -> validate -> populate.
-   Writing a `.sbp` is a write action and falls under (5).
 4. **Recipe unlock mapping.** Purchased schematics are captured but not which
    recipes they unlock, so recipe availability is reported as unknown.
-5. **Write actions.** Gated: no write stage until the read-only scanner passes
-   representative vanilla and modded save tests.
+5. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
+   than placing it directly. Needs (3).
