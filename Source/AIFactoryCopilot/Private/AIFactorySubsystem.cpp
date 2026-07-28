@@ -12,6 +12,7 @@
 #include "FGPlayerController.h"
 #include "HAL/FileManager.h"
 #include "HttpModule.h"
+#include "Hologram/FGHologram.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/FileHelper.h"
@@ -287,6 +288,12 @@ void AAIFactorySubsystem::MarkWorldDirty()
 
 void AAIFactorySubsystem::HandleActorSpawned(AActor* Actor)
 {
+    // Action preflight uses short-lived vanilla holograms to ask the game for
+    // its real placement verdict. They are validation objects, not world state.
+    if (IsValid(Actor) && Actor->IsA(AFGHologram::StaticClass()))
+    {
+        return;
+    }
     AttachActorObserver(Actor);
     MarkWorldDirty();
 }
@@ -298,7 +305,9 @@ void AAIFactorySubsystem::HandleActorDestroyed(AActor* Actor)
 
 void AAIFactorySubsystem::AttachActorObserver(AActor* Actor)
 {
-    if (IsValid(Actor) && !Actor->OnDestroyed.IsAlreadyBound(this, &AAIFactorySubsystem::HandleActorDestroyed))
+    if (IsValid(Actor) &&
+        !Actor->IsA(AFGHologram::StaticClass()) &&
+        !Actor->OnDestroyed.IsAlreadyBound(this, &AAIFactorySubsystem::HandleActorDestroyed))
     {
         Actor->OnDestroyed.AddDynamic(this, &AAIFactorySubsystem::HandleActorDestroyed);
     }

@@ -3,15 +3,19 @@
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
+#include "CollisionQueryParams.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Equipment/FGBuildGun.h"
 #include "FGBlueprintSubsystem.h"
 #include "FGBuildableSubsystem.h"
 #include "FGCharacterPlayer.h"
+#include "FGConstructDisqualifier.h"
 #include "FGDismantleInterface.h"
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
+#include "Hologram/FGHologram.h"
 #include "Resources/FGBuildingDescriptor.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Dom/JsonObject.h"
@@ -313,6 +317,194 @@ namespace
         RotationJson->SetNumberField(TEXT("roll"), Rotation.Roll);
         Object->SetObjectField(TEXT("rotation"), RotationJson);
         return Object;
+    }
+
+    bool TraceActionPlacementSurface(
+        UWorld* World,
+        AActor* IgnoreActor,
+        const FVector& RequestedLocation,
+        FHitResult& OutHit)
+    {
+        if (!IsValid(World))
+        {
+            return false;
+        }
+        constexpr double TraceUpCm = 30000.0;
+        constexpr double TraceDownCm = 60000.0;
+        const FVector Start(
+            RequestedLocation.X,
+            RequestedLocation.Y,
+            RequestedLocation.Z + TraceUpCm);
+        const FVector End(
+            RequestedLocation.X,
+            RequestedLocation.Y,
+            RequestedLocation.Z - TraceDownCm);
+        FCollisionQueryParams Params(
+            SCENE_QUERY_STAT(AIFactoryActionPlacementTrace),
+            true,
+            IgnoreActor);
+        Params.bReturnPhysicalMaterial = false;
+        return World->LineTraceSingleByChannel(
+            OutHit,
+            Start,
+            End,
+            ECC_Visibility,
+            Params);
+    }
+
+    FString DescribeHologramDisqualifiers(
+        AFGHologram* Hologram,
+        const TSharedPtr<FJsonObject>& Predicted)
+    {
+        TArray<TSubclassOf<UFGConstructDisqualifier>> Disqualifiers;
+        Hologram->GetConstructDisqualifiers(Disqualifiers);
+
+        TArray<TSharedPtr<FJsonValue>> Rows;
+        FString FirstHardReason;
+        for (const TSubclassOf<UFGConstructDisqualifier>& Disqualifier : Disqualifiers)
+        {
+            if (!Disqualifier)
+            {
+                continue;
+            }
+            const bool bSoft =
+                UFGConstructDisqualifier::GetIsSoftDisqualifier(Disqualifier);
+            const FString ClassName = Disqualifier->GetName();
+            TSharedPtr<FJsonObject> Row = MakeShared<FJsonObject>();
+            Row->SetStringField(TEXT("class"), ClassName);
+            Row->SetStringField(
+                TEXT("message"),
+                UFGConstructDisqualifier::GetDisqualifyingText(
+                    Disqualifier).ToString());
+            Row->SetBoolField(TEXT("soft"), bSoft);
+            Rows.Add(MakeShared<FJsonValueObject>(Row));
+            if (!bSoft && FirstHardReason.IsEmpty())
+            {
+                FirstHardReason = ClassName;
+            }
+        }
+        Predicted->SetArrayField(TEXT("placement_disqualifiers"), Rows);
+        Predicted->SetBoolField(
+            TEXT("hologram_can_construct"),
+            Hologram->CanConstruct());
+        return FirstHardReason;
+    }
+
+    bool PositionAndValidateActionHologram(
+        AFGHologram* Hologram,
+        UWorld* World,
+        AFGCharacterPlayer* Player,
+        UFGInventoryComponent* Inventory,
+        const FTransform& Requested,
+        const TSharedPtr<FJsonObject>& Predicted,
+        FString& OutFailure)
+    {
+        if (!IsValid(Hologram))
+        {
+            OutFailure = TEXT("hologram_spawn_failed");
+            return false;
+        }
+
+        FHitResult Hit;
+        if (!TraceActionPlacementSurface(
+                World,
+                Player,
+                Requested.GetLocation(),
+                Hit))
+        {
+            OutFailure = TEXT("no_build_surface_below_requested_location");
+            return false;
+        }
+        Predicted->SetObjectField(
+            TEXT("build_surface_point"),
+            ActionVectorJson(Hit.ImpactPoint));
+        Predicted->SetObjectField(
+            TEXT("build_surface_normal"),
+            ActionVectorJson(Hit.ImpactNormal));
+        Predicted->SetStringField(
+            TEXT("build_surface_actor"),
+            IsValid(Hit.GetActor()) ? Hit.GetActor()->GetPathName() : TEXT("unknown"));
+
+        Hologram->SetConstructionInstigator(Player);
+        if (!Hologram->IsValidHitResult(Hit))
+        {
+            OutFailure = TEXT("hologram_rejected_build_surface");
+            return false;
+        }
+        Hologram->UpdateHologramPlacement(Hit);
+
+        // Rotate only through the hologram's public scroll interface. The final
+        // actor transform is read back, so a recipe with a different rotation
+        // granularity is refused instead of silently placed at another yaw.
+        const double RequestedYaw = Requested.Rotator().Yaw;
+        double YawError = FRotator::NormalizeAxis(
+            RequestedYaw - Hologram->GetActorRotation().Yaw);
+        constexpr double YawToleranceDegrees = 0.5;
+        if (FMath::Abs(YawError) > YawToleranceDegrees)
+        {
+            const int32 RotationStep = Hologram->GetRotationStep();
+            if (RotationStep <= 0)
+            {
+                OutFailure = FString::Printf(
+                    TEXT("hologram_has_no_rotation_step:requested_yaw=%.3f,actual_yaw=%.3f"),
+                    RequestedYaw,
+                    Hologram->GetActorRotation().Yaw);
+                return false;
+            }
+            const int32 ScrollTicks =
+                FMath::RoundToInt(YawError / static_cast<double>(RotationStep));
+            if (ScrollTicks == 0)
+            {
+                OutFailure = TEXT("requested_yaw_is_not_representable_by_hologram");
+                return false;
+            }
+            Hologram->ScrollRotate(ScrollTicks, RotationStep);
+            Hologram->UpdateHologramPlacement(Hit);
+            YawError = FRotator::NormalizeAxis(
+                RequestedYaw - Hologram->GetActorRotation().Yaw);
+        }
+
+        Predicted->SetObjectField(
+            TEXT("hologram_transform"),
+            ActionTransformJson(Hologram->GetActorTransform()));
+        Predicted->SetNumberField(TEXT("hologram_yaw_error_degrees"), YawError);
+        if (FMath::Abs(YawError) > YawToleranceDegrees)
+        {
+            OutFailure = FString::Printf(
+                TEXT("requested_yaw_is_not_representable:requested=%.3f,actual=%.3f"),
+                RequestedYaw,
+                Hologram->GetActorRotation().Yaw);
+            return false;
+        }
+
+        Hologram->ValidatePlacementAndCost(Inventory);
+        FString HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
+        if (!Hologram->CanConstruct())
+        {
+            OutFailure = HardReason.IsEmpty()
+                ? TEXT("hologram_refused_placement_or_cost")
+                : TEXT("hologram_disqualified:") + HardReason;
+            return false;
+        }
+
+        // A single-point machine/building should complete immediately. Belts,
+        // pipes, wires, and other multi-point recipes need explicit endpoints
+        // and are refused by this action instead of inventing the missing point.
+        if (!Hologram->DoMultiStepPlacement(true))
+        {
+            OutFailure = TEXT("hologram_requires_additional_placement_points");
+            return false;
+        }
+        Hologram->ValidatePlacementAndCost(Inventory);
+        HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
+        if (!Hologram->CanConstruct())
+        {
+            OutFailure = HardReason.IsEmpty()
+                ? TEXT("hologram_refused_after_final_build_step")
+                : TEXT("hologram_disqualified_after_final_build_step:") + HardReason;
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -668,9 +860,6 @@ FAIFactoryActionResult PlaceBuilding(
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("no_player_inventory"));
     }
-    const TArray<FItemAmount> Cost =
-        NormalizeActionCost(UFGRecipe::GetIngredients(Context.World, RecipeClass));
-
     AFGBuildableSubsystem* Buildables = AFGBuildableSubsystem::Get(Context.World);
     if (!IsValid(Buildables))
     {
@@ -691,13 +880,6 @@ FAIFactoryActionResult PlaceBuilding(
     Predicted->SetObjectField(TEXT("transform"), ActionTransformJson(Target));
     Predicted->SetBoolField(TEXT("recipe_unlocked"), true);
     Predicted->SetBoolField(TEXT("building_unlocked"), true);
-    Predicted->SetBoolField(TEXT("no_build_cost"), Inventory->GetNoBuildCost());
-    Predicted->SetArrayField(
-        TEXT("cost"),
-        ActionCostJson(Cost, Inventory, Inventory->GetNoBuildCost()));
-    Predicted->SetBoolField(
-        TEXT("can_afford"),
-        CanAffordActionCost(Cost, Inventory));
 
     // Measure the ground and the space rather than assuming both are fine. This
     // is advisory: the game's own construction still decides.
@@ -727,46 +909,141 @@ FAIFactoryActionResult PlaceBuilding(
     {
         Predicted->SetStringField(TEXT("clearance_check"), TEXT("skipped_by_request"));
     }
-    Result.Predicted = Predicted;
 
-    if (!CanAffordActionCost(Cost, Inventory))
+    AActor* HologramOwner = Context.Player;
+    if (AFGBuildGun* BuildGun = Context.Player->GetBuildGun();
+        IsValid(BuildGun))
     {
+        HologramOwner = BuildGun;
+    }
+    AFGHologram* Hologram = AFGHologram::SpawnHologramFromRecipe(
+        RecipeClass,
+        HologramOwner,
+        Target.GetLocation(),
+        Context.Player);
+    if (!IsValid(Hologram))
+    {
+        Result.Predicted = Predicted;
         Result.bAccepted = false;
         Result.Status = TEXT("refused");
-        Result.Reason = TEXT("player_cannot_afford_build_cost");
+        Result.Reason = TEXT("game_could_not_spawn_recipe_hologram");
+        return Result;
+    }
+
+    FString HologramFailure;
+    const bool bHologramValid = PositionAndValidateActionHologram(
+        Hologram,
+        Context.World,
+        Context.Player,
+        Inventory,
+        Target,
+        Predicted,
+        HologramFailure);
+    const TArray<FItemAmount> Cost =
+        NormalizeActionCost(Hologram->GetCost(true));
+    const bool bCanAfford = CanAffordActionCost(Cost, Inventory);
+    Predicted->SetStringField(
+        TEXT("placement_validation"),
+        TEXT("satisfactory_hologram"));
+    Predicted->SetBoolField(TEXT("no_build_cost"), Inventory->GetNoBuildCost());
+    Predicted->SetArrayField(
+        TEXT("cost"),
+        ActionCostJson(Cost, Inventory, Inventory->GetNoBuildCost()));
+    Predicted->SetBoolField(TEXT("can_afford"), bCanAfford);
+    Result.Predicted = Predicted;
+
+    if (!bHologramValid || !bCanAfford)
+    {
+        if (IsValid(Hologram))
+        {
+            Hologram->Destroy();
+        }
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = !HologramFailure.IsEmpty()
+            ? HologramFailure
+            : TEXT("player_cannot_afford_hologram_cost");
         return Result;
     }
 
     if (Context.bDryRun)
     {
+        Hologram->Destroy();
         Result.Status = TEXT("dry_run");
         return Result;
     }
 
-    AFGBuildable* Spawned = Buildables->BeginSpawnBuildable(BuildableClass, Target);
-    if (!IsValid(Spawned))
+    TArray<AActor*> ConstructedChildren;
+    AActor* Constructed = Hologram->Construct(
+        ConstructedChildren,
+        Buildables->GetNewNetConstructionID());
+    if (IsValid(Hologram))
     {
+        Hologram->Destroy();
+    }
+
+    AFGBuildable* RootBuildable = Cast<AFGBuildable>(Constructed);
+    TArray<AFGBuildable*> ConstructedBuildables;
+    if (IsValid(RootBuildable))
+    {
+        ConstructedBuildables.Add(RootBuildable);
+    }
+    for (AActor* Child : ConstructedChildren)
+    {
+        if (AFGBuildable* ChildBuildable = Cast<AFGBuildable>(Child);
+            IsValid(ChildBuildable))
+        {
+            ConstructedBuildables.AddUnique(ChildBuildable);
+        }
+    }
+
+    if (!IsValid(RootBuildable) ||
+        !RootBuildable->IsA(BuildableClass) ||
+        ConstructedBuildables.Num() == 0)
+    {
+        for (AFGBuildable* Buildable : ConstructedBuildables)
+        {
+            if (IsValid(Buildable))
+            {
+                // No material was charged, so cleanup must not grant a refund.
+                IFGDismantleInterface::Execute_Dismantle(Buildable);
+            }
+        }
+        if (IsValid(Constructed) && !IsValid(RootBuildable))
+        {
+            Constructed->Destroy();
+        }
         Result.Status = TEXT("failed");
-        Result.Reason = TEXT("game_refused_to_spawn_the_buildable");
+        Result.Reason = TEXT("hologram_constructed_no_matching_buildable");
         return Result;
     }
-    // Binding the recipe is what makes the building dismantle for the right
-    // refund and show the right name; a buildable spawned without it is subtly
-    // wrong rather than obviously broken.
-    Spawned->SetBuiltWithRecipe(RecipeClass);
-    Spawned->FinishSpawning(Target);
+
     ChargeActionCost(Cost, Inventory);
 
     Result.bCommitted = true;
     Result.Status = TEXT("committed");
-    Result.CreatedActorIds.Add(Spawned->GetPathName());
+    for (AFGBuildable* Buildable : ConstructedBuildables)
+    {
+        Result.CreatedActorIds.Add(Buildable->GetPathName());
+    }
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
-    Observed->SetStringField(TEXT("actor_id"), Spawned->GetPathName());
-    Observed->SetObjectField(TEXT("transform"), ActionTransformJson(Spawned->GetActorTransform()));
+    Observed->SetStringField(TEXT("actor_id"), RootBuildable->GetPathName());
+    Observed->SetNumberField(
+        TEXT("buildables_constructed"),
+        ConstructedBuildables.Num());
+    Observed->SetObjectField(
+        TEXT("transform"),
+        ActionTransformJson(RootBuildable->GetActorTransform()));
+    Observed->SetStringField(
+        TEXT("built_with_recipe"),
+        RootBuildable->GetBuiltWithRecipe()
+            ? RootBuildable->GetBuiltWithRecipe()->GetPathName()
+            : TEXT(""));
+    Observed->SetBoolField(TEXT("validated_by_hologram"), true);
     Observed->SetNumberField(
         TEXT("offset_from_requested_cm"),
-        FVector::Dist(Spawned->GetActorLocation(), Target.GetLocation()));
+        FVector::Dist(RootBuildable->GetActorLocation(), Target.GetLocation()));
     Result.Observed = Observed;
 
     Result.bUndoable = true;
@@ -774,7 +1051,10 @@ FAIFactoryActionResult PlaceBuilding(
 
     FAIFactoryUndoStep Step;
     Step.Action = Action;
-    Step.SpawnedBuildables.Add(Spawned);
+    for (AFGBuildable* Buildable : ConstructedBuildables)
+    {
+        Step.SpawnedBuildables.Add(Buildable);
+    }
     Step.Player = Context.Player;
     Step.Description = FString::Printf(
         TEXT("Dismantle %s"),
