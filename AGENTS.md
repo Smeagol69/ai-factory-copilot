@@ -111,6 +111,12 @@ succeed; only the final copy fails.
   component and survives.
 - **Unity builds share a translation unit.** An `anonymous namespace` helper in
   one `.cpp` still collides with a same-named one in another. Prefix them.
+- **`startupSelfTest` costs real money on every save load.** It fires a full
+  question ~10s after each world init — about 65k effective input tokens and
+  ~$0.15 a load at Sonnet 5 rates. It is a genuinely useful deploy check, but
+  it is not free and it is not silent: the answer lands in the player's chat
+  panel looking like an unrequested status dump. The repo default is `false`;
+  turn it on to verify a deploy, then turn it back off.
 - **`allowed_domains` can 400 the whole request.** Anthropic rejects a search
   tool naming a site that blocks its crawler (reddit.com does). Blocked hosts
   are filtered per provider in `sources.mjs`, and an unknown one is parsed out
