@@ -1341,7 +1341,30 @@ export function solveBlueprintLibrary(
     if (needle && !String(entry.name).toLowerCase().includes(needle)) continue;
 
     const pricing = costAgainstInventory(entry, totals);
+
+    // A blueprint references the build recipes of what it contains, so the
+    // recipe list resolves to the actual buildings via the catalog.
+    const contains = [];
+    for (const reference of entry.contents?.recipes ?? []) {
+      const tail = String(reference.class_path).split(".").pop();
+      const recipe =
+        graph.recipesByClass.get(reference.class_path) ??
+        [...graph.recipesByClass.values()].find(
+          (candidate) => String(candidate.class_path).split(".").pop() === tail,
+        );
+      contains.push({
+        building: recipe?.products?.[0]?.item_name ?? reference.name,
+        recipe_class: reference.class_path,
+        resolved_from_catalog: Boolean(recipe),
+        occurrences: reference.occurrences,
+      });
+    }
+
     blueprints.push({
+      contains,
+      contains_resolved_from_catalog: contains.filter((c) => c.resolved_from_catalog).length,
+      contents_caveat: entry.contents?.counts_caveat ?? null,
+      transforms: entry.contents?.transforms ?? "not_decoded",
       name: entry.name,
       designer_dimensions: entry.designer_dimensions,
       authored_on_game_changelist: entry.game_changelist,
@@ -1367,9 +1390,9 @@ export function solveBlueprintLibrary(
     blueprints,
     unreadable_files: failures,
     what_is_known:
-      "Designer dimensions, exact build cost, the game build each blueprint was authored on, and its description.",
+      "Designer dimensions, exact build cost, the buildings it contains, the game build each blueprint was authored on, and its description.",
     what_is_not_known:
-      "The per-building layout inside each blueprint is not decoded, so which machines it contains and how they are wired is unknown from this solver.",
+      "Positions, rotations, and wiring inside a blueprint are not decoded. The buildings it contains are known from the build recipes it references; where they sit is not.",
     source: "parsed_from_saved_blueprint_files",
     certainty: "authoritative_for_header_and_cost",
   };

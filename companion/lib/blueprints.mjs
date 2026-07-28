@@ -34,7 +34,7 @@ const MAXIMUM_PATH_LENGTH = 4096;
 
 function shortName(itemClassPath) {
   const tail = String(itemClassPath).split(".").pop() ?? "";
-  return tail.replace(/_C$/, "").replace(/^Desc_/, "");
+  return tail.replace(/_C$/, "").replace(/^(Desc|Recipe|Build)_/, "");
 }
 
 /** Decodes the `.sbp` header and build cost. Throws only on a malformed file. */
@@ -101,6 +101,66 @@ export function parseBlueprintHeader(buffer) {
   };
 }
 
+/**
+ * Recovers the class paths referenced in a blueprint's object graph.
+ *
+ * The graph is length-prefixed UE data. Fully decoding it means implementing
+ * Satisfactory's save serialiser, which this does not attempt — but every object
+ * the blueprint references appears as a length-prefixed `/Game/...` string, and
+ * those can be recovered exactly by walking valid length prefixes. That yields
+ * *what* a blueprint contains, with per-class counts. It does not yield where
+ * anything sits: transforms stay unknown and are reported as such.
+ */
+export function scanBlueprintReferences(buffer, startOffset = 0) {
+  const seen = new Map();
+  const limit = buffer.length - 8;
+
+  for (let offset = Math.max(0, startOffset); offset < limit; offset += 1) {
+    const length = buffer.readUInt32LE(offset);
+    if (length < 8 || length > 512 || offset + 4 + length > buffer.length) continue;
+    // A UE string field is null-terminated; require it before decoding.
+    if (buffer[offset + 4 + length - 1] !== 0) continue;
+
+    const text = buffer.toString("utf8", offset + 4, offset + 4 + length - 1);
+    if (!text.startsWith("/Game/") || !/^[\x20-\x7e]+$/.test(text)) continue;
+
+    seen.set(text, (seen.get(text) ?? 0) + 1);
+    offset += 3 + length;
+  }
+
+  const buildings = [];
+  const recipes = [];
+  const items = [];
+  const other = [];
+  for (const [classPath, count] of seen) {
+    const tail = classPath.split(".").pop() ?? "";
+    const entry = { class_path: classPath, name: shortName(classPath), occurrences: count };
+    if (tail.startsWith("Build_")) buildings.push(entry);
+    else if (tail.startsWith("Recipe_")) recipes.push(entry);
+    else if (tail.startsWith("Desc_")) items.push(entry);
+    else other.push(entry);
+  }
+  const byOccurrence = (a, b) => b.occurrences - a.occurrences;
+  buildings.sort(byOccurrence);
+  recipes.sort(byOccurrence);
+
+  return {
+    buildings,
+    recipes,
+    items,
+    other,
+    distinct_building_classes: buildings.length,
+    distinct_recipes: recipes.length,
+    method: "length_prefixed_class_path_scan_over_the_object_graph",
+    certainty: "class_paths_are_exact_counts_are_indicative",
+    counts_caveat:
+      "Occurrences count how often a class path appears in the graph, which is not necessarily the number of that building placed. Treat it as presence and rough weight, not an exact count.",
+    transforms: "not_decoded",
+    transforms_note:
+      "Positions and rotations require Satisfactory's save serialiser; satisfactory-file-parser implements it.",
+  };
+}
+
 /** Decodes the `.sbpcfg` description. */
 export function parseBlueprintConfig(buffer) {
   if (!buffer || buffer.length < 8) {
@@ -126,14 +186,18 @@ export function parseBlueprintConfig(buffer) {
  * sits alongside. `readFile` is injected so this stays testable and so the caller
  * controls which directories are ever touched.
  */
-export function readBlueprint(name, sbpBuffer, sbpcfgBuffer = null) {
+export function readBlueprint(name, sbpBuffer, sbpcfgBuffer = null, { scanContents = true } = {}) {
   const header = parseBlueprintHeader(sbpBuffer);
   const config = sbpcfgBuffer ? parseBlueprintConfig(sbpcfgBuffer) : null;
+  const contents = scanContents
+    ? scanBlueprintReferences(sbpBuffer, header.object_graph_offset)
+    : null;
   return {
     name,
     ...header,
     description: config?.description ?? null,
     has_config: Boolean(sbpcfgBuffer),
+    contents,
   };
 }
 

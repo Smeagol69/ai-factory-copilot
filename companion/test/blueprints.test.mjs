@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   costAgainstInventory,
+  scanBlueprintReferences,
   parseBlueprintConfig,
   parseBlueprintHeader,
   readBlueprint,
@@ -212,6 +213,99 @@ test("filters by name and surfaces unreadable files separately", () => {
 test("states that per-building layout is not known", () => {
   const listBlueprints = () => [readBlueprint("X", makeSbp({ cost: [] }), null)];
   const result = solveBlueprintLibrary(buildGraph(buildFactorySnapshot()), {}, { listBlueprints });
-  assert.match(result.what_is_not_known, /per-building layout/i);
+  assert.match(result.what_is_not_known, /Positions, rotations, and wiring/i);
   assert.match(result.what_is_known, /build cost/i);
+});
+
+/* ---------------- object graph reference scan ---------------- */
+
+/** Appends a length-prefixed, null-terminated UE string. */
+function uePath(text) {
+  const body = Buffer.from(`${text} `, "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32LE(body.length, 0);
+  return Buffer.concat([length, body]);
+}
+
+const SPLITTER = "/Game/FactoryGame/Recipes/Buildings/Recipe_ConveyorAttachmentSplitter.Recipe_ConveyorAttachmentSplitter_C";
+const BELT_MK4 = "/Game/FactoryGame/Recipes/Buildings/Recipe_ConveyorBeltMk4.Recipe_ConveyorBeltMk4_C";
+
+test("recovers referenced class paths from the object graph", () => {
+  const graph = Buffer.concat([
+    Buffer.alloc(16),
+    uePath(SPLITTER),
+    uePath(BELT_MK4),
+    uePath(BELT_MK4),
+    Buffer.alloc(24, 3),
+  ]);
+  const found = scanBlueprintReferences(graph, 0);
+
+  assert.equal(found.distinct_recipes, 2);
+  assert.equal(found.recipes[0].class_path, BELT_MK4);
+  assert.equal(found.recipes[0].occurrences, 2);
+  assert.equal(found.recipes[0].name, "ConveyorBeltMk4");
+});
+
+test("ignores bytes that only look like a length prefix", () => {
+  const noise = Buffer.alloc(400, 0xab);
+  const found = scanBlueprintReferences(noise, 0);
+  assert.deepEqual(found.recipes, []);
+  assert.deepEqual(found.buildings, []);
+});
+
+test("is explicit that counts are indicative and transforms are not decoded", () => {
+  const found = scanBlueprintReferences(Buffer.concat([uePath(SPLITTER)]), 0);
+  assert.equal(found.transforms, "not_decoded");
+  assert.match(found.counts_caveat, /not necessarily the number/);
+  assert.match(found.transforms_note, /satisfactory-file-parser/);
+});
+
+test("resolves referenced build recipes to the buildings they place", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_SmelterMk1",
+    name: "Smelter",
+    duration_seconds: 1,
+    ingredients: [],
+    products: [{ item_class: "Desc_SmelterMk1", item_name: "Smelter", amount: 1 }],
+    produced_in: ["BP_BuildGun_C"],
+  });
+
+  const listBlueprints = () => [
+    {
+      ...parseBlueprintHeader(makeSbp({ cost: [] })),
+      name: "Smelter Bank",
+      description: null,
+      contents: {
+        recipes: [{ class_path: "Recipe_SmelterMk1", name: "SmelterMk1", occurrences: 4 }],
+        counts_caveat: "indicative",
+        transforms: "not_decoded",
+      },
+    },
+  ];
+
+  const result = solveBlueprintLibrary(buildGraph(snapshot), {}, { listBlueprints });
+  const entry = result.blueprints[0];
+  assert.equal(entry.contains[0].building, "Smelter");
+  assert.equal(entry.contains[0].resolved_from_catalog, true);
+  assert.equal(entry.contains[0].occurrences, 4);
+  assert.equal(entry.contains_resolved_from_catalog, 1);
+  assert.equal(entry.transforms, "not_decoded");
+});
+
+test("an unresolvable reference keeps its raw name rather than vanishing", () => {
+  const listBlueprints = () => [
+    {
+      ...parseBlueprintHeader(makeSbp({ cost: [] })),
+      name: "Modded",
+      description: null,
+      contents: {
+        recipes: [{ class_path: "/Game/Mod/Recipe_Mystery.Recipe_Mystery_C", name: "Mystery", occurrences: 1 }],
+      },
+    },
+  ];
+  const entry = solveBlueprintLibrary(buildGraph(buildFactorySnapshot()), {}, { listBlueprints })
+    .blueprints[0];
+  assert.equal(entry.contains[0].building, "Mystery");
+  assert.equal(entry.contains[0].resolved_from_catalog, false);
 });
