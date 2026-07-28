@@ -147,6 +147,16 @@ function makeComponentResolver(actorsById, componentOwner) {
   };
 }
 
+/** Straight-line distance between two captured positions, in metres. */
+export function distanceMeters(a, b) {
+  if (!a || !b) return null;
+  const dx = Number(a.x ?? 0) - Number(b.x ?? 0);
+  const dy = Number(a.y ?? 0) - Number(b.y ?? 0);
+  const dz = Number(a.z ?? 0) - Number(b.z ?? 0);
+  const cm = Math.hypot(dx, dy, dz);
+  return Number.isFinite(cm) ? cm / 100 : null;
+}
+
 export function buildGraph(snapshot, options = {}) {
   const conveyorDivisor =
     finitePositive(options.conveyorSpeedDivisor) ?? CONVEYOR_SPEED_TO_ITEMS_PER_MINUTE_DIVISOR;
