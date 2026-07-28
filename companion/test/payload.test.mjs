@@ -99,10 +99,16 @@ test("a character budget bounds the payload independently of actor count", () =>
   assert.ok(payload.actors_nearest_to_the_player.length < 10);
 });
 
-test("progression collapses to a summary that points at the solver", () => {
+test("progression summary retains the live objective and recipe availability", () => {
   const { payload } = buildLeanPayload(snapshot);
   assert.equal(payload.progression_summary.purchased_schematic_count, 1);
   assert.equal(payload.progression_summary.highest_available_tech_tier, 5);
+  assert.equal(
+    payload.progression_summary.onboarding.current_step.title,
+    "Build the HUB",
+  );
+  assert.equal(payload.progression_summary.recipe_availability.known, true);
+  assert.equal(payload.progression_summary.recipe_availability.available_recipe_count, 5);
   assert.match(payload.progression_summary.detail, /get_unlock_status/);
   assert.equal(payload.progression, undefined);
 });

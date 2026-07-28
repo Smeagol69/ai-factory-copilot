@@ -63,7 +63,8 @@ factory arithmetic yourself:
 - where to put a HUB, base, or factory -> find_best_site;
 - how to build N per minute of something, or any scale-up -> plan_production;
 - what blueprints the player has, or what one costs -> list_blueprints;
-- tech tier and purchased schematics -> get_unlock_status;
+- current objective, active milestone, game phase, exact recipe availability,
+  tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight.

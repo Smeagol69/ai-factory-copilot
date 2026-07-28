@@ -105,6 +105,23 @@ test("an explicitly requested recipe overrides the in-use preference", () => {
   assert.equal(plan.steps[0].machines_required, 1);
 });
 
+test("rejects an explicitly requested recipe locked in the loaded save", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.find(
+    (recipe) => recipe.class_path === "Recipe_Alternate_IronRod",
+  ).available = false;
+
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 48,
+    recipe_class: "Recipe_Alternate_IronRod",
+    use_existing_surplus: false,
+  });
+  assert.equal(plan.planned, false);
+  assert.equal(plan.unresolved[0].reason, "requested_recipe_is_unavailable_in_this_save");
+  assert.equal(plan.unresolved[0].recipe_class, "Recipe_Alternate_IronRod");
+});
+
 test("reads power off the player's own machines, not a table", () => {
   const plan = solveProductionPlan(graphWithoutSurplus(), {
     item_name: "Iron Rod",
@@ -183,7 +200,7 @@ test("prices the machines against captured inventories", () => {
 test("states what it is not: a physical layout", () => {
   const plan = solveProductionPlan(graphOf(), { item_name: "Iron Rod", target_rate_per_minute: 15 });
   assert.match(plan.caveats.layout, /not a physical layout/);
-  assert.match(plan.caveats.unlocks, /cannot be determined/);
+  assert.match(plan.caveats.unlocks, /authoritative AFGRecipeManager/);
   assert.match(plan.caveats.power, /unknown rather than estimating/);
 });
 

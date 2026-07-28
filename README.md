@@ -23,7 +23,8 @@ through server-authoritative actions the game itself executes and confirms.
 - live buildable, resource-node, transform, bounds, blueprint membership,
   inventory, conveyor/pipe/power connection, recipe, production, boost,
   clocking, productivity, transport, power-circuit, player, vehicle, pickup,
-  progression, and power-consumption scanning
+  onboarding objective, active milestone, game phase, todo list, exact recipe
+  availability, progression, and power-consumption scanning
 - bounded Unreal reflection for additional non-transient mod properties
 - an explicit `IAIFactoryDataProvider` adapter contract for custom semantics
 - continuously changing world revisions based on live factory fingerprints
@@ -57,7 +58,7 @@ absence in the model's view is never treated as an absence in the world.
 | `plan_production` | designs a line for a target item and rate, against this base |
 | `list_blueprints` | saved blueprints: dimensions, cost, contents, and whether you can afford them |
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
-| `get_unlock_status` | purchased schematics and tech tier |
+| `get_unlock_status` | current objective, active milestone, game phase, recipe availability, schematics, and tech tier |
 | `design_factory_layout` | a placeable layout fitted to this base, with exact coordinates |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
 | `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
@@ -246,7 +247,7 @@ any API key.
 ## Outside references
 
 Save state answers most questions. When one genuinely needs outside knowledge —
-a recipe this save has not unlocked, a mod's documented behavior, a patch change,
+a mod's documented behavior, a patch change,
 a community technique — the copilot searches, and by default it may only search
 the sources that are actually authoritative for Satisfactory:
 

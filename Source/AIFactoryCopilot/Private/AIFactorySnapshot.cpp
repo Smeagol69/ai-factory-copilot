@@ -18,18 +18,24 @@
 #include "EngineUtils.h"
 #include "FGFactoryConnectionComponent.h"
 #include "FGCharacterPlayer.h"
+#include "FGGamePhase.h"
+#include "FGGamePhaseManager.h"
 #include "FGGameState.h"
 #include "FGHealthComponent.h"
 #include "FGInventoryComponent.h"
 #include "FGItemPickup.h"
+#include "FGOnboardingStep.h"
 #include "FGPipeConnectionComponent.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGPowerInfoComponent.h"
 #include "FGPlayerController.h"
+#include "FGPlayerState.h"
 #include "FGRecipe.h"
+#include "FGRecipeManager.h"
 #include "FGSchematic.h"
 #include "FGSchematicManager.h"
+#include "FGTutorialIntroManager.h"
 #include "FGUseableInterface.h"
 #include "FGVehicle.h"
 #include "GameFramework/Pawn.h"
@@ -158,6 +164,88 @@ namespace
         Result->SetStringField(TEXT("item_name"),
             Amount.ItemClass ? UFGItemDescriptor::GetItemName(Amount.ItemClass).ToString() : TEXT(""));
         Result->SetNumberField(TEXT("amount"), Amount.Amount);
+        return Result;
+    }
+
+    TArray<TSharedPtr<FJsonValue>> ItemAmountsJson(const TArray<FItemAmount>& Amounts)
+    {
+        TArray<TSharedPtr<FJsonValue>> Result;
+        for (const FItemAmount& Amount : Amounts)
+        {
+            Result.Add(MakeShared<FJsonValueObject>(ItemAmountJson(Amount)));
+        }
+        return Result;
+    }
+
+    TArray<TSharedPtr<FJsonValue>> TextArrayJson(const TArray<FText>& Texts)
+    {
+        TArray<TSharedPtr<FJsonValue>> Result;
+        for (const FText& Text : Texts)
+        {
+            Result.Add(MakeShared<FJsonValueString>(Text.ToString()));
+        }
+        return Result;
+    }
+
+    TSharedRef<FJsonObject> SchematicJson(
+        UWorld* World,
+        AFGSchematicManager* Manager,
+        const TSubclassOf<UFGSchematic>& Schematic)
+    {
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        Result->SetBoolField(TEXT("available"), Schematic != nullptr);
+        if (!Schematic)
+        {
+            return Result;
+        }
+
+        Result->SetStringField(TEXT("class_path"), ClassPath(Schematic.Get()));
+        Result->SetStringField(TEXT("name"), UFGSchematic::GetSchematicDisplayName(Schematic).ToString());
+        Result->SetStringField(TEXT("description"), UFGSchematic::GetSchematicDescription(Schematic).ToString());
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(Schematic.Get()));
+        Result->SetStringField(
+            TEXT("type"),
+            StaticEnum<ESchematicType>()->GetNameStringByValue(
+                static_cast<int64>(UFGSchematic::GetType(Schematic))));
+        Result->SetNumberField(TEXT("tech_tier"), UFGSchematic::GetTechTier(Schematic));
+        Result->SetBoolField(TEXT("player_specific"), UFGSchematic::GetIsPlayerSpecific(Schematic));
+        Result->SetBoolField(
+            TEXT("dependencies_met"),
+            IsValid(World) && UFGSchematic::AreSchematicDependenciesMet(Schematic, World));
+        if (IsValid(World))
+        {
+            Result->SetStringField(
+                TEXT("state"),
+                StaticEnum<ESchematicState>()->GetNameStringByValue(
+                    static_cast<int64>(UFGSchematic::GetSchematicState(Schematic, World))));
+        }
+        Result->SetArrayField(TEXT("cost"), ItemAmountsJson(UFGSchematic::GetCost(Schematic)));
+        if (IsValid(Manager))
+        {
+            Result->SetArrayField(TEXT("paid_cost"), ItemAmountsJson(Manager->GetPaidOffCostFor(Schematic)));
+            Result->SetArrayField(TEXT("remaining_cost"), ItemAmountsJson(Manager->GetRemainingCostFor(Schematic)));
+        }
+        return Result;
+    }
+
+    TSharedRef<FJsonObject> GamePhaseJson(const UFGGamePhase* Phase)
+    {
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        Result->SetBoolField(TEXT("available"), IsValid(Phase));
+        if (!IsValid(Phase))
+        {
+            return Result;
+        }
+
+        Result->SetStringField(TEXT("asset_path"), Phase->GetPathName());
+        Result->SetStringField(TEXT("name"), Phase->mDisplayName.ToString());
+        Result->SetNumberField(TEXT("last_tech_tier"), Phase->mLastTierOfPhase);
+        Result->SetNumberField(TEXT("priority"), Phase->mPriority);
+        Result->SetStringField(TEXT("phase_tag"), Phase->mPhaseTag.ToString());
+        Result->SetStringField(
+            TEXT("legacy_phase"),
+            StaticEnum<EGamePhase>()->GetNameStringByValue(static_cast<int64>(Phase->mGamePhase)));
+        Result->SetArrayField(TEXT("cost"), ItemAmountsJson(Phase->mCosts));
         return Result;
     }
 
@@ -881,12 +969,28 @@ namespace
         TArray<TSharedPtr<FJsonValue>> Recipes;
         ItemCount = 0;
         RecipeCount = 0;
+        int32 AvailableItemCount = 0;
+        int32 UnavailableItemCount = 0;
+        int32 AvailableRecipeCount = 0;
+        int32 UnavailableRecipeCount = 0;
+        AFGRecipeManager* RecipeManager =
+            IsValid(World) ? AFGRecipeManager::Get(World) : nullptr;
+        Content->SetBoolField(TEXT("availability_known"), IsValid(RecipeManager));
+        Content->SetStringField(
+            TEXT("availability_source"),
+            IsValid(RecipeManager)
+                ? TEXT("AFGRecipeManager runtime state")
+                : TEXT("unavailable: recipe manager was not initialized"));
 
         UModContentRegistry* Registry = UModContentRegistry::Get(World);
         if (!IsValid(Registry))
         {
             Content->SetArrayField(TEXT("items"), Items);
             Content->SetArrayField(TEXT("recipes"), Recipes);
+            Content->SetNumberField(TEXT("available_item_count"), AvailableItemCount);
+            Content->SetNumberField(TEXT("unavailable_item_count"), UnavailableItemCount);
+            Content->SetNumberField(TEXT("available_recipe_count"), AvailableRecipeCount);
+            Content->SetNumberField(TEXT("unavailable_recipe_count"), UnavailableRecipeCount);
             return Content;
         }
 
@@ -908,6 +1012,12 @@ namespace
                 static_cast<int64>(UFGItemDescriptor::GetForm(ItemClass))));
             Entry->SetNumberField(TEXT("stack_size"), UFGItemDescriptor::GetStackSize(ItemClass));
             Entry->SetNumberField(TEXT("registration_flags"), static_cast<uint8>(Registration.Flags));
+            if (IsValid(RecipeManager))
+            {
+                const bool bAvailable = RecipeManager->IsItemDescriptorAvailable(ItemClass);
+                Entry->SetBoolField(TEXT("available"), bAvailable);
+                bAvailable ? ++AvailableItemCount : ++UnavailableItemCount;
+            }
             Items.Add(MakeShared<FJsonValueObject>(Entry));
             ++ItemCount;
         }
@@ -927,6 +1037,12 @@ namespace
             Entry->SetStringField(TEXT("registrar_mod"), Registration.RegistrarModReference.ToString());
             Entry->SetNumberField(TEXT("duration_seconds"), UFGRecipe::GetManufacturingDuration(RecipeClass));
             Entry->SetNumberField(TEXT("registration_flags"), static_cast<uint8>(Registration.Flags));
+            if (IsValid(RecipeManager))
+            {
+                const bool bAvailable = RecipeManager->IsRecipeAvailable(RecipeClass);
+                Entry->SetBoolField(TEXT("available"), bAvailable);
+                bAvailable ? ++AvailableRecipeCount : ++UnavailableRecipeCount;
+            }
 
             TArray<TSharedPtr<FJsonValue>> Ingredients;
             for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(World, RecipeClass))
@@ -954,24 +1070,36 @@ namespace
 
         Content->SetArrayField(TEXT("items"), Items);
         Content->SetArrayField(TEXT("recipes"), Recipes);
+        Content->SetNumberField(TEXT("available_item_count"), AvailableItemCount);
+        Content->SetNumberField(TEXT("unavailable_item_count"), UnavailableItemCount);
+        Content->SetNumberField(TEXT("available_recipe_count"), AvailableRecipeCount);
+        Content->SetNumberField(TEXT("unavailable_recipe_count"), UnavailableRecipeCount);
         return Content;
     }
 
-    TSharedRef<FJsonObject> ProgressionJson(UWorld* World)
+    TSharedRef<FJsonObject> ProgressionJson(
+        UWorld* World,
+        AFGPlayerController* PlayerController)
     {
         const TSharedRef<FJsonObject> Progression = MakeShared<FJsonObject>();
         TArray<TSharedPtr<FJsonValue>> Purchased;
         if (!IsValid(World))
         {
             Progression->SetArrayField(TEXT("purchased_schematics"), Purchased);
+            const TSharedRef<FJsonObject> Unavailable = MakeShared<FJsonObject>();
+            Unavailable->SetBoolField(TEXT("available"), false);
+            Progression->SetObjectField(TEXT("onboarding"), Unavailable);
             return Progression;
         }
 
-        if (AFGSchematicManager* Manager = AFGSchematicManager::Get(World))
+        AFGSchematicManager* SchematicManager = AFGSchematicManager::Get(World);
+        if (IsValid(SchematicManager))
         {
-            Progression->SetNumberField(TEXT("highest_available_tech_tier"), Manager->GetHighestAvailableTechTier());
+            Progression->SetNumberField(
+                TEXT("highest_available_tech_tier"),
+                SchematicManager->GetHighestAvailableTechTier());
             TArray<TSubclassOf<UFGSchematic>> Schematics;
-            Manager->GetAllPurchasedSchematics(Schematics);
+            SchematicManager->GetAllPurchasedSchematics(Schematics);
             for (const TSubclassOf<UFGSchematic>& Schematic : Schematics)
             {
                 const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
@@ -980,10 +1108,130 @@ namespace
                     TEXT("name"),
                     Schematic ? UFGSchematic::GetSchematicDisplayName(Schematic).ToString() : TEXT(""));
                 Entry->SetStringField(TEXT("owner_mod"), OwnerModForObject(Schematic.Get()));
+                if (Schematic)
+                {
+                    Entry->SetNumberField(TEXT("tech_tier"), UFGSchematic::GetTechTier(Schematic));
+                    Entry->SetStringField(
+                        TEXT("type"),
+                        StaticEnum<ESchematicType>()->GetNameStringByValue(
+                            static_cast<int64>(UFGSchematic::GetType(Schematic))));
+                }
                 Purchased.Add(MakeShared<FJsonValueObject>(Entry));
             }
+
+            Progression->SetObjectField(
+                TEXT("active_schematic"),
+                SchematicJson(World, SchematicManager, SchematicManager->GetActiveSchematic()));
+            Progression->SetObjectField(
+                TEXT("last_active_schematic"),
+                SchematicJson(World, SchematicManager, SchematicManager->GetLastActiveSchematic()));
         }
         Progression->SetArrayField(TEXT("purchased_schematics"), Purchased);
+
+        const TSharedRef<FJsonObject> Onboarding = MakeShared<FJsonObject>();
+        AFGTutorialIntroManager* TutorialManager = AFGTutorialIntroManager::Get(World);
+        Onboarding->SetBoolField(TEXT("available"), IsValid(TutorialManager));
+        if (IsValid(TutorialManager))
+        {
+            const EIntroTutorialSteps TutorialStep = TutorialManager->GetCurrentTutorialStep();
+            Onboarding->SetBoolField(
+                TEXT("intro_sequence_completed"),
+                TutorialManager->GetIsIntroSequenceDone());
+            Onboarding->SetBoolField(
+                TEXT("tutorial_completed"),
+                TutorialManager->GetIsTutorialCompleted());
+            Onboarding->SetBoolField(
+                TEXT("trading_post_built"),
+                TutorialManager->HasTradingpostBeenBuilt());
+            Onboarding->SetNumberField(
+                TEXT("trading_post_level"),
+                TutorialManager->GetTradingPostLevel());
+            Onboarding->SetStringField(
+                TEXT("legacy_step"),
+                StaticEnum<EIntroTutorialSteps>()->GetNameStringByValue(
+                    static_cast<int64>(TutorialStep)));
+            Onboarding->SetStringField(
+                TEXT("legacy_step_display_name"),
+                StaticEnum<EIntroTutorialSteps>()->GetDisplayNameTextByValue(
+                    static_cast<int64>(TutorialStep)).ToString());
+
+            UFGOnboardingStep* CurrentStep = TutorialManager->GetCurrentOnboardingStep();
+            const TSharedRef<FJsonObject> Step = MakeShared<FJsonObject>();
+            Step->SetBoolField(TEXT("available"), IsValid(CurrentStep));
+            if (IsValid(CurrentStep))
+            {
+                Step->SetStringField(TEXT("asset_path"), CurrentStep->GetPathName());
+                Step->SetStringField(TEXT("class_path"), CurrentStep->GetClass()->GetPathName());
+                Step->SetStringField(TEXT("owner_mod"), OwnerModForObject(CurrentStep));
+                Step->SetStringField(TEXT("title"), CurrentStep->Title.ToString());
+                Step->SetArrayField(TEXT("objectives"), TextArrayJson(CurrentStep->Objectives));
+                Step->SetArrayField(
+                    TEXT("objectives_gamepad"),
+                    TextArrayJson(CurrentStep->ObjectivesGamepad));
+                Step->SetArrayField(TEXT("hints"), TextArrayJson(CurrentStep->Hints));
+                Step->SetArrayField(TEXT("hints_gamepad"), TextArrayJson(CurrentStep->HintsGamepad));
+                Step->SetNumberField(TEXT("index"), CurrentStep->mIndex);
+                Step->SetNumberField(TEXT("priority"), CurrentStep->mPriority);
+                Step->SetBoolField(
+                    TEXT("excluded_from_onboarding"),
+                    CurrentStep->mExcludeFromOnboarding);
+            }
+            Onboarding->SetObjectField(TEXT("current_step"), Step);
+        }
+        Progression->SetObjectField(TEXT("onboarding"), Onboarding);
+
+        const TSharedRef<FJsonObject> GamePhase = MakeShared<FJsonObject>();
+        AFGGamePhaseManager* GamePhaseManager = AFGGamePhaseManager::Get(World);
+        GamePhase->SetBoolField(TEXT("available"), IsValid(GamePhaseManager));
+        if (IsValid(GamePhaseManager))
+        {
+            GamePhase->SetObjectField(
+                TEXT("current"),
+                GamePhaseJson(GamePhaseManager->GetCurrentGamePhase()));
+            GamePhase->SetObjectField(
+                TEXT("target"),
+                GamePhaseJson(GamePhaseManager->GetTargetGamePhase()));
+            GamePhase->SetBoolField(
+                TEXT("ready_for_next_phase"),
+                GamePhaseManager->ReadyToGoToNextGamePhase());
+            GamePhase->SetBoolField(
+                TEXT("last_phase_reached"),
+                GamePhaseManager->IsLastGamePhaseReached());
+
+            TArray<FRemainingPhaseCost> RemainingCosts;
+            GamePhaseManager->GetRemainingPhaseCosts(RemainingCosts);
+            TArray<TSharedPtr<FJsonValue>> RemainingJson;
+            for (const FRemainingPhaseCost& Remaining : RemainingCosts)
+            {
+                const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+                Entry->SetStringField(TEXT("item_class"), ClassPath(Remaining.ItemClass.Get()));
+                Entry->SetStringField(
+                    TEXT("item_name"),
+                    Remaining.ItemClass
+                        ? UFGItemDescriptor::GetItemName(Remaining.ItemClass).ToString()
+                        : TEXT(""));
+                Entry->SetNumberField(TEXT("total"), Remaining.TotalCost);
+                Entry->SetNumberField(TEXT("remaining"), Remaining.RemainingCost);
+                Entry->SetNumberField(
+                    TEXT("paid"),
+                    FMath::Max(0, Remaining.TotalCost - Remaining.RemainingCost));
+                RemainingJson.Add(MakeShared<FJsonValueObject>(Entry));
+            }
+            GamePhase->SetArrayField(TEXT("remaining_costs"), RemainingJson);
+        }
+        Progression->SetObjectField(TEXT("game_phase"), GamePhase);
+
+        const TSharedRef<FJsonObject> Todo = MakeShared<FJsonObject>();
+        AFGPlayerState* PlayerState = IsValid(PlayerController)
+            ? PlayerController->GetPlayerState<AFGPlayerState>()
+            : nullptr;
+        Todo->SetBoolField(TEXT("available"), IsValid(PlayerState));
+        if (IsValid(PlayerState))
+        {
+            Todo->SetStringField(TEXT("public"), PlayerState->GetPublicTodoList());
+            Todo->SetStringField(TEXT("private"), PlayerState->GetPrivateTodoList());
+        }
+        Progression->SetObjectField(TEXT("todo_lists"), Todo);
         return Progression;
     }
 }
@@ -1061,7 +1309,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     {
         Root->SetObjectField(TEXT("content"), ContentJson(World, Result.ItemCount, Result.RecipeCount));
     }
-    Root->SetObjectField(TEXT("progression"), ProgressionJson(World));
+    Root->SetObjectField(TEXT("progression"), ProgressionJson(World, Request.PlayerController));
 
     TArray<TSharedPtr<FJsonValue>> Actors;
     if (IsValid(World))

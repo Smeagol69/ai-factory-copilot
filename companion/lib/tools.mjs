@@ -215,7 +215,7 @@ export const SOLVER_TOOLS = [
   {
     name: "get_unlock_status",
     description:
-      "Purchased schematics and the highest available tech tier. The schematic-to-recipe mapping is not captured, so this reports recipe unlock state as unknown rather than guessing it.",
+      "The current onboarding objective, active milestone and remaining cost, game phase, todo lists, purchased schematics, highest tech tier, and exact available/unavailable recipe counts from the loaded save's recipe manager.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     run: (graph) => solveUnlockStatus(graph),
   },

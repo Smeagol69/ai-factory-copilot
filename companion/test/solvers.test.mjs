@@ -199,7 +199,7 @@ test("ranks recipes producing an item by output rate", () => {
   assert.equal(options.recipes_producing_item[1].outputs[0].display_units_per_minute, 15);
 });
 
-test("marks in-world recipes as available and never guesses unlock state", () => {
+test("uses exact recipe-manager availability for used and unused recipes", () => {
   const options = solveRecipeOptions(graphOf(), { item_class: "Desc_IronRod" });
   const inUse = options.recipes_producing_item.find((entry) => entry.recipe_class === "Recipe_IronRod");
   const unused = options.recipes_producing_item.find(
@@ -207,10 +207,32 @@ test("marks in-world recipes as available and never guesses unlock state", () =>
   );
 
   assert.equal(inUse.machines_currently_using_it, 1);
-  assert.equal(inUse.availability_evidence, "in_use_in_world_so_available_to_this_save");
+  assert.equal(inUse.availability_evidence, "AFGRecipeManager runtime state");
+  assert.equal(inUse.unlock_status, "available");
   assert.equal(unused.machines_currently_using_it, 0);
-  assert.equal(unused.availability_evidence, "registered_in_content_registry");
-  assert.equal(unused.unlock_status, "not_determinable_from_snapshot");
+  assert.equal(unused.availability_evidence, "AFGRecipeManager runtime state");
+  assert.equal(unused.unlock_status, "available");
+});
+
+test("falls back to live usage evidence for snapshots made before availability capture", () => {
+  const snapshot = buildFactorySnapshot();
+  delete snapshot.content.availability_known;
+  delete snapshot.content.available_recipe_count;
+  delete snapshot.content.unavailable_recipe_count;
+  for (const recipe of snapshot.content.recipes) delete recipe.available;
+
+  const options = solveRecipeOptions(buildGraph(snapshot), {
+    item_class: "Desc_IronRod",
+  });
+  const inUse = options.recipes_producing_item.find(
+    (entry) => entry.recipe_class === "Recipe_IronRod",
+  );
+  const unused = options.recipes_producing_item.find(
+    (entry) => entry.recipe_class === "Recipe_Alternate_IronRod",
+  );
+  assert.equal(inUse.availability_evidence, "in_use_in_world_so_available_to_this_save");
+  assert.equal(inUse.unlock_status, "available");
+  assert.equal(unused.unlock_status, "unknown");
 });
 
 test("lists recipes that consume the queried item", () => {
@@ -435,11 +457,33 @@ test("declares held amounts unknown when no player was captured", () => {
   assert.match(cost.inventory_scope.note, /unknown rather than zero/);
 });
 
-test("reports schematics without guessing recipe unlocks", () => {
+test("reports objectives and authoritative recipe-manager availability", () => {
   const unlocks = solveUnlockStatus(graphOf());
   assert.equal(unlocks.highest_available_tech_tier, 5);
   assert.equal(unlocks.purchased_schematic_count, 1);
-  assert.equal(unlocks.recipe_unlock_mapping, "not_present_in_snapshot");
+  assert.equal(unlocks.onboarding.current_step.title, "Build the HUB");
+  assert.equal(unlocks.recipe_unlock_mapping, "authoritative_AFGRecipeManager_runtime_state");
+  assert.equal(unlocks.available_recipe_count, 5);
+  assert.equal(unlocks.unavailable_recipe_count, 0);
+});
+
+test("labels a locked registered recipe unavailable instead of guessing", () => {
+  const snapshot = buildFactorySnapshot();
+  const locked = snapshot.content.recipes.find(
+    (recipe) => recipe.class_path === "Recipe_Alternate_IronRod",
+  );
+  locked.available = false;
+  snapshot.content.available_recipe_count = 4;
+  snapshot.content.unavailable_recipe_count = 1;
+
+  const options = solveRecipeOptions(buildGraph(snapshot), {
+    item_class: "Desc_IronRod",
+  });
+  const result = options.recipes_producing_item.find(
+    (recipe) => recipe.recipe_class === locked.class_path,
+  );
+  assert.equal(result.unlock_status, "unavailable");
+  assert.equal(result.availability_evidence, "AFGRecipeManager runtime state");
 });
 
 /* ---------------- whole report ---------------- */

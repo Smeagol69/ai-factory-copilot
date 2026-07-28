@@ -251,7 +251,17 @@ export function buildLeanPayload(snapshot, { maxActors = 120, maxCharacters = 20
     progression_summary: {
       highest_available_tech_tier: progression.highest_available_tech_tier ?? null,
       purchased_schematic_count: (progression.purchased_schematics ?? []).length,
-      detail: "Call get_unlock_status for the schematic list.",
+      active_schematic: progression.active_schematic ?? null,
+      onboarding: progression.onboarding ?? null,
+      game_phase: progression.game_phase ?? null,
+      todo_lists: progression.todo_lists ?? null,
+      recipe_availability: {
+        known: snapshot?.content?.availability_known ?? false,
+        available_recipe_count: snapshot?.content?.available_recipe_count ?? null,
+        unavailable_recipe_count: snapshot?.content?.unavailable_recipe_count ?? null,
+      },
+      detail:
+        "Current objective, active milestone, phase, and recipe availability are live runtime state. Call get_unlock_status for the purchased schematic list.",
     },
     actors_nearest_to_the_player: kept,
     completeness: {

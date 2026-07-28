@@ -28,6 +28,34 @@ function round(value, decimals = 6) {
   return Math.round(value * factor) / factor;
 }
 
+function recipeAvailability(recipe, inUseInWorld = false) {
+  if (typeof recipe?.available === "boolean") {
+    return {
+      unlock_status: recipe.available ? "available" : "unavailable",
+      availability_evidence: "AFGRecipeManager runtime state",
+      unlock_reason: recipe.available
+        ? "The live recipe manager marks this recipe available in the loaded save."
+        : "The live recipe manager marks this recipe unavailable in the loaded save.",
+      certainty: "authoritative",
+    };
+  }
+  if (inUseInWorld) {
+    return {
+      unlock_status: "available",
+      availability_evidence: "in_use_in_world_so_available_to_this_save",
+      unlock_reason: "A captured live machine is already using this recipe.",
+      certainty: "authoritative",
+    };
+  }
+  return {
+    unlock_status: "unknown",
+    availability_evidence: "registered_in_content_registry",
+    unlock_reason:
+      "This snapshot predates recipe-manager availability fields, so registration alone does not prove the save unlocked it.",
+    certainty: "unknown",
+  };
+}
+
 /**
  * Liquid and gas amounts are stored in the registry as thousandths of a cubic
  * metre. Comparing a recipe amount with a pipeline flow limit is only valid
@@ -348,6 +376,8 @@ export function solveRecipeOptions(graph, { item_class = null, name_contains = n
     if (!matches(recipe)) continue;
     const duration = finitePositive(recipe.duration_seconds);
     const cyclesPerMinute = duration === null ? null : 60 / duration;
+    const inUseInWorld = (usageCount.get(recipe.class_path) ?? 0) > 0;
+    const availability = recipeAvailability(recipe, inUseInWorld);
     const entry = {
       recipe_class: recipe.class_path,
       recipe_name: recipe.name ?? null,
@@ -358,13 +388,7 @@ export function solveRecipeOptions(graph, { item_class = null, name_contains = n
       inputs: cyclesPerMinute === null ? [] : rateEntries(graph, recipe.ingredients, cyclesPerMinute),
       outputs: cyclesPerMinute === null ? [] : rateEntries(graph, recipe.products, cyclesPerMinute),
       machines_currently_using_it: usageCount.get(recipe.class_path) ?? 0,
-      availability_evidence:
-        (usageCount.get(recipe.class_path) ?? 0) > 0
-          ? "in_use_in_world_so_available_to_this_save"
-          : "registered_in_content_registry",
-      unlock_status: "not_determinable_from_snapshot",
-      unlock_reason:
-        "The snapshot lists purchased schematics but not the schematic-to-recipe mapping, so recipe unlock state cannot be derived.",
+      ...availability,
     };
     if (!item_class || (recipe.products ?? []).some((product) => product.item_class === item_class)) {
       producing.push(entry);
@@ -391,7 +415,7 @@ export function solveRecipeOptions(graph, { item_class = null, name_contains = n
     catalog_recipe_count: graph.recipesByClass.size,
     catalog_note:
       "The bridge may have compacted the content catalog for context size; absent recipes are unknown, not nonexistent.",
-    source: "authoritative_content_registry_with_deterministic_rate_arithmetic",
+    source: "authoritative_content_and_recipe_registries_with_deterministic_rate_arithmetic",
     certainty: "calculated",
   };
 }
@@ -894,6 +918,10 @@ export function solveBuildCost(graph, { recipe_class = null, class_path = null, 
     });
   }
 
+  const availability = recipeAvailability(
+    recipe,
+    resolvedFrom === "built_with_recipe_of_existing_actor_of_that_class",
+  );
   return {
     solver: "build_cost",
     world_revision: graph.world_revision,
@@ -914,9 +942,10 @@ export function solveBuildCost(graph, { recipe_class = null, class_path = null, 
           : "Held amounts cover captured player inventories only; storage containers and dimensional depot are not included.",
       certainty: playerIds.length === 0 ? "unknown" : "authoritative_for_captured_players",
     },
-    unlock_status: "not_determinable_from_snapshot",
-    unlock_reason:
-      "Purchased schematics are captured but not their recipe unlocks, so build availability cannot be confirmed from the snapshot.",
+    unlock_status: availability.unlock_status,
+    unlock_reason: availability.unlock_reason,
+    availability_evidence: availability.availability_evidence,
+    unlock_certainty: availability.certainty,
     source: "authoritative_content_registry_and_captured_inventories",
     certainty: "calculated",
   };
@@ -924,18 +953,45 @@ export function solveBuildCost(graph, { recipe_class = null, class_path = null, 
 
 export function solveUnlockStatus(graph) {
   const progression = graph.snapshot?.progression ?? {};
+  const content = graph.snapshot?.content ?? {};
   const purchased = progression.purchased_schematics ?? [];
+  const recipes = [...graph.recipesByClass.values()];
+  const availabilityKnown =
+    content.availability_known === true ||
+    recipes.some((recipe) => typeof recipe?.available === "boolean");
+  const availableRecipeCount =
+    finiteNumber(content.available_recipe_count) ??
+    recipes.filter((recipe) => recipe?.available === true).length;
+  const unavailableRecipeCount =
+    finiteNumber(content.unavailable_recipe_count) ??
+    recipes.filter((recipe) => recipe?.available === false).length;
   return {
     solver: "unlock_status",
     world_revision: graph.world_revision,
     highest_available_tech_tier: finiteNumber(progression.highest_available_tech_tier),
     purchased_schematic_count: purchased.length,
     purchased_schematics: purchased,
-    recipe_unlock_mapping: "not_present_in_snapshot",
+    active_schematic: progression.active_schematic ?? null,
+    last_active_schematic: progression.last_active_schematic ?? null,
+    onboarding: progression.onboarding ?? null,
+    game_phase: progression.game_phase ?? null,
+    todo_lists: progression.todo_lists ?? null,
+    recipe_availability_known: availabilityKnown,
+    available_recipe_count: availableRecipeCount,
+    unavailable_recipe_count: unavailableRecipeCount,
+    recipe_unlock_mapping: availabilityKnown
+      ? "authoritative_AFGRecipeManager_runtime_state"
+      : "not_present_in_snapshot",
     recipe_unlock_note:
-      "The snapshot lists purchased schematics but not which recipes each unlocks. Recipe availability is therefore unknown unless a machine in the world already uses the recipe.",
-    source: "authoritative_schematic_manager",
-    certainty: "authoritative_for_listed_schematics",
+      availabilityKnown
+        ? "Every catalog recipe carries the loaded save's exact available/unavailable state. Use find_recipes for a specific recipe."
+        : "This older snapshot lists purchased schematics but not live recipe availability; only recipes already in use can be proven available.",
+    source: availabilityKnown
+      ? "authoritative_schematic_recipe_tutorial_and_game_phase_managers"
+      : "authoritative_schematic_manager",
+    certainty: availabilityKnown
+      ? "authoritative"
+      : "authoritative_for_listed_schematics",
   };
 }
 
@@ -1519,13 +1575,17 @@ export function solveProductionPlan(
   }
 
   const recipesProducing = (itemClass) => {
-    const options = [];
+    const all = [];
     for (const recipe of graph.recipesByClass.values()) {
       if ((recipe.products ?? []).some((product) => product.item_class === itemClass)) {
-        options.push(recipe);
+        all.push(recipe);
       }
     }
-    return options;
+    return {
+      all,
+      usable: all.filter((recipe) => recipe?.available !== false),
+      locked: all.filter((recipe) => recipe?.available === false),
+    };
   };
 
   const inUseRecipeClasses = new Set(
@@ -1561,8 +1621,8 @@ export function solveProductionPlan(
     const remaining = rate - fromSurplus;
     if (remaining <= 1e-9) return;
 
-    const options = recipesProducing(itemClass);
-    if (options.length === 0) {
+    const recipeOptions = recipesProducing(itemClass);
+    if (recipeOptions.all.length === 0) {
       // Nothing makes it, so it is a raw input for this plan.
       const scale = itemUnitScale(graph, itemClass);
       rawInputs.set(itemClass, {
@@ -1572,6 +1632,17 @@ export function solveProductionPlan(
         raw: (rawInputs.get(itemClass)?.raw ?? 0) + remaining,
         display_unit: scale.display_unit,
         supplied_by: "extraction or an existing line; not planned here",
+      });
+      return;
+    }
+    if (recipeOptions.usable.length === 0) {
+      unresolved.push({
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round(remaining),
+        reason: "all_catalog_recipes_are_unavailable_in_this_save",
+        locked_recipe_classes: recipeOptions.locked.map((recipe) => recipe.class_path),
+        chain,
       });
       return;
     }
@@ -1586,10 +1657,27 @@ export function solveProductionPlan(
       return;
     }
 
+    const options = recipeOptions.usable;
+    const requestedRecipe =
+      depth === max_depth && recipe_class
+        ? recipeOptions.all.find((recipe) => recipe.class_path === recipe_class)
+        : null;
+    if (requestedRecipe?.available === false) {
+      unresolved.push({
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round(remaining),
+        reason: "requested_recipe_is_unavailable_in_this_save",
+        recipe_class: requestedRecipe.class_path,
+        chain,
+      });
+      return;
+    }
+
     // Prefer an explicitly requested recipe, then one already used in this
     // world, then the highest-yield option.
     const chosen =
-      (depth === max_depth && recipe_class && options.find((r) => r.class_path === recipe_class)) ||
+      requestedRecipe ||
       options.find((r) => inUseRecipeClasses.has(r.class_path)) ||
       options.slice().sort((a, b) => (recipeOutputRate(graph, b, itemClass) ?? 0) - (recipeOutputRate(graph, a, itemClass) ?? 0))[0];
 
@@ -1627,7 +1715,10 @@ export function solveProductionPlan(
       recipe_class: chosen.class_path,
       recipe_name: chosen.name ?? null,
       recipe_already_used_here: inUseRecipeClasses.has(chosen.class_path),
+      recipe_available_in_save:
+        typeof chosen.available === "boolean" ? chosen.available : null,
       alternate_recipes_available: options.length - 1,
+      alternate_recipes_locked: recipeOptions.locked.length,
       produced_in: chosen.produced_in ?? [],
       machines_required: machines,
       machines_exact: round(machinesExact, 3),
@@ -1729,9 +1820,11 @@ export function solveProductionPlan(
     step_budget_hit: stepBudgetHit,
     caveats: {
       recipe_choice:
-        "Recipes already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
+        "Unavailable recipes are excluded. Among usable recipes, ones already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
       unlocks:
-        "Whether a chosen recipe is unlocked in this save cannot be determined from the snapshot; a recipe already in use here is known to be available.",
+        graph.snapshot?.content?.availability_known === true
+          ? "Recipe choices use the loaded save's authoritative AFGRecipeManager availability state."
+          : "This older snapshot lacks recipe-manager availability; recipes already in use are known available and other registered recipes remain uncertain.",
       power:
         "Per-machine draw is read off your own machines of that type. Steps with no such machine report power as unknown rather than estimating it.",
       layout:

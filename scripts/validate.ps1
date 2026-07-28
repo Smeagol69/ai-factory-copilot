@@ -8,7 +8,7 @@ $root = Split-Path -Parent $PSScriptRoot
 
 $descriptorPath = Join-Path $root 'AIFactoryCopilot.uplugin'
 $descriptor = Get-Content -Raw -LiteralPath $descriptorPath | ConvertFrom-Json
-if ($descriptor.SemVersion -ne '0.4.0') {
+if ($descriptor.SemVersion -ne '0.4.1') {
     throw "Unexpected plugin SemVersion '$($descriptor.SemVersion)'."
 }
 if ($descriptor.GameVersion -ne '>=491125') {
@@ -75,8 +75,14 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableManufacturer.h'; Pattern = 'GetCurrentRecipe' },
         @{ Path = 'Source\FactoryGame\Public\FGFactoryConnectionComponent.h'; Pattern = 'GetConnection' },
         @{ Path = 'Source\FactoryGame\Public\FGSchematicManager.h'; Pattern = 'GetAllPurchasedSchematics' },
+        @{ Path = 'Source\FactoryGame\Public\FGSchematicManager.h'; Pattern = 'GetActiveSchematic' },
         @{ Path = 'Source\FactoryGame\Public\FGRecipeManager.h'; Pattern = 'IsRecipeAvailable' },
+        @{ Path = 'Source\FactoryGame\Public\FGRecipeManager.h'; Pattern = 'IsItemDescriptorAvailable' },
         @{ Path = 'Source\FactoryGame\Public\FGRecipeManager.h'; Pattern = 'IsBuildingAvailable' },
+        @{ Path = 'Source\FactoryGame\Public\FGTutorialIntroManager.h'; Pattern = 'GetCurrentOnboardingStep' },
+        @{ Path = 'Source\FactoryGame\Public\FGOnboardingStep.h'; Pattern = 'TArray< FText > Objectives' },
+        @{ Path = 'Source\FactoryGame\Public\FGGamePhaseManager.h'; Pattern = 'GetCurrentGamePhase' },
+        @{ Path = 'Source\FactoryGame\Public\FGPlayerState.h'; Pattern = 'GetPrivateTodoList' },
         @{ Path = 'Source\FactoryGame\Public\FGInventoryComponent.h'; Pattern = 'HasItems' },
         @{ Path = 'Source\FactoryGame\Public\FGInventoryComponent.h'; Pattern = 'GetNoBuildCost' },
         @{ Path = 'Source\FactoryGame\Public\FGDismantleInterface.h'; Pattern = 'DropRefundOnGroundNoActor' },
