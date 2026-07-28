@@ -124,12 +124,18 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
         return;
     }
 
+    const bool bWritesEnabled = AreWriteActionsEnabled();
     Transcript =
         TEXT("COPILOT\n")
         TEXT("Ask me anything, however you want to word it. I read the save directly: every Send ")
         TEXT("captures the whole world, your exact position, camera, and what you are looking at. ")
         TEXT("Numbers come from deterministic solvers, not guesswork, and when a question needs ")
-        TEXT("outside knowledge I check the official wiki, docs, and forums and cite what I used.\n");
+        TEXT("outside knowledge I check the official wiki, docs, and forums and cite what I used.\n\n");
+    Transcript += bWritesEnabled
+        ? TEXT("WARNING: WORLD WRITES ARE ENABLED. Committed actions can change this save; ")
+          TEXT("each plan is revision-gated, preflighted, and reported below after execution.\n")
+        : TEXT("World writes are disabled. Placement, teleport, dismantle, and undo requests ")
+          TEXT("are validated as previews and cannot change the save.\n");
 
     RootWidget =
         SNew(SOverlay)
@@ -222,9 +228,11 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                     .Padding(0.0f, 0.0f, 0.0f, 8.0f)
                     [
                         SAssignNew(RequestStatusText, STextBlock)
-                        .Text(FText::FromString(TEXT(
-                            "Ready | Enter sends | Shift+Enter new line | Insert or Esc closes | advisory/read-only")))
-                        .ColorAndOpacity(FLinearColor(0.62f, 0.68f, 0.73f, 1.0f))
+                        .Text(FText::FromString(GetReadyStatus()))
+                        .ColorAndOpacity(
+                            bWritesEnabled
+                                ? FLinearColor(1.0f, 0.58f, 0.16f, 1.0f)
+                                : FLinearColor(0.62f, 0.68f, 0.73f, 1.0f))
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
                     ]
                     + SVerticalBox::Slot()
@@ -320,6 +328,7 @@ void UAIFactoryCopilotUISubsystem::ShowPanel()
         FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
     }
     UpdateLiveStatus();
+    RefreshReadyStatus();
 }
 
 void UAIFactoryCopilotUISubsystem::HidePanel()
@@ -412,7 +421,7 @@ void UAIFactoryCopilotUISubsystem::ClearConversation()
     }
     if (RequestStatusText.IsValid())
     {
-        RequestStatusText->SetText(FText::FromString(TEXT("Conversation cleared.")));
+        RefreshReadyStatus();
     }
 }
 
@@ -503,6 +512,37 @@ void UAIFactoryCopilotUISubsystem::UpdateLiveStatus()
         *FocusName)));
 }
 
+bool UAIFactoryCopilotUISubsystem::AreWriteActionsEnabled() const
+{
+    if (const AAIFactorySubsystem* Subsystem = GetCopilotSubsystem();
+        IsValid(Subsystem))
+    {
+        return Subsystem->GetSettings().bAllowWriteActions;
+    }
+    return FAIFactorySettings::Load().bAllowWriteActions;
+}
+
+FString UAIFactoryCopilotUISubsystem::GetReadyStatus() const
+{
+    return AreWriteActionsEnabled()
+        ? TEXT("Ready | WRITES ENABLED | Enter sends | Shift+Enter new line | Insert or Esc closes")
+        : TEXT("Ready | advisory/read-only | Enter sends | Shift+Enter new line | Insert or Esc closes");
+}
+
+void UAIFactoryCopilotUISubsystem::RefreshReadyStatus()
+{
+    if (!RequestStatusText.IsValid())
+    {
+        return;
+    }
+    const bool bWritesEnabled = AreWriteActionsEnabled();
+    RequestStatusText->SetText(FText::FromString(GetReadyStatus()));
+    RequestStatusText->SetColorAndOpacity(
+        bWritesEnabled
+            ? FLinearColor(1.0f, 0.58f, 0.16f, 1.0f)
+            : FLinearColor(0.62f, 0.68f, 0.73f, 1.0f));
+}
+
 AFGPlayerController* UAIFactoryCopilotUISubsystem::GetLocalPlayerController() const
 {
     const UGameInstance* GameInstance = GetGameInstance();
@@ -564,10 +604,15 @@ void UAIFactoryCopilotUISubsystem::HandleBridgeResult(
     AppendTranscript(Speaker, Reply);
     if (RequestStatusText.IsValid())
     {
-        RequestStatusText->SetText(FText::FromString(
-            bSuccess
-                ? TEXT("Ready | answer grounded in the capture made when you pressed Send")
-                : TEXT("Request failed; the error is shown above.")));
+        if (bSuccess)
+        {
+            RefreshReadyStatus();
+        }
+        else
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("Request failed; the error is shown above.")));
+        }
     }
     if (bPanelVisible && InputBox.IsValid() && FSlateApplication::IsInitialized())
     {

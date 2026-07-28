@@ -56,6 +56,9 @@ private:
     void AppendTranscript(const FString& Speaker, const FString& Text);
     bool Tick(float DeltaTime);
     void UpdateLiveStatus();
+    bool AreWriteActionsEnabled() const;
+    FString GetReadyStatus() const;
+    void RefreshReadyStatus();
     AFGPlayerController* GetLocalPlayerController() const;
     UCommandSender* GetLocalCommandSender(AFGPlayerController* PlayerController) const;
     AAIFactorySubsystem* GetCopilotSubsystem() const;

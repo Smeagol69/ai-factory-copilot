@@ -166,12 +166,16 @@ validates them first. Adding one means touching both, plus `ACTION_KINDS`.
 | `undo_last` | Pops the journal; dismantles what was placed, restores where the player was |
 | `highlight` / `clear_highlight` | Draw only. Never gated, never counted as changes |
 
-Gates, in order: server-authority → optional world-revision match → per-action
-validation → `bAllowWriteActions` → `commit:true` on the action itself. All five
-must pass. `allowWriteActions` is **off by default** and lives in the mod config,
-not the bridge — the model can request a commit, only the game can grant one.
+Gates, in order: server-authority → mandatory world-revision match for a
+committed write → whole-plan preflight → `bAllowWriteActions` → `commit:true`
+on the action itself. All five must pass. The bridge stamps the snapshot revision
+onto validated actions; the model never supplies that value. `allowWriteActions`
+is **off by default** and lives in the mod config, not the bridge — the model can
+request a commit, only the game can grant one.
 
-A plan stops at its first failing step; remaining steps report as skipped.
+A plan is preflighted whole, stops at its first runtime failure, and rolls back
+the reversible writes it already made. Successful multi-step writes are one undo
+transaction. Dismantle and undo must each be standalone committed writes.
 
 ## State of play
 
@@ -179,7 +183,15 @@ Done: the read-only scanner; fifteen tools (eleven solvers plus four action
 tools); terrain probing; site selection; production planning against the live
 base; the layout designer; server-authoritative writes; in-world overlays;
 official-source web search; adaptive thinking; multi-line in-game chat;
-blueprint header/cost/contents reading and placement.
+blueprint header/cost/contents reading and placement; stale-snapshot enforcement;
+whole-plan preflight/rollback; one-transaction undo; exact game-side action
+results in both the panel and `latest-bridge-response.json`; truthful write-mode
+status in the panel.
+
+Latest verified checkpoint (2026-07-28): all 253 companion tests pass and the
+FactoryEditor Development target compiles against the local official Starter
+Project headers. The repo source was synced into the Starter Project after that
+compile. It has not yet been packaged/deployed or exercised in a live save.
 
 Open, in rough order:
 
@@ -199,7 +211,13 @@ Open, in rough order:
    [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
    implements it. The companion has zero dependencies, a deliberate property —
    decide consciously before breaking it.
-4. **Recipe unlock mapping.** Purchased schematics are captured but not which
-   recipes they unlock, so recipe availability is reported as unknown.
-5. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
+4. **Construction parity.** `place_building` currently calls
+   `BeginSpawnBuildable` after terrain probing. Before calling this production
+   ready, use the official recipe manager/inventory/hologram APIs to enforce
+   unlock state, aggregate material cost, placement disqualifiers, refunds, and
+   rollback. `place_blueprint` needs the equivalent descriptor cost checks.
+5. **Recipe unlock mapping.** Purchased schematics are captured but not which
+   recipes they unlock in the snapshot/solver. `AFGRecipeManager` is the verified
+   runtime source for availability and should be captured explicitly.
+6. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
    than placing it directly. Needs (3).

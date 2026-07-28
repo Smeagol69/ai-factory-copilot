@@ -79,6 +79,17 @@ test("commit is false unless the proposal set it", () => {
   assert.equal(asked.action.commit, true);
 });
 
+test("every validated action is bound to the snapshot revision", () => {
+  const graph = graphOf();
+  const result = validateAction(graph, {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.action.expect_world_revision, String(graph.world_revision));
+});
+
 /* ---------------- a plan is all-or-nothing ---------------- */
 
 test("one invalid step voids the whole plan rather than half-building it", () => {
@@ -115,7 +126,27 @@ test("a valid plan counts its commits and says how it will run", () => {
   assert.equal(plan.valid, true);
   assert.equal(plan.step_count, 2);
   assert.equal(plan.commits, 1);
-  assert.match(plan.execution, /stopping at the first failure/);
+  assert.match(plan.execution, /rolled back as one transaction/);
+});
+
+test("a committed dismantle cannot be mixed into a reversible transaction", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "teleport_player", target: HERE, commit: true },
+    { action: "dismantle", actor_id: CONSTRUCTOR, commit: true },
+  ]);
+  assert.equal(plan.valid, false);
+  assert.equal(plan.reason, "irreversible_dismantle_must_be_a_standalone_commit");
+  assert.deepEqual(plan.actions, []);
+});
+
+test("undo cannot mutate the journal in the middle of another committed transaction", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "teleport_player", target: HERE, commit: true },
+    { action: "undo_last", commit: true },
+  ]);
+  assert.equal(plan.valid, false);
+  assert.equal(plan.reason, "undo_must_be_a_standalone_commit");
+  assert.deepEqual(plan.actions, []);
 });
 
 test("the summary flags irreversible steps separately", () => {
@@ -150,6 +181,7 @@ test("perform_actions puts validated actions in the sink for the mod", () => {
   assert.equal(services.emitted.length, 1);
   assert.equal(services.emitted[0].action, "teleport_player");
   assert.equal(services.emitted[0].commit, true);
+  assert.equal(services.emitted[0].expect_world_revision, "41");
 });
 
 test("an invalid plan reaches the sink as nothing at all", () => {

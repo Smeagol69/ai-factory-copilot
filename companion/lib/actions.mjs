@@ -103,6 +103,19 @@ function reject(kind, reason, detail = {}) {
 }
 
 /**
+ * Bind a proposed action to the exact world revision the solver read.
+ *
+ * The game compares this string with its live revision immediately before
+ * execution. Keeping the stamp out of the model-facing schema prevents the
+ * model from inventing or accidentally reusing one.
+ */
+function bindWorldRevision(graph, action) {
+  const revision = graph?.world_revision;
+  if (revision === null || revision === undefined) return action;
+  return { ...action, expect_world_revision: String(revision) };
+}
+
+/**
  * Validates one proposed action against the snapshot.
  *
  * Returns `{ valid, action, warnings, checks }`. A valid result carries the
@@ -146,13 +159,13 @@ export function validateAction(graph, proposal) {
       valid: true,
       warnings,
       checks,
-      action: {
+      action: bindWorldRevision(graph, {
         action: kind,
         target,
         snap_to_ground: snapToGround,
         snap_clearance_cm: finite(proposal.snap_clearance_cm) ?? 200,
         commit: proposal.commit === true,
-      },
+      }),
     };
   }
 
@@ -206,14 +219,14 @@ export function validateAction(graph, proposal) {
       valid: true,
       warnings,
       checks,
-      action: {
+      action: bindWorldRevision(graph, {
         action: kind,
         recipe_class: checks.resolved_recipe_class ?? recipeClass,
         location,
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
         commit: proposal.commit === true,
-      },
+      }),
     };
   }
 
@@ -247,13 +260,13 @@ export function validateAction(graph, proposal) {
       valid: true,
       warnings,
       checks,
-      action: {
+      action: bindWorldRevision(graph, {
         action: kind,
         blueprint_name: name,
         location,
         yaw: finite(proposal.yaw) ?? 0,
         commit: proposal.commit === true,
-      },
+      }),
     };
   }
 
@@ -273,7 +286,11 @@ export function validateAction(graph, proposal) {
       valid: true,
       warnings,
       checks,
-      action: { action: kind, actor_id: actorId, commit: proposal.commit === true },
+      action: bindWorldRevision(graph, {
+        action: kind,
+        actor_id: actorId,
+        commit: proposal.commit === true,
+      }),
     };
   }
 
@@ -290,7 +307,7 @@ export function validateAction(graph, proposal) {
       valid: true,
       warnings,
       checks: { draws_only: true },
-      action: { ...rest, action: kind, commit: true },
+      action: bindWorldRevision(graph, { ...rest, action: kind, commit: true }),
     };
   }
 
@@ -299,7 +316,7 @@ export function validateAction(graph, proposal) {
     valid: true,
     warnings,
     checks,
-    action: { action: kind, commit: proposal.commit === true },
+    action: bindWorldRevision(graph, { action: kind, commit: proposal.commit === true }),
   };
 }
 
@@ -351,6 +368,30 @@ export function validatePlan(graph, proposals, { maxActions = 64 } = {}) {
     };
   }
 
+  const committedWrites = actions.filter(
+    (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
+  );
+  const irreversible = committedWrites.filter((action) => action.action === "dismantle");
+  if (irreversible.length > 0 && committedWrites.length > 1) {
+    return {
+      valid: false,
+      reason: "irreversible_dismantle_must_be_a_standalone_commit",
+      actions: [],
+      note:
+        "A dismantle cannot be rolled back, so it cannot share a committed transaction with another write.",
+    };
+  }
+  const undoSteps = committedWrites.filter((action) => action.action === "undo_last");
+  if (undoSteps.length > 0 && committedWrites.length > 1) {
+    return {
+      valid: false,
+      reason: "undo_must_be_a_standalone_commit",
+      actions: [],
+      note:
+        "Undo changes the journal while it runs, so it must be the only committed write in its transaction.",
+    };
+  }
+
   return {
     valid: true,
     actions,
@@ -361,7 +402,7 @@ export function validatePlan(graph, proposals, { maxActions = 64 } = {}) {
     ).length,
     overlays: actions.filter((action) => OVERLAY_ACTION_KINDS.includes(action.action)).length,
     execution:
-      "Executed in order by the mod, server-side, stopping at the first failure. Each step is re-validated there and read back after committing.",
+      "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
   };
 }
 

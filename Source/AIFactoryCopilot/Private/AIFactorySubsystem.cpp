@@ -23,6 +23,82 @@
 #include "Subsystem/SubsystemActorManager.h"
 #include "TimerManager.h"
 
+namespace
+{
+    bool IsCommittedWorldWriteResult(const TSharedPtr<FJsonValue>& Value)
+    {
+        const TSharedPtr<FJsonObject>* Object = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Object) || !Object)
+        {
+            return false;
+        }
+
+        bool bCommitted = false;
+        FString Action;
+        (*Object)->TryGetBoolField(TEXT("committed"), bCommitted);
+        (*Object)->TryGetStringField(TEXT("action"), Action);
+        return
+            bCommitted &&
+            Action != TEXT("highlight") &&
+            Action != TEXT("clear_highlight");
+    }
+
+    FString DescribeActionResults(const TArray<TSharedPtr<FJsonValue>>& Results)
+    {
+        FString Description;
+        for (int32 Index = 0; Index < Results.Num(); ++Index)
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (!Results[Index].IsValid() ||
+                !Results[Index]->TryGetObject(Object) ||
+                !Object)
+            {
+                Description += FString::Printf(
+                    TEXT("\n  %d. unknown: invalid result"),
+                    Index + 1);
+                continue;
+            }
+
+            FString Action = TEXT("unknown");
+            FString Status = TEXT("not_run");
+            FString Reason;
+            (*Object)->TryGetStringField(TEXT("action"), Action);
+            (*Object)->TryGetStringField(TEXT("status"), Status);
+            (*Object)->TryGetStringField(TEXT("reason"), Reason);
+
+            const TArray<TSharedPtr<FJsonValue>>* Created = nullptr;
+            const TArray<TSharedPtr<FJsonValue>>* Removed = nullptr;
+            (*Object)->TryGetArrayField(TEXT("created_actor_ids"), Created);
+            (*Object)->TryGetArrayField(TEXT("removed_actor_ids"), Removed);
+
+            Description += FString::Printf(
+                TEXT("\n  %d. %s: %s"),
+                Index + 1,
+                *Action,
+                *Status);
+            if (!Reason.IsEmpty())
+            {
+                Description += TEXT(" - ") + Reason;
+            }
+            if (Created && Created->Num() > 0)
+            {
+                Description += FString::Printf(
+                    TEXT(" (created %d actor%s)"),
+                    Created->Num(),
+                    Created->Num() == 1 ? TEXT("") : TEXT("s"));
+            }
+            if (Removed && Removed->Num() > 0)
+            {
+                Description += FString::Printf(
+                    TEXT(" (removed %d actor%s)"),
+                    Removed->Num(),
+                    Removed->Num() == 1 ? TEXT("") : TEXT("s"));
+            }
+        }
+        return Description;
+    }
+}
+
 AAIFactorySubsystem::AAIFactorySubsystem()
 {
     ReplicationPolicy = ESubsystemReplicationPolicy::SpawnOnServer;
@@ -85,6 +161,10 @@ void AAIFactorySubsystem::Init()
 void AAIFactorySubsystem::BeginPlay()
 {
     Super::BeginPlay();
+    // The journal contains live object pointers and must never survive a world
+    // transition. In particular, "undo" in a newly loaded save must not target
+    // actors or a player from the previous save.
+    AIFactoryActions::ClearUndoJournal();
 
     if (UWorld* World = GetWorld())
     {
@@ -130,6 +210,7 @@ void AAIFactorySubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
         }
     }
 
+    AIFactoryActions::ClearUndoJournal();
     Super::EndPlay(EndPlayReason);
 }
 
@@ -416,20 +497,64 @@ void AAIFactorySubsystem::AskBridge(
                 if (!ActionSummary.IsEmpty())
                 {
                     Reply += TEXT("\n\n") + ActionSummary + Truncated;
+                    Reply += DescribeActionResults(ActionResults);
                     if (!ActionSettings.bAllowWriteActions)
                     {
                         Reply += TEXT(
                             "\nWrite actions are off, so nothing was changed. "
                             "Set \"allowWriteActions\": true in the copilot config to let these run.");
                     }
-                    // A write changes the world the next question reasons about.
+                }
+
+                const bool bCommittedWorldWrite =
+                    ActionResults.ContainsByPredicate(IsCommittedWorldWriteResult);
+                if (bCommittedWorldWrite)
+                {
+                    // Teleports do not spawn or destroy an actor, so they need
+                    // an explicit revision change even though build/dismantle
+                    // actions are also observed by the actor callbacks.
                     WeakThis->MarkWorldDirty();
                 }
+
+                ResponseJson->SetArrayField(TEXT("game_action_results"), ActionResults);
+                ResponseJson->SetStringField(TEXT("game_action_summary"), ActionSummary);
+                ResponseJson->SetBoolField(
+                    TEXT("game_write_actions_enabled"),
+                    ActionSettings.bAllowWriteActions);
+                ResponseJson->SetBoolField(
+                    TEXT("game_world_was_mutated"),
+                    bCommittedWorldWrite);
+                ResponseJson->SetNumberField(
+                    TEXT("game_actions_requested_count"),
+                    Actions->Num());
+                ResponseJson->SetNumberField(
+                    TEXT("game_actions_executed_count"),
+                    ActionResults.Num());
+                ResponseJson->SetBoolField(
+                    TEXT("game_actions_truncated"),
+                    Requested.Num() < Actions->Num());
+                ResponseJson->SetStringField(
+                    TEXT("game_world_revision_after"),
+                    LexToString(WeakThis->GetWorldRevision()));
                 UE_LOG(LogAIFactoryCopilot, Display,
                     TEXT("AI bridge actions: requested=%d executed=%d writes_enabled=%d"),
                     Actions->Num(),
                     ActionResults.Num(),
                     ActionSettings.bAllowWriteActions ? 1 : 0);
+            }
+            ResponseJson->SetStringField(TEXT("reply_with_game_outcome"), Reply);
+            FString EnrichedResponse;
+            const TSharedRef<TJsonWriter<>> EnrichedWriter =
+                TJsonWriterFactory<>::Create(&EnrichedResponse);
+            if (!FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), EnrichedWriter) ||
+                !FFileHelper::SaveStringToFile(
+                    EnrichedResponse,
+                    *DiagnosticsPath,
+                    FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+            {
+                UE_LOG(LogAIFactoryCopilot, Warning,
+                    TEXT("Could not persist enriched game action results to %s"),
+                    *DiagnosticsPath);
             }
             UE_LOG(LogAIFactoryCopilot, Display,
                 TEXT("AI bridge answer received: http=%d provider=%s model=%s reply_chars=%d path=%s"),

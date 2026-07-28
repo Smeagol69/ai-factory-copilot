@@ -22,7 +22,8 @@ class UWorld;
  *      caller is told exactly what would have happened.
  *   5. Read back after committing. The result reports what the *world* now says,
  *      not what was requested — those differ when the game snaps or rejects.
- *   6. Journalled, so any action or batch can be undone.
+ *   6. Reversible writes are journalled as one transaction and rolled back if a
+ *      later step fails. Irreversible dismantles must run alone.
  *
  * The read-only scanner's rules still hold here: an action that cannot determine
  * something reports it as unknown rather than assuming success.
@@ -64,7 +65,7 @@ struct FAIFactoryActionResult
     }
 };
 
-/** One reversible step recorded in the journal. */
+/** One reversible action or consolidated transaction recorded in the journal. */
 struct FAIFactoryUndoStep
 {
     FString Action;
@@ -131,7 +132,7 @@ namespace AIFactoryActions
         const FAIFactoryActionContext& Context,
         const FString& ActorId);
 
-    /** Reverses the most recent journalled action. */
+    /** Reverses the most recent journalled transaction. */
     FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context);
 
     /** The journal, newest first, for reporting what can still be undone. */
@@ -144,10 +145,10 @@ namespace AIFactoryActions
     /**
      * Runs the `actions` array from a bridge reply.
      *
-     * Executes in order and **stops at the first failure** rather than pressing
-     * on: a layout is a sequence, and continuing past a step that did not happen
-     * builds something the model did not design. Steps not reached are reported
-     * as skipped.
+     * Preflights the complete plan before its first mutation, executes in order,
+     * and stops at the first runtime failure. Reversible writes already committed
+     * by that transaction are rolled back; irreversible dismantles and undo are
+     * accepted only as standalone committed writes.
      *
      * `bAllowCommit` is the master switch. When false every action is forced to
      * a dry run no matter what the reply asked for, which is how confirmation is

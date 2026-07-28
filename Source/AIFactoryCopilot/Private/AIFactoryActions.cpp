@@ -30,6 +30,67 @@ namespace
         }
     }
 
+    int32 RollBackActionUndoFrom(const int32 FirstStep)
+    {
+        int32 Reversed = 0;
+        for (int32 Index = GAIFactoryUndoJournal.Num() - 1; Index >= FirstStep; --Index)
+        {
+            const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
+            for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
+            {
+                if (AFGBuildable* Buildable = Weak.Get(); IsValid(Buildable))
+                {
+                    IFGDismantleInterface::Execute_Dismantle(Buildable);
+                    ++Reversed;
+                }
+            }
+            if (Step.bHadPlayerTransform && Step.Player.IsValid())
+            {
+                Step.Player->TeleportTo(
+                    Step.PreviousPlayerTransform.GetLocation(),
+                    Step.PreviousPlayerTransform.Rotator());
+                ++Reversed;
+            }
+        }
+        if (FirstStep >= 0 && FirstStep < GAIFactoryUndoJournal.Num())
+        {
+            GAIFactoryUndoJournal.RemoveAt(
+                FirstStep,
+                GAIFactoryUndoJournal.Num() - FirstStep);
+        }
+        return Reversed;
+    }
+
+    void ConsolidateActionUndoFrom(const int32 FirstStep, const int32 ActionCount)
+    {
+        const int32 Added = GAIFactoryUndoJournal.Num() - FirstStep;
+        if (Added <= 1)
+        {
+            return;
+        }
+
+        FAIFactoryUndoStep Batch;
+        Batch.Action = TEXT("transaction");
+        Batch.Description = FString::Printf(
+            TEXT("Reverse the previous %d-action transaction."),
+            ActionCount);
+        for (int32 Index = FirstStep; Index < GAIFactoryUndoJournal.Num(); ++Index)
+        {
+            const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
+            Batch.SpawnedBuildables.Append(Step.SpawnedBuildables);
+            // The first saved player transform is where the whole transaction
+            // began. Later teleports must not replace it.
+            if (!Batch.bHadPlayerTransform && Step.bHadPlayerTransform)
+            {
+                Batch.bHadPlayerTransform = true;
+                Batch.PreviousPlayerTransform = Step.PreviousPlayerTransform;
+                Batch.Player = Step.Player;
+            }
+        }
+        GAIFactoryUndoJournal.RemoveAt(FirstStep, Added);
+        RecordActionUndo(MoveTemp(Batch));
+    }
+
     TSharedPtr<FJsonObject> ActionVectorJson(const FVector& Value)
     {
         TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
@@ -692,6 +753,135 @@ void ClearUndoJournal()
     GAIFactoryUndoJournal.Reset();
 }
 
+namespace
+{
+    bool ActionKindChangesWorld(const FString& Kind)
+    {
+        return
+            Kind == TEXT("teleport_player") ||
+            Kind == TEXT("place_building") ||
+            Kind == TEXT("place_blueprint") ||
+            Kind == TEXT("dismantle") ||
+            Kind == TEXT("undo_last");
+    }
+
+    bool TryReadActionVector(
+        const TSharedPtr<FJsonObject>& Spec,
+        const TCHAR* Field,
+        const bool bRequireZ,
+        FVector& Out)
+    {
+        const TSharedPtr<FJsonObject>* Object = nullptr;
+        if (!Spec.IsValid() || !Spec->TryGetObjectField(Field, Object) || !Object)
+        {
+            return false;
+        }
+        double X = 0.0;
+        double Y = 0.0;
+        double Z = 0.0;
+        if (!(*Object)->TryGetNumberField(TEXT("x"), X) ||
+            !(*Object)->TryGetNumberField(TEXT("y"), Y) ||
+            (bRequireZ && !(*Object)->TryGetNumberField(TEXT("z"), Z)))
+        {
+            return false;
+        }
+        if (!bRequireZ)
+        {
+            (*Object)->TryGetNumberField(TEXT("z"), Z);
+        }
+        Out = FVector(X, Y, Z);
+        return !Out.ContainsNaN();
+    }
+
+    FAIFactoryActionResult RunActionSpec(
+        const FAIFactoryActionContext& Context,
+        const TSharedPtr<FJsonObject>& Spec)
+    {
+        FString Kind;
+        if (!Spec.IsValid() || !Spec->TryGetStringField(TEXT("action"), Kind) || Kind.IsEmpty())
+        {
+            return FAIFactoryActionResult::Refuse(TEXT("unknown"), TEXT("missing_action_kind"));
+        }
+
+        if (Kind == TEXT("teleport_player"))
+        {
+            FVector Location;
+            if (!TryReadActionVector(Spec, TEXT("target"), false, Location))
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("target_must_be_an_xyz_object"));
+            }
+            bool bSnap = true;
+            Spec->TryGetBoolField(TEXT("snap_to_ground"), bSnap);
+            double Clearance = 200.0;
+            Spec->TryGetNumberField(TEXT("snap_clearance_cm"), Clearance);
+            return TeleportPlayer(Context, Location, bSnap, Clearance);
+        }
+        if (Kind == TEXT("place_building"))
+        {
+            FString RecipeClass;
+            FVector Location;
+            if (!Spec->TryGetStringField(TEXT("recipe_class"), RecipeClass) || RecipeClass.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("recipe_class_is_required"));
+            }
+            if (!TryReadActionVector(Spec, TEXT("location"), true, Location))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("location_must_be_an_xyz_object_with_an_explicit_z"));
+            }
+            double Yaw = 0.0;
+            Spec->TryGetNumberField(TEXT("yaw"), Yaw);
+            bool bCheck = true;
+            Spec->TryGetBoolField(TEXT("check_clearance"), bCheck);
+            return PlaceBuilding(
+                Context,
+                RecipeClass,
+                FTransform(FRotator(0.0, Yaw, 0.0), Location),
+                bCheck);
+        }
+        if (Kind == TEXT("place_blueprint"))
+        {
+            FString Name;
+            FVector Location;
+            if (!Spec->TryGetStringField(TEXT("blueprint_name"), Name) || Name.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("blueprint_name_is_required"));
+            }
+            if (!TryReadActionVector(Spec, TEXT("location"), true, Location))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("location_must_be_an_xyz_object_with_an_explicit_z"));
+            }
+            double Yaw = 0.0;
+            Spec->TryGetNumberField(TEXT("yaw"), Yaw);
+            return PlaceBlueprint(
+                Context,
+                Name,
+                FTransform(FRotator(0.0, Yaw, 0.0), Location));
+        }
+        if (Kind == TEXT("dismantle"))
+        {
+            FString ActorId;
+            if (!Spec->TryGetStringField(TEXT("actor_id"), ActorId) || ActorId.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("actor_id_is_required"));
+            }
+            return DismantleActor(Context, ActorId);
+        }
+        if (Kind == TEXT("undo_last"))
+        {
+            return UndoLast(Context);
+        }
+        if (Kind == TEXT("highlight") || Kind == TEXT("clear_highlight"))
+        {
+            return RunOverlayAction(Context, Kind, Spec);
+        }
+        return FAIFactoryActionResult::Refuse(Kind, TEXT("unsupported_action"));
+    }
+}
+
 FString ExecutePlan(
     UWorld* World,
     AFGCharacterPlayer* Player,
@@ -700,31 +890,152 @@ FString ExecutePlan(
     const FString& ActualWorldRevision,
     TArray<TSharedPtr<FJsonValue>>& OutResults)
 {
+    if (Actions.Num() == 0)
+    {
+        return FString();
+    }
+
+    struct FPreparedAction
+    {
+        TSharedPtr<FJsonObject> Spec;
+        FString Kind;
+        bool bRequestedCommit = false;
+        bool bWillCommitWrite = false;
+        FAIFactoryActionResult Preflight;
+    };
+
+    TArray<FPreparedAction> Prepared;
+    Prepared.Reserve(Actions.Num());
+    int32 WillCommitWrites = 0;
+    int32 IrreversibleWrites = 0;
+    int32 UndoWrites = 0;
+    FString PlanRefusal;
+
+    for (const TSharedPtr<FJsonValue>& Value : Actions)
+    {
+        FPreparedAction& Item = Prepared.AddDefaulted_GetRef();
+        const TSharedPtr<FJsonObject>* Spec = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Spec) || !Spec)
+        {
+            Item.Preflight =
+                FAIFactoryActionResult::Refuse(TEXT("unknown"), TEXT("action_is_not_an_object"));
+            if (PlanRefusal.IsEmpty())
+            {
+                PlanRefusal = TEXT("one_or_more_actions_failed_preflight");
+            }
+            continue;
+        }
+        Item.Spec = *Spec;
+        Item.Spec->TryGetStringField(TEXT("action"), Item.Kind);
+        Item.Spec->TryGetBoolField(TEXT("commit"), Item.bRequestedCommit);
+        Item.bWillCommitWrite =
+            bAllowCommit &&
+            Item.bRequestedCommit &&
+            ActionKindChangesWorld(Item.Kind);
+        if (Item.bWillCommitWrite)
+        {
+            ++WillCommitWrites;
+            if (Item.Kind == TEXT("dismantle"))
+            {
+                ++IrreversibleWrites;
+            }
+            if (Item.Kind == TEXT("undo_last"))
+            {
+                ++UndoWrites;
+            }
+            FString ExpectedRevision;
+            Item.Spec->TryGetStringField(TEXT("expect_world_revision"), ExpectedRevision);
+            if (ExpectedRevision.IsEmpty() && PlanRefusal.IsEmpty())
+            {
+                PlanRefusal = TEXT("committed_write_missing_expect_world_revision");
+            }
+        }
+    }
+
+    if (IrreversibleWrites > 0 && WillCommitWrites > 1)
+    {
+        PlanRefusal = TEXT("irreversible_dismantle_must_be_a_standalone_commit");
+    }
+    if (UndoWrites > 0 && WillCommitWrites > 1)
+    {
+        PlanRefusal = TEXT("undo_must_be_a_standalone_commit");
+    }
+
+    // Preflight every write before the first mutation. A malformed final step
+    // therefore cannot leave the beginning of a layout standing.
+    for (FPreparedAction& Item : Prepared)
+    {
+        if (!Item.Spec.IsValid())
+        {
+            continue;
+        }
+        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight"))
+        {
+            Item.Preflight.Action = Item.Kind;
+            Item.Preflight.bAccepted = true;
+            Item.Preflight.bDryRun = true;
+            Item.Preflight.Status = TEXT("preflight_not_required_for_overlay");
+            continue;
+        }
+
+        FAIFactoryActionContext Context;
+        Context.World = World;
+        Context.Player = Player;
+        Context.ActualWorldRevision = ActualWorldRevision;
+        Context.bDryRun = true;
+        Item.Spec->TryGetStringField(TEXT("expect_world_revision"), Context.ExpectedWorldRevision);
+        Item.Preflight = RunActionSpec(Context, Item.Spec);
+        if (!Item.Preflight.bAccepted && PlanRefusal.IsEmpty())
+        {
+            PlanRefusal = TEXT("one_or_more_actions_failed_preflight");
+        }
+    }
+
+    if (!PlanRefusal.IsEmpty())
+    {
+        bool bReportedCause = false;
+        for (const FPreparedAction& Item : Prepared)
+        {
+            FAIFactoryActionResult Result = Item.Preflight;
+            if (!bReportedCause && !Result.bAccepted)
+            {
+                bReportedCause = true;
+            }
+            else
+            {
+                Result = FAIFactoryActionResult::Refuse(
+                    Item.Kind.IsEmpty() ? TEXT("unknown") : Item.Kind,
+                    bReportedCause
+                        ? TEXT("skipped_because_plan_preflight_failed")
+                        : PlanRefusal);
+                Result.Status = TEXT("skipped");
+            }
+            OutResults.Add(MakeShared<FJsonValueObject>(ResultToJson(Result)));
+        }
+        return FString::Printf(
+            TEXT("[actions] 0 committed, plan refused before mutation: %s"),
+            *PlanRefusal);
+    }
+
+    const int32 UndoJournalStart = GAIFactoryUndoJournal.Num();
     int32 Committed = 0;
+    int32 CommittedWrites = 0;
     int32 DryRun = 0;
     int32 Refused = 0;
     int32 Skipped = 0;
+    int32 RolledBack = 0;
     FString FirstFailure;
 
-    for (int32 Index = 0; Index < Actions.Num(); ++Index)
+    for (int32 Index = 0; Index < Prepared.Num(); ++Index)
     {
-        const TSharedPtr<FJsonObject>* Spec = nullptr;
-        if (!Actions[Index]->TryGetObject(Spec) || !Spec)
-        {
-            OutResults.Add(MakeShared<FJsonValueObject>(
-                ResultToJson(FAIFactoryActionResult::Refuse(TEXT("unknown"), TEXT("action_is_not_an_object")))));
-            ++Refused;
-            continue;
-        }
+        const FPreparedAction& Item = Prepared[Index];
 
         // Once a step has failed the rest of the plan is no longer the plan the
         // model designed, so report the remainder as skipped instead of running it.
         if (!FirstFailure.IsEmpty())
         {
-            FString SkippedKind;
-            (*Spec)->TryGetStringField(TEXT("action"), SkippedKind);
             FAIFactoryActionResult Stop = FAIFactoryActionResult::Refuse(
-                SkippedKind.IsEmpty() ? TEXT("unknown") : SkippedKind,
+                Item.Kind.IsEmpty() ? TEXT("unknown") : Item.Kind,
                 TEXT("skipped_because_an_earlier_step_failed"));
             Stop.Status = TEXT("skipped");
             OutResults.Add(MakeShared<FJsonValueObject>(ResultToJson(Stop)));
@@ -732,108 +1043,27 @@ FString ExecutePlan(
             continue;
         }
 
-        FString Kind;
-        (*Spec)->TryGetStringField(TEXT("action"), Kind);
-
         FAIFactoryActionContext Context;
         Context.World = World;
         Context.Player = Player;
         Context.ActualWorldRevision = ActualWorldRevision;
-        (*Spec)->TryGetStringField(TEXT("expect_world_revision"), Context.ExpectedWorldRevision);
+        Item.Spec->TryGetStringField(TEXT("expect_world_revision"), Context.ExpectedWorldRevision);
 
         // The reply may request a commit, but only the game side can grant one.
-        bool bRequestedCommit = false;
-        (*Spec)->TryGetBoolField(TEXT("commit"), bRequestedCommit);
-        Context.bDryRun = !(bAllowCommit && bRequestedCommit);
-
-        FAIFactoryActionResult Result;
-        if (Kind == TEXT("teleport_player"))
-        {
-            const TSharedPtr<FJsonObject>* Target = nullptr;
-            if (!(*Spec)->TryGetObjectField(TEXT("target"), Target) || !Target)
-            {
-                Result = FAIFactoryActionResult::Refuse(Kind, TEXT("missing_target"));
-            }
-            else
-            {
-                FVector Location(
-                    (*Target)->GetNumberField(TEXT("x")),
-                    (*Target)->GetNumberField(TEXT("y")),
-                    (*Target)->HasField(TEXT("z")) ? (*Target)->GetNumberField(TEXT("z")) : 0.0);
-                bool bSnap = true;
-                (*Spec)->TryGetBoolField(TEXT("snap_to_ground"), bSnap);
-                double Clearance = 200.0;
-                (*Spec)->TryGetNumberField(TEXT("snap_clearance_cm"), Clearance);
-                Result = TeleportPlayer(Context, Location, bSnap, Clearance);
-            }
-        }
-        else if (Kind == TEXT("place_building"))
-        {
-            FString RecipeClass;
-            (*Spec)->TryGetStringField(TEXT("recipe_class"), RecipeClass);
-            FTransform Target = FTransform::Identity;
-            const TSharedPtr<FJsonObject>* Location = nullptr;
-            if ((*Spec)->TryGetObjectField(TEXT("location"), Location) && Location)
-            {
-                Target.SetLocation(FVector(
-                    (*Location)->GetNumberField(TEXT("x")),
-                    (*Location)->GetNumberField(TEXT("y")),
-                    (*Location)->GetNumberField(TEXT("z"))));
-            }
-            double Yaw = 0.0;
-            (*Spec)->TryGetNumberField(TEXT("yaw"), Yaw);
-            Target.SetRotation(FRotator(0.0, Yaw, 0.0).Quaternion());
-            bool bCheck = true;
-            (*Spec)->TryGetBoolField(TEXT("check_clearance"), bCheck);
-            Result = PlaceBuilding(Context, RecipeClass, Target, bCheck);
-        }
-        else if (Kind == TEXT("place_blueprint"))
-        {
-            FString Name;
-            (*Spec)->TryGetStringField(TEXT("blueprint_name"), Name);
-            FTransform Origin = FTransform::Identity;
-            const TSharedPtr<FJsonObject>* Location = nullptr;
-            if ((*Spec)->TryGetObjectField(TEXT("location"), Location) && Location)
-            {
-                Origin.SetLocation(FVector(
-                    (*Location)->GetNumberField(TEXT("x")),
-                    (*Location)->GetNumberField(TEXT("y")),
-                    (*Location)->GetNumberField(TEXT("z"))));
-            }
-            double Yaw = 0.0;
-            (*Spec)->TryGetNumberField(TEXT("yaw"), Yaw);
-            Origin.SetRotation(FRotator(0.0, Yaw, 0.0).Quaternion());
-            Result = PlaceBlueprint(Context, Name, Origin);
-        }
-        else if (Kind == TEXT("dismantle"))
-        {
-            FString ActorId;
-            (*Spec)->TryGetStringField(TEXT("actor_id"), ActorId);
-            Result = DismantleActor(Context, ActorId);
-        }
-        else if (Kind == TEXT("undo_last"))
-        {
-            Result = UndoLast(Context);
-        }
-        else if (Kind == TEXT("highlight") || Kind == TEXT("clear_highlight"))
-        {
-            // Overlays only draw; they change nothing in the world, so they run
-            // regardless of whether write actions are enabled and are never
-            // held back for confirmation.
-            Result = RunOverlayAction(Context, Kind, *Spec);
-        }
-        else
-        {
-            Result = FAIFactoryActionResult::Refuse(
-                Kind.IsEmpty() ? TEXT("unknown") : Kind,
-                TEXT("unsupported_action"));
-        }
-
-        OutResults.Add(MakeShared<FJsonValueObject>(ResultToJson(Result)));
+        Context.bDryRun = !(bAllowCommit && Item.bRequestedCommit);
+        FAIFactoryActionResult Result = Context.bDryRun && ActionKindChangesWorld(Item.Kind)
+            ? Item.Preflight
+            : RunActionSpec(Context, Item.Spec);
+        TSharedPtr<FJsonObject> ResultObject = ResultToJson(Result);
+        OutResults.Add(MakeShared<FJsonValueObject>(ResultObject));
 
         if (Result.bCommitted)
         {
             ++Committed;
+            if (ActionKindChangesWorld(Item.Kind))
+            {
+                ++CommittedWrites;
+            }
         }
         else if (Result.Status == TEXT("dry_run"))
         {
@@ -850,9 +1080,32 @@ FString ExecutePlan(
         }
     }
 
-    if (Actions.Num() == 0)
+    if (!FirstFailure.IsEmpty() && CommittedWrites > 0)
     {
-        return FString();
+        RolledBack = RollBackActionUndoFrom(UndoJournalStart);
+        for (const TSharedPtr<FJsonValue>& Value : OutResults)
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (Value.IsValid() && Value->TryGetObject(Object) && Object)
+            {
+                bool bWasCommitted = false;
+                FString ResultKind;
+                (*Object)->TryGetBoolField(TEXT("committed"), bWasCommitted);
+                (*Object)->TryGetStringField(TEXT("action"), ResultKind);
+                if (bWasCommitted && ActionKindChangesWorld(ResultKind))
+                {
+                    (*Object)->SetBoolField(TEXT("committed"), false);
+                    (*Object)->SetBoolField(TEXT("rolled_back"), true);
+                    (*Object)->SetStringField(TEXT("status"), TEXT("rolled_back"));
+                }
+            }
+        }
+        Committed -= CommittedWrites;
+        CommittedWrites = 0;
+    }
+    else if (FirstFailure.IsEmpty() && CommittedWrites > 0)
+    {
+        ConsolidateActionUndoFrom(UndoJournalStart, CommittedWrites);
     }
 
     FString Summary = FString::Printf(
@@ -864,13 +1117,17 @@ FString ExecutePlan(
     {
         Summary += FString::Printf(TEXT(", %d skipped"), Skipped);
     }
+    if (RolledBack > 0)
+    {
+        Summary += FString::Printf(TEXT(", %d effects rolled back"), RolledBack);
+    }
     if (!FirstFailure.IsEmpty())
     {
         Summary += FString::Printf(TEXT(" — stopped at %s"), *FirstFailure);
     }
-    if (Committed > 0)
+    if (CommittedWrites > 0 && GAIFactoryUndoJournal.Num() > UndoJournalStart)
     {
-        Summary += TEXT(" (say \"undo\" to reverse)");
+        Summary += TEXT(" (say \"undo\" to reverse this transaction)");
     }
     return Summary;
 }
