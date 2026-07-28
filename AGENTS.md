@@ -215,13 +215,32 @@ same build is deployed into the game; the deployed DLL SHA-256 is
 a hash from before the last three commits).
 It has not yet been exercised in a live save.
 
-**Blocked on a model provider as of 2026-07-28.** Both cloud providers are out
-of billing on this machine — OpenAI returns `insufficient_quota`, Anthropic
-returns "credit balance is too low". Ollama is installed and listening on 11434
-but has no model pulled, so `AI_PROVIDER=local` has nothing to talk to either.
-Every question fails until one of those is resolved. This is a billing/setup
-state, not a code defect: the bridge reports each case accurately and names the
-working alternatives.
+**Provider state as of 2026-07-28.** Both cloud providers are out of billing on
+this machine — OpenAI returns `insufficient_quota`, Anthropic returns "credit
+balance is too low". The bridge now runs on a local model:
+`./scripts/install-local-model.ps1` pulls one, bakes an explicit `num_ctx` into
+a derived Ollama model, sizes the payload to match, and refuses to declare
+success until it has proved the model can call a tool.
+
+**`qwen3:4b` is not good enough for the prose, and this is worth knowing before
+trying it again.** Measured on the real save, same question both times:
+
+| Config | Request | Result |
+|---|---|---|
+| `num_ctx` 32768, payload trimmed to 30k chars | ~21.7k tok | Correct `highlight` action; prose falsely claimed no Mercer Spheres within 150 m (there are two, at 105 m and 125 m) |
+| `num_ctx` 40960, full payload | ~29.4k tok | **No action at all**; ignored the question and fabricated "3 Paleberry bushes within 50 m" and "raw quartz, copper ore deposits" |
+
+More context made it worse, not better — a 4B model drifts when the payload
+grows. The shipped local config is therefore the trimmed one, which is the
+better of two imperfect options.
+
+What this says about the architecture is the useful part: **the action path
+survived a weak model** because the mod resolves overlays against live actors
+and appends the real outcome, so a wrong count in the prose is corrected by the
+game. The prose itself does not survive. Do not trust a 4B model's narrative
+claims about the world; it violates rule 2 (unknown stays unknown) freely.
+For trustworthy prose use a larger local model (`-BaseModel 'qwen3:14b'`) or a
+funded cloud provider.
 
 Open, in rough order:
 
