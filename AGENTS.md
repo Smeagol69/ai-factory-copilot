@@ -147,14 +147,21 @@ Open, in rough order:
    `ITEM_SPACING` (120 cm) is authoritative from the header, but whether `mSpeed`
    is cm/s or cm/min is not — both readings give 60/min for a Mk1. Check one known
    belt in a live save and set `AIFACTORY_BELT_SPEED_DIVISOR` if it is 120.
-2. **Blueprint object graph.** Only the header and cost are decoded. The full
-   per-building layout needs Satisfactory's save serialiser —
-   [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
-   already implements it and is a Node library, so it drops straight into the
-   companion. This is the prerequisite for generating blueprints.
+2. **Blueprint transforms.** Header, cost, and *contents* are decoded: the build
+   recipes a blueprint references are recovered by walking length-prefixed
+   `/Game/` paths in the object graph, then resolved through the catalog, so a
+   blueprint reports the buildings it places. What is still missing is where they
+   sit — positions, rotations, and wiring. That needs Satisfactory's save
+   serialiser; [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
+   implements it and is a Node library, so it drops into `companion/`. Note the
+   companion currently has zero dependencies, which is a deliberate property —
+   decide consciously before breaking it.
 3. **Blueprint generation.** The goal is layouts tailored to the player's actual
-   base: terrain-aware, matching their existing scheme. Needs (2), plus the
-   designer volume/object-limit model, then plan → validate → populate.
+   base: terrain-aware, matching their existing scheme. The design half exists —
+   `plan_production` already computes machine counts, power, and cost against the
+   live base. What remains is the spatial half: needs (2) for transforms, plus the
+   designer volume and object-limit model, then plan -> validate -> populate.
+   Writing a `.sbp` is a write action and falls under (5).
 4. **Recipe unlock mapping.** Purchased schematics are captured but not which
    recipes they unlock, so recipe availability is reported as unknown.
 5. **Write actions.** Gated: no write stage until the read-only scanner passes

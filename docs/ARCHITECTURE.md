@@ -108,7 +108,7 @@ answers questions about it:
 | `diagnose_bottlenecks` | why a machine is stopped, and the upstream root cause |
 | `get_build_cost` | construction cost against captured player inventories |
 | `plan_production` | designs a line for a target item and rate, against this base |
-| `list_blueprints` | saved blueprints: dimensions, cost, and whether you can afford them |
+| `list_blueprints` | saved blueprints: dimensions, cost, contents, and whether you can afford them |
 | `find_best_site` | ranked build locations scored by surrounding resource access |
 | `get_unlock_status` | purchased schematics and tech tier |
 
