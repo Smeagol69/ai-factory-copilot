@@ -186,7 +186,9 @@ official-source web search; adaptive thinking; multi-line in-game chat;
 blueprint header/cost/contents reading and placement; stale-snapshot enforcement;
 whole-plan preflight/rollback; one-transaction undo; exact game-side action
 results in both the panel and `latest-bridge-response.json`; truthful write-mode
-status in the panel.
+status in the panel; live recipe/building unlock enforcement; exact inventory
+cost checks and charging; no-build-cost support; dismantle, undo, and rollback
+refunds with inventory-overflow drops.
 
 Latest verified checkpoint (2026-07-28): all 253 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
@@ -211,11 +213,12 @@ Open, in rough order:
    [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
    implements it. The companion has zero dependencies, a deliberate property —
    decide consciously before breaking it.
-4. **Construction parity.** `place_building` currently calls
-   `BeginSpawnBuildable` after terrain probing. Before calling this production
-   ready, use the official recipe manager/inventory/hologram APIs to enforce
-   unlock state, aggregate material cost, placement disqualifiers, refunds, and
-   rollback. `place_blueprint` needs the equivalent descriptor cost checks.
+4. **Construction parity.** Unlock state, aggregate material cost, blueprint
+   requirements, charging, refunds, and rollback are enforced from the official
+   runtime APIs. `place_building` still calls `BeginSpawnBuildable` after terrain
+   probing, and `place_blueprint` still calls `LoadStoredBlueprint` directly.
+   Move both through their holograms so Satisfactory itself applies snapping and
+   every placement disqualifier before calling this production ready.
 5. **Recipe unlock mapping.** Purchased schematics are captured but not which
    recipes they unlock in the snapshot/solver. `AFGRecipeManager` is the verified
    runtime source for availability and should be captured explicitly.

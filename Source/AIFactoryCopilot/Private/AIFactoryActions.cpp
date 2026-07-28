@@ -9,8 +9,11 @@
 #include "FGBuildableSubsystem.h"
 #include "FGCharacterPlayer.h"
 #include "FGDismantleInterface.h"
+#include "FGInventoryComponent.h"
 #include "FGRecipe.h"
+#include "FGRecipeManager.h"
 #include "Resources/FGBuildingDescriptor.h"
+#include "Resources/FGItemDescriptor.h"
 #include "Dom/JsonObject.h"
 #include "UObject/UObjectIterator.h"
 
@@ -19,6 +22,202 @@ namespace
     /** Newest last; UndoLast pops from the end. */
     TArray<FAIFactoryUndoStep> GAIFactoryUndoJournal;
     constexpr int32 MaximumActionUndoSteps = 64;
+
+    TArray<FItemAmount> NormalizeActionCost(const TArray<FItemAmount>& RawCost)
+    {
+        TArray<FItemAmount> Cost;
+        for (const FItemAmount& Entry : RawCost)
+        {
+            if (!Entry.ItemClass || Entry.Amount <= 0)
+            {
+                continue;
+            }
+            FItemAmount* Existing = Cost.FindByPredicate(
+                [&Entry](const FItemAmount& Candidate)
+                {
+                    return Candidate.ItemClass == Entry.ItemClass;
+                });
+            if (Existing)
+            {
+                Existing->Amount += Entry.Amount;
+            }
+            else
+            {
+                Cost.Add(Entry);
+            }
+        }
+        return Cost;
+    }
+
+    TArray<TSharedPtr<FJsonValue>> ActionCostJson(
+        const TArray<FItemAmount>& Cost,
+        const UFGInventoryComponent* Inventory,
+        const bool bNoBuildCost)
+    {
+        TArray<TSharedPtr<FJsonValue>> Rows;
+        for (const FItemAmount& Entry : Cost)
+        {
+            const int32 Held = IsValid(Inventory)
+                ? Inventory->GetNumItems(Entry.ItemClass)
+                : 0;
+            TSharedPtr<FJsonObject> Row = MakeShared<FJsonObject>();
+            Row->SetStringField(
+                TEXT("item_class"),
+                Entry.ItemClass ? Entry.ItemClass->GetPathName() : TEXT(""));
+            Row->SetStringField(
+                TEXT("item_name"),
+                Entry.ItemClass
+                    ? UFGItemDescriptor::GetItemName(Entry.ItemClass).ToString()
+                    : TEXT("unknown"));
+            Row->SetNumberField(TEXT("required"), Entry.Amount);
+            Row->SetNumberField(TEXT("held"), Held);
+            Row->SetNumberField(
+                TEXT("missing"),
+                bNoBuildCost ? 0 : FMath::Max(0, Entry.Amount - Held));
+            Rows.Add(MakeShared<FJsonValueObject>(Row));
+        }
+        return Rows;
+    }
+
+    bool CanAffordActionCost(
+        const TArray<FItemAmount>& Cost,
+        const UFGInventoryComponent* Inventory)
+    {
+        if (!IsValid(Inventory))
+        {
+            return false;
+        }
+        if (Inventory->GetNoBuildCost())
+        {
+            return true;
+        }
+        for (const FItemAmount& Entry : Cost)
+        {
+            if (!Inventory->HasItems(Entry.ItemClass, Entry.Amount))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void ChargeActionCost(
+        const TArray<FItemAmount>& Cost,
+        UFGInventoryComponent* Inventory)
+    {
+        if (!IsValid(Inventory) || Inventory->GetNoBuildCost())
+        {
+            return;
+        }
+        for (const FItemAmount& Entry : Cost)
+        {
+            Inventory->Remove(Entry.ItemClass, Entry.Amount);
+        }
+    }
+
+    struct FAIFactoryRefundDelivery
+    {
+        int32 ItemUnits = 0;
+        int32 AddedToInventory = 0;
+        int32 DroppedOnGround = 0;
+        TArray<FInventoryStack> Refund;
+    };
+
+    FAIFactoryRefundDelivery DismantleWithRefund(
+        AFGBuildable* Buildable,
+        AFGCharacterPlayer* Player)
+    {
+        FAIFactoryRefundDelivery Delivery;
+        if (!IsValid(Buildable))
+        {
+            return Delivery;
+        }
+        if (!IsValid(Player))
+        {
+            IFGDismantleInterface::Execute_Dismantle(Buildable);
+            return Delivery;
+        }
+
+        UFGInventoryComponent* Inventory = Player->GetInventory();
+        const bool bNoBuildCost = IsValid(Inventory) && Inventory->GetNoBuildCost();
+        IFGDismantleInterface::Execute_GetDismantleRefund(
+            Buildable,
+            Delivery.Refund,
+            bNoBuildCost);
+
+        const FVector RefundLocation = Buildable->GetActorLocation();
+        UWorld* World = Buildable->GetWorld();
+        IFGDismantleInterface::Execute_Dismantle(Buildable);
+
+        TArray<FInventoryStack> Remainder;
+        for (const FInventoryStack& Stack : Delivery.Refund)
+        {
+            if (!Stack.HasItems())
+            {
+                continue;
+            }
+            Delivery.ItemUnits += Stack.NumItems;
+            const int32 Added = IsValid(Inventory)
+                ? Inventory->AddStack(Stack, true)
+                : 0;
+            Delivery.AddedToInventory += Added;
+            if (Added < Stack.NumItems)
+            {
+                FInventoryStack Left = Stack;
+                Left.NumItems -= Added;
+                Delivery.DroppedOnGround += Left.NumItems;
+                Remainder.Add(MoveTemp(Left));
+            }
+        }
+
+        if (Remainder.Num() > 0 && IsValid(World))
+        {
+            FDismantleHelpers::DropRefundOnGroundNoActor(
+                World,
+                RefundLocation,
+                Player,
+                Remainder,
+                Player);
+        }
+        return Delivery;
+    }
+
+    TSharedPtr<FJsonObject> RefundDeliveryJson(
+        const FAIFactoryRefundDelivery& Delivery)
+    {
+        TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+        Object->SetNumberField(TEXT("item_units"), Delivery.ItemUnits);
+        Object->SetNumberField(
+            TEXT("added_to_player_inventory"),
+            Delivery.AddedToInventory);
+        Object->SetNumberField(
+            TEXT("dropped_on_ground"),
+            Delivery.DroppedOnGround);
+
+        TArray<TSharedPtr<FJsonValue>> Rows;
+        for (const FInventoryStack& Stack : Delivery.Refund)
+        {
+            if (!Stack.HasItems())
+            {
+                continue;
+            }
+            const TSubclassOf<UFGItemDescriptor> ItemClass =
+                Stack.Item.GetItemClass();
+            TSharedPtr<FJsonObject> Row = MakeShared<FJsonObject>();
+            Row->SetStringField(
+                TEXT("item_class"),
+                ItemClass ? ItemClass->GetPathName() : TEXT(""));
+            Row->SetStringField(
+                TEXT("item_name"),
+                ItemClass
+                    ? UFGItemDescriptor::GetItemName(ItemClass).ToString()
+                    : TEXT("unknown"));
+            Row->SetNumberField(TEXT("amount"), Stack.NumItems);
+            Rows.Add(MakeShared<FJsonValueObject>(Row));
+        }
+        Object->SetArrayField(TEXT("items"), Rows);
+        return Object;
+    }
 
     void RecordActionUndo(FAIFactoryUndoStep&& Step)
     {
@@ -40,7 +239,7 @@ namespace
             {
                 if (AFGBuildable* Buildable = Weak.Get(); IsValid(Buildable))
                 {
-                    IFGDismantleInterface::Execute_Dismantle(Buildable);
+                    DismantleWithRefund(Buildable, Step.Player.Get());
                     ++Reversed;
                 }
             }
@@ -78,13 +277,16 @@ namespace
         {
             const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
             Batch.SpawnedBuildables.Append(Step.SpawnedBuildables);
+            if (!Batch.Player.IsValid() && Step.Player.IsValid())
+            {
+                Batch.Player = Step.Player;
+            }
             // The first saved player transform is where the whole transaction
             // began. Later teleports must not replace it.
             if (!Batch.bHadPlayerTransform && Step.bHadPlayerTransform)
             {
                 Batch.bHadPlayerTransform = true;
                 Batch.PreviousPlayerTransform = Step.PreviousPlayerTransform;
-                Batch.Player = Step.Player;
             }
         }
         GAIFactoryUndoJournal.RemoveAt(FirstStep, Added);
@@ -435,6 +637,40 @@ FAIFactoryActionResult PlaceBuilding(
                 *RecipeClassObject->GetName()));
     }
 
+    if (!IsValid(Context.Player))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player"));
+    }
+    AFGRecipeManager* RecipeManager = AFGRecipeManager::Get(Context.World);
+    if (!IsValid(RecipeManager))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_recipe_manager"));
+    }
+    if (!RecipeManager->IsRecipeAvailable(RecipeClass))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("recipe_is_not_unlocked:%s"),
+                *RecipeClassObject->GetName()));
+    }
+    if (!RecipeManager->IsBuildingAvailable(BuildableClass))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("building_is_not_unlocked:%s"),
+                *BuildableClass->GetName()));
+    }
+
+    UFGInventoryComponent* Inventory = Context.Player->GetInventory();
+    if (!IsValid(Inventory))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player_inventory"));
+    }
+    const TArray<FItemAmount> Cost =
+        NormalizeActionCost(UFGRecipe::GetIngredients(Context.World, RecipeClass));
+
     AFGBuildableSubsystem* Buildables = AFGBuildableSubsystem::Get(Context.World);
     if (!IsValid(Buildables))
     {
@@ -453,6 +689,15 @@ FAIFactoryActionResult PlaceBuilding(
         TEXT("building_name"),
         UFGRecipe::GetRecipeName(RecipeClass).ToString());
     Predicted->SetObjectField(TEXT("transform"), ActionTransformJson(Target));
+    Predicted->SetBoolField(TEXT("recipe_unlocked"), true);
+    Predicted->SetBoolField(TEXT("building_unlocked"), true);
+    Predicted->SetBoolField(TEXT("no_build_cost"), Inventory->GetNoBuildCost());
+    Predicted->SetArrayField(
+        TEXT("cost"),
+        ActionCostJson(Cost, Inventory, Inventory->GetNoBuildCost()));
+    Predicted->SetBoolField(
+        TEXT("can_afford"),
+        CanAffordActionCost(Cost, Inventory));
 
     // Measure the ground and the space rather than assuming both are fine. This
     // is advisory: the game's own construction still decides.
@@ -484,6 +729,14 @@ FAIFactoryActionResult PlaceBuilding(
     }
     Result.Predicted = Predicted;
 
+    if (!CanAffordActionCost(Cost, Inventory))
+    {
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("player_cannot_afford_build_cost");
+        return Result;
+    }
+
     if (Context.bDryRun)
     {
         Result.Status = TEXT("dry_run");
@@ -502,6 +755,7 @@ FAIFactoryActionResult PlaceBuilding(
     // wrong rather than obviously broken.
     Spawned->SetBuiltWithRecipe(RecipeClass);
     Spawned->FinishSpawning(Target);
+    ChargeActionCost(Cost, Inventory);
 
     Result.bCommitted = true;
     Result.Status = TEXT("committed");
@@ -521,6 +775,7 @@ FAIFactoryActionResult PlaceBuilding(
     FAIFactoryUndoStep Step;
     Step.Action = Action;
     Step.SpawnedBuildables.Add(Spawned);
+    Step.Player = Context.Player;
     Step.Description = FString::Printf(
         TEXT("Dismantle %s"),
         *UFGRecipe::GetRecipeName(RecipeClass).ToString());
@@ -556,6 +811,27 @@ FAIFactoryActionResult PlaceBlueprint(
             FString::Printf(TEXT("blueprint_not_found:%s"), *BlueprintName));
     }
 
+    if (!IsValid(Context.Player))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player"));
+    }
+    if (!Descriptor->GetRecipeRequirementsAreMet())
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("blueprint_contains_locked_recipes:%s"),
+                *BlueprintName));
+    }
+    UFGInventoryComponent* Inventory = Context.Player->GetInventory();
+    if (!IsValid(Inventory))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player_inventory"));
+    }
+    TArray<FItemAmount> RawCost;
+    Descriptor->GetBlueprintCost(RawCost);
+    const TArray<FItemAmount> Cost = NormalizeActionCost(RawCost);
+
     FAIFactoryActionResult Result;
     Result.Action = Action;
     Result.bAccepted = true;
@@ -564,7 +840,23 @@ FAIFactoryActionResult PlaceBlueprint(
     TSharedPtr<FJsonObject> Predicted = MakeShared<FJsonObject>();
     Predicted->SetStringField(TEXT("blueprint_name"), BlueprintName);
     Predicted->SetObjectField(TEXT("origin"), ActionTransformJson(Origin));
+    Predicted->SetBoolField(TEXT("recipe_requirements_met"), true);
+    Predicted->SetBoolField(TEXT("no_build_cost"), Inventory->GetNoBuildCost());
+    Predicted->SetArrayField(
+        TEXT("cost"),
+        ActionCostJson(Cost, Inventory, Inventory->GetNoBuildCost()));
+    Predicted->SetBoolField(
+        TEXT("can_afford"),
+        CanAffordActionCost(Cost, Inventory));
     Result.Predicted = Predicted;
+
+    if (!CanAffordActionCost(Cost, Inventory))
+    {
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("player_cannot_afford_blueprint_cost");
+        return Result;
+    }
 
     if (Context.bDryRun)
     {
@@ -584,18 +876,28 @@ FAIFactoryActionResult PlaceBlueprint(
         /* designer */ nullptr,
         /* instigator */ Context.Player);
 
-    if (Placed.Num() == 0)
+    int32 ValidPlaced = 0;
+    for (const AFGBuildable* Buildable : Placed)
+    {
+        if (IsValid(Buildable))
+        {
+            ++ValidPlaced;
+        }
+    }
+    if (ValidPlaced == 0)
     {
         Result.Status = TEXT("failed");
         Result.Reason = TEXT("blueprint_loader_placed_nothing");
         return Result;
     }
+    ChargeActionCost(Cost, Inventory);
 
     Result.bCommitted = true;
     Result.Status = TEXT("committed");
 
     FAIFactoryUndoStep Step;
     Step.Action = Action;
+    Step.Player = Context.Player;
     for (AFGBuildable* Buildable : Placed)
     {
         if (IsValid(Buildable))
@@ -637,6 +939,10 @@ FAIFactoryActionResult DismantleActor(const FAIFactoryActionContext& Context, co
             Action,
             FString::Printf(TEXT("buildable_not_found:%s"), *ActorId));
     }
+    if (!IsValid(Context.Player))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player"));
+    }
     if (!IFGDismantleInterface::Execute_CanDismantle(Buildable))
     {
         return FAIFactoryActionResult::Refuse(
@@ -661,10 +967,14 @@ FAIFactoryActionResult DismantleActor(const FAIFactoryActionContext& Context, co
         return Result;
     }
 
-    IFGDismantleInterface::Execute_Dismantle(Buildable);
+    const FAIFactoryRefundDelivery Refund =
+        DismantleWithRefund(Buildable, Context.Player);
     Result.bCommitted = true;
     Result.Status = TEXT("committed");
     Result.RemovedActorIds.Add(ActorId);
+    TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetObjectField(TEXT("refund"), RefundDeliveryJson(Refund));
+    Result.Observed = Observed;
 
     // Dismantling destroys the actor, so there is nothing left to restore. Say
     // so rather than offering an undo that cannot work.
@@ -709,6 +1019,9 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
 
     int32 Removed = 0;
     int32 AlreadyGone = 0;
+    int32 RefundedItemUnits = 0;
+    int32 RefundedToInventory = 0;
+    int32 RefundDropped = 0;
     for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
     {
         AFGBuildable* Buildable = Weak.Get();
@@ -719,7 +1032,11 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
             continue;
         }
         Result.RemovedActorIds.Add(Buildable->GetPathName());
-        IFGDismantleInterface::Execute_Dismantle(Buildable);
+        const FAIFactoryRefundDelivery Refund =
+            DismantleWithRefund(Buildable, Context.Player);
+        RefundedItemUnits += Refund.ItemUnits;
+        RefundedToInventory += Refund.AddedToInventory;
+        RefundDropped += Refund.DroppedOnGround;
         ++Removed;
     }
 
@@ -735,6 +1052,11 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     Observed->SetNumberField(TEXT("buildings_removed"), Removed);
     Observed->SetNumberField(TEXT("already_gone"), AlreadyGone);
     Observed->SetBoolField(TEXT("player_restored"), bPlayerMoved);
+    Observed->SetNumberField(TEXT("refund_item_units"), RefundedItemUnits);
+    Observed->SetNumberField(
+        TEXT("refund_added_to_player_inventory"),
+        RefundedToInventory);
+    Observed->SetNumberField(TEXT("refund_dropped_on_ground"), RefundDropped);
     Result.Observed = Observed;
 
     GAIFactoryUndoJournal.Pop();
