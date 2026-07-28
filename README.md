@@ -29,17 +29,19 @@ This repository implements a working **read-only AI co-player**:
 - natural in-game `/ai <question>` chat plus administrative commands
 - an opt-in startup self-test that exercises the real SML command path and
   persists the bridge response for non-interactive diagnostics
-- a loopback-only companion supporting diagnostic, OpenAI, and Anthropic modes
+- a loopback-only companion supporting diagnostic, local (free), OpenAI, and
+  Anthropic modes
 - local multi-turn conversation memory, per-save/player reset, and optional
   OpenAI web search for clearly labeled outside references
 - strict context compaction that reports every omitted category
 
 ## Deterministic solvers
 
-The model does not do factory arithmetic. It calls solvers that run on the same
-snapshot it was shown, and answers that mix solver output with guesswork are
-prevented by construction: a value the snapshot cannot support comes back as an
-explicit unknown with the missing field named.
+The model does not do factory arithmetic. It calls solvers, and answers that mix
+solver output with guesswork are prevented by construction: a value the snapshot
+cannot support comes back as an explicit unknown with the missing field named.
+The solvers read the complete snapshot while the model gets a lean view, so an
+absence in the model's view is never treated as an absence in the world.
 
 | Solver | Answers |
 |---|---|
@@ -60,9 +62,14 @@ and `find_best_site` scores every usable resource node as a candidate centre by
 resource diversity, purity-weighted node count, coverage of the resources you
 named, and distance cost — returning exact coordinates, the runners-up, and the
 per-factor breakdown. Occupied nodes and hand-mined `Deposit` nodes are excluded,
-because a miner cannot be placed on either. Terrain flatness, obstructions, and
-water access are **not** captured and are reported as unknown, so confirm the
-winning spot is actually buildable before committing to it.
+because a miner cannot be placed on either.
+
+Terrain is measured, not guessed: downward line traces across each footprint give
+slope and elevation range, the game's own water volumes give water, a lifted box
+test finds rock and cliff, and existing buildings come from their captured bounds.
+Sites outside the scanner's probe radius report `not_sampled` — unmeasured ground
+is not flat ground. Only exact placement validity stays unknown; that needs the
+game's own hologram check.
 
 Rates come from each machine's live production cycle time, so overclocking is
 never double-counted; production boost applies to products only; liquid and gas
