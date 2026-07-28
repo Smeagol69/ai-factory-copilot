@@ -26,5 +26,12 @@ public class AIFactoryCopilot : ModuleRules
             "Slate",
             "SlateCore"
         });
+
+        // SML loads the mod icon from this fixed loose-file path at runtime.
+        // Declare it as NonUFS so Alpakit's UAT staging, archive, and
+        // CopyToGameDirectory flows all carry the same file.
+        RuntimeDependencies.Add(
+            "$(PluginDir)/Resources/Icon128.png",
+            StagedFileType.NonUFS);
     }
 }

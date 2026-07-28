@@ -47,6 +47,7 @@ $included = @(
     'AIFactoryCopilot.uplugin',
     'Source',
     'Config',
+    'Resources',
     'README.md',
     'docs',
     'companion'

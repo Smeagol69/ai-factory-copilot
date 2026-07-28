@@ -57,17 +57,26 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $installedDescriptor = Join-Path $gameMods 'AIFactoryCopilot\AIFactoryCopilot.uplugin'
+$installedIcon = Join-Path $gameMods 'AIFactoryCopilot\Resources\Icon128.png'
 $archive = Join-Path $StarterProjectPath 'Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip'
 if (-not (Test-Path -LiteralPath $installedDescriptor -PathType Leaf)) {
     throw "Packaging completed but the game copy is missing: $installedDescriptor"
+}
+if (-not (Test-Path -LiteralPath $installedIcon -PathType Leaf)) {
+    throw "Packaging completed but the SML icon is missing: $installedIcon"
 }
 if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
     throw "Packaging completed but the archive is missing: $archive"
 }
 $sourceDescriptor = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\AIFactoryCopilot.uplugin') | ConvertFrom-Json
+$sourceIcon = Join-Path $PSScriptRoot '..\Resources\Icon128.png'
 $deployedDescriptor = Get-Content -Raw -LiteralPath $installedDescriptor | ConvertFrom-Json
 if ($deployedDescriptor.SemVersion -ne $sourceDescriptor.SemVersion) {
     throw "Deployed version '$($deployedDescriptor.SemVersion)' does not match source version '$($sourceDescriptor.SemVersion)'."
+}
+if ((Get-FileHash -LiteralPath $installedIcon -Algorithm SHA256).Hash -ne
+    (Get-FileHash -LiteralPath $sourceIcon -Algorithm SHA256).Hash) {
+    throw 'The deployed SML icon does not match the source icon.'
 }
 if ((Get-Item -LiteralPath $archive).LastWriteTime -lt $packageStartedAt.AddSeconds(-2)) {
     throw "The packaged archive timestamp was not refreshed by this run: $archive"
