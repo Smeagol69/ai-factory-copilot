@@ -1042,6 +1042,41 @@ export function solveSiteSelection(
     candidates.push({ location, origin, actor_id: actorId, terrain });
   };
 
+  // Existing buildings are an obstruction the terrain probe deliberately does
+  // not measure, because their bounds are already in the snapshot.
+  const buildableBoxes = [];
+  for (const node of graph.nodes.values()) {
+    if (node.kind !== "buildable") continue;
+    const bounds = node.raw?.bounds;
+    const origin = bounds?.origin;
+    const extent = bounds?.extent;
+    if (!origin || !extent) continue;
+    if (![origin.x, origin.y, extent.x, extent.y].every(Number.isFinite)) continue;
+    buildableBoxes.push({
+      actor_id: node.actor_id,
+      name: node.name,
+      minX: origin.x - Math.abs(extent.x),
+      maxX: origin.x + Math.abs(extent.x),
+      minY: origin.y - Math.abs(extent.y),
+      maxY: origin.y + Math.abs(extent.y),
+    });
+  }
+
+  const overlappingBuildables = (center) => {
+    const half = radiusCm > 0 ? Math.min(radiusCm, 4000) : 1200;
+    const minX = center.x - half;
+    const maxX = center.x + half;
+    const minY = center.y - half;
+    const maxY = center.y + half;
+    const hits = [];
+    for (const box of buildableBoxes) {
+      if (box.maxX < minX || box.minX > maxX || box.maxY < minY || box.minY > maxY) continue;
+      hits.push({ actor_id: box.actor_id, name: box.name });
+      if (hits.length >= 12) break;
+    }
+    return { footprint_half_extent_cm: half, count: hits.length, examples: hits.slice(0, 6) };
+  };
+
   // Older snapshots carry no interaction_context, so fall back to the captured
   // player actor before giving up on a player position.
   let playerLocation = graph.snapshot?.interaction_context?.player?.pawn_location ?? null;
@@ -1157,6 +1192,7 @@ export function solveSiteSelection(
         formula:
           "diversity + purity_weighted_nodes + required_coverage + terrain - distance_penalty",
       },
+      existing_buildings_in_footprint: overlappingBuildables(candidate.location),
       terrain: terrain
         ? {
             measured: Boolean(terrain.sampled),
@@ -1239,6 +1275,7 @@ export function solveSiteSelection(
         "surface slope from the impact normal, mean and maximum",
         "water, from the game's own water volumes",
         "rock, cliff, and foliage blocking the footprint above ground level",
+        "existing buildings overlapping the footprint, from their captured bounds",
       ],
       probe_settings: graph.snapshot?.terrain
         ? {
@@ -1250,8 +1287,6 @@ export function solveSiteSelection(
         : null,
     },
     not_captured: {
-      existing_building_overlap:
-        "Not folded into the terrain verdict. Buildable bounds are in the snapshot, so check them separately before committing a footprint.",
       hostile_creatures: "Creature locations are not captured.",
       exact_placement_validity:
         "Only the game's own hologram check can confirm a specific building fits at a specific transform; this is measured ground, not a placement guarantee.",

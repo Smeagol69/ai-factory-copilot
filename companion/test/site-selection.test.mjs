@@ -278,3 +278,36 @@ test("survives a snapshot with no resource data at all", () => {
   assert.equal(result.solver, "site_selection");
   assert.ok(Array.isArray(result.sites));
 });
+
+test("counts existing buildings overlapping a candidate footprint", () => {
+  const snapshot = worldSnapshot();
+  snapshot.actors.push({
+    actor_id: `${LEVEL}.Build_Smelter_C_9`,
+    name: "Build_Smelter_C_9",
+    class_path: "Build_SmelterMk1_C",
+    owner_mod: "FactoryGame",
+    kind: "buildable",
+    location: { x: 0, y: 0, z: 0 },
+    bounds: { origin: { x: 0, y: 0, z: 0 }, extent: { x: 400, y: 400, z: 400 } },
+    connections: [],
+    inventories: [],
+  });
+
+  const result = solveSiteSelection(buildGraph(snapshot), { radius_meters: 300 });
+  const atOrigin = result.sites.find((site) => site.center_cm.x === 0 && site.center_cm.y === 0);
+  const faraway = result.sites.find((site) => Math.abs(site.center_cm.x) > 100000);
+
+  assert.equal(atOrigin.existing_buildings_in_footprint.count, 1);
+  assert.equal(atOrigin.existing_buildings_in_footprint.examples[0].name, "Build_Smelter_C_9");
+  if (faraway) assert.equal(faraway.existing_buildings_in_footprint.count, 0);
+});
+
+test("existing buildings are measured, so they leave the not-captured list", () => {
+  const result = solveSiteSelection(buildGraph(worldSnapshot()), { radius_meters: 300 });
+  assert.equal(result.not_captured.existing_building_overlap, undefined);
+  assert.ok(
+    result.terrain_coverage.measured.some((entry) => /existing buildings/.test(entry)),
+  );
+  // What genuinely cannot be known stays listed.
+  assert.match(result.not_captured.exact_placement_validity, /hologram/);
+});

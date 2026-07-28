@@ -92,6 +92,10 @@ succeed; only the final copy fails.
   `insufficient_quota` is a billing failure and must not be retried.
 - **Terrain probing is O(resolution²) traces per site.** Both the per-probe
   resolution and the total probe count are clamped in `FAIFactorySettings`.
+- **`allowed_domains` can 400 the whole request.** Anthropic rejects a search
+  tool naming a site that blocks its crawler (reddit.com does). Blocked hosts
+  are filtered per provider in `sources.mjs`, and an unknown one is parsed out
+  of the error and retried once.
 
 ## Why the model gets a lean payload
 
@@ -132,9 +136,10 @@ exist. `AIFACTORY_PAYLOAD=full` restores the old behaviour.
 
 ## State of play
 
-Done: read-only scanner; nine deterministic solvers; terrain probing; site
-selection; official-source web search; adaptive thinking; multi-line in-game
-chat; blueprint header/cost reading.
+Done: read-only scanner; eleven deterministic solvers; terrain probing; site
+selection scored on measured ground and existing-building overlap; production
+planning against the live base; official-source web search; adaptive thinking;
+multi-line in-game chat; blueprint header/cost reading.
 
 Open, in rough order:
 

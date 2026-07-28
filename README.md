@@ -50,6 +50,8 @@ explicit unknown with the missing field named.
 | `get_power_circuits` | capacity, headroom, fuse state, battery runtime |
 | `diagnose_bottlenecks` | why a machine is stopped, and the upstream root cause |
 | `get_build_cost` | construction cost against captured player inventories |
+| `plan_production` | designs a line for a target item and rate, against this base |
+| `list_blueprints` | saved blueprints: dimensions, cost, and whether you can afford them |
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | purchased schematics and tech tier |
 
