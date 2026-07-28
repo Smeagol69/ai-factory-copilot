@@ -202,7 +202,8 @@ Project headers. The repo source was synced into the Starter Project after that
 compile. The companion is clean-installed at
 `D:\Modding\Satisfactory\Companion`; its scheduled task is healthy on port 8142
 using Anthropic, and the installer verifies all runtime copies by SHA-256. The
-mod itself has not yet been packaged/deployed or exercised in a live save.
+mod is version 0.4.0 but has not yet been packaged/deployed or exercised in a
+live save.
 
 Open, in rough order:
 

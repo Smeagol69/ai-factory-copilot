@@ -1,8 +1,8 @@
 {
   "FileVersion": 3,
-  "Version": 3,
-  "VersionName": "0.3.0",
-  "SemVersion": "0.3.0",
+  "Version": 4,
+  "VersionName": "0.4.0",
+  "SemVersion": "0.4.0",
   "GameVersion": ">=491125",
   "FriendlyName": "AI Factory Copilot",
   "Description": "An Insert-toggled AI co-player with authoritative live world data and deterministic factory solvers the model must call instead of guessing.",

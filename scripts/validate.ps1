@@ -8,7 +8,7 @@ $root = Split-Path -Parent $PSScriptRoot
 
 $descriptorPath = Join-Path $root 'AIFactoryCopilot.uplugin'
 $descriptor = Get-Content -Raw -LiteralPath $descriptorPath | ConvertFrom-Json
-if ($descriptor.SemVersion -ne '0.3.0') {
+if ($descriptor.SemVersion -ne '0.4.0') {
     throw "Unexpected plugin SemVersion '$($descriptor.SemVersion)'."
 }
 if ($descriptor.GameVersion -ne '>=491125') {

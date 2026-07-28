@@ -19,6 +19,13 @@ foreach ($requiredPath in @($runUat, $build, $uproject, $plugin, $gameMods)) {
     }
 }
 
+$runningGame = Get-Process -Name 'FactoryGameSteam-Win64-Shipping' -ErrorAction SilentlyContinue
+if ($runningGame) {
+    throw "Satisfactory is running (PID $($runningGame.Id -join ', ')). Close it before packaging so the deployed DLL can be replaced safely."
+}
+
+$packageStartedAt = Get-Date
+
 # A clean source install has no editor module binary. PackagePlugin cooks through
 # UnrealEditor-Cmd, so build the official FactoryEditor target before invoking
 # UAT even though the packaged runtime target is FactoryGameSteam Shipping.
@@ -57,6 +64,14 @@ if (-not (Test-Path -LiteralPath $installedDescriptor -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
     throw "Packaging completed but the archive is missing: $archive"
 }
+$sourceDescriptor = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\AIFactoryCopilot.uplugin') | ConvertFrom-Json
+$deployedDescriptor = Get-Content -Raw -LiteralPath $installedDescriptor | ConvertFrom-Json
+if ($deployedDescriptor.SemVersion -ne $sourceDescriptor.SemVersion) {
+    throw "Deployed version '$($deployedDescriptor.SemVersion)' does not match source version '$($sourceDescriptor.SemVersion)'."
+}
+if ((Get-Item -LiteralPath $archive).LastWriteTime -lt $packageStartedAt.AddSeconds(-2)) {
+    throw "The packaged archive timestamp was not refreshed by this run: $archive"
+}
 
 Write-Host "Packaged archive: $archive"
-Write-Host "Installed game mod: $installedDescriptor"
+Write-Host "Installed game mod $($deployedDescriptor.SemVersion): $installedDescriptor"
