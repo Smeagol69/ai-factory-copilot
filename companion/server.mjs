@@ -226,6 +226,18 @@ export function createBridgeServer({ env = process.env } = {}) {
               return { snapshot: lean.payload, serialized: lean.serialized, omissions: lean.omissions };
             })();
 
+      // Collected per request, never shared: two questions in flight must not
+      // hand each other's actions to the game.
+      const collectedActions = [];
+      const requestServices = {
+        ...solverServices,
+        actions: {
+          emit(actions) {
+            for (const action of actions ?? []) collectedActions.push(action);
+          },
+        },
+      };
+
       const sessionId = String(body.session_id || "default").trim().slice(0, 256);
       const history = sessions.get(sessionId) ?? [];
       const context = {
@@ -237,7 +249,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         omissions: view.omissions,
         summary: summarizeSnapshot(body.world_snapshot),
         graph,
-        services: solverServices,
+        services: requestServices,
         history,
       };
       const answer = await askProvider(provider, context, env);
@@ -268,6 +280,9 @@ export function createBridgeServer({ env = process.env } = {}) {
         omissions: view.omissions,
         payload_view: payloadView,
         solver_calls: answer.solver_calls ?? [],
+        // The mod executes these server-side, re-validates each one, and only
+        // commits those with commit:true when its own allowWriteActions is on.
+        actions: collectedActions,
       });
     } catch (error) {
       const status = error.statusCode || 502;

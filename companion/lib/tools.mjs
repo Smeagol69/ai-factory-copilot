@@ -4,8 +4,16 @@
  * The model is told to call these for anything numeric. Results are bounded so
  * a large factory cannot overflow the provider context, and every truncation is
  * reported inside the tool result so omitted rows stay explicitly unknown.
+ *
+ * Some tools change the world. They do not change it *here* — an action tool
+ * validates a request and drops the resulting typed action into the request's
+ * action sink, which the bridge returns to the mod. The mod re-validates and is
+ * the only thing that can commit. Two independent checks, and the one that owns
+ * the world has the last word.
  */
 
+import { summarizePlan, validatePlan } from "./actions.mjs";
+import { designFactoryLayout } from "./designer.mjs";
 import {
   solveBottlenecks,
   solveBuildCost,
@@ -210,6 +218,197 @@ export const SOLVER_TOOLS = [
       "Purchased schematics and the highest available tech tier. The schematic-to-recipe mapping is not captured, so this reports recipe unlock state as unknown rather than guessing it.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     run: (graph) => solveUnlockStatus(graph),
+  },
+
+  /* ---------------- world-changing tools ---------------- */
+
+  {
+    name: "design_factory_layout",
+    description:
+      "Designs a PLACEABLE factory: takes a target item and rate, works out the machines (as plan_production does), then positions every one of them on the ground at exact coordinates. The layout is fitted to THIS base — machine footprints are measured from the player's own machines, the grid is rotated onto the alignment their existing buildings share, and the origin is phase-locked to their foundation lines, so it reads as part of the base rather than dropped on it. Ground already occupied is detected from captured bounds and those slots are reported, not built through. Use this for 'build me X', 'design a factory for X', or any request for a layout rather than a shopping list. Requires an origin: get one from find_best_site or use the player's position. Set build=true ONLY when the player has clearly asked for it to actually be built; otherwise this previews and nothing is placed.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_name: { type: "string", description: "Item to produce, e.g. \"Reinforced Iron Plate\"." },
+        item_class: { type: "string", description: "Exact item class_path, if known." },
+        target_rate_per_minute: { type: "number", description: "Desired output per minute." },
+        origin: {
+          type: "object",
+          description: "Where to put the factory. Needs an explicit x, y and z in centimetres.",
+          properties: {
+            x: { type: "number" },
+            y: { type: "number" },
+            z: { type: "number" },
+          },
+          required: ["x", "y", "z"],
+          additionalProperties: false,
+        },
+        recipe_class: { type: "string", description: "Force a specific recipe for the top-level item." },
+        use_existing_surplus: {
+          type: "boolean",
+          description: "Subtract what the factory already over-produces. Defaults to true.",
+        },
+        align_to_base: {
+          type: "boolean",
+          description: "Match the alignment of existing buildings. Defaults to true. Set false for world axes.",
+        },
+        aisle_cm: { type: "number", description: "Gap between machine rows for belts. Defaults to 800 (one foundation)." },
+        machine_gap_cm: { type: "number", description: "Gap between machines in a row. Defaults to 100." },
+        build: {
+          type: "boolean",
+          description:
+            "Actually place the machines. Defaults to false, which previews the layout without changing anything. Only set true when the player asked for it to be built.",
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      const layout = designFactoryLayout(graph, args, services ?? {});
+      if (!layout.designed) return layout;
+
+      const build = args.build === true;
+      const actions = layout.actions.map((action) => ({ ...action, commit: build }));
+      const plan = validatePlan(graph, actions, { maxActions: 256 });
+      if (plan.valid) {
+        services?.actions?.emit?.(plan.actions);
+      }
+      return {
+        ...layout,
+        will_build: build,
+        plan_validation: plan.valid ? { valid: true, steps: plan.step_count } : plan,
+        next_step: build
+          ? "The machines are being placed now. Anything already there is skipped and reported."
+          : "Nothing was placed. Say \"build it\" to place these machines.",
+      };
+    },
+  },
+  {
+    name: "perform_actions",
+    description:
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, teleport_player, dismantle, undo_last. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). Use undo_last to reverse the previous action.",
+    parameters: {
+      type: "object",
+      properties: {
+        actions: {
+          type: "array",
+          description: "Actions to run, in order.",
+          items: {
+            type: "object",
+            properties: {
+              action: {
+                type: "string",
+                enum: ["place_building", "place_blueprint", "teleport_player", "dismantle", "undo_last"],
+              },
+              commit: {
+                type: "boolean",
+                description: "True to actually do it, false to preview. Defaults to false.",
+              },
+              recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
+              blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
+              actor_id: { type: "string", description: "dismantle: the actor_id to remove." },
+              location: {
+                type: "object",
+                description: "Where, in centimetres. place_building and place_blueprint need an explicit z.",
+                properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+                additionalProperties: false,
+              },
+              target: {
+                type: "object",
+                description: "teleport_player: destination in centimetres. z is optional when snapping to ground.",
+                properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+                additionalProperties: false,
+              },
+              yaw: { type: "number", description: "Rotation in degrees." },
+              snap_to_ground: {
+                type: "boolean",
+                description: "teleport_player: resolve z by tracing to the ground. Defaults to true. Leave it on.",
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["actions"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      const plan = summarizePlan(graph, validatePlan(graph, args.actions));
+      if (plan.valid) {
+        services?.actions?.emit?.(plan.actions);
+      }
+      return plan;
+    },
+  },
+  {
+    name: "highlight",
+    description:
+      "Draws tracer lines and bounding boxes in the world around things, visible through terrain. Use whenever the player asks to be SHOWN where something is — 'show me every Beryl Nut within 100 m', 'mark the impure iron nodes', 'highlight my stopped machines'. Filter by item name (pickups and nodes), class name, or pass exact actor_ids from a solver result. Resolution happens live against the world, so it is current even if the snapshot has aged. Name the overlay so it can be cleared or replaced later.",
+    parameters: {
+      type: "object",
+      properties: {
+        overlay: {
+          type: "string",
+          description: "A short name for this overlay, e.g. \"beryl\". Re-using a name replaces that overlay.",
+        },
+        item_name_contains: {
+          type: "string",
+          description: "Substring of the item a pickup or node holds, e.g. \"Beryl Nut\", \"Paleberry\", \"Iron Ore\".",
+        },
+        class_name_contains: { type: "string", description: "Substring of the actor's class name." },
+        name_contains: { type: "string", description: "Substring of the actor's display name." },
+        kind: {
+          type: "string",
+          enum: ["any", "item_pickup", "resource_node", "buildable"],
+          description: "Restrict to one kind of thing. Defaults to any.",
+        },
+        actor_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Exact actor_ids to highlight. These ignore the radius, so use them to mark specific solver results.",
+        },
+        radius_m: { type: "number", description: "Search radius from the player in metres. Defaults to 100." },
+        color: {
+          type: "string",
+          enum: ["green", "red", "blue", "yellow", "orange", "purple", "cyan", "white"],
+          description: "Overlay colour. Defaults to green.",
+        },
+        max_results: { type: "number", description: "Cap on how many to draw. Defaults to 200." },
+        lifetime_seconds: { type: "number", description: "Auto-clear after this long. Defaults to 0, meaning until cleared." },
+        tracers: { type: "boolean", description: "Draw lines from the player to each target. Defaults to true." },
+        boxes: { type: "boolean", description: "Draw a bounding box around each target. Defaults to true." },
+        pillars: { type: "boolean", description: "Draw a vertical beam at each target, visible from far away. Defaults to true." },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      // Overlays draw only; they never change the world, so they always commit
+      // and are not held behind the write-action gate.
+      const action = { ...args, action: "highlight", commit: true };
+      services?.actions?.emit?.([action]);
+      return {
+        queued: true,
+        overlay: args.overlay ?? "overlay",
+        note: "The mod resolves this against live actors and draws it. The count and the exact things found come back in the action report, so do not state a number here.",
+        source: "drawn_in_world_by_the_mod",
+      };
+    },
+  },
+  {
+    name: "clear_highlight",
+    description:
+      "Removes an overlay drawn by highlight. Pass the overlay name, or all=true to remove every overlay.",
+    parameters: {
+      type: "object",
+      properties: {
+        overlay: { type: "string", description: "Name of the overlay to remove." },
+        all: { type: "boolean", description: "Remove every overlay this mod drew." },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      services?.actions?.emit?.([{ ...args, action: "clear_highlight", commit: true }]);
+      return { queued: true, overlay: args.overlay ?? null, all: args.all === true };
+    },
   },
 ];
 

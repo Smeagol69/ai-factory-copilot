@@ -41,6 +41,54 @@ function vector(input) {
   return { x, y, z: z === null ? 0 : z };
 }
 
+/**
+ * The player's captured position. `interaction_context` carries it on current
+ * snapshots; older ones only have the player actor, so fall back to that rather
+ * than skipping the distance checks entirely.
+ */
+function findPlayerPosition(graph) {
+  const fromContext = graph?.snapshot?.interaction_context?.player?.pawn_location;
+  if (fromContext) return fromContext;
+  for (const node of graph?.nodes?.values() ?? []) {
+    if (node.kind === "player" && node.raw?.location) return node.raw.location;
+  }
+  return null;
+}
+
+/** Matches "Recipe_ConstructorMk1" against a catalog keyed on full class paths. */
+function findRecipeByShortName(catalog, name) {
+  for (const [classPath, recipe] of catalog) {
+    if (classPath.split(".").pop() === name || classPath.split(".").pop() === `${name}_C`) {
+      return recipe;
+    }
+  }
+  return null;
+}
+
+/** True when some building standing in the world was built by this recipe. */
+function recipeIsInUse(graph, recipeClass) {
+  const shortName = recipeClass.split(".").pop();
+  for (const node of graph?.nodes?.values() ?? []) {
+    const built = node.built_with_recipe;
+    if (!built) continue;
+    if (built === recipeClass || built.split(".").pop() === shortName) return true;
+  }
+  return false;
+}
+
+function nearestRecipeNames(catalog, name) {
+  const needle = name.toLowerCase().replace(/^recipe_/, "");
+  const near = [];
+  for (const [classPath, recipe] of catalog) {
+    const shortName = classPath.split(".").pop() ?? "";
+    if (shortName.toLowerCase().includes(needle) || String(recipe.name ?? "").toLowerCase().includes(needle)) {
+      near.push(shortName);
+      if (near.length >= 5) break;
+    }
+  }
+  return near;
+}
+
 function reject(kind, reason, detail = {}) {
   return { valid: false, action_kind: kind, reason, ...detail };
 }
@@ -63,8 +111,7 @@ export function validateAction(graph, proposal) {
 
   const warnings = [];
   const checks = {};
-  const player = graph?.snapshot?.player ?? null;
-  const playerPosition = player?.location ?? player?.pawn?.location ?? null;
+  const playerPosition = findPlayerPosition(graph);
 
   if (kind === "teleport_player") {
     const target = vector(proposal.target);
@@ -111,19 +158,30 @@ export function validateAction(graph, proposal) {
 
     // Check the recipe exists before the game is asked to build it, so a typo
     // is caught here with the near-misses named rather than failing in-world.
-    const catalog = graph?.snapshot?.content_catalog?.recipes ?? [];
-    const known = catalog.find(
-      (entry) => entry.class_path === recipeClass || entry.class_name === recipeClass,
-    );
-    if (catalog.length > 0 && !known) {
-      const needle = recipeClass.toLowerCase();
-      const near = catalog
-        .filter((entry) => String(entry.class_name ?? "").toLowerCase().includes(needle))
-        .slice(0, 5)
-        .map((entry) => entry.class_name);
-      return reject(kind, "recipe_not_in_catalog", { recipe_class: recipeClass, did_you_mean: near });
+    const catalog = graph?.recipesByClass ?? new Map();
+    const known = catalog.get(recipeClass) ?? findRecipeByShortName(catalog, recipeClass);
+
+    // A recipe that already built something standing in this world is real
+    // whether or not the captured catalog lists it. The catalog can be
+    // radius-limited or miss a modded entry; an existing building cannot be
+    // wrong about what built it.
+    const builtSomethingHere = recipeIsInUse(graph, recipeClass);
+
+    if (catalog.size > 0 && !known && !builtSomethingHere) {
+      return reject(kind, "recipe_not_in_catalog", {
+        recipe_class: recipeClass,
+        did_you_mean: nearestRecipeNames(catalog, recipeClass),
+      });
     }
-    if (known) checks.building_name = known.name ?? known.class_name;
+    if (!known && builtSomethingHere) {
+      checks.recipe_evidence = "not_in_the_captured_catalog_but_it_built_an_existing_building_here";
+    }
+    if (known) {
+      checks.building_name = known.name ?? null;
+      // Emit the exact class path the catalog knows, so a short name the model
+      // used resolves to something the game can actually look up.
+      if (known.class_path) checks.resolved_recipe_class = known.class_path;
+    }
 
     if (playerPosition) {
       const metres = distanceMeters(playerPosition, location);
@@ -141,7 +199,7 @@ export function validateAction(graph, proposal) {
       checks,
       action: {
         action: kind,
-        recipe_class: recipeClass,
+        recipe_class: checks.resolved_recipe_class ?? recipeClass,
         location,
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
