@@ -194,7 +194,11 @@ placement through the recipe's real Satisfactory hologram and its snapping,
 rotation, dynamic cost, multi-step, and construct-disqualifier checks; blueprint
 placement through `AFGBlueprintHologram` with descriptor-cost cross-checking and
 proxy-aware undo; exact inventory cost checks and charging; no-build-cost support;
-dismantle, undo, and rollback refunds with inventory-overflow drops.
+dismantle, undo, and rollback refunds with inventory-overflow drops; recipe and
+item availability captured from `AFGRecipeManager` into the snapshot, so the
+solvers report unlock status on a three-tier ladder — live recipe-manager state,
+then in-use-in-world, then an explicit unknown for snapshots predating the
+field — rather than a blanket "not determinable".
 
 Latest verified checkpoint (2026-07-28): all 256 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
@@ -243,8 +247,5 @@ Open, in rough order:
    multi-action rollback, undo refunds, blueprint proxies, and modded recipes.
    Do not claim production-ready placement until those exact outcomes are saved
    in `latest-bridge-response.json` and checked against the world.
-5. **Recipe unlock mapping.** Purchased schematics are captured but not which
-   recipes they unlock in the snapshot/solver. `AFGRecipeManager` is the verified
-   runtime source for availability and should be captured explicitly.
-6. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
+5. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
    than placing it directly. Needs (3).
