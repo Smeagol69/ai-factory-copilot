@@ -158,11 +158,82 @@ test("warns loudly when the snapshot was only a radius bubble", () => {
   assert.match(result.completeness_warning, /cannot answer a world-scale siting question/);
 });
 
-test("declares terrain and water unknown rather than implying it checked", () => {
+/** Measured ground, in the shape the scanner emits. */
+function terrain(verdict, overrides = {}) {
+  return {
+    sampled: verdict !== "no_ground_found",
+    verdict,
+    footprint_meters: 24,
+    samples_requested: 25,
+    samples_with_ground: 25,
+    mean_slope_degrees: 3,
+    max_slope_degrees: 6,
+    elevation_range_cm: 120,
+    water_samples: 0,
+    blocked_samples: 0,
+    source: "unreal_line_traces_and_water_volumes",
+    certainty: "authoritative",
+    ...overrides,
+  };
+}
+
+test("an unmeasured site is neutral and says unmeasured is not flat", () => {
   const result = solveSiteSelection(buildGraph(worldSnapshot()), { radius_meters: 300 });
-  assert.match(result.not_captured.terrain_flatness, /not in the snapshot/);
-  assert.match(result.not_captured.water_availability, /unknown/);
-  assert.match(result.not_captured.consequence, /flat and buildable/);
+  const site = result.sites[0];
+  assert.equal(site.terrain.measured, false);
+  assert.equal(site.terrain.verdict, "not_sampled");
+  assert.equal(site.score_breakdown.terrain, 0);
+  assert.match(site.terrain.note, /Unmeasured ground is not flat ground/);
+  assert.equal(result.terrain_coverage.measured_sites, 0);
+});
+
+test("measured ground is carried into the site report", () => {
+  const snapshot = worldSnapshot();
+  snapshot.actors.find((actor) => actor.name === "BP_ResourceNode1").terrain = terrain("flat_and_clear");
+  const result = solveSiteSelection(buildGraph(snapshot), { radius_meters: 300 });
+  const flat = result.sites.find((site) => site.terrain.measured);
+
+  assert.equal(flat.terrain.verdict, "flat_and_clear");
+  assert.equal(flat.terrain.buildability_0_to_1, 1);
+  assert.equal(flat.terrain.max_slope_degrees, 6);
+  assert.ok(flat.score_breakdown.terrain > 0);
+  assert.equal(result.terrain_coverage.measured_sites, 1);
+});
+
+test("flat ground outranks a steeper site with the same resources", () => {
+  const snapshot = worldSnapshot();
+  // Two identical clusters, differing only in measured ground.
+  snapshot.actors.find((actor) => actor.name === "BP_ResourceNode1").terrain = terrain("flat_and_clear");
+  snapshot.actors.find((actor) => actor.name === "BP_ResourceNode4").terrain = terrain("steep", {
+    max_slope_degrees: 41,
+    elevation_range_cm: 1800,
+  });
+  const result = solveSiteSelection(buildGraph(snapshot), { radius_meters: 300 });
+
+  const flat = result.sites.find((site) => site.terrain.verdict === "flat_and_clear");
+  const steep = result.sites.find((site) => site.terrain.verdict === "steep");
+  assert.ok(flat.score > steep.score, `${flat.score} should beat ${steep.score}`);
+  assert.ok(steep.score_breakdown.terrain < 0);
+});
+
+test("water and obstruction are scored as unbuildable", () => {
+  const snapshot = worldSnapshot();
+  snapshot.actors.find((actor) => actor.name === "BP_ResourceNode1").terrain = terrain("over_water", {
+    water_samples: 25,
+  });
+  const result = solveSiteSelection(buildGraph(snapshot), { radius_meters: 300 });
+  const wet = result.sites.find((site) => site.terrain.verdict === "over_water");
+  assert.equal(wet.terrain.buildability_0_to_1, 0);
+  assert.ok(wet.score_breakdown.terrain < 0);
+});
+
+test("terrain coverage explains what was measured and how", () => {
+  const result = solveSiteSelection(buildGraph(worldSnapshot()), { radius_meters: 300 });
+  assert.match(result.terrain_coverage.how, /line traces/);
+  assert.ok(result.terrain_coverage.measured.some((entry) => /water/.test(entry)));
+  assert.ok(result.terrain_coverage.measured.some((entry) => /slope/.test(entry)));
+  // Placement validity is still the game's own hologram check, not ours.
+  assert.match(result.not_captured.exact_placement_validity, /hologram/);
 });
 
 test("falls back to the player actor when interaction_context is absent", () => {

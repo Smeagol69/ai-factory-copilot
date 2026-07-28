@@ -12,6 +12,7 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveBlueprintLibrary,
   solveRecipeOptions,
   solveSiteSelection,
   solveTransportCapacity,
@@ -138,7 +139,7 @@ export const SOLVER_TOOLS = [
   {
     name: "find_best_site",
     description:
-      "Ranks places to build, scoring every candidate by the resource nodes within a radius: distinct resource types, purity-weighted node count, coverage of resources you require, and distance cost. Returns exact coordinates, the ranked runners-up, and the full score breakdown. Use this for any 'where should I put my HUB / base / factory' question instead of judging coordinates yourself. Terrain flatness and water access are not captured and are reported as unknown.",
+      "Ranks places to build, scoring every candidate by the resource nodes within a radius and by measured ground: distinct resource types, purity-weighted node count, coverage of resources you require, terrain buildability, and distance cost. Terrain is real measurement, not a guess: downward line traces across each footprint give slope and elevation range, the game's own water volumes give water, and a lifted box test gives rock and cliff obstruction. Returns exact coordinates, the ranked runners-up, and the full score breakdown. Use this for any 'where should I put my HUB / base / factory' question instead of judging coordinates yourself. Sites outside the scanner's probe radius are reported as unmeasured rather than assumed flat.",
     parameters: {
       type: "object",
       properties: {
@@ -166,6 +167,20 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => solveSiteSelection(graph, args),
+  },
+  {
+    name: "list_blueprints",
+    description:
+      "The player's saved blueprints: designer dimensions, exact build cost priced against what they are carrying, the game build each was authored on, and its description. Use this when they ask what blueprints they have, what one costs, whether they can afford it, or whether it still matches their game version. The per-building layout inside a blueprint is not decoded.",
+    parameters: {
+      type: "object",
+      properties: {
+        name_contains: { type: "string", description: "Case-insensitive substring of the blueprint name." },
+        limit: { type: "number", description: "Maximum blueprints to return. Defaults to 25." },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => solveBlueprintLibrary(graph, args, services ?? {}),
   },
   {
     name: "get_unlock_status",
@@ -224,7 +239,7 @@ export function serializeToolResult(result, maximumCharacters = DEFAULT_TOOL_RES
   return { serialized: minimal, truncated: true, array_item_limit: 0 };
 }
 
-export function runSolverTool(graph, name, args, { maximumCharacters } = {}) {
+export function runSolverTool(graph, name, args, { maximumCharacters, services } = {}) {
   const tool = toolsByName.get(name);
   if (!tool) {
     return {
@@ -238,7 +253,7 @@ export function runSolverTool(graph, name, args, { maximumCharacters } = {}) {
 
   try {
     const parsed = args && typeof args === "object" ? args : {};
-    return { name, ...serializeToolResult(tool.run(graph, parsed), maximumCharacters) };
+    return { name, ...serializeToolResult(tool.run(graph, parsed, services), maximumCharacters) };
   } catch (error) {
     return {
       name,

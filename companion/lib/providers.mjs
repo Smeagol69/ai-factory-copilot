@@ -149,6 +149,17 @@ function retryAfterMilliseconds(response, attempt) {
  * A token-per-minute limit is transient: the provider says how long to wait, so
  * the bridge waits rather than surfacing an error in the game panel.
  */
+/**
+ * A 429 means two very different things. A per-minute rate limit is transient
+ * and worth waiting out; an exhausted quota or expired billing is permanent, and
+ * retrying it just delays an error the player has to act on.
+ */
+export function isPermanentQuotaFailure(bodyText) {
+  return /insufficient_quota|exceeded your current quota|billing|credit balance|payment required/i.test(
+    String(bodyText ?? ""),
+  );
+}
+
 async function fetchWithRateLimitRetry(url, init, env = process.env) {
   const maximumRetries =
     Number.parseInt(env.AIFACTORY_MAX_RATE_LIMIT_RETRIES ?? "", 10) ||
@@ -158,18 +169,35 @@ async function fetchWithRateLimitRetry(url, init, env = process.env) {
     const response = await fetch(url, init);
     if (response.status !== 429 && response.status !== 529) return response;
     if (attempt >= maximumRetries) return response;
+
+    // Peek at a clone so the caller can still read the body if we give up.
+    let bodyText = "";
+    try {
+      bodyText = await response.clone().text();
+    } catch {
+      bodyText = "";
+    }
+    if (isPermanentQuotaFailure(bodyText)) return response;
+
     await sleep(retryAfterMilliseconds(response, attempt));
   }
 }
 
 async function parseErrorResponse(response) {
   const text = await response.text();
+  let message = text;
   try {
     const json = JSON.parse(text);
-    return json?.error?.message ?? json?.error ?? text;
+    message = json?.error?.message ?? json?.error ?? text;
   } catch {
-    return text;
+    message = text;
   }
+  // Tell the player what to actually do, in the panel, instead of leaving them
+  // to decode a provider error mid-game.
+  if (response.status === 429 && isPermanentQuotaFailure(text)) {
+    return `${message}\n\nThis is an account quota or billing problem, not a rate limit, so waiting will not help. Switch the bridge to a provider that works: set AI_PROVIDER=local with a local model (free), or AI_PROVIDER=anthropic with ANTHROPIC_API_KEY and ANTHROPIC_MODEL set.`;
+  }
+  return message;
 }
 
 function extractOpenAIText(responseJson) {
@@ -311,7 +339,7 @@ export async function askOpenAI(context, env = process.env) {
       } catch {
         parsedArguments = {};
       }
-      const result = runSolverTool(context.graph, call.name, parsedArguments);
+      const result = runSolverTool(context.graph, call.name, parsedArguments, { services: context.services });
       solverCalls.push({
         tool: call.name,
         arguments: parsedArguments,
@@ -494,7 +522,7 @@ export async function askAnthropic(context, env = process.env) {
     const toolResults = [];
     for (const use of toolUses) {
       const parsedArguments = use.input && typeof use.input === "object" ? use.input : {};
-      const result = runSolverTool(context.graph, use.name, parsedArguments);
+      const result = runSolverTool(context.graph, use.name, parsedArguments, { services: context.services });
       solverCalls.push({
         tool: use.name,
         arguments: parsedArguments,
@@ -595,7 +623,7 @@ export async function askLocal(context, env = process.env) {
       } catch {
         parsedArguments = {};
       }
-      const result = runSolverTool(context.graph, call.function?.name, parsedArguments);
+      const result = runSolverTool(context.graph, call.function?.name, parsedArguments, { services: context.services });
       solverCalls.push({
         tool: call.function?.name,
         arguments: parsedArguments,

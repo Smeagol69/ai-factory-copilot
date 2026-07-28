@@ -1,5 +1,8 @@
+import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askProvider } from "./lib/providers.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
@@ -46,6 +49,52 @@ async function readJsonBody(request, maximumBytes) {
   }
 }
 
+/**
+ * Reads saved blueprints from one configured directory.
+ *
+ * Returns null when no readable directory is configured, so the solver reports
+ * the capability as unavailable instead of pretending the player has none.
+ */
+export function makeBlueprintReader(env = process.env) {
+  const configured = env.AIFACTORY_BLUEPRINT_DIR;
+  const fallback = env.LOCALAPPDATA
+    ? path.join(env.LOCALAPPDATA, "FactoryGame", "Saved", "SaveGames", "blueprints")
+    : null;
+  const root = configured || fallback;
+  if (!root || !fs.existsSync(root)) return null;
+
+  return function listBlueprints() {
+    const results = [];
+    const walk = (directory, depth) => {
+      if (depth > 3) return;
+      let entries = [];
+      try {
+        entries = fs.readdirSync(directory, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const full = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          walk(full, depth + 1);
+          continue;
+        }
+        if (!entry.name.toLowerCase().endsWith(".sbp")) continue;
+        const name = entry.name.replace(/\.sbp$/i, "");
+        try {
+          const configPath = full.replace(/\.sbp$/i, ".sbpcfg");
+          const configBuffer = fs.existsSync(configPath) ? fs.readFileSync(configPath) : null;
+          results.push(readBlueprint(name, fs.readFileSync(full), configBuffer));
+        } catch (error) {
+          results.push({ name, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    };
+    walk(root, 0);
+    return results;
+  };
+}
+
 export function createBridgeServer({ env = process.env } = {}) {
   const provider = (env.AI_PROVIDER || "mock").toLowerCase();
   const maximumBodyBytes =
@@ -65,6 +114,8 @@ export function createBridgeServer({ env = process.env } = {}) {
   const leanMaxActors = positiveInteger(env.AIFACTORY_LEAN_MAX_ACTORS, 120);
   const leanMaxCharacters = positiveInteger(env.AIFACTORY_LEAN_MAX_CHARS, 200_000);
   const conveyorSpeedDivisor = Number.parseFloat(env.AIFACTORY_BELT_SPEED_DIVISOR ?? "") || 2;
+  const listBlueprints = makeBlueprintReader(env);
+  const solverServices = { listBlueprints };
   const graphOptions = { conveyorSpeedDivisor };
   const sessions = new Map();
 
@@ -78,6 +129,7 @@ export function createBridgeServer({ env = process.env } = {}) {
           loopback_only: true,
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
           conveyor_speed_divisor: conveyorSpeedDivisor,
+          blueprint_library: Boolean(listBlueprints),
           outside_references: (() => {
             const policy = resolveSourcePolicy(env);
             return {
@@ -185,6 +237,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         omissions: view.omissions,
         summary: summarizeSnapshot(body.world_snapshot),
         graph,
+        services: solverServices,
         history,
       };
       const answer = await askProvider(provider, context, env);

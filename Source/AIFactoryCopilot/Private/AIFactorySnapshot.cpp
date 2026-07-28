@@ -3,6 +3,7 @@
 #include "AIFactoryCopilotModule.h"
 #include "AIFactoryDataProvider.h"
 #include "AIFactorySettings.h"
+#include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableConveyorBase.h"
 #include "Buildables/FGBuildableFactory.h"
@@ -269,6 +270,34 @@ namespace
             Adapter->SetBoolField(TEXT("complete"), false);
         }
         Result->SetObjectField(TEXT("adapter"), Adapter);
+    }
+
+    /** Measured ground conditions for a candidate footprint. */
+    TSharedRef<FJsonObject> SiteTerrainJson(const FAIFactorySiteTerrain& Site)
+    {
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        Result->SetBoolField(TEXT("sampled"), Site.bSampled);
+        Result->SetStringField(TEXT("verdict"), Site.Verdict);
+        Result->SetNumberField(TEXT("footprint_meters"), Site.FootprintMeters);
+        Result->SetNumberField(TEXT("samples_requested"), Site.SamplesRequested);
+        Result->SetNumberField(TEXT("samples_with_ground"), Site.SamplesWithGround);
+        if (Site.bSampled)
+        {
+            Result->SetNumberField(TEXT("mean_slope_degrees"), Site.MeanSlopeDegrees);
+            Result->SetNumberField(TEXT("max_slope_degrees"), Site.MaxSlopeDegrees);
+            Result->SetNumberField(TEXT("elevation_range_cm"), Site.ElevationRangeCm);
+            Result->SetNumberField(TEXT("min_ground_z"), Site.MinGroundZ);
+            Result->SetNumberField(TEXT("max_ground_z"), Site.MaxGroundZ);
+            Result->SetNumberField(TEXT("mean_ground_z"), Site.MeanGroundZ);
+            Result->SetNumberField(TEXT("water_samples"), Site.WaterSamples);
+            Result->SetNumberField(TEXT("blocked_samples"), Site.BlockedSamples);
+        }
+        Result->SetStringField(TEXT("source"), TEXT("unreal_line_traces_and_water_volumes"));
+        Result->SetStringField(TEXT("certainty"), TEXT("authoritative"));
+        Result->SetStringField(
+            TEXT("blocked_meaning"),
+            TEXT("A world-static volume lifted clear of the ground overlapped the footprint: rock, cliff, or foliage. Existing buildables are not counted here; the solvers compute those from actor bounds."));
+        return Result;
     }
 
     TSharedRef<FJsonObject> GenericActorJson(
@@ -557,7 +586,26 @@ namespace
         return Result;
     }
 
-    TSharedRef<FJsonObject> ResourceNodeJson(AFGResourceNodeBase* Node, const FAIFactorySettings& Settings)
+    /** Bounds how much terrain probing one capture may do. */
+    struct FTerrainProbeBudget
+    {
+        int32 Remaining = 0;
+        FVector Center = FVector::ZeroVector;
+        double RadiusSquaredCm = -1.0;
+
+        bool ShouldProbe(const FVector& Location) const
+        {
+            if (Remaining <= 0) return false;
+            if (RadiusSquaredCm < 0.0) return true;
+            return FVector::DistSquared(Location, Center) <= RadiusSquaredCm;
+        }
+    };
+
+    TSharedRef<FJsonObject> ResourceNodeJson(
+        AFGResourceNodeBase* Node,
+        const FAIFactorySettings& Settings,
+        UWorld* World,
+        FTerrainProbeBudget& TerrainBudget)
     {
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetStringField(TEXT("actor_id"), Node->GetPathName());
@@ -581,6 +629,20 @@ namespace
             Result->SetBoolField(TEXT("has_resources"), ResourceNode->HasAnyResources());
         }
 
+        // Unoccupied nodes are the candidate anchors for a new factory, so their
+        // ground is measured here and find_best_site scores it.
+        if (Settings.bIncludeTerrain && TerrainBudget.ShouldProbe(Node->GetActorLocation()))
+        {
+            --TerrainBudget.Remaining;
+            const FAIFactorySiteTerrain Site = FAIFactoryTerrain::ProbeSite(
+                World,
+                Node->GetActorLocation(),
+                Settings.TerrainFootprintMeters,
+                Settings.TerrainResolution,
+                Node);
+            Result->SetObjectField(TEXT("terrain"), SiteTerrainJson(Site));
+        }
+
         if (Settings.bIncludeReflectedProperties)
         {
             Result->SetArrayField(TEXT("reflected_properties"), ReflectedPropertiesJson(Node, Settings));
@@ -588,7 +650,11 @@ namespace
         return Result;
     }
 
-    TSharedRef<FJsonObject> FocusActorJson(AActor* Actor, const FAIFactorySettings& Settings)
+    TSharedRef<FJsonObject> FocusActorJson(
+        AActor* Actor,
+        const FAIFactorySettings& Settings,
+        UWorld* World,
+        FTerrainProbeBudget& TerrainBudget)
     {
         if (AFGBuildable* Buildable = Cast<AFGBuildable>(Actor))
         {
@@ -596,7 +662,7 @@ namespace
         }
         if (AFGResourceNodeBase* ResourceNode = Cast<AFGResourceNodeBase>(Actor))
         {
-            return ResourceNodeJson(ResourceNode, Settings);
+            return ResourceNodeJson(ResourceNode, Settings, World, TerrainBudget);
         }
         return GenericActorJson(Actor, KindForActor(Actor), Settings);
     }
@@ -640,7 +706,8 @@ namespace
     TSharedRef<FJsonObject> InteractionContextJson(
         UWorld* World,
         const FAIFactorySnapshotRequest& Request,
-        const FAIFactorySettings& Settings)
+        const FAIFactorySettings& Settings,
+        FTerrainProbeBudget& TerrainBudget)
     {
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetStringField(TEXT("captured_at_utc"), FDateTime::UtcNow().ToIso8601());
@@ -773,7 +840,7 @@ namespace
             PreferredTarget->SetStringField(TEXT("actor_class_path"), PreferredActor->GetClass()->GetPathName());
             PreferredTarget->SetStringField(TEXT("actor_owner_mod"), OwnerModForObject(PreferredActor->GetClass()));
             PreferredTarget->SetStringField(TEXT("actor_kind"), KindForActor(PreferredActor));
-            PreferredTarget->SetObjectField(TEXT("actor_snapshot"), FocusActorJson(PreferredActor, Settings));
+            PreferredTarget->SetObjectField(TEXT("actor_snapshot"), FocusActorJson(PreferredActor, Settings, World, TerrainBudget));
         }
         Result->SetObjectField(TEXT("preferred_target"), PreferredTarget);
         return Result;
@@ -960,7 +1027,34 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     WorldInfo->SetObjectField(TEXT("scan_center"), VectorJson(Request.Center));
     WorldInfo->SetNumberField(TEXT("scan_radius_meters"), Request.bUseRadius ? Request.RadiusMeters : -1.0);
     Root->SetObjectField(TEXT("world"), WorldInfo);
-    Root->SetObjectField(TEXT("interaction_context"), InteractionContextJson(World, Request, Settings));
+
+    FTerrainProbeBudget TerrainBudget;
+    if (Settings.bIncludeTerrain)
+    {
+        TerrainBudget.Remaining = Settings.MaxTerrainProbes;
+        TerrainBudget.Center = Request.Center;
+        TerrainBudget.RadiusSquaredCm = Settings.TerrainProbeRadiusMeters < 0.0f
+            ? -1.0
+            : FMath::Square(static_cast<double>(Settings.TerrainProbeRadiusMeters) * 100.0);
+
+        // The ground the player is standing on, always measured.
+        const FAIFactorySiteTerrain Here = FAIFactoryTerrain::ProbeSite(
+            World,
+            Request.Center,
+            Settings.TerrainFootprintMeters,
+            Settings.TerrainResolution);
+        const TSharedRef<FJsonObject> TerrainRoot = MakeShared<FJsonObject>();
+        TerrainRoot->SetObjectField(TEXT("at_scan_center"), SiteTerrainJson(Here));
+        TerrainRoot->SetNumberField(TEXT("probe_budget"), Settings.MaxTerrainProbes);
+        TerrainRoot->SetNumberField(TEXT("probe_footprint_meters"), Settings.TerrainFootprintMeters);
+        TerrainRoot->SetNumberField(TEXT("probe_resolution"), Settings.TerrainResolution);
+        TerrainRoot->SetNumberField(TEXT("probe_radius_meters"), Settings.TerrainProbeRadiusMeters);
+        TerrainRoot->SetStringField(TEXT("coverage"),
+            TEXT("Unoccupied resource nodes inside the probe radius carry their own measured terrain; "
+                 "nodes beyond it are unmeasured, not flat."));
+        Root->SetObjectField(TEXT("terrain"), TerrainRoot);
+    }
+    Root->SetObjectField(TEXT("interaction_context"), InteractionContextJson(World, Request, Settings, TerrainBudget));
 
     Root->SetArrayField(TEXT("mods"), ModsJson(World, Result.ModCount));
     if (Request.bIncludeContentCatalog)
@@ -1013,7 +1107,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                     Result.bActorLimitReached = true;
                     break;
                 }
-                Actors.Add(MakeShared<FJsonValueObject>(ResourceNodeJson(Node, Settings)));
+                Actors.Add(MakeShared<FJsonValueObject>(ResourceNodeJson(Node, Settings, World, TerrainBudget)));
                 ++Result.ActorCount;
                 ++Result.ResourceNodeCount;
             }

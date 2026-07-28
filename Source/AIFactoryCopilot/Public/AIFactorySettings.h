@@ -13,6 +13,12 @@ struct FAIFactorySettings
     int32 MaxReflectedValueCharacters = 2048;
     bool bIncludeContentCatalog = true;
     bool bIncludeReflectedProperties = true;
+    /** Ground, slope, and water probing for build-site suitability. */
+    bool bIncludeTerrain = true;
+    float TerrainFootprintMeters = 24.0f;
+    int32 TerrainResolution = 5;
+    int32 MaxTerrainProbes = 150;
+    float TerrainProbeRadiusMeters = 500.0f;
     bool bUIWholeWorldSnapshot = true;
     bool bStartupSelfTest = false;
     float StartupSelfTestDelaySeconds = 10.0f;

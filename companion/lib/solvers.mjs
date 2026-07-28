@@ -7,6 +7,7 @@
  * and the field that was missing.
  */
 
+import { costAgainstInventory } from "./blueprints.mjs";
 import {
   buildGraph,
   finiteNumber,
@@ -953,6 +954,20 @@ const DEFAULT_SITE_WEIGHTS = {
   purity_weighted_nodes: 4,
   required_coverage: 120,
   distance_penalty_per_100m: 6,
+  terrain: 60,
+};
+
+/**
+ * How buildable each measured ground verdict is, 0..1. Sites the scanner probed
+ * are scored on this; sites it did not reach score neutral and say so.
+ */
+const TERRAIN_BUILDABILITY = {
+  flat_and_clear: 1,
+  usable_with_foundations: 0.6,
+  steep: 0.15,
+  obstructed: 0.1,
+  over_water: 0,
+  no_ground_found: 0,
 };
 
 /** `RP_Inpure` is the engine's spelling; `RP_Impure` is not a thing. */
@@ -1009,6 +1024,7 @@ export function solveSiteSelection(
       has_resources: raw.has_resources !== false,
       // Deposits are hand-mined and cannot host a miner.
       minable: nodeType === "Node" || nodeType === "FrackingCore",
+      terrain: raw.terrain ?? null,
     });
   }
 
@@ -1018,12 +1034,12 @@ export function solveSiteSelection(
 
   const candidates = [];
   const seen = new Set();
-  const addCandidate = (location, origin, actorId = null) => {
+  const addCandidate = (location, origin, actorId = null, terrain = null) => {
     if (!location || ![location.x, location.y, location.z].every((value) => Number.isFinite(value))) return;
     const key = `${Math.round(location.x / 5000)}:${Math.round(location.y / 5000)}`;
     if (seen.has(key)) return;
     seen.add(key);
-    candidates.push({ location, origin, actor_id: actorId });
+    candidates.push({ location, origin, actor_id: actorId, terrain });
   };
 
   // Older snapshots carry no interaction_context, so fall back to the captured
@@ -1041,8 +1057,17 @@ export function solveSiteSelection(
   if (center) {
     addCandidate(center, "caller_supplied_center");
   } else {
-    for (const node of usableNodes) addCandidate(node.location, "resource_node", node.actor_id);
-    if (playerLocation) addCandidate(playerLocation, "current_player_position");
+    for (const node of usableNodes) {
+      addCandidate(node.location, "resource_node", node.actor_id, node.terrain);
+    }
+    if (playerLocation) {
+      addCandidate(
+        playerLocation,
+        "current_player_position",
+        null,
+        graph.snapshot?.terrain?.at_scan_center ?? null,
+      );
+    }
   }
   const sites = [];
 
@@ -1105,11 +1130,18 @@ export function solveSiteSelection(
     const meanNearestMeters =
       resources.reduce((total, entry) => total + entry.nearest_distance_meters, 0) / resources.length;
 
+    // Measured ground. An unprobed site scores neutral rather than being
+    // assumed flat, and says which it is.
+    const terrain = candidate.terrain ?? null;
+    const terrainVerdict = terrain?.sampled ? terrain.verdict : terrain?.verdict ?? "not_sampled";
+    const buildability = terrain?.sampled ? (TERRAIN_BUILDABILITY[terrainVerdict] ?? 0.5) : null;
+    const terrainScore = buildability === null ? 0 : scoreWeights.terrain * (buildability - 0.5) * 2;
+
     const diversityScore = scoreWeights.resource_diversity * resources.length;
     const purityScore = scoreWeights.purity_weighted_nodes * purityWeightTotal;
     const coverageScore = scoreWeights.required_coverage * coverageFraction;
     const distancePenalty = scoreWeights.distance_penalty_per_100m * (meanNearestMeters / 100);
-    const score = diversityScore + purityScore + coverageScore - distancePenalty;
+    const score = diversityScore + purityScore + coverageScore + terrainScore - distancePenalty;
 
     sites.push({
       center_cm: candidate.location,
@@ -1120,9 +1152,32 @@ export function solveSiteSelection(
         resource_diversity: round(diversityScore, 3),
         purity_weighted_nodes: round(purityScore, 3),
         required_coverage: round(coverageScore, 3),
+        terrain: round(terrainScore, 3),
         distance_penalty: round(-distancePenalty, 3),
-        formula: "diversity + purity_weighted_nodes + required_coverage - distance_penalty",
+        formula:
+          "diversity + purity_weighted_nodes + required_coverage + terrain - distance_penalty",
       },
+      terrain: terrain
+        ? {
+            measured: Boolean(terrain.sampled),
+            verdict: terrainVerdict,
+            buildability_0_to_1: buildability,
+            mean_slope_degrees: terrain.mean_slope_degrees ?? null,
+            max_slope_degrees: terrain.max_slope_degrees ?? null,
+            elevation_range_cm: terrain.elevation_range_cm ?? null,
+            water_samples: terrain.water_samples ?? null,
+            blocked_samples: terrain.blocked_samples ?? null,
+            samples_with_ground: terrain.samples_with_ground ?? null,
+            footprint_meters: terrain.footprint_meters ?? null,
+            source: terrain.source ?? null,
+          }
+        : {
+            measured: false,
+            verdict: "not_sampled",
+            buildability_0_to_1: null,
+            note:
+              "Outside the scanner's terrain probe radius. Unmeasured ground is not flat ground; walk closer and recapture to measure it.",
+          },
       distinct_resources: resources.length,
       total_purity_weight: round(purityWeightTotal, 3),
       mean_nearest_distance_meters: round(meanNearestMeters, 2),
@@ -1175,19 +1230,113 @@ export function solveSiteSelection(
       purity_weight_source: "documented_extraction_multipliers_not_snapshot_facts",
       note: "Ranking depends on these weights. Different weights give a different winner; the score breakdown shows exactly how each site earned its total.",
     },
+    terrain_coverage: {
+      measured_sites: ranked.filter((site) => site.terrain?.measured).length,
+      unmeasured_sites: ranked.filter((site) => !site.terrain?.measured).length,
+      how: "Downward line traces on a grid across each footprint, plus water-volume containment at each ground point.",
+      measured: [
+        "ground height and elevation range across the footprint",
+        "surface slope from the impact normal, mean and maximum",
+        "water, from the game's own water volumes",
+        "rock, cliff, and foliage blocking the footprint above ground level",
+      ],
+      probe_settings: graph.snapshot?.terrain
+        ? {
+            footprint_meters: graph.snapshot.terrain.probe_footprint_meters,
+            resolution: graph.snapshot.terrain.probe_resolution,
+            radius_meters: graph.snapshot.terrain.probe_radius_meters,
+            budget: graph.snapshot.terrain.probe_budget,
+          }
+        : null,
+    },
     not_captured: {
-      terrain_flatness: "Ground slope and buildable area are not in the snapshot.",
-      obstructions: "Cliffs, water, and foliage blocking a footprint are not captured.",
-      water_availability: "Water extractors sit on water surfaces, not nodes, so water access is unknown.",
+      existing_building_overlap:
+        "Not folded into the terrain verdict. Buildable bounds are in the snapshot, so check them separately before committing a footprint.",
       hostile_creatures: "Creature locations are not captured.",
-      consequence:
-        "This ranks resource access only. Confirm the winning spot is actually flat and buildable before committing.",
+      exact_placement_validity:
+        "Only the game's own hologram check can confirm a specific building fits at a specific transform; this is measured ground, not a placement guarantee.",
     },
     completeness_warning: partialWorld
       ? `The snapshot was captured with a ${scanRadius} m scan radius, so this ranks only what was inside that bubble and cannot answer a world-scale siting question. Recapture with the whole-world snapshot before trusting it.`
       : null,
     source: "deterministic_geometry_over_authoritative_resource_nodes",
     certainty: "calculated",
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. Blueprint library
+ * ------------------------------------------------------------------ */
+
+/**
+ * Reads the player's saved blueprints from disk and prices them against what
+ * they are carrying. Files are read through an injected reader so the caller
+ * decides which directory is ever touched.
+ */
+export function solveBlueprintLibrary(
+  graph,
+  { name_contains = null, limit = 25 } = {},
+  { listBlueprints = null } = {},
+) {
+  if (typeof listBlueprints !== "function") {
+    return {
+      solver: "blueprint_library",
+      world_revision: graph.world_revision,
+      available: false,
+      reason: "blueprint_directory_not_configured",
+      note: "Set AIFACTORY_BLUEPRINT_DIR so the bridge can read the saved blueprint folder.",
+      blueprints: [],
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const { totals } = playerInventories(graph);
+  const gameChangelist = finiteNumber(graph.snapshot?.world?.game_changelist);
+  const entries = listBlueprints();
+  const needle = name_contains ? String(name_contains).toLowerCase() : null;
+
+  const blueprints = [];
+  const failures = [];
+  for (const entry of entries) {
+    if (entry.error) {
+      failures.push({ name: entry.name, error: entry.error });
+      continue;
+    }
+    if (needle && !String(entry.name).toLowerCase().includes(needle)) continue;
+
+    const pricing = costAgainstInventory(entry, totals);
+    blueprints.push({
+      name: entry.name,
+      designer_dimensions: entry.designer_dimensions,
+      authored_on_game_changelist: entry.game_changelist,
+      authored_on_a_different_build:
+        gameChangelist !== null && entry.game_changelist !== gameChangelist,
+      description: entry.description,
+      build_cost: entry.build_cost,
+      ...pricing,
+      cost_list_truncated: entry.cost_list_truncated,
+      object_graph_decoded: entry.object_graph_decoded,
+      object_graph_note: entry.object_graph_note,
+    });
+    if (blueprints.length >= Math.max(1, Math.trunc(limit) || 25)) break;
+  }
+
+  return {
+    solver: "blueprint_library",
+    world_revision: graph.world_revision,
+    available: true,
+    query: { name_contains, limit },
+    blueprint_count: blueprints.length,
+    total_files_seen: entries.length,
+    blueprints,
+    unreadable_files: failures,
+    what_is_known:
+      "Designer dimensions, exact build cost, the game build each blueprint was authored on, and its description.",
+    what_is_not_known:
+      "The per-building layout inside each blueprint is not decoded, so which machines it contains and how they are wired is unknown from this solver.",
+    source: "parsed_from_saved_blueprint_files",
+    certainty: "authoritative_for_header_and_cost",
   };
 }
 

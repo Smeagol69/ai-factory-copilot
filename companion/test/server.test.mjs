@@ -30,7 +30,7 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.conveyor_speed_divisor, 2);
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
   assert.ok(body.solver_tools.includes("find_best_site"));
-  assert.equal(body.solver_tools.length, 9);
+  assert.equal(body.solver_tools.length, 10);
   assert.equal(body.outside_references.web_search, true);
   assert.equal(body.outside_references.restricted_to_official_sources, true);
   assert.ok(body.outside_references.source_domains.includes("docs.ficsit.app"));

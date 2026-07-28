@@ -56,6 +56,11 @@ FAIFactorySettings FAIFactorySettings::Load()
     Json->TryGetBoolField(TEXT("includeContentCatalog"), Settings.bIncludeContentCatalog);
     Json->TryGetBoolField(TEXT("includeReflectedProperties"), Settings.bIncludeReflectedProperties);
     Json->TryGetBoolField(TEXT("uiWholeWorldSnapshot"), Settings.bUIWholeWorldSnapshot);
+    Json->TryGetBoolField(TEXT("includeTerrain"), Settings.bIncludeTerrain);
+    ReadNumber(Json, TEXT("terrainFootprintMeters"), Settings.TerrainFootprintMeters);
+    ReadNumber(Json, TEXT("terrainResolution"), Settings.TerrainResolution);
+    ReadNumber(Json, TEXT("maxTerrainProbes"), Settings.MaxTerrainProbes);
+    ReadNumber(Json, TEXT("terrainProbeRadiusMeters"), Settings.TerrainProbeRadiusMeters);
     Json->TryGetBoolField(TEXT("startupSelfTest"), Settings.bStartupSelfTest);
     ReadNumber(Json, TEXT("startupSelfTestDelaySeconds"), Settings.StartupSelfTestDelaySeconds);
     Json->TryGetStringField(TEXT("startupSelfTestQuestion"), Settings.StartupSelfTestQuestion);
@@ -67,6 +72,12 @@ FAIFactorySettings FAIFactorySettings::Load()
     Settings.MaxReflectedPropertiesPerObject = FMath::Clamp(Settings.MaxReflectedPropertiesPerObject, 0, 4096);
     Settings.MaxReflectedValueCharacters = FMath::Clamp(Settings.MaxReflectedValueCharacters, 64, 65536);
     Settings.StartupSelfTestDelaySeconds = FMath::Clamp(Settings.StartupSelfTestDelaySeconds, 1.0f, 120.0f);
+    // Each probe is Resolution^2 line traces, so both are bounded to keep a
+    // whole-world capture inside a single frame's budget.
+    Settings.TerrainFootprintMeters = FMath::Clamp(Settings.TerrainFootprintMeters, 1.0f, 500.0f);
+    Settings.TerrainResolution = FMath::Clamp(Settings.TerrainResolution, 1, 16);
+    Settings.MaxTerrainProbes = FMath::Clamp(Settings.MaxTerrainProbes, 0, 2000);
+    Settings.TerrainProbeRadiusMeters = FMath::Clamp(Settings.TerrainProbeRadiusMeters, -1.0f, 100000.0f);
     if (Settings.StartupSelfTestQuestion.TrimStartAndEnd().IsEmpty())
     {
         Settings.StartupSelfTestQuestion =
