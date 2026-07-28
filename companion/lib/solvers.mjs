@@ -1044,6 +1044,96 @@ function matchesResourceQuery(node, query) {
   );
 }
 
+/**
+ * Why the winning site won.
+ *
+ * The scorer already knows this — it is the difference between the winner's
+ * factor breakdown and the runner-up's — but a score of 130.5 against 125.2
+ * tells the player nothing on its own. This turns the arithmetic into the
+ * reason: which factor decided it, what the winner gave up to get there, and
+ * which resources actually drove the resource terms.
+ *
+ * Everything here is derived from numbers the scorer computed. It explains the
+ * *scoring decision*, which is a thing the data proves. It says nothing about
+ * why the map has resources where it does, which the data does not.
+ */
+const COST_PHRASING = {
+  resource_diversity: "having fewer distinct resources in range",
+  purity_weighted_nodes: "having poorer or fewer nodes",
+  required_coverage: "coverage of the resources you asked for",
+  terrain: "worse ground to build on",
+  distance_penalty: "being further from you",
+};
+
+function explainSiteChoice(ranked) {
+  const winner = ranked[0];
+  if (!winner) return null;
+
+  const drivers = (winner.resources_in_radius ?? [])
+    .slice()
+    .sort((a, b) => (a.nearest_distance_meters ?? 1e9) - (b.nearest_distance_meters ?? 1e9))
+    .slice(0, 4)
+    .map((entry) => ({
+      resource: entry.resource_name,
+      nodes: entry.node_count,
+      nearest_meters: entry.nearest_distance_meters,
+      purity_weight: entry.purity_weight_total,
+    }));
+
+  const base = {
+    chosen_because: [],
+    traded_away: [],
+    resource_drivers: drivers,
+    basis:
+      "Derived from the scored factors. This explains why this point outscored the others, not why the map has resources where it does — the snapshot cannot show that.",
+  };
+
+  const runnerUp = ranked[1];
+  if (!runnerUp) {
+    return {
+      ...base,
+      margin: null,
+      chosen_because: ["It was the only candidate scored, so there was nothing to beat."],
+    };
+  }
+
+  const margin = round(winner.score - runnerUp.score, 2);
+  const labels = {
+    resource_diversity: "more distinct resources in range",
+    purity_weighted_nodes: "richer or purer nodes",
+    required_coverage: "covers the resources you asked for",
+    terrain: "better ground to build on",
+    distance_penalty: "closer to you",
+  };
+
+  // A factor helps the winner when it is higher, except the distance penalty,
+  // which is stored negative and helps when it is *less* negative.
+  for (const [factor, label] of Object.entries(labels)) {
+    const mine = finiteNumber(winner.score_breakdown?.[factor]) ?? 0;
+    const theirs = finiteNumber(runnerUp.score_breakdown?.[factor]) ?? 0;
+    const delta = round(mine - theirs, 2);
+    if (Math.abs(delta) < 0.01) continue;
+    const entry = { factor, label, points: Math.abs(delta) };
+    if (delta > 0) base.chosen_because.push(entry);
+    else base.traded_away.push(entry);
+  }
+
+  base.chosen_because.sort((a, b) => b.points - a.points);
+  base.traded_away.sort((a, b) => b.points - a.points);
+
+  const decider = base.chosen_because[0];
+  const cost = base.traded_away[0];
+  let headline;
+  if (!decider) {
+    headline = `Every scored factor tied; it won by ${margin} points on rounding.`;
+  } else {
+    headline = `It won by ${margin} points, mostly on ${decider.label} (+${decider.points}).`;
+    if (cost) headline += ` It gave up ${cost.points} points on ${COST_PHRASING[cost.factor] ?? cost.label}.`;
+  }
+
+  return { ...base, margin, beat_runner_up_by: margin, headline };
+}
+
 export function solveSiteSelection(
   graph,
   {
@@ -1317,6 +1407,8 @@ export function solveSiteSelection(
       deposits_excluded: include_deposits ? 0 : allNodes.filter((node) => !node.minable).length,
     },
     candidates_evaluated: candidates.length,
+    // Why the top site won, derived from the factor deltas rather than asserted.
+    why_this_site: explainSiteChoice(ranked),
     sites: ranked,
     scoring_basis: {
       purity_extraction_weights: PURITY_EXTRACTION_WEIGHT,

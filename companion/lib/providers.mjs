@@ -74,7 +74,11 @@ factory arithmetic yourself:
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight.
 Never rank locations or estimate a distance by reading coordinates yourself;
-find_best_site computes both. If it warns that the snapshot was radius-limited,
+find_best_site computes both. It also returns why_this_site, which explains the
+choice: which factor decided it, what the winner traded away, and the resources
+driving the score. Use that when the player asks why — it is derived from the
+scored factors and is the answer. It explains the scoring decision only; if they
+ask why the map has resources where it does, say the snapshot cannot show that. If it warns that the snapshot was radius-limited,
 say the world was only partly captured instead of naming a winner.
 The solvers read the complete current-turn snapshot, which is larger than the
 view you were given: the full item and recipe catalog, every actor, and Unreal

@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askProvider } from "./lib/providers.mjs";
+import { answerLocally } from "./lib/router.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
 import { resolveSourcePolicy } from "./lib/sources.mjs";
@@ -252,7 +253,14 @@ export function createBridgeServer({ env = process.env } = {}) {
         services: requestServices,
         history,
       };
-      const answer = await askProvider(provider, context, env);
+      // Questions a single solver fully answers never reach the model: the
+      // arithmetic was already done, and paying to have it narrated is the
+      // expensive way to read a number. Falls through when unsure.
+      const localAnswer =
+        env.AIFACTORY_LOCAL_ROUTING === "false"
+          ? null
+          : answerLocally(context.question, graph, requestServices);
+      const answer = localAnswer ?? (await askProvider(provider, context, env));
 
       history.push({ role: "user", text: context.question });
       history.push({ role: "assistant", text: answer.reply });
@@ -283,6 +291,9 @@ export function createBridgeServer({ env = process.env } = {}) {
         // Prompt-cache accounting for this answer, so the saving is observable
         // rather than assumed.
         cache: answer.cache ?? null,
+        // Which path answered: a local solver route, or the model.
+        answered_by: answer.provider === "solvers" ? "local_solver" : "model",
+        local: answer.local ?? null,
         // The mod executes these server-side, re-validates each one, and only
         // commits those with commit:true when its own allowWriteActions is on.
         actions: collectedActions,

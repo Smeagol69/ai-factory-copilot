@@ -221,7 +221,7 @@ test("states that per-building layout is not known", () => {
 
 /** Appends a length-prefixed, null-terminated UE string. */
 function uePath(text) {
-  const body = Buffer.from(`${text} `, "utf8");
+  const body = Buffer.from(`${text}\0`, "utf8");
   const length = Buffer.alloc(4);
   length.writeUInt32LE(body.length, 0);
   return Buffer.concat([length, body]);
