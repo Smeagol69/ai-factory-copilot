@@ -45,6 +45,25 @@ if (Test-Path -LiteralPath $environmentPath -PathType Leaf) {
     }
 }
 
+# A scheduled task inherits the environment as it stood when the task started,
+# and at logon that is before the user has necessarily set anything. Read the
+# persisted User scope directly so a key added after logon still counts.
+# Without this, provider selection silently depends on boot ordering: the task
+# fell through to OpenAI on a machine that had a working Anthropic key, and
+# every question failed on an OpenAI quota error.
+foreach ($persistedName in @(
+    'AI_PROVIDER',
+    'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL',
+    'OPENAI_API_KEY', 'OPENAI_MODEL',
+    'LOCAL_AI_BASE_URL', 'LOCAL_AI_MODEL')) {
+    if (-not [Environment]::GetEnvironmentVariable($persistedName, 'Process')) {
+        $persistedValue = [Environment]::GetEnvironmentVariable($persistedName, 'User')
+        if ($persistedValue) {
+            [Environment]::SetEnvironmentVariable($persistedName, $persistedValue, 'Process')
+        }
+    }
+}
+
 if (-not $env:AI_PROVIDER) {
     if ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL) {
         $env:AI_PROVIDER = 'anthropic'

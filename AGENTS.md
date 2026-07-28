@@ -196,7 +196,7 @@ placement through `AFGBlueprintHologram` with descriptor-cost cross-checking and
 proxy-aware undo; exact inventory cost checks and charging; no-build-cost support;
 dismantle, undo, and rollback refunds with inventory-overflow drops.
 
-Latest verified checkpoint (2026-07-28): all 253 companion tests pass and the
+Latest verified checkpoint (2026-07-28): all 256 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
 Project headers. The repo source was synced into the Starter Project after that
 compile. The companion is clean-installed at
@@ -206,8 +206,18 @@ mod is version 0.4.0. Its FactoryGameSteam Shipping target compiled, cooked, and
 packaged successfully through UAT/Alpakit, producing a 14,660,733-byte archive
 at `Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`. The
 same build is deployed into the game; the deployed DLL SHA-256 is
-`8DCF2BB057514F296F2C422767BC5D38CFEA512B8955A3B4EB66004582D7702C`.
+`4EE45459FC2AC0CBB6390E1B8FFDE1E8F3C1B66BABA3C7AEB4D36A1FD728098A`
+(built 2026-07-28 12:11, i.e. including `864ba53`; an earlier note here recorded
+a hash from before the last three commits).
 It has not yet been exercised in a live save.
+
+**Blocked on a model provider as of 2026-07-28.** Both cloud providers are out
+of billing on this machine — OpenAI returns `insufficient_quota`, Anthropic
+returns "credit balance is too low". Ollama is installed and listening on 11434
+but has no model pulled, so `AI_PROVIDER=local` has nothing to talk to either.
+Every question fails until one of those is resolved. This is a billing/setup
+state, not a code defect: the bridge reports each case accurately and names the
+working alternatives.
 
 Open, in rough order:
 
