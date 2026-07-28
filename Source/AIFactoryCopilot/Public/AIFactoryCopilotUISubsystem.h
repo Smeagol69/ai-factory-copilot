@@ -48,6 +48,8 @@ private:
     bool bPanelVisible = false;
     bool bWaitingForAnswer = false;
     bool bPreviousShowMouseCursor = false;
+    bool bSuppressedGameInput = false;
+    bool bFocusInputOnNextTick = false;
 
     void BuildPanel();
     void ShowPanel();

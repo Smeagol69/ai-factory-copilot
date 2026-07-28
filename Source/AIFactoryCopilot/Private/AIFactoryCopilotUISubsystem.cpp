@@ -317,16 +317,26 @@ void UAIFactoryCopilotUISubsystem::ShowPanel()
     bPanelVisible = true;
     bPreviousShowMouseCursor = PlayerController->bShowMouseCursor;
     PlayerController->bShowMouseCursor = true;
+    PlayerController->SetIgnoreMoveInput(true);
+    PlayerController->SetIgnoreLookInput(true);
+    bSuppressedGameInput = true;
 
-    FInputModeGameAndUI InputMode;
-    InputMode.SetHideCursorDuringCapture(false);
+    // This is a conversation surface, not an overlay the player should control
+    // the game through. UI-only mode prevents a question containing WASD or
+    // hotkeys from moving the pawn when Slate focus is delayed by one frame.
+    FInputModeUIOnly InputMode;
     InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
     InputMode.SetWidgetToFocus(InputBox);
     PlayerController->SetInputMode(InputMode);
     if (FSlateApplication::IsInitialized() && InputBox.IsValid())
     {
+        FSlateApplication::Get().SetAllUserFocus(InputBox, EFocusCause::SetDirectly);
         FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
     }
+    // AddViewportWidgetContent can place the widget into the Slate path on the
+    // following frame. Repeat focus once from Tick so the first typed character
+    // reliably lands in the editor in packaged builds.
+    bFocusInputOnNextTick = true;
     UpdateLiveStatus();
     RefreshReadyStatus();
 }
@@ -348,9 +358,20 @@ void UAIFactoryCopilotUISubsystem::HidePanel()
 
     if (AFGPlayerController* PlayerController = GetLocalPlayerController())
     {
+        if (bSuppressedGameInput)
+        {
+            PlayerController->SetIgnoreMoveInput(false);
+            PlayerController->SetIgnoreLookInput(false);
+            bSuppressedGameInput = false;
+        }
         PlayerController->bShowMouseCursor = bPreviousShowMouseCursor;
         PlayerController->SetInputMode(FInputModeGameOnly());
     }
+    else
+    {
+        bSuppressedGameInput = false;
+    }
+    bFocusInputOnNextTick = false;
     bPanelVisible = false;
 }
 
@@ -423,6 +444,7 @@ void UAIFactoryCopilotUISubsystem::ClearConversation()
     {
         RefreshReadyStatus();
     }
+    bFocusInputOnNextTick = true;
 }
 
 void UAIFactoryCopilotUISubsystem::AppendTranscript(const FString& Speaker, const FString& Text)
@@ -443,6 +465,12 @@ bool UAIFactoryCopilotUISubsystem::Tick(const float DeltaTime)
 {
     if (bPanelVisible)
     {
+        if (bFocusInputOnNextTick && InputBox.IsValid() && FSlateApplication::IsInitialized())
+        {
+            FSlateApplication::Get().SetAllUserFocus(InputBox, EFocusCause::SetDirectly);
+            FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
+            bFocusInputOnNextTick = false;
+        }
         UpdateLiveStatus();
 
         // A grounded answer can involve solver calls and a wiki search, so show
@@ -616,6 +644,7 @@ void UAIFactoryCopilotUISubsystem::HandleBridgeResult(
     }
     if (bPanelVisible && InputBox.IsValid() && FSlateApplication::IsInitialized())
     {
+        FSlateApplication::Get().SetAllUserFocus(InputBox, EFocusCause::SetDirectly);
         FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
     }
 }

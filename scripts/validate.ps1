@@ -26,6 +26,7 @@ $requiredFiles = @(
     'Source\AIFactoryCopilot\Public\AIFactoryDataProvider.h',
     'Source\AIFactoryCopilot\Private\AIFactorySnapshot.cpp',
     'Config\Alpakit.ini',
+    'Resources\Icon128.png',
     'companion\server.mjs',
     'companion\lib\graph.mjs',
     'companion\lib\solvers.mjs',
@@ -40,6 +41,23 @@ foreach ($relative in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required file is missing: $relative"
     }
+}
+
+$iconPath = Join-Path $root 'Resources\Icon128.png'
+$iconBytes = [IO.File]::ReadAllBytes($iconPath)
+if ($iconBytes.Length -lt 24 -or
+    $iconBytes[0] -ne 0x89 -or
+    $iconBytes[1] -ne 0x50 -or
+    $iconBytes[2] -ne 0x4e -or
+    $iconBytes[3] -ne 0x47) {
+    throw 'Resources\Icon128.png is not a valid PNG.'
+}
+$iconWidth = [BitConverter]::ToUInt32([byte[]]@(
+    $iconBytes[19], $iconBytes[18], $iconBytes[17], $iconBytes[16]), 0)
+$iconHeight = [BitConverter]::ToUInt32([byte[]]@(
+    $iconBytes[23], $iconBytes[22], $iconBytes[21], $iconBytes[20]), 0)
+if ($iconWidth -ne 128 -or $iconHeight -ne 128) {
+    throw "Resources\Icon128.png must be 128x128, but is ${iconWidth}x${iconHeight}."
 }
 
 $referenceCandidates = @(
@@ -75,6 +93,10 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableResourceExtractor.h'; Pattern = 'GetNumExtractedItemsPerCycleConverted' },
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableResourceExtractorBase.h'; Pattern = 'GetResourceNode' },
         @{ Path = 'Source\FactoryGame\Public\FGVehicle.h'; Pattern = 'class FACTORYGAME_API AFGVehicle' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\GameFramework\PlayerController.h'; Pattern = 'struct FInputModeUIOnly' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\GameFramework\Controller.h'; Pattern = 'SetIgnoreMoveInput' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Slate\Public\Framework\Application\SlateApplication.h'; Pattern = 'SetAllUserFocus' }
+        @{ Path = 'Mods\SML\Source\SML\Private\ModLoading\ModLoadingLibrary.cpp'; Pattern = 'Resources/Icon128.png' }
     )
     foreach ($check in $checks) {
         $path = Join-Path $upstream $check.Path
