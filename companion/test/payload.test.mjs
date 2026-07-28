@@ -137,7 +137,7 @@ test("the lean payload is dramatically smaller than the snapshot", () => {
 
 test("chat completions tools nest under function, unlike the responses shape", () => {
   const tools = chatCompletionsToolDefinitions();
-  assert.ok(tools.length >= 10);
+  assert.ok(tools.length >= 11);
   for (const tool of tools) {
     assert.equal(tool.type, "function");
     assert.equal(typeof tool.function.name, "string");

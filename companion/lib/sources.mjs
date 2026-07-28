@@ -28,9 +28,37 @@ export const OFFICIAL_SOURCE_DOMAINS = [
   "satisfactory-calculator.com",
   "satisfactorytools.com",
   // Forums and discussion
-  "reddit.com",
   "steamcommunity.com",
 ];
+
+/**
+ * Domains a provider's crawler cannot fetch.
+ *
+ * Anthropic rejects the whole request with a 400 when `allowed_domains` names a
+ * site that blocks its user agent, so these are filtered out before the request
+ * rather than discovered at answer time. reddit.com blocks it.
+ */
+export const PROVIDER_INACCESSIBLE_DOMAINS = {
+  anthropic: ["reddit.com", "www.reddit.com", "old.reddit.com"],
+};
+
+/** Strips domains a provider is known to reject. */
+export function accessibleDomains(domains, provider) {
+  const blocked = PROVIDER_INACCESSIBLE_DOMAINS[provider] ?? [];
+  if (blocked.length === 0) return domains;
+  const lowered = new Set(blocked.map((entry) => entry.toLowerCase()));
+  return domains.filter((domain) => !lowered.has(String(domain).toLowerCase()));
+}
+
+/**
+ * Pulls the offending hosts out of a provider's "not accessible to our user
+ * agent" error, so an unknown one can be dropped and the request retried.
+ */
+export function parseInaccessibleDomains(message) {
+  const match = /not accessible to our user agent:\s*\[([^\]]*)\]/i.exec(String(message ?? ""));
+  if (!match) return [];
+  return [...match[1].matchAll(/['"]([^'"]+)['"]/g)].map((entry) => entry[1]);
+}
 
 /**
  * Web search tool versions. `web_search_20260209` adds dynamic filtering and
@@ -80,7 +108,9 @@ export function anthropicWebSearchTool(policy, env = process.env) {
       : ANTHROPIC_WEB_SEARCH_TOOL_DEFAULT);
 
   const tool = { type, name: "web_search", max_uses: policy.maxUses };
-  if (policy.restrictToOfficial) tool.allowed_domains = policy.domains;
+  if (policy.restrictToOfficial) {
+    tool.allowed_domains = accessibleDomains(policy.domains, "anthropic");
+  }
   return tool;
 }
 

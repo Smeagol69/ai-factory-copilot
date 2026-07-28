@@ -9,7 +9,9 @@ import {
 } from "../lib/providers.mjs";
 import {
   OFFICIAL_SOURCE_DOMAINS,
+  accessibleDomains,
   anthropicWebSearchTool,
+  parseInaccessibleDomains,
   openAIWebSearchTool,
   resolveSourcePolicy,
   sourceInstructions,
@@ -59,8 +61,14 @@ test("official source list leads with Coffee Stain and the modding docs", () => 
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("satisfactorygame.com"));
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("docs.ficsit.app"));
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("satisfactory.wiki.gg"));
-  assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("reddit.com"));
-  assert.ok(OFFICIAL_SOURCE_DOMAINS.indexOf("docs.ficsit.app") < OFFICIAL_SOURCE_DOMAINS.indexOf("reddit.com"));
+  assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("steamcommunity.com"));
+  // Official docs outrank community forums.
+  assert.ok(
+    OFFICIAL_SOURCE_DOMAINS.indexOf("docs.ficsit.app") <
+      OFFICIAL_SOURCE_DOMAINS.indexOf("steamcommunity.com"),
+  );
+  // reddit blocks the Anthropic crawler and 400s the request, so it is out.
+  assert.ok(!OFFICIAL_SOURCE_DOMAINS.includes("reddit.com"));
 });
 
 test("search and official restriction are on by default", () => {
@@ -387,6 +395,61 @@ test("a search failure is stated in the reply rather than hidden", async () => {
     const answer = await askAnthropic(makeContext(), ANTHROPIC_ENV);
     assert.match(answer.reply, /Web search did not complete \(unavailable\)/);
     assert.deepEqual(answer.search_errors, [{ error_code: "unavailable", tool_use_id: null }]);
+  } finally {
+    stub.restore();
+  }
+});
+
+/* ---------------- provider-inaccessible domains ---------------- */
+
+test("reddit is kept out of the anthropic allowlist because its crawler is blocked", () => {
+  const tool = anthropicWebSearchTool(resolveSourcePolicy({}), {});
+  assert.ok(!tool.allowed_domains.some((domain) => domain.includes("reddit")));
+  // The prompt-level list still mentions it for other providers.
+  assert.ok(tool.allowed_domains.includes("satisfactory.wiki.gg"));
+  assert.ok(tool.allowed_domains.includes("steamcommunity.com"));
+});
+
+test("accessibleDomains only filters for the provider that blocks them", () => {
+  const domains = ["satisfactory.wiki.gg", "reddit.com"];
+  assert.deepEqual(accessibleDomains(domains, "anthropic"), ["satisfactory.wiki.gg"]);
+  assert.deepEqual(accessibleDomains(domains, "openai"), domains);
+});
+
+test("parses the offending hosts out of the provider's own error text", () => {
+  const message =
+    "The following domains are not accessible to our user agent: ['reddit.com', 'x.com']. Read more: ...";
+  assert.deepEqual(parseInaccessibleDomains(message), ["reddit.com", "x.com"]);
+  assert.deepEqual(parseInaccessibleDomains("some other 400"), []);
+});
+
+test("a blocked domain is dropped and the request retried, not failed", async () => {
+  const stub = stubFetch([
+    {
+      ok: false,
+      status: 400,
+      json: {
+        error: {
+          message:
+            "The following domains are not accessible to our user agent: ['satisfactorytools.com'].",
+        },
+      },
+    },
+    { json: textAnswer },
+  ]);
+  try {
+    const answer = await askAnthropic(makeContext(), ANTHROPIC_ENV);
+    assert.equal(stub.calls.length, 2);
+    assert.match(answer.reply, /^Use the alternate\./);
+    // The note says the site was skipped, not that the search failed.
+    assert.match(answer.reply, /Not searched: satisfactorytools\.com/);
+    assert.doesNotMatch(answer.reply, /did not complete/);
+
+    // The offending host is gone from the retry, and the drop is reported.
+    const retried = stub.calls[1].body.tools.find((tool) => tool.name === "web_search");
+    assert.ok(!retried.allowed_domains.includes("satisfactorytools.com"));
+    assert.ok(retried.allowed_domains.includes("satisfactory.wiki.gg"));
+    assert.deepEqual(answer.search_errors[0].dropped_domains, ["satisfactorytools.com"]);
   } finally {
     stub.restore();
   }

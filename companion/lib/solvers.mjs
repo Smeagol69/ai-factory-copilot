@@ -1341,6 +1341,320 @@ export function solveBlueprintLibrary(
 }
 
 /* ------------------------------------------------------------------ *
+ * 10. Production planning
+ * ------------------------------------------------------------------ */
+
+const DEFAULT_PLAN_DEPTH = 6;
+const MAXIMUM_PLAN_STEPS = 120;
+
+/** Per-machine output rate for one product of a recipe, in display units. */
+function recipeOutputRate(graph, recipe, itemClass) {
+  const duration = finitePositive(recipe?.duration_seconds);
+  if (duration === null) return null;
+  const product = (recipe.products ?? []).find((entry) => entry.item_class === itemClass);
+  const amount = finiteNumber(product?.amount);
+  if (amount === null || amount <= 0) return null;
+  const scale = itemUnitScale(graph, itemClass);
+  return (amount * (60 / duration)) / scale.registry_units_per_display_unit;
+}
+
+/**
+ * Power draw for a building class, taken from the player's own machines of that
+ * class rather than a table. If they have none, it is unknown rather than
+ * guessed.
+ */
+function observedPowerForBuilding(graph, producedIn) {
+  const wanted = (producedIn ?? []).map((entry) => String(entry).split(".").pop());
+  if (wanted.length === 0) return null;
+
+  for (const node of graph.nodes.values()) {
+    const className = String(node.class_path ?? "").split(".").pop();
+    if (!className || !wanted.some((entry) => className.includes(entry) || entry.includes(className))) {
+      continue;
+    }
+    const producing = finitePositive(node.raw?.factory?.producing_power_consumption_mw);
+    if (producing !== null) {
+      return { megawatts_each: producing, from_actor_id: node.actor_id, source: "observed_on_your_own_machine" };
+    }
+  }
+  return null;
+}
+
+/**
+ * Plans a production line for a target item and rate.
+ *
+ * It plans against *this* base: existing surplus from the item balance offsets
+ * what has to be built, so the plan covers what is actually missing rather than
+ * an empty-world ideal. Every branch stops at something already produced, a raw
+ * resource, or a stated unknown.
+ */
+export function solveProductionPlan(
+  graph,
+  {
+    item_class = null,
+    item_name = null,
+    target_rate_per_minute = null,
+    recipe_class = null,
+    max_depth = DEFAULT_PLAN_DEPTH,
+    use_existing_surplus = true,
+  } = {},
+) {
+  const targetRate = finitePositive(target_rate_per_minute);
+  if (!item_class && !item_name) {
+    return {
+      solver: "production_plan",
+      world_revision: graph.world_revision,
+      planned: false,
+      reason: "no_target_item_given",
+      note: "Give item_class or item_name, plus target_rate_per_minute.",
+      certainty: "unknown",
+    };
+  }
+  if (targetRate === null) {
+    return {
+      solver: "production_plan",
+      world_revision: graph.world_revision,
+      planned: false,
+      reason: "no_target_rate_given",
+      note: "Give target_rate_per_minute so machine counts can be computed.",
+      certainty: "unknown",
+    };
+  }
+
+  // Resolve the item from the full catalog the bridge holds.
+  let targetClass = item_class;
+  if (!targetClass && item_name) {
+    const needle = String(item_name).toLowerCase();
+    for (const item of graph.itemsByClass.values()) {
+      if (String(item.name ?? "").toLowerCase() === needle) {
+        targetClass = item.class_path;
+        break;
+      }
+    }
+    if (!targetClass) {
+      for (const item of graph.itemsByClass.values()) {
+        if (String(item.name ?? "").toLowerCase().includes(needle)) {
+          targetClass = item.class_path;
+          break;
+        }
+      }
+    }
+  }
+  if (!targetClass) {
+    return {
+      solver: "production_plan",
+      world_revision: graph.world_revision,
+      planned: false,
+      reason: "item_not_found_in_catalog",
+      query: { item_class, item_name },
+      certainty: "unknown",
+    };
+  }
+
+  const surplusByItem = new Map();
+  if (use_existing_surplus) {
+    for (const entry of solveItemBalance(graph).items) {
+      if ((entry.net_display_units_per_minute ?? 0) > 0) {
+        surplusByItem.set(entry.item_class, entry.net_display_units_per_minute);
+      }
+    }
+  }
+
+  const recipesProducing = (itemClass) => {
+    const options = [];
+    for (const recipe of graph.recipesByClass.values()) {
+      if ((recipe.products ?? []).some((product) => product.item_class === itemClass)) {
+        options.push(recipe);
+      }
+    }
+    return options;
+  };
+
+  const inUseRecipeClasses = new Set(
+    [...graph.nodes.values()].map((node) => node.recipe_class).filter(Boolean),
+  );
+
+  const steps = [];
+  const rawInputs = new Map();
+  const coveredBySurplus = [];
+  const unresolved = [];
+  const totals = { machines: 0, megawatts: 0, power_unknown_steps: 0 };
+  const buildCost = new Map();
+  let stepBudgetHit = false;
+
+  const plan = (itemClass, rate, depth, chain) => {
+    if (steps.length >= MAXIMUM_PLAN_STEPS) {
+      stepBudgetHit = true;
+      return;
+    }
+
+    // Anything the base already over-produces is covered, not rebuilt.
+    const surplus = surplusByItem.get(itemClass) ?? 0;
+    const fromSurplus = Math.min(surplus, rate);
+    if (fromSurplus > 0) {
+      surplusByItem.set(itemClass, surplus - fromSurplus);
+      coveredBySurplus.push({
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round(fromSurplus),
+        note: "Your factory already produces this much spare; the plan does not rebuild it.",
+      });
+    }
+    const remaining = rate - fromSurplus;
+    if (remaining <= 1e-9) return;
+
+    const options = recipesProducing(itemClass);
+    if (options.length === 0) {
+      // Nothing makes it, so it is a raw input for this plan.
+      const scale = itemUnitScale(graph, itemClass);
+      rawInputs.set(itemClass, {
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round((rawInputs.get(itemClass)?.raw ?? 0) + remaining),
+        raw: (rawInputs.get(itemClass)?.raw ?? 0) + remaining,
+        display_unit: scale.display_unit,
+        supplied_by: "extraction or an existing line; not planned here",
+      });
+      return;
+    }
+    if (depth <= 0) {
+      unresolved.push({
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round(remaining),
+        reason: "max_depth_reached",
+        chain,
+      });
+      return;
+    }
+
+    // Prefer an explicitly requested recipe, then one already used in this
+    // world, then the highest-yield option.
+    const chosen =
+      (depth === max_depth && recipe_class && options.find((r) => r.class_path === recipe_class)) ||
+      options.find((r) => inUseRecipeClasses.has(r.class_path)) ||
+      options.slice().sort((a, b) => (recipeOutputRate(graph, b, itemClass) ?? 0) - (recipeOutputRate(graph, a, itemClass) ?? 0))[0];
+
+    const perMachine = recipeOutputRate(graph, chosen, itemClass);
+    if (perMachine === null || perMachine <= 0) {
+      unresolved.push({
+        item_class: itemClass,
+        display_units_per_minute: round(remaining),
+        reason: "recipe_rate_not_derivable",
+        recipe_class: chosen?.class_path ?? null,
+        chain,
+      });
+      return;
+    }
+
+    const machinesExact = remaining / perMachine;
+    const machines = Math.ceil(machinesExact - 1e-9);
+    const power = observedPowerForBuilding(graph, chosen.produced_in);
+
+    totals.machines += machines;
+    if (power) totals.megawatts += power.megawatts_each * machines;
+    else totals.power_unknown_steps += 1;
+
+    const cyclesPerMinute = 60 / finitePositive(chosen.duration_seconds);
+    const inputs = rateEntries(graph, chosen.ingredients, cyclesPerMinute * machinesExact);
+
+    steps.push({
+      step: steps.length + 1,
+      depth: max_depth - depth,
+      produces: {
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round(remaining),
+      },
+      recipe_class: chosen.class_path,
+      recipe_name: chosen.name ?? null,
+      recipe_already_used_here: inUseRecipeClasses.has(chosen.class_path),
+      alternate_recipes_available: options.length - 1,
+      produced_in: chosen.produced_in ?? [],
+      machines_required: machines,
+      machines_exact: round(machinesExact, 3),
+      per_machine_display_units_per_minute: round(perMachine),
+      utilisation_of_last_machine_percent:
+        machines > 0 ? round((machinesExact / machines) * 100, 1) : null,
+      power_each_mw: power?.megawatts_each ?? null,
+      power_total_mw: power ? round(power.megawatts_each * machines) : null,
+      power_source: power?.source ?? "unknown_no_machine_of_this_type_in_your_world",
+      inputs_required: inputs,
+      chain,
+    });
+
+    // Build cost for the machines themselves, from an existing actor's recipe.
+    for (const node of graph.nodes.values()) {
+      const className = String(node.class_path ?? "").split(".").pop();
+      if (!className || !(chosen.produced_in ?? []).some((entry) => String(entry).includes(className))) {
+        continue;
+      }
+      const buildRecipe = graph.recipesByClass.get(node.built_with_recipe);
+      if (!buildRecipe) break;
+      for (const ingredient of buildRecipe.ingredients ?? []) {
+        const amount = (finiteNumber(ingredient.amount) ?? 0) * machines;
+        buildCost.set(ingredient.item_class, (buildCost.get(ingredient.item_class) ?? 0) + amount);
+      }
+      break;
+    }
+
+    for (const input of inputs) {
+      plan(input.item_class, input.display_units_per_minute, depth - 1, [...chain, chosen.class_path]);
+    }
+  };
+
+  plan(targetClass, targetRate, Math.max(1, Math.trunc(max_depth) || DEFAULT_PLAN_DEPTH), []);
+
+  const { totals: held } = playerInventories(graph);
+  const machineCost = [...buildCost.entries()].map(([itemClass, amount]) => ({
+    item_class: itemClass,
+    item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+    required: round(amount),
+    held_in_player_inventories: held.get(itemClass) ?? 0,
+    shortfall: round(Math.max(0, amount - (held.get(itemClass) ?? 0))),
+  }));
+
+  return {
+    solver: "production_plan",
+    world_revision: graph.world_revision,
+    planned: steps.length > 0 || coveredBySurplus.length > 0,
+    target: {
+      item_class: targetClass,
+      item_name: graph.itemsByClass.get(targetClass)?.name ?? null,
+      display_units_per_minute: targetRate,
+    },
+    planned_against_this_base: use_existing_surplus,
+    steps,
+    step_count: steps.length,
+    covered_by_existing_surplus: coveredBySurplus,
+    raw_inputs_required: [...rawInputs.values()].map(({ raw, ...rest }) => rest),
+    unresolved,
+    totals: {
+      machines: totals.machines,
+      power_mw: round(totals.megawatts),
+      power_is_partial: totals.power_unknown_steps > 0,
+      power_unknown_steps: totals.power_unknown_steps,
+    },
+    machine_build_cost: machineCost,
+    affordable_from_captured_player_inventories:
+      machineCost.length > 0 ? machineCost.every((entry) => entry.shortfall === 0) : null,
+    step_budget_hit: stepBudgetHit,
+    caveats: {
+      recipe_choice:
+        "Recipes already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
+      unlocks:
+        "Whether a chosen recipe is unlocked in this save cannot be determined from the snapshot; a recipe already in use here is known to be available.",
+      power:
+        "Per-machine draw is read off your own machines of that type. Steps with no such machine report power as unknown rather than estimating it.",
+      layout:
+        "This is a bill of materials and machine count, not a physical layout. Placement still needs find_best_site for ground and the game's own hologram check.",
+    },
+    source: "deterministic_recipe_expansion_over_the_authoritative_catalog",
+    certainty: "calculated",
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Full report
  * ------------------------------------------------------------------ */
 

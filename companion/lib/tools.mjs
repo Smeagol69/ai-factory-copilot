@@ -12,6 +12,7 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveProductionPlan,
   solveBlueprintLibrary,
   solveRecipeOptions,
   solveSiteSelection,
@@ -167,6 +168,27 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => solveSiteSelection(graph, args),
+  },
+  {
+    name: "plan_production",
+    description:
+      "Designs a production line for a target item and rate, against THIS base: exact machine counts per step, the recipe chosen at each step, per-machine and total power read off the player's own machines of that type, belt-level input rates, the raw inputs the line needs, and the build cost priced against what they are carrying. Anything the factory already over-produces is subtracted first, so the plan covers what is actually missing rather than an empty-world ideal. Use this for 'how do I make N per minute of X', 'what do I need to build for X', or any scale-up question. It is a bill of materials and machine count, not a physical layout.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_class: { type: "string", description: "Exact item class_path to produce." },
+        item_name: { type: "string", description: "Item name, if the class path is not known (e.g. \"Reinforced Iron Plate\")." },
+        target_rate_per_minute: { type: "number", description: "Desired output per minute, in items (or cubic metres for fluids)." },
+        recipe_class: { type: "string", description: "Force a specific recipe for the top-level item." },
+        max_depth: { type: "number", description: "How many ingredient levels to expand. Defaults to 6." },
+        use_existing_surplus: {
+          type: "boolean",
+          description: "Subtract what the factory already over-produces. Defaults to true.",
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) => solveProductionPlan(graph, args),
   },
   {
     name: "list_blueprints",

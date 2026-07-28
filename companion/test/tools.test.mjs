@@ -13,7 +13,7 @@ import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 const graph = buildGraph(buildFactorySnapshot());
 
 test("every solver tool has a name, description, and object schema", () => {
-  assert.ok(SOLVER_TOOLS.length >= 10);
+  assert.ok(SOLVER_TOOLS.length >= 11);
   for (const tool of SOLVER_TOOLS) {
     assert.match(tool.name, /^[a-z][a-z0-9_]*$/);
     assert.ok(tool.description.length > 40, `${tool.name} needs a usable description`);
@@ -38,6 +38,7 @@ test("exposes the roadmap solver set to the model", () => {
     "get_transport_capacity",
     "get_unlock_status",
     "list_blueprints",
+    "plan_production",
   ]);
 });
 

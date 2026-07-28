@@ -1,6 +1,7 @@
 import {
   anthropicWebSearchTool,
   openAIWebSearchTool,
+  parseInaccessibleDomains,
   resolveSourcePolicy,
   sourceInstructions,
 } from "./sources.mjs";
@@ -60,6 +61,8 @@ factory arithmetic yourself:
 - any "why is this stopped/slow" question -> diagnose_bottlenecks;
 - what a build costs and whether the player can afford it -> get_build_cost;
 - where to put a HUB, base, or factory -> find_best_site;
+- how to build N per minute of something, or any scale-up -> plan_production;
+- what blueprints the player has, or what one costs -> list_blueprints;
 - tech tier and purchased schematics -> get_unlock_status.
 Never rank locations or estimate a distance by reading coordinates yourself;
 find_best_site computes both. If it warns that the snapshot was radius-limited,
@@ -405,9 +408,19 @@ function formatSourceFooter(collected, searchErrors = []) {
         .join("\n")}`,
     );
   }
-  if (searchErrors.length > 0) {
+  // A dropped domain is not a failed search: the search ran, one site simply
+  // was not crawlable. Reporting it as a failure understates the answer.
+  const dropped = searchErrors.flatMap((entry) => entry.dropped_domains ?? []);
+  const failures = searchErrors.filter((entry) => !entry.dropped_domains);
+
+  if (dropped.length > 0) {
     parts.push(
-      `Web search did not complete (${searchErrors
+      `Not searched: ${[...new Set(dropped)].join(", ")} (the provider's crawler is blocked there). Other sources were used normally.`,
+    );
+  }
+  if (failures.length > 0) {
+    parts.push(
+      `Web search did not complete (${failures
         .map((entry) => entry.error_code)
         .join(", ")}); outside references may be missing from this answer.`,
     );
@@ -477,7 +490,27 @@ export async function askAnthropic(context, env = process.env) {
     );
 
     if (!response.ok) {
-      throw new Error(`Anthropic API HTTP ${response.status}: ${await parseErrorResponse(response)}`);
+      const detail = await parseErrorResponse(response);
+      // A domain the provider's crawler cannot fetch fails the whole request.
+      // Drop the named hosts and retry once rather than losing the answer.
+      const blocked = parseInaccessibleDomains(detail);
+      if (response.status === 400 && blocked.length > 0 && webSearchTool?.allowed_domains) {
+        const lowered = new Set(blocked.map((entry) => entry.toLowerCase()));
+        const kept = webSearchTool.allowed_domains.filter(
+          (domain) => !lowered.has(String(domain).toLowerCase()),
+        );
+        if (kept.length < webSearchTool.allowed_domains.length) {
+          webSearchTool.allowed_domains = kept;
+          searchErrors.push({
+            error_code: "domains_not_crawlable",
+            dropped_domains: blocked,
+            tool_use_id: null,
+          });
+          round -= 1;
+          continue;
+        }
+      }
+      throw new Error(`Anthropic API HTTP ${response.status}: ${detail}`);
     }
     const json = await response.json();
     collectAnthropicSources(json, sources, searchErrors);
