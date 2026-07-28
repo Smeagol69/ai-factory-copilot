@@ -193,3 +193,60 @@ test("the fixture machines are the ones the plan reasons about", () => {
   assert.equal(graph.nodes.get(CONSTRUCTOR).recipe_class, "Recipe_IronRod");
   assert.equal(graph.nodes.get(SMELTER).recipe_class, "Recipe_IngotIron");
 });
+
+/* ---------------- power headroom ---------------- */
+
+test("checks the plan's draw against the best circuit headroom", () => {
+  const plan = solveProductionPlan(graphWithoutSurplus(), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 300,
+    use_existing_surplus: false,
+  });
+
+  // 20 constructors + 10 smelters at 4 MW each = 120 MW; the healthy circuit
+  // has 50 MW headroom.
+  assert.equal(plan.power_check.checked, true);
+  assert.equal(plan.power_check.plan_draw_mw, 120);
+  assert.equal(plan.power_check.best_circuit_headroom_mw, 50);
+  assert.equal(plan.power_check.fits_on_existing_power, false);
+  assert.equal(plan.power_check.additional_mw_needed, 70);
+  assert.equal(plan.power_check.circuit_id, 2);
+});
+
+test("a small plan is reported as fitting on existing power", () => {
+  const plan = solveProductionPlan(graphWithoutSurplus(), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+  });
+  assert.equal(plan.power_check.fits_on_existing_power, true);
+  assert.equal(plan.power_check.additional_mw_needed, 0);
+});
+
+test("an unknown per-machine draw makes the power check a lower bound", () => {
+  const snapshot = buildFactorySnapshot();
+  for (const actor of snapshot.actors) {
+    if (actor.factory) delete actor.factory.producing_power_consumption_mw;
+  }
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+  });
+  assert.equal(plan.power_check.partial, true);
+  assert.match(plan.power_check.note, /at least this much/);
+});
+
+test("no captured circuit means the power question is unknown, not answered", () => {
+  const snapshot = buildFactorySnapshot();
+  for (const actor of snapshot.actors) {
+    actor.connections = (actor.connections ?? []).filter((entry) => entry.kind !== "power");
+  }
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+  });
+  assert.equal(plan.power_check.checked, false);
+  assert.equal(plan.power_check.reason, "no_power_circuit_captured");
+});

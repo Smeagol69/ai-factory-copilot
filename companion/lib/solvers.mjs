@@ -1672,10 +1672,40 @@ export function solveProductionPlan(
     shortfall: round(Math.max(0, amount - (held.get(itemClass) ?? 0))),
   }));
 
+  // A plan that needs more power than the grid has is not buildable as stated,
+  // so the headroom check happens here rather than being left to the reader.
+  const circuits = solvePowerCircuits(graph).circuits;
+  const bestHeadroom = circuits.reduce(
+    (best, circuit) => Math.max(best, circuit.headroom_mw ?? Number.NEGATIVE_INFINITY),
+    Number.NEGATIVE_INFINITY,
+  );
+  const headroom = Number.isFinite(bestHeadroom) ? bestHeadroom : null;
+  const powerCheck =
+    headroom === null
+      ? {
+          checked: false,
+          reason: "no_power_circuit_captured",
+          note: "No circuit was captured, so whether the grid can carry this plan is unknown.",
+        }
+      : {
+          checked: true,
+          plan_draw_mw: round(totals.megawatts),
+          best_circuit_headroom_mw: round(headroom),
+          circuit_id: circuits.find((circuit) => circuit.headroom_mw === bestHeadroom)?.circuit_id ?? null,
+          fits_on_existing_power: totals.megawatts <= headroom,
+          additional_mw_needed: round(Math.max(0, totals.megawatts - headroom)),
+          partial: totals.power_unknown_steps > 0,
+          note:
+            totals.power_unknown_steps > 0
+              ? "Some steps had no machine of that type to read draw from, so the plan's real draw is at least this much."
+              : null,
+        };
+
   return {
     solver: "production_plan",
     world_revision: graph.world_revision,
     planned: steps.length > 0 || coveredBySurplus.length > 0,
+    power_check: powerCheck,
     target: {
       item_class: targetClass,
       item_name: graph.itemsByClass.get(targetClass)?.name ?? null,
