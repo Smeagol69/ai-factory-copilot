@@ -69,6 +69,11 @@ struct FAIFactoryActionResult
 struct FAIFactoryUndoStep
 {
     FString Action;
+    /**
+     * Actors to dismantle to reverse the action. A blueprint records its proxy
+     * once so the game handles the group and lightweight members as one refund.
+     */
+    TArray<TWeakObjectPtr<AActor>> DismantleActors;
     /** Buildables to remove to undo a placement. */
     TArray<TWeakObjectPtr<AFGBuildable>> SpawnedBuildables;
     /** Where the player was before a teleport. */
@@ -118,9 +123,10 @@ namespace AIFactoryActions
         bool bCheckClearance);
 
     /**
-     * Places a saved blueprint through the game's own blueprint loader, so the
-     * layout, internal wiring, and recipes come from Satisfactory's serialiser
-     * rather than being reconstructed. Returns every buildable it spawned.
+     * Places a saved blueprint through AFGBlueprintHologram, so Satisfactory
+     * validates snapping, clearance, cost, layout, internal wiring, and recipes.
+     * Returns every buildable it constructed and journals the blueprint proxy
+     * as one group-aware undo target.
      */
     FAIFactoryActionResult PlaceBlueprint(
         const FAIFactoryActionContext& Context,

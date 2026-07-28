@@ -7,6 +7,8 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Equipment/FGBuildGun.h"
+#include "FGBlueprintProxy.h"
+#include "FGBlueprintSettings.h"
 #include "FGBlueprintSubsystem.h"
 #include "FGBuildableSubsystem.h"
 #include "FGCharacterPlayer.h"
@@ -15,6 +17,7 @@
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
+#include "Hologram/FGBlueprintHologram.h"
 #include "Hologram/FGHologram.h"
 #include "Resources/FGBuildingDescriptor.h"
 #include "Resources/FGItemDescriptor.h"
@@ -105,6 +108,26 @@ namespace
         return true;
     }
 
+    bool ActionCostsEqual(
+        const TArray<FItemAmount>& Left,
+        const TArray<FItemAmount>& Right)
+    {
+        if (Left.Num() != Right.Num())
+        {
+            return false;
+        }
+        for (const FItemAmount& Entry : Left)
+        {
+            if (FItemAmount::GetAmountFromItemAmounts(
+                    Right,
+                    Entry.ItemClass) != Entry.Amount)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void ChargeActionCost(
         const TArray<FItemAmount>& Cost,
         UFGInventoryComponent* Inventory)
@@ -128,30 +151,32 @@ namespace
     };
 
     FAIFactoryRefundDelivery DismantleWithRefund(
-        AFGBuildable* Buildable,
+        AActor* DismantleActor,
         AFGCharacterPlayer* Player)
     {
         FAIFactoryRefundDelivery Delivery;
-        if (!IsValid(Buildable))
+        if (!IsValid(DismantleActor) ||
+            !DismantleActor->GetClass()->ImplementsInterface(
+                UFGDismantleInterface::StaticClass()))
         {
             return Delivery;
         }
         if (!IsValid(Player))
         {
-            IFGDismantleInterface::Execute_Dismantle(Buildable);
+            IFGDismantleInterface::Execute_Dismantle(DismantleActor);
             return Delivery;
         }
 
         UFGInventoryComponent* Inventory = Player->GetInventory();
         const bool bNoBuildCost = IsValid(Inventory) && Inventory->GetNoBuildCost();
         IFGDismantleInterface::Execute_GetDismantleRefund(
-            Buildable,
+            DismantleActor,
             Delivery.Refund,
             bNoBuildCost);
 
-        const FVector RefundLocation = Buildable->GetActorLocation();
-        UWorld* World = Buildable->GetWorld();
-        IFGDismantleInterface::Execute_Dismantle(Buildable);
+        const FVector RefundLocation = DismantleActor->GetActorLocation();
+        UWorld* World = DismantleActor->GetWorld();
+        IFGDismantleInterface::Execute_Dismantle(DismantleActor);
 
         TArray<FInventoryStack> Remainder;
         for (const FInventoryStack& Stack : Delivery.Refund)
@@ -239,12 +264,28 @@ namespace
         for (int32 Index = GAIFactoryUndoJournal.Num() - 1; Index >= FirstStep; --Index)
         {
             const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
-            for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
+            if (Step.DismantleActors.Num() > 0)
             {
-                if (AFGBuildable* Buildable = Weak.Get(); IsValid(Buildable))
+                for (const TWeakObjectPtr<AActor>& Weak : Step.DismantleActors)
                 {
-                    DismantleWithRefund(Buildable, Step.Player.Get());
-                    ++Reversed;
+                    if (AActor* Actor = Weak.Get(); IsValid(Actor))
+                    {
+                        DismantleWithRefund(Actor, Step.Player.Get());
+                        ++Reversed;
+                    }
+                }
+            }
+            else
+            {
+                // Compatibility for journal entries made before grouped
+                // dismantle targets were introduced.
+                for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
+                {
+                    if (AFGBuildable* Buildable = Weak.Get(); IsValid(Buildable))
+                    {
+                        DismantleWithRefund(Buildable, Step.Player.Get());
+                        ++Reversed;
+                    }
                 }
             }
             if (Step.bHadPlayerTransform && Step.Player.IsValid())
@@ -280,6 +321,7 @@ namespace
         for (int32 Index = FirstStep; Index < GAIFactoryUndoJournal.Num(); ++Index)
         {
             const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
+            Batch.DismantleActors.Append(Step.DismantleActors);
             Batch.SpawnedBuildables.Append(Step.SpawnedBuildables);
             if (!Batch.Player.IsValid() && Step.Player.IsValid())
             {
@@ -1053,6 +1095,7 @@ FAIFactoryActionResult PlaceBuilding(
     Step.Action = Action;
     for (AFGBuildable* Buildable : ConstructedBuildables)
     {
+        Step.DismantleActors.Add(Buildable);
         Step.SpawnedBuildables.Add(Buildable);
     }
     Step.Player = Context.Player;
@@ -1110,7 +1153,26 @@ FAIFactoryActionResult PlaceBlueprint(
     }
     TArray<FItemAmount> RawCost;
     Descriptor->GetBlueprintCost(RawCost);
-    const TArray<FItemAmount> Cost = NormalizeActionCost(RawCost);
+    const TArray<FItemAmount> DescriptorCost = NormalizeActionCost(RawCost);
+
+    const UFGBlueprintSettings* BlueprintSettings = UFGBlueprintSettings::Get();
+    UClass* BlueprintRecipeObject = IsValid(BlueprintSettings)
+        ? BlueprintSettings->mBlueprintRecipeClass.LoadSynchronous()
+        : nullptr;
+    if (!BlueprintRecipeObject ||
+        !BlueprintRecipeObject->IsChildOf(UFGRecipe::StaticClass()))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("blueprint_hologram_recipe_is_unavailable"));
+    }
+    const TSubclassOf<UFGRecipe> BlueprintRecipe = BlueprintRecipeObject;
+
+    AFGBuildableSubsystem* Buildables = AFGBuildableSubsystem::Get(Context.World);
+    if (!IsValid(Buildables))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_buildable_subsystem"));
+    }
 
     FAIFactoryActionResult Result;
     Result.Action = Action;
@@ -1121,53 +1183,156 @@ FAIFactoryActionResult PlaceBlueprint(
     Predicted->SetStringField(TEXT("blueprint_name"), BlueprintName);
     Predicted->SetObjectField(TEXT("origin"), ActionTransformJson(Origin));
     Predicted->SetBoolField(TEXT("recipe_requirements_met"), true);
+    Predicted->SetObjectField(
+        TEXT("dimensions"),
+        ActionVectorJson(FVector(Descriptor->GetDimensionsOnInstance())));
+    Predicted->SetArrayField(
+        TEXT("descriptor_cost"),
+        ActionCostJson(
+            DescriptorCost,
+            Inventory,
+            Inventory->GetNoBuildCost()));
+
+    AActor* HologramOwner = Context.Player;
+    if (AFGBuildGun* BuildGun = Context.Player->GetBuildGun();
+        IsValid(BuildGun))
+    {
+        HologramOwner = BuildGun;
+    }
+    AFGHologram* SpawnedHologram = AFGHologram::SpawnHologramFromRecipe(
+        BlueprintRecipe,
+        HologramOwner,
+        Origin.GetLocation(),
+        Context.Player,
+        [Descriptor](AFGHologram* NewHologram)
+        {
+            if (AFGBlueprintHologram* BlueprintHologram =
+                    Cast<AFGBlueprintHologram>(NewHologram))
+            {
+                BlueprintHologram->SetBlueprintDescriptor(Descriptor);
+            }
+        });
+    AFGBlueprintHologram* Hologram =
+        Cast<AFGBlueprintHologram>(SpawnedHologram);
+    if (!IsValid(Hologram))
+    {
+        if (IsValid(SpawnedHologram))
+        {
+            SpawnedHologram->Destroy();
+        }
+        Result.Predicted = Predicted;
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("game_could_not_spawn_blueprint_hologram");
+        return Result;
+    }
+
+    FString HologramFailure;
+    const bool bHologramValid = PositionAndValidateActionHologram(
+        Hologram,
+        Context.World,
+        Context.Player,
+        Inventory,
+        Origin,
+        Predicted,
+        HologramFailure);
+    const TArray<FItemAmount> Cost =
+        NormalizeActionCost(Hologram->GetCost(true));
+    const bool bCostsMatch =
+        ActionCostsEqual(DescriptorCost, Cost);
+    const bool bCanAfford = CanAffordActionCost(Cost, Inventory);
+    Predicted->SetStringField(
+        TEXT("placement_validation"),
+        TEXT("satisfactory_blueprint_hologram"));
     Predicted->SetBoolField(TEXT("no_build_cost"), Inventory->GetNoBuildCost());
     Predicted->SetArrayField(
         TEXT("cost"),
         ActionCostJson(Cost, Inventory, Inventory->GetNoBuildCost()));
     Predicted->SetBoolField(
-        TEXT("can_afford"),
-        CanAffordActionCost(Cost, Inventory));
+        TEXT("hologram_cost_matches_descriptor"),
+        bCostsMatch);
+    Predicted->SetBoolField(TEXT("can_afford"), bCanAfford);
     Result.Predicted = Predicted;
 
-    if (!CanAffordActionCost(Cost, Inventory))
+    if (!bHologramValid || !bCanAfford || !bCostsMatch)
     {
+        Hologram->Destroy();
         Result.bAccepted = false;
         Result.Status = TEXT("refused");
-        Result.Reason = TEXT("player_cannot_afford_blueprint_cost");
+        if (!HologramFailure.IsEmpty())
+        {
+            Result.Reason = HologramFailure;
+        }
+        else if (!bCostsMatch)
+        {
+            Result.Reason = TEXT("blueprint_hologram_cost_mismatch");
+        }
+        else
+        {
+            Result.Reason = TEXT("player_cannot_afford_blueprint_cost");
+        }
         return Result;
     }
 
     if (Context.bDryRun)
     {
+        Hologram->Destroy();
         Result.Status = TEXT("dry_run");
         return Result;
     }
 
-    // The game's own loader places the contents, so layout, internal
-    // connections, and per-machine recipes come from Satisfactory's serialiser
-    // rather than being reconstructed here.
-    TArray<AFGBuildable*> Placed;
-    Blueprints->LoadStoredBlueprint(
-        Descriptor,
-        Origin,
-        Placed,
-        /* useBlueprintWorld */ false,
-        /* designer */ nullptr,
-        /* instigator */ Context.Player);
-
-    int32 ValidPlaced = 0;
-    for (const AFGBuildable* Buildable : Placed)
+    TArray<AActor*> ConstructedChildren;
+    AActor* Constructed = Hologram->Construct(
+        ConstructedChildren,
+        Buildables->GetNewNetConstructionID());
+    if (IsValid(Hologram))
     {
-        if (IsValid(Buildable))
+        Hologram->Destroy();
+    }
+
+    AFGBlueprintProxy* Proxy = Cast<AFGBlueprintProxy>(Constructed);
+    TArray<AFGBuildable*> Placed;
+    if (IsValid(Proxy))
+    {
+        Proxy->CollectBuildables(Placed);
+    }
+    if (AFGBuildable* RootBuildable = Cast<AFGBuildable>(Constructed);
+        IsValid(RootBuildable))
+    {
+        Placed.AddUnique(RootBuildable);
+    }
+    for (AActor* Child : ConstructedChildren)
+    {
+        if (AFGBuildable* Buildable = Cast<AFGBuildable>(Child);
+            IsValid(Buildable))
         {
-            ++ValidPlaced;
+            Placed.AddUnique(Buildable);
         }
     }
-    if (ValidPlaced == 0)
+
+    if (Placed.Num() == 0)
     {
+        if (IsValid(Proxy))
+        {
+            // No material was charged, so cleanup must not grant a refund.
+            IFGDismantleInterface::Execute_Dismantle(Proxy);
+        }
+        else
+        {
+            if (IsValid(Constructed))
+            {
+                Constructed->Destroy();
+            }
+            for (AActor* Child : ConstructedChildren)
+            {
+                if (IsValid(Child))
+                {
+                    Child->Destroy();
+                }
+            }
+        }
         Result.Status = TEXT("failed");
-        Result.Reason = TEXT("blueprint_loader_placed_nothing");
+        Result.Reason = TEXT("blueprint_hologram_constructed_no_buildables");
         return Result;
     }
     ChargeActionCost(Cost, Inventory);
@@ -1178,19 +1343,36 @@ FAIFactoryActionResult PlaceBlueprint(
     FAIFactoryUndoStep Step;
     Step.Action = Action;
     Step.Player = Context.Player;
+    if (IsValid(Proxy))
+    {
+        Step.DismantleActors.Add(Proxy);
+    }
     for (AFGBuildable* Buildable : Placed)
     {
         if (IsValid(Buildable))
         {
             Result.CreatedActorIds.Add(Buildable->GetPathName());
             Step.SpawnedBuildables.Add(Buildable);
+            if (!IsValid(Proxy))
+            {
+                Step.DismantleActors.Add(Buildable);
+            }
         }
     }
     Step.Description = FString::Printf(TEXT("Dismantle the placed blueprint '%s'"), *BlueprintName);
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetNumberField(TEXT("buildings_placed"), Result.CreatedActorIds.Num());
-    Observed->SetObjectField(TEXT("origin"), ActionTransformJson(Origin));
+    Observed->SetObjectField(
+        TEXT("origin"),
+        ActionTransformJson(
+            IsValid(Proxy)
+                ? Proxy->GetActorTransform()
+                : Placed[0]->GetActorTransform()));
+    Observed->SetStringField(
+        TEXT("blueprint_proxy_id"),
+        IsValid(Proxy) ? Proxy->GetPathName() : TEXT(""));
+    Observed->SetBoolField(TEXT("validated_by_blueprint_hologram"), true);
     Result.Observed = Observed;
 
     Result.bUndoable = true;
@@ -1302,6 +1484,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     int32 RefundedItemUnits = 0;
     int32 RefundedToInventory = 0;
     int32 RefundDropped = 0;
+    TArray<AFGBuildable*> LiveBuildables;
     for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
     {
         AFGBuildable* Buildable = Weak.Get();
@@ -1312,13 +1495,47 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
             continue;
         }
         Result.RemovedActorIds.Add(Buildable->GetPathName());
+        LiveBuildables.Add(Buildable);
+    }
+
+    int32 DismantleTargets = 0;
+    for (const TWeakObjectPtr<AActor>& Weak : Step.DismantleActors)
+    {
+        AActor* Actor = Weak.Get();
+        if (!IsValid(Actor))
+        {
+            continue;
+        }
+        if (!Cast<AFGBuildable>(Actor))
+        {
+            Result.RemovedActorIds.AddUnique(Actor->GetPathName());
+        }
         const FAIFactoryRefundDelivery Refund =
-            DismantleWithRefund(Buildable, Context.Player);
+            DismantleWithRefund(Actor, Context.Player);
         RefundedItemUnits += Refund.ItemUnits;
         RefundedToInventory += Refund.AddedToInventory;
         RefundDropped += Refund.DroppedOnGround;
-        ++Removed;
+        ++DismantleTargets;
     }
+    if (DismantleTargets == 0)
+    {
+        // Older journal entries and a vanished blueprint proxy fall back to
+        // dismantling each still-live buildable.
+        for (AFGBuildable* Buildable : LiveBuildables)
+        {
+            if (!IsValid(Buildable))
+            {
+                continue;
+            }
+            const FAIFactoryRefundDelivery Refund =
+                DismantleWithRefund(Buildable, Context.Player);
+            RefundedItemUnits += Refund.ItemUnits;
+            RefundedToInventory += Refund.AddedToInventory;
+            RefundDropped += Refund.DroppedOnGround;
+            ++DismantleTargets;
+        }
+    }
+    Removed = LiveBuildables.Num();
 
     bool bPlayerMoved = false;
     if (Step.bHadPlayerTransform && Step.Player.IsValid())
@@ -1330,6 +1547,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetNumberField(TEXT("buildings_removed"), Removed);
+    Observed->SetNumberField(TEXT("dismantle_targets"), DismantleTargets);
     Observed->SetNumberField(TEXT("already_gone"), AlreadyGone);
     Observed->SetBoolField(TEXT("player_restored"), bPlayerMoved);
     Observed->SetNumberField(TEXT("refund_item_units"), RefundedItemUnits);

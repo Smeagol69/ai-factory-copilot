@@ -101,7 +101,7 @@ draws overlays. Every action runs through the same contract:
 | Action | What it does |
 |---|---|
 | `place_building` | Places one machine from its build recipe, ground and clearance probed first |
-| `place_blueprint` | Stamps a saved blueprint via the game's own loader, so layout and wiring are Satisfactory's, not reconstructed |
+| `place_blueprint` | Stamps a saved blueprint via `AFGBlueprintHologram`, so snapping, validation, layout, wiring, and proxy grouping stay in Satisfactory's systems |
 | `teleport_player` | Moves the player, snapping to measured ground so a bare coordinate cannot drop them through the map |
 | `dismantle` | Removes a building. The one action with no undo, and it says so everywhere |
 | `undo_last` | Reverses the previous action |

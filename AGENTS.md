@@ -161,7 +161,7 @@ validates them first. Adding one means touching both, plus `ACTION_KINDS`.
 |---|---|
 | `teleport_player` | Snaps to ground by default. A bare XY with a guessed Z drops the player through the world |
 | `place_building` | Needs the **build** recipe (`Recipe_ConstructorMk1`), not the production recipe |
-| `place_blueprint` | Uses the game's own `LoadStoredBlueprint`, so layout and wiring come from Satisfactory's serialiser |
+| `place_blueprint` | Uses `AFGBlueprintHologram`; descriptor, snapping, placement, cost, proxy grouping, layout, and wiring stay in Satisfactory's systems |
 | `dismantle` | The one action with no undo. Warned about at every layer |
 | `undo_last` | Pops the journal; dismantles what was placed, restores where the player was |
 | `highlight` / `clear_highlight` | Draw only. Never gated, never counted as changes |
@@ -188,9 +188,10 @@ whole-plan preflight/rollback; one-transaction undo; exact game-side action
 results in both the panel and `latest-bridge-response.json`; truthful write-mode
 status in the panel; live recipe/building unlock enforcement; single-building
 placement through the recipe's real Satisfactory hologram and its snapping,
-rotation, dynamic cost, multi-step, and construct-disqualifier checks; exact inventory
-cost checks and charging; no-build-cost support; dismantle, undo, and rollback
-refunds with inventory-overflow drops.
+rotation, dynamic cost, multi-step, and construct-disqualifier checks; blueprint
+placement through `AFGBlueprintHologram` with descriptor-cost cross-checking and
+proxy-aware undo; exact inventory cost checks and charging; no-build-cost support;
+dismantle, undo, and rollback refunds with inventory-overflow drops.
 
 Latest verified checkpoint (2026-07-28): all 253 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
@@ -215,12 +216,12 @@ Open, in rough order:
    [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
    implements it. The companion has zero dependencies, a deliberate property —
    decide consciously before breaking it.
-4. **Blueprint construction parity.** Single buildings now use their real
-   hologram. Unlock state, aggregate material cost, blueprint requirements,
-   charging, refunds, and rollback are enforced from the official runtime APIs.
-   `place_blueprint` still calls `LoadStoredBlueprint` directly. Move it through
-   `AFGBlueprintHologram` so Satisfactory itself applies blueprint snapping and
-   every placement disqualifier before calling this production ready.
+4. **Live construction test matrix.** Both building and blueprint writes compile
+   through their real holograms, but must be exercised in a packaged game for:
+   valid/blocked/unaffordable placement, rotation snapping, no-build-cost,
+   multi-action rollback, undo refunds, blueprint proxies, and modded recipes.
+   Do not claim production-ready placement until those exact outcomes are saved
+   in `latest-bridge-response.json` and checked against the world.
 5. **Recipe unlock mapping.** Purchased schematics are captured but not which
    recipes they unlock in the snapshot/solver. `AFGRecipeManager` is the verified
    runtime source for availability and should be captured explicitly.

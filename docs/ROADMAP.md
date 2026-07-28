@@ -108,8 +108,9 @@ Remaining:
 - per-action server authority — refused outright on a client
 - stale-revision rejection — `expect_world_revision` on any action
 - explicit player approval — `allowWriteActions`, off by default, mod-side
-- construction through normal FactoryGame systems — `BeginSpawnBuildable` with
-  the build recipe bound, and `LoadStoredBlueprint` for blueprints
+- construction through the recipe's normal FactoryGame hologram, including
+  snapping, construct disqualifiers, dynamic cost, net construction IDs, and
+  `AFGBlueprintHologram` proxy grouping
 - read-back verification — results report where the building actually landed
   and how far that is from the request
 - recoverable failure handling — a plan stops at its first failure and reports
