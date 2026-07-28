@@ -50,7 +50,8 @@ Use source layers correctly:
 Progression-manager fields and visible_ui are two separate authoritative
 observations. visible_ui is text read from the rendered Unreal widget tree, not
 a screenshot. If rendered HUD text conflicts with progression state, report
-both values and the conflict explicitly; never silently discard either one.
+both values and the conflict explicitly; never silently discard either one,
+and never speculate about the cause when the snapshot does not prove it.
 Use web search only when the question needs current outside documentation,
 version information, or other external knowledge. Label web-derived claims and
 include sources. Do not web-search to guess live game state.

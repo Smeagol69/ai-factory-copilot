@@ -233,6 +233,20 @@ namespace
         return false;
     }
 
+    bool IsWidgetBranchRendered(const UWidget* Widget)
+    {
+        for (const UWidget* Current = Widget;
+             IsValid(Current);
+             Current = Current->GetParent())
+        {
+            if (!Current->IsRendered())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     TSharedRef<FJsonObject> VisibleUiJson(UWorld* World)
     {
         constexpr int32 MaxEntries = 512;
@@ -247,13 +261,14 @@ namespace
         Result->SetBoolField(TEXT("available"), bAvailable);
         Result->SetStringField(
             TEXT("source"),
-            TEXT("rendered Unreal UMG widget state; no screenshot or OCR"));
+            TEXT("active local viewport's rendered Unreal UMG widget trees; no screenshot or OCR"));
         Result->SetStringField(TEXT("certainty"), TEXT("authoritative_at_capture_time"));
         Result->SetNumberField(TEXT("entry_limit"), MaxEntries);
         Result->SetNumberField(TEXT("character_limit"), MaxCharacters);
         if (!bAvailable)
         {
             Result->SetArrayField(TEXT("rendered_text"), RenderedText);
+            Result->SetNumberField(TEXT("top_level_user_widget_count"), 0);
             Result->SetNumberField(TEXT("user_widget_count"), 0);
             Result->SetNumberField(TEXT("rendered_text_count"), 0);
             Result->SetNumberField(TEXT("captured_text_count"), 0);
@@ -261,33 +276,65 @@ namespace
             return Result;
         }
 
-        TArray<UUserWidget*> UserWidgets;
+        TArray<UUserWidget*> TopLevelUserWidgets;
         UWidgetBlueprintLibrary::GetAllWidgetsOfClass(
             World,
-            UserWidgets,
+            TopLevelUserWidgets,
             UUserWidget::StaticClass(),
-            false);
+            true);
 
+        struct FPendingUserWidget
+        {
+            const UUserWidget* Widget = nullptr;
+            bool bAncestorsRendered = false;
+        };
+        TArray<FPendingUserWidget> PendingUserWidgets;
+        for (const UUserWidget* TopLevel : TopLevelUserWidgets)
+        {
+            PendingUserWidgets.Add({ TopLevel, true });
+        }
+
+        TSet<const UUserWidget*> SeenUserWidgets;
         TSet<const UWidget*> SeenWidgets;
+        int32 UserWidgetCount = 0;
         int32 RenderedTextCount = 0;
         int32 CapturedCharacters = 0;
         bool bTruncated = false;
-        for (const UUserWidget* UserWidget : UserWidgets)
+        while (!PendingUserWidgets.IsEmpty())
         {
+            const FPendingUserWidget Pending = PendingUserWidgets.Pop();
+            const UUserWidget* UserWidget = Pending.Widget;
             if (!IsValid(UserWidget) ||
+                SeenUserWidgets.Contains(UserWidget) ||
                 UserWidget->GetWorld() != World ||
                 !IsValid(UserWidget->WidgetTree))
             {
                 continue;
             }
+            SeenUserWidgets.Add(UserWidget);
+            ++UserWidgetCount;
+            const bool bUserWidgetRendered =
+                Pending.bAncestorsRendered &&
+                UserWidget->IsRendered();
 
             TArray<UWidget*> Widgets;
             UserWidget->WidgetTree->GetAllWidgets(Widgets);
             for (const UWidget* Widget : Widgets)
             {
-                if (!IsValid(Widget) ||
-                    SeenWidgets.Contains(Widget) ||
-                    !Widget->IsRendered())
+                if (!IsValid(Widget))
+                {
+                    continue;
+                }
+                if (const UUserWidget* NestedUserWidget = Cast<UUserWidget>(Widget))
+                {
+                    PendingUserWidgets.Add({
+                        NestedUserWidget,
+                        bUserWidgetRendered && IsWidgetBranchRendered(NestedUserWidget)
+                    });
+                }
+                if (SeenWidgets.Contains(Widget) ||
+                    !bUserWidgetRendered ||
+                    !IsWidgetBranchRendered(Widget))
                 {
                     continue;
                 }
@@ -339,7 +386,10 @@ namespace
         }
 
         Result->SetArrayField(TEXT("rendered_text"), RenderedText);
-        Result->SetNumberField(TEXT("user_widget_count"), UserWidgets.Num());
+        Result->SetNumberField(
+            TEXT("top_level_user_widget_count"),
+            TopLevelUserWidgets.Num());
+        Result->SetNumberField(TEXT("user_widget_count"), UserWidgetCount);
         Result->SetNumberField(TEXT("rendered_text_count"), RenderedTextCount);
         Result->SetNumberField(TEXT("captured_text_count"), RenderedText.Num());
         Result->SetNumberField(TEXT("captured_characters"), CapturedCharacters);

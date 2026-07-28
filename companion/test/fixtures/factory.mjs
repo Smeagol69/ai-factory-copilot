@@ -124,7 +124,7 @@ export function buildFactorySnapshot(overrides = {}) {
     },
     visible_ui: {
       available: true,
-      source: "rendered Unreal UMG widget state; no screenshot or OCR",
+      source: "active local viewport's rendered Unreal UMG widget trees; no screenshot or OCR",
       certainty: "authoritative_at_capture_time",
       rendered_text_count: 2,
       captured_text_count: 2,
