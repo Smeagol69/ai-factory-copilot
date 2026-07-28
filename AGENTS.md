@@ -215,10 +215,20 @@ same build is deployed into the game; the deployed DLL SHA-256 is
 a hash from before the last three commits).
 It has not yet been exercised in a live save.
 
-**Provider state as of 2026-07-28.** The bridge runs on **Anthropic**
-(`claude-opus-5`), configured and verified reaching the API; it was awaiting a
-credit top-up at the time of writing. OpenAI on this machine returns
+**Provider state as of 2026-07-28.** The bridge runs on **Anthropic /
+`claude-sonnet-5`**, verified answering in ~5 s with prompt caching engaged
+(59k written then 73k read across two questions). Sonnet was chosen over Opus
+deliberately: at the introductory rate it is 2.5× cheaper per input token and
+handles the tool-calling and unknown-stays-unknown discipline this project
+depends on — roughly 200 questions per $30 instead of 80. `ANTHROPIC_MODEL` is
+the only thing to change to move back. OpenAI on this machine returns
 `insufficient_quota` and should not be selected.
+
+**Deploy the companion after changing it.** The bridge runs from
+`D:\Modding\Satisfactory\Companion`, a clean-install copy — editing the repo
+does nothing until `./scripts/install-companion.ps1` re-syncs it. This is the
+same real-copies-not-junctions trap as the Starter Project, and it hid a
+working feature behind an empty response field with no error anywhere.
 
 Ollama was trialled and then removed from this machine at the owner's request
 (5.06 GB reclaimed), so `AI_PROVIDER=local` has nothing to talk to here until
