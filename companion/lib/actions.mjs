@@ -14,14 +14,23 @@
 
 import { distanceMeters } from "./graph.mjs";
 
-/** Actions the mod knows how to execute. Kept in sync with AIFactoryActions.cpp. */
-export const ACTION_KINDS = [
+/** Actions that change the world. Kept in sync with AIFactoryActions.cpp. */
+export const WRITE_ACTION_KINDS = [
   "teleport_player",
   "place_building",
   "place_blueprint",
   "dismantle",
   "undo_last",
 ];
+
+/**
+ * Actions that only draw. These change nothing, so they are never gated behind
+ * the write switch and never need confirming.
+ */
+export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight"];
+
+/** Everything the mod knows how to execute. */
+export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
 
 /** Beyond this the player almost certainly meant something else. */
 const MAX_TELEPORT_METERS = 200_000;
@@ -268,6 +277,23 @@ export function validateAction(graph, proposal) {
     };
   }
 
+  if (OVERLAY_ACTION_KINDS.includes(kind)) {
+    // Drawing changes nothing, so these always commit. Passing them through
+    // here as well as through the dedicated tools means a model that routes an
+    // overlay via perform_actions gets the overlay rather than a refusal.
+    const { action: _kind, commit: _commit, ...rest } = proposal;
+    const radius = finite(proposal.radius_m);
+    if (radius !== null && radius <= 0) {
+      return reject(kind, "radius_must_be_positive");
+    }
+    return {
+      valid: true,
+      warnings,
+      checks: { draws_only: true },
+      action: { ...rest, action: kind, commit: true },
+    };
+  }
+
   // undo_last takes no parameters.
   return {
     valid: true,
@@ -330,7 +356,10 @@ export function validatePlan(graph, proposals, { maxActions = 64 } = {}) {
     actions,
     warnings,
     step_count: actions.length,
-    commits: actions.filter((action) => action.commit).length,
+    commits: actions.filter(
+      (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
+    ).length,
+    overlays: actions.filter((action) => OVERLAY_ACTION_KINDS.includes(action.action)).length,
     execution:
       "Executed in order by the mod, server-side, stopping at the first failure. Each step is re-validated there and read back after committing.",
   };

@@ -232,3 +232,42 @@ test("design_factory_layout previews by default and emits nothing committed", ()
     "a preview must not commit anything",
   );
 });
+
+/* ---------------- overlays route through either path ---------------- */
+
+test("an overlay sent through perform_actions is accepted, not refused", () => {
+  const services = sinkServices();
+  const result = JSON.parse(
+    runSolverTool(
+      graphOf(),
+      "perform_actions",
+      { actions: [{ action: "highlight", overlay: "slugs", item_name_contains: "Power Slug" }] },
+      { services },
+    ).serialized,
+  );
+  assert.equal(result.valid, true);
+  assert.equal(services.emitted[0].action, "highlight");
+  assert.equal(services.emitted[0].item_name_contains, "Power Slug");
+});
+
+test("overlays always commit and never count as world changes", () => {
+  const graph = graphOf();
+  const plan = summarizePlan(
+    graph,
+    validatePlan(graph, [
+      { action: "highlight", overlay: "a" },
+      { action: "teleport_player", target: HERE, commit: true },
+    ]),
+  );
+  // Drawing something is not a change to undo or confirm.
+  assert.equal(plan.commits, 1);
+  assert.equal(plan.overlays, 1);
+  assert.equal(plan.summary.irreversible_steps, 0);
+  assert.equal(plan.actions[0].commit, true);
+});
+
+test("a nonsensical overlay radius is refused", () => {
+  const result = validateAction(graphOf(), { action: "highlight", radius_m: -5 });
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "radius_must_be_positive");
+});
