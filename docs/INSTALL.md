@@ -64,8 +64,34 @@ http://127.0.0.1:8142/v1/ask
 
 ## Companion
 
-Start `companion/server.mjs` before using `/aifactory ask`. The `status`,
-`scan`, and `export` commands do not need the companion.
+Install the localhost bridge as a clean, supervised runtime:
+
+```powershell
+./scripts/install-companion.ps1
+```
+
+By default this installs only the files required at runtime into
+`D:\Modding\Satisfactory\Companion`, preserves a local `.env` and the `Logs`
+directory, removes stale runtime files, verifies every copied file by SHA-256,
+registers the `AI Factory Copilot Companion` logon task, and waits for
+`http://127.0.0.1:8142/health` to report healthy. The installer refuses to clean
+any destination whose leaf folder is not exactly `Companion`, and it refuses to
+stop an unrelated process listening on the configured port.
+
+The runner reads an optional `.env` in the installed directory. Existing
+process or user environment variables take precedence. It selects Anthropic
+when `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are set, OpenAI when
+`OPENAI_API_KEY` is set, and mock mode otherwise. Set `AI_PROVIDER` explicitly
+to override that selection. Secrets are not copied from the repository.
+
+For development without installing the task, run:
+
+```powershell
+./scripts/run-companion.ps1
+```
+
+Start the bridge before using `/aifactory ask`. The `status`, `scan`, and
+`export` commands do not need it.
 
 ## Smoke test
 

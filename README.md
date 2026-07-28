@@ -267,10 +267,13 @@ Override with `AIFACTORY_SOURCE_DOMAINS`, loosen with
 `AIFACTORY_WEB_SEARCH=false` — the copilot then says search is off instead of
 answering from memory as though it were verified.
 
-The clean local installation uses `scripts/run-companion.ps1`. It selects
-OpenAI when `OPENAI_API_KEY` is available in the current user's environment,
-Anthropic when both its key and an explicit model are configured, and mock
-mode otherwise. API keys are never copied into this repository or its logs.
+Install the clean local runtime with `scripts/install-companion.ps1`. It copies
+only the bridge runtime, verifies every copied file by SHA-256, registers a
+restartable logon task, and waits for the health endpoint. The installed runner
+selects Anthropic when both its key and an explicit model are configured,
+OpenAI when its key is available, and mock mode otherwise. `AI_PROVIDER`
+overrides the automatic choice. API keys are never copied into this repository
+or its logs. See [docs/INSTALL.md](docs/INSTALL.md) for the exact behavior.
 
 ## Build the mod
 

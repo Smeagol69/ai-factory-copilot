@@ -32,6 +32,7 @@ $requiredFiles = @(
     'companion\lib\tools.mjs',
     'companion\lib\sources.mjs',
     'scripts\package-local.ps1',
+    'scripts\install-companion.ps1',
     'scripts\run-companion.ps1'
 )
 foreach ($relative in $requiredFiles) {

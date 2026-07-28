@@ -20,12 +20,37 @@ if (-not (Test-Path -LiteralPath $nodePath -PathType Leaf)) {
 
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 
-if (-not $env:AI_PROVIDER) {
-    if ($env:OPENAI_API_KEY) {
-        $env:AI_PROVIDER = 'openai'
+# A local .env file is optional. Process/user environment variables win so a
+# scheduled task and an interactive launch behave the same without copying
+# secrets into the repository.
+$environmentPath = Join-Path $companionRoot '.env'
+if (Test-Path -LiteralPath $environmentPath -PathType Leaf) {
+    foreach ($line in Get-Content -LiteralPath $environmentPath) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#') -or -not $trimmed.Contains('=')) {
+            continue
+        }
+        $name, $value = $trimmed.Split('=', 2)
+        $name = $name.Trim()
+        $value = $value.Trim()
+        if ($value.Length -ge 2 -and
+            (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+             ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        if ($name -match '^[A-Za-z_][A-Za-z0-9_]*$' -and
+            -not [Environment]::GetEnvironmentVariable($name, 'Process')) {
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
     }
-    elseif ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL) {
+}
+
+if (-not $env:AI_PROVIDER) {
+    if ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL) {
         $env:AI_PROVIDER = 'anthropic'
+    }
+    elseif ($env:OPENAI_API_KEY) {
+        $env:AI_PROVIDER = 'openai'
     }
     else {
         $env:AI_PROVIDER = 'mock'

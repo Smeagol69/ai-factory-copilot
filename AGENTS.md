@@ -81,6 +81,9 @@ D:\Modding\Satisfactory\UnrealEngine-CSS\Engine\Build\BatchFiles\RunUAT.bat `
 # 4. Validate + test
 ./scripts/validate.ps1        # header checks + the whole Node suite
 cd companion; npm test
+
+# 5. Install/repair the localhost companion and its logon task
+./scripts/install-companion.ps1
 ```
 
 **Close the game before step 3.** A running game holds the DLL open and the
@@ -196,7 +199,10 @@ dismantle, undo, and rollback refunds with inventory-overflow drops.
 Latest verified checkpoint (2026-07-28): all 253 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
 Project headers. The repo source was synced into the Starter Project after that
-compile. It has not yet been packaged/deployed or exercised in a live save.
+compile. The companion is clean-installed at
+`D:\Modding\Satisfactory\Companion`; its scheduled task is healthy on port 8142
+using Anthropic, and the installer verifies all runtime copies by SHA-256. The
+mod itself has not yet been packaged/deployed or exercised in a live save.
 
 Open, in rough order:
 
