@@ -202,8 +202,12 @@ Project headers. The repo source was synced into the Starter Project after that
 compile. The companion is clean-installed at
 `D:\Modding\Satisfactory\Companion`; its scheduled task is healthy on port 8142
 using Anthropic, and the installer verifies all runtime copies by SHA-256. The
-mod is version 0.4.0 but has not yet been packaged/deployed or exercised in a
-live save.
+mod is version 0.4.0. Its FactoryGameSteam Shipping target compiled, cooked, and
+packaged successfully through UAT/Alpakit, producing a 14,660,733-byte archive
+at `Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`. The
+same build is deployed into the game; the deployed DLL SHA-256 is
+`8DCF2BB057514F296F2C422767BC5D38CFEA512B8955A3B4EB66004582D7702C`.
+It has not yet been exercised in a live save.
 
 Open, in rough order:
 
