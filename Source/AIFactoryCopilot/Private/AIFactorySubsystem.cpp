@@ -1,11 +1,13 @@
 #include "AIFactorySubsystem.h"
 
+#include "AIFactoryActions.h"
 #include "AIFactoryCopilotModule.h"
 #include "Command/ChatCommandLibrary.h"
 #include "Command/CommandSender.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "FGCharacterPlayer.h"
 #include "FGGameState.h"
 #include "FGPlayerController.h"
 #include "HAL/FileManager.h"
@@ -26,6 +28,36 @@ AAIFactorySubsystem::AAIFactorySubsystem()
     ReplicationPolicy = ESubsystemReplicationPolicy::SpawnOnServer;
     bReplicates = false;
     PrimaryActorTick.bCanEverTick = false;
+}
+
+AFGCharacterPlayer* AAIFactorySubsystem::FindLocalPlayerCharacter() const
+{
+    UWorld* World = GetWorld();
+    if (!IsValid(World))
+    {
+        return nullptr;
+    }
+    // Prefer the controlled pawn: on a listen server that is the player whose
+    // question this is. Fall back to the first player character in the world so
+    // a dedicated server with one connected client still resolves.
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        if (APlayerController* Controller = It->Get())
+        {
+            if (AFGCharacterPlayer* Character = Cast<AFGCharacterPlayer>(Controller->GetPawn()))
+            {
+                return Character;
+            }
+        }
+    }
+    for (TActorIterator<AFGCharacterPlayer> It(World); It; ++It)
+    {
+        if (IsValid(*It))
+        {
+            return *It;
+        }
+    }
+    return nullptr;
 }
 
 AAIFactorySubsystem* AAIFactorySubsystem::Get(const UObject* WorldContext)
@@ -353,6 +385,52 @@ void AAIFactorySubsystem::AskBridge(
                 Response->GetResponseCode() >= 200 &&
                 Response->GetResponseCode() < 300 &&
                 ResponseJson->HasField(TEXT("reply"));
+
+            // A reply may carry world-mutating actions. They run here, on the
+            // server, after the answer is parsed — never inside the bridge,
+            // which has no authority over the world.
+            const TArray<TSharedPtr<FJsonValue>>* Actions = nullptr;
+            if (bSuccess && ResponseJson->TryGetArrayField(TEXT("actions"), Actions) && Actions)
+            {
+                const FAIFactorySettings ActionSettings = FAIFactorySettings::Load();
+                TArray<TSharedPtr<FJsonValue>> Requested = *Actions;
+                FString Truncated;
+                if (Requested.Num() > ActionSettings.MaxActionsPerReply)
+                {
+                    Truncated = FString::Printf(
+                        TEXT(" (%d of %d actions run; the rest exceeded maxActionsPerReply)"),
+                        ActionSettings.MaxActionsPerReply,
+                        Requested.Num());
+                    Requested.SetNum(ActionSettings.MaxActionsPerReply);
+                }
+
+                TArray<TSharedPtr<FJsonValue>> ActionResults;
+                const FString ActionSummary = AIFactoryActions::ExecutePlan(
+                    WeakThis->GetWorld(),
+                    WeakThis->FindLocalPlayerCharacter(),
+                    Requested,
+                    ActionSettings.bAllowWriteActions,
+                    LexToString(WeakThis->GetWorldRevision()),
+                    ActionResults);
+
+                if (!ActionSummary.IsEmpty())
+                {
+                    Reply += TEXT("\n\n") + ActionSummary + Truncated;
+                    if (!ActionSettings.bAllowWriteActions)
+                    {
+                        Reply += TEXT(
+                            "\nWrite actions are off, so nothing was changed. "
+                            "Set \"allowWriteActions\": true in the copilot config to let these run.");
+                    }
+                    // A write changes the world the next question reasons about.
+                    WeakThis->MarkWorldDirty();
+                }
+                UE_LOG(LogAIFactoryCopilot, Display,
+                    TEXT("AI bridge actions: requested=%d executed=%d writes_enabled=%d"),
+                    Actions->Num(),
+                    ActionResults.Num(),
+                    ActionSettings.bAllowWriteActions ? 1 : 0);
+            }
             UE_LOG(LogAIFactoryCopilot, Display,
                 TEXT("AI bridge answer received: http=%d provider=%s model=%s reply_chars=%d path=%s"),
                 Response->GetResponseCode(),

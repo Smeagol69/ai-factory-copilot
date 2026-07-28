@@ -64,6 +64,9 @@ FAIFactorySettings FAIFactorySettings::Load()
     Json->TryGetBoolField(TEXT("startupSelfTest"), Settings.bStartupSelfTest);
     ReadNumber(Json, TEXT("startupSelfTestDelaySeconds"), Settings.StartupSelfTestDelaySeconds);
     Json->TryGetStringField(TEXT("startupSelfTestQuestion"), Settings.StartupSelfTestQuestion);
+    Json->TryGetBoolField(TEXT("allowWriteActions"), Settings.bAllowWriteActions);
+    ReadNumber(Json, TEXT("maxActionsPerReply"), Settings.MaxActionsPerReply);
+    Settings.MaxActionsPerReply = FMath::Clamp(Settings.MaxActionsPerReply, 0, 512);
 
     Settings.DefaultScanRadiusMeters = FMath::Clamp(Settings.DefaultScanRadiusMeters, 1.0f, 100000.0f);
     Settings.ViewTraceDistanceMeters = FMath::Clamp(Settings.ViewTraceDistanceMeters, 1.0f, 100000.0f);

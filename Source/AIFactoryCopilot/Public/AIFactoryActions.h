@@ -1,0 +1,166 @@
+#pragma once
+
+#include "CoreMinimal.h"
+
+class AFGBuildable;
+class AFGCharacterPlayer;
+class UWorld;
+
+/**
+ * World-mutating actions.
+ *
+ * Everything the copilot can *change* goes through here, and every action obeys
+ * the same contract:
+ *
+ *   1. Typed and validated before anything is touched. A malformed request is
+ *      refused with a reason, never partially applied.
+ *   2. Server-authoritative. Refused outright on a client.
+ *   3. Optionally revision-gated: if the caller states the world revision it
+ *      reasoned about and the world has moved on, the action is refused rather
+ *      than applied to a world it did not see.
+ *   4. Dry-runnable. The same validation runs, nothing is committed, and the
+ *      caller is told exactly what would have happened.
+ *   5. Read back after committing. The result reports what the *world* now says,
+ *      not what was requested — those differ when the game snaps or rejects.
+ *   6. Journalled, so any action or batch can be undone.
+ *
+ * The read-only scanner's rules still hold here: an action that cannot determine
+ * something reports it as unknown rather than assuming success.
+ */
+
+/** What an action did, in enough detail for the bridge to report it honestly. */
+struct FAIFactoryActionResult
+{
+    bool bAccepted = false;
+    bool bCommitted = false;
+    bool bDryRun = false;
+    FString Action;
+    FString Status = TEXT("not_run");
+    FString Reason;
+
+    /** Actors created by this action, as stable ids matching the scanner's. */
+    TArray<FString> CreatedActorIds;
+    /** Actors removed by this action. */
+    TArray<FString> RemovedActorIds;
+
+    /** Read back from the world after committing; empty on a dry run. */
+    TSharedPtr<class FJsonObject> Observed;
+    /** What would happen, filled in on a dry run and on acceptance. */
+    TSharedPtr<class FJsonObject> Predicted;
+
+    /** Set when this action can be reversed, and how. */
+    bool bUndoable = false;
+    FString UndoDescription;
+
+    TArray<FString> Warnings;
+
+    static FAIFactoryActionResult Refuse(const FString& InAction, const FString& InReason)
+    {
+        FAIFactoryActionResult Result;
+        Result.Action = InAction;
+        Result.Status = TEXT("refused");
+        Result.Reason = InReason;
+        return Result;
+    }
+};
+
+/** One reversible step recorded in the journal. */
+struct FAIFactoryUndoStep
+{
+    FString Action;
+    /** Buildables to remove to undo a placement. */
+    TArray<TWeakObjectPtr<AFGBuildable>> SpawnedBuildables;
+    /** Where the player was before a teleport. */
+    bool bHadPlayerTransform = false;
+    FTransform PreviousPlayerTransform;
+    TWeakObjectPtr<AFGCharacterPlayer> Player;
+    FDateTime RecordedAt;
+    FString Description;
+};
+
+/** Parameters shared by every action. */
+struct FAIFactoryActionContext
+{
+    UWorld* World = nullptr;
+    AFGCharacterPlayer* Player = nullptr;
+    bool bDryRun = true;
+    /** When set, the action is refused if the live world revision differs. */
+    FString ExpectedWorldRevision;
+    FString ActualWorldRevision;
+};
+
+namespace AIFactoryActions
+{
+    /**
+     * Moves the player. Snaps to ground by default: a teleport to a coordinate
+     * with nothing under it drops the player through the world, so the target Z
+     * is resolved by tracing down from above and the resolved height is reported.
+     */
+    FAIFactoryActionResult TeleportPlayer(
+        const FAIFactoryActionContext& Context,
+        const FVector& Target,
+        bool bSnapToGround,
+        double SnapClearanceCm);
+
+    /**
+     * Places one building from its build recipe.
+     *
+     * Validation before committing: the recipe must resolve to a buildable class,
+     * the ground under the target is probed, and the footprint is overlap-tested.
+     * The game's own construction is what actually runs, so anything it refuses
+     * is reported as refused rather than silently skipped.
+     */
+    FAIFactoryActionResult PlaceBuilding(
+        const FAIFactoryActionContext& Context,
+        const FString& RecipeClassPath,
+        const FTransform& Target,
+        bool bCheckClearance);
+
+    /**
+     * Places a saved blueprint through the game's own blueprint loader, so the
+     * layout, internal wiring, and recipes come from Satisfactory's serialiser
+     * rather than being reconstructed. Returns every buildable it spawned.
+     */
+    FAIFactoryActionResult PlaceBlueprint(
+        const FAIFactoryActionContext& Context,
+        const FString& BlueprintName,
+        const FTransform& Origin);
+
+    /** Removes a placed building, addressed by the scanner's actor id. */
+    FAIFactoryActionResult DismantleActor(
+        const FAIFactoryActionContext& Context,
+        const FString& ActorId);
+
+    /** Reverses the most recent journalled action. */
+    FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context);
+
+    /** The journal, newest first, for reporting what can still be undone. */
+    const TArray<FAIFactoryUndoStep>& GetUndoJournal();
+    void ClearUndoJournal();
+
+    /** Serialises a result for the bridge. */
+    TSharedPtr<class FJsonObject> ResultToJson(const FAIFactoryActionResult& Result);
+
+    /**
+     * Runs the `actions` array from a bridge reply.
+     *
+     * Executes in order and **stops at the first failure** rather than pressing
+     * on: a layout is a sequence, and continuing past a step that did not happen
+     * builds something the model did not design. Steps not reached are reported
+     * as skipped.
+     *
+     * `bAllowCommit` is the master switch. When false every action is forced to
+     * a dry run no matter what the reply asked for, which is how confirmation is
+     * enforced on the game side rather than trusted to the model.
+     *
+     * Returns a short human-readable summary for the chat panel; the full
+     * per-action detail goes to `OutResults`.
+     */
+    FString ExecutePlan(
+        UWorld* World,
+        AFGCharacterPlayer* Player,
+        const TArray<TSharedPtr<class FJsonValue>>& Actions,
+        bool bAllowCommit,
+        const FString& ActualWorldRevision,
+        TArray<TSharedPtr<class FJsonValue>>& OutResults);
+}

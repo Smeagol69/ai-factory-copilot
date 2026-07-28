@@ -40,6 +40,14 @@ public:
         const FAIFactorySnapshotRequest& Request,
         bool bEchoToGameChat = true);
     void ResetBridgeConversation(UCommandSender* Sender);
+
+    /**
+     * The character write actions act on and around. Returns null in a
+     * dedicated-server world with nobody connected, which callers must handle
+     * rather than assume a player exists.
+     */
+    class AFGCharacterPlayer* FindLocalPlayerCharacter() const;
+
     FAIFactoryBridgeResult OnBridgeResult;
 
 protected:

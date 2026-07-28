@@ -25,6 +25,16 @@ struct FAIFactorySettings
     FString StartupSelfTestQuestion = TEXT(
         "Using only the authoritative snapshot, what should the player do next and what placement facts are known?");
 
+    /**
+     * Master switch for world-mutating actions. When false the mod still runs
+     * every requested action's validation and reports what *would* happen, but
+     * commits nothing — the game side decides whether a write lands, not the
+     * model and not the bridge.
+     */
+    bool bAllowWriteActions = false;
+    /** Upper bound on actions executed from one reply, so a runaway plan stops. */
+    int32 MaxActionsPerReply = 64;
+
     static FAIFactorySettings Load();
     static FString GetConfigPath();
 };
