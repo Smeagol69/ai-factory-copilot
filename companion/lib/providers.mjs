@@ -162,6 +162,127 @@ export function providerMessages(context) {
   return [...history, { role: "user", content: userInput(context) }];
 }
 
+/* ---------------- prompt caching ---------------- */
+
+const EPHEMERAL = { type: "ephemeral" };
+
+/**
+ * Prompt caching, which is what makes the solver loop affordable.
+ *
+ * The loop re-sends the entire conversation on every round, so a question that
+ * takes four rounds pays for the snapshot four times. On a real save that is
+ * ~24k tokens of snapshot plus ~4k of tool schemas resent each time.
+ *
+ * Caching is a *prefix* match and the render order is tools -> system ->
+ * messages, so the breakpoints are placed at the three stability boundaries:
+ *
+ *   1. end of the system prompt   — also covers the tool schemas, since they
+ *                                   render first. Stable across every request,
+ *                                   so this one survives between questions.
+ *   2. end of the user message    — the snapshot. Stable across the rounds of
+ *                                   one question; a new capture invalidates it.
+ *   3. end of the newest results  — accumulated tool results, re-anchored each
+ *                                   round.
+ *
+ * Three of the four allowed breakpoints, and (3) is moved rather than added so
+ * the limit is never hit. Reads cost about a tenth of the write, so a question
+ * that takes more than one round is cheaper cached even counting the write.
+ */
+export function promptCachingEnabled(env = process.env) {
+  return !["off", "false", "0", "disabled"].includes(
+    String(env.ANTHROPIC_PROMPT_CACHE ?? "").toLowerCase(),
+  );
+}
+
+/** Wraps the system prompt so a breakpoint can sit at its end. */
+export function cacheableSystem(systemText) {
+  return [{ type: "text", text: systemText, cache_control: EPHEMERAL }];
+}
+
+/**
+ * Marks the final user message so the snapshot is cached for the rest of this
+ * question's rounds. The message is a plain string until now; it becomes a
+ * single text block so the marker has somewhere to live.
+ */
+export function markLastUserMessageCacheable(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") {
+      messages[index] = {
+        role: "user",
+        content: [{ type: "text", text: message.content, cache_control: EPHEMERAL }],
+      };
+    }
+    return;
+  }
+}
+
+/**
+ * Moves the tool-result breakpoint to the newest batch.
+ *
+ * Re-anchoring every round matters for more than tidiness: a breakpoint only
+ * searches back 20 content blocks for a prior entry, and one round of parallel
+ * solver calls can add more blocks than that. Left on an older batch, the
+ * marker would fall out of range and the whole prefix would silently re-bill.
+ */
+export function moveToolResultBreakpoint(messages, toolResults) {
+  for (const message of messages) {
+    if (message.role !== "user" || !Array.isArray(message.content)) continue;
+    for (const block of message.content) {
+      if (block?.type === "tool_result" && block.cache_control) delete block.cache_control;
+    }
+  }
+  const last = toolResults[toolResults.length - 1];
+  if (last) last.cache_control = EPHEMERAL;
+}
+
+/** Running cache totals, so the saving is reported rather than assumed. */
+export function accumulateCacheUsage(totals, usage) {
+  if (!usage) return totals;
+  totals.input_tokens += usage.input_tokens ?? 0;
+  totals.output_tokens += usage.output_tokens ?? 0;
+  totals.cache_creation_input_tokens += usage.cache_creation_input_tokens ?? 0;
+  totals.cache_read_input_tokens += usage.cache_read_input_tokens ?? 0;
+  return totals;
+}
+
+export function emptyCacheUsage() {
+  return {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
+}
+
+/**
+ * What the caching actually saved, in tokens billed at full rate.
+ *
+ * Cache reads bill at ~0.1x and writes at ~1.25x, so the comparison is against
+ * what the same prompt would have cost with no caching at all.
+ */
+export function summarizeCacheUsage(totals) {
+  const read = totals.cache_read_input_tokens;
+  const written = totals.cache_creation_input_tokens;
+  const uncachedEquivalent = totals.input_tokens + read + written;
+  const billedEquivalent = totals.input_tokens + read * 0.1 + written * 1.25;
+  return {
+    ...totals,
+    uncached_equivalent_input_tokens: uncachedEquivalent,
+    effective_input_tokens: Math.round(billedEquivalent),
+    saved_input_tokens: Math.round(uncachedEquivalent - billedEquivalent),
+    saved_percent:
+      uncachedEquivalent > 0
+        ? Math.round((1 - billedEquivalent / uncachedEquivalent) * 1000) / 10
+        : 0,
+    note:
+      read === 0 && written > 0
+        ? "Nothing was read from cache. On a first question that is expected; if it persists, something in the prefix is changing between requests."
+        : "Cache reads bill at about a tenth of the uncached rate; writes at 1.25x.",
+  };
+}
+
 const DEFAULT_MAXIMUM_RATE_LIMIT_RETRIES = 3;
 
 function sleep(milliseconds) {
@@ -482,10 +603,14 @@ export async function askAnthropic(context, env = process.env) {
   const webSearchTool = anthropicWebSearchTool(policy, env);
   if (webSearchTool) tools.push(webSearchTool);
 
+  const caching = promptCachingEnabled(env);
+  const systemText = buildSystemInstructions(env);
   const requestBase = {
     model,
     max_tokens: maximumTokens,
-    system: buildSystemInstructions(env),
+    // Tools render before system, so a breakpoint at the end of system covers
+    // both — one marker, the whole stable prefix.
+    system: caching ? cacheableSystem(systemText) : systemText,
   };
   // Adaptive thinking must be requested explicitly: on some current models
   // omitting it means no thinking at all. budget_tokens is not accepted.
@@ -497,6 +622,8 @@ export async function askAnthropic(context, env = process.env) {
   }
 
   const messages = providerMessages(context);
+  if (caching) markLastUserMessageCacheable(messages);
+  const cacheUsage = emptyCacheUsage();
   const solverCalls = [];
   const sources = new Map();
   const searchErrors = [];
@@ -544,6 +671,7 @@ export async function askAnthropic(context, env = process.env) {
       throw new Error(`Anthropic API HTTP ${response.status}: ${detail}`);
     }
     const json = await response.json();
+    accumulateCacheUsage(cacheUsage, json.usage);
     collectAnthropicSources(json, sources, searchErrors);
     const toolUses = (json.content ?? []).filter((block) => block?.type === "tool_use");
 
@@ -577,6 +705,7 @@ export async function askAnthropic(context, env = process.env) {
         sources: collected,
         solver_calls: solverCalls,
         search_errors: searchErrors,
+        cache: summarizeCacheUsage(cacheUsage),
       };
     }
 
@@ -599,6 +728,7 @@ export async function askAnthropic(context, env = process.env) {
         content: result.serialized,
       });
     }
+    if (caching) moveToolResultBreakpoint(messages, toolResults);
     messages.push({ role: "user", content: toolResults });
   }
 

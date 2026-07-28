@@ -280,6 +280,9 @@ export function createBridgeServer({ env = process.env } = {}) {
         omissions: view.omissions,
         payload_view: payloadView,
         solver_calls: answer.solver_calls ?? [],
+        // Prompt-cache accounting for this answer, so the saving is observable
+        // rather than assumed.
+        cache: answer.cache ?? null,
         // The mod executes these server-side, re-validates each one, and only
         // commits those with commit:true when its own allowWriteActions is on.
         actions: collectedActions,

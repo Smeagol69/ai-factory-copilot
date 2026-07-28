@@ -187,6 +187,49 @@ function finiteVectorOrNull(value) {
  *
  * Omissions are always declared, and each one names the solver that serves it.
  */
+/**
+ * Trims noise from the model's view of the world.
+ *
+ * A captured coordinate arrives as `-102972.88472716082` — thirteen decimal
+ * places describing a position on an 8-metre building grid. Nine of those
+ * digits are float artefact, and every one costs tokens on every request.
+ * Identity scales and zero velocities are the same story: present on nearly
+ * every actor, informative on none.
+ *
+ * This is safe precisely because of the split the whole design rests on: the
+ * **solvers read the complete snapshot**, not this view, and the model is
+ * forbidden from doing arithmetic itself. So nothing computed can be affected —
+ * only what the model reads for orientation, where a tenth of a centimetre is
+ * far finer than any decision it makes. Measured at ~10% of the payload.
+ */
+export function compactModelView(value) {
+  if (Array.isArray(value)) return value.map(compactModelView);
+  if (value && typeof value === "object") {
+    const result = {};
+    for (const [key, nested] of Object.entries(value)) {
+      if (key === "scale" && isVector(nested, 1)) continue;
+      if (key === "velocity" && isVector(nested, 0)) continue;
+      result[key] = compactModelView(nested);
+    }
+    return result;
+  }
+  // Integers are already exact; only float noise is trimmed.
+  if (typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value)) {
+    return Math.round(value * 10) / 10;
+  }
+  return value;
+}
+
+function isVector(value, component) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    value.x === component &&
+    value.y === component &&
+    value.z === component
+  );
+}
+
 export function buildLeanPayload(snapshot, { maxActors = 120, maxCharacters = 200_000 } = {}) {
   const omissions = [];
   const interaction = snapshot?.interaction_context ?? null;
@@ -275,7 +318,8 @@ export function buildLeanPayload(snapshot, { maxActors = 120, maxCharacters = 20
     },
   };
 
-  return { payload, omissions, serialized: JSON.stringify(payload) };
+  const compacted = compactModelView(payload);
+  return { payload: compacted, omissions, serialized: JSON.stringify(compacted) };
 }
 
 export function summarizeSnapshot(snapshot) {

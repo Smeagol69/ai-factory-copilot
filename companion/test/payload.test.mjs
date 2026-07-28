@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import { askLocal, askProvider } from "../lib/providers.mjs";
-import { buildLeanPayload } from "../lib/snapshot.mjs";
+import { buildLeanPayload, compactModelView } from "../lib/snapshot.mjs";
 import { chatCompletionsToolDefinitions } from "../lib/tools.mjs";
 import { CONSTRUCTOR, MINER, PLAYER, SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
@@ -287,4 +287,64 @@ test("retries are bounded and the limit error is surfaced", async () => {
   } finally {
     stub.restore();
   }
+});
+
+/* ---------------- model-view compaction ---------------- */
+
+test("float noise is trimmed to a tenth of a centimetre", () => {
+  const compacted = compactModelView({ location: { x: -102972.88472716082, y: 39196.03913922996 } });
+  assert.equal(compacted.location.x, -102972.9);
+  assert.equal(compacted.location.y, 39196);
+});
+
+test("integers are left exact", () => {
+  // Counts, ids, and revisions must not be rounded into something else.
+  const compacted = compactModelView({ count: 42, revision: 18, tier: 3 });
+  assert.deepEqual(compacted, { count: 42, revision: 18, tier: 3 });
+});
+
+test("identity scale and zero velocity are dropped as uninformative", () => {
+  const compacted = compactModelView({
+    scale: { x: 1, y: 1, z: 1 },
+    velocity: { x: 0, y: 0, z: 0 },
+    location: { x: 1, y: 2, z: 3 },
+  });
+  assert.equal("scale" in compacted, false);
+  assert.equal("velocity" in compacted, false);
+  assert.deepEqual(compacted.location, { x: 1, y: 2, z: 3 });
+});
+
+test("a non-identity scale or real velocity is kept", () => {
+  const compacted = compactModelView({
+    scale: { x: 2, y: 1, z: 1 },
+    velocity: { x: 0, y: 0, z: 5 },
+  });
+  assert.deepEqual(compacted.scale, { x: 2, y: 1, z: 1 });
+  assert.deepEqual(compacted.velocity, { x: 0, y: 0, z: 5 });
+});
+
+test("strings, booleans, and nulls pass through untouched", () => {
+  const input = { actor_id: "/Game/X.Y_C", ok: true, missing: null, list: ["a", 1.25] };
+  const compacted = compactModelView(input);
+  assert.equal(compacted.actor_id, "/Game/X.Y_C");
+  assert.equal(compacted.ok, true);
+  assert.equal(compacted.missing, null);
+  assert.deepEqual(compacted.list, ["a", 1.3]);
+});
+
+test("compaction shrinks the payload without dropping actors", () => {
+  const snapshot = {
+    schema: "aifactory.snapshot",
+    actors: Array.from({ length: 5 }, (_, index) => ({
+      actor_id: `actor-${index}`,
+      kind: "buildable",
+      location: { x: 1.23456789012, y: 2.3456789012, z: 3.456789012 },
+      scale: { x: 1, y: 1, z: 1 },
+      velocity: { x: 0, y: 0, z: 0 },
+    })),
+  };
+  const lean = buildLeanPayload(snapshot, { maxActors: 120, maxCharacters: 200_000 });
+  assert.equal(lean.payload.actors_nearest_to_the_player.length, 5);
+  assert.equal(lean.serialized.includes("1.23456789012"), false);
+  assert.equal(lean.serialized.includes('"scale"'), false);
 });
