@@ -122,6 +122,30 @@ export function buildFactorySnapshot(overrides = {}) {
       game_phase: { available: true, current: { available: true, name: "Establishing Phase" } },
       todo_lists: { available: true, public: "", private: "" },
     },
+    visible_ui: {
+      available: true,
+      source: "rendered Unreal UMG widget state; no screenshot or OCR",
+      certainty: "authoritative_at_capture_time",
+      rendered_text_count: 2,
+      captured_text_count: 2,
+      truncated: false,
+      rendered_text: [
+        {
+          text: "Objective:",
+          widget_name: "ObjectiveLabel",
+          widget_class: "/Script/UMG.TextBlock",
+          user_widget_class: "/Game/FactoryGame/Interface/UI/InGame/Tutorial/WBP_Tutorial",
+          owner_mod: "FactoryGame",
+        },
+        {
+          text: "Build the HUB",
+          widget_name: "ObjectiveText",
+          widget_class: "/Script/UMG.TextBlock",
+          user_widget_class: "/Game/FactoryGame/Interface/UI/InGame/Tutorial/WBP_Tutorial",
+          owner_mod: "FactoryGame",
+        },
+      ],
+    },
     completeness: { actor_limit_reached: false, actor_limit: 5000 },
     content: {
       availability_known: true,

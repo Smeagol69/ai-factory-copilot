@@ -976,6 +976,7 @@ export function solveUnlockStatus(graph) {
     onboarding: progression.onboarding ?? null,
     game_phase: progression.game_phase ?? null,
     todo_lists: progression.todo_lists ?? null,
+    visible_ui: graph.snapshot?.visible_ui ?? null,
     recipe_availability_known: availabilityKnown,
     available_recipe_count: availableRecipeCount,
     unavailable_recipe_count: unavailableRecipeCount,
@@ -987,7 +988,7 @@ export function solveUnlockStatus(graph) {
         ? "Every catalog recipe carries the loaded save's exact available/unavailable state. Use find_recipes for a specific recipe."
         : "This older snapshot lists purchased schematics but not live recipe availability; only recipes already in use can be proven available.",
     source: availabilityKnown
-      ? "authoritative_schematic_recipe_tutorial_and_game_phase_managers"
+      ? "authoritative_schematic_recipe_tutorial_game_phase_and_rendered_UMG_state"
       : "authoritative_schematic_manager",
     certainty: availabilityKnown
       ? "authoritative"

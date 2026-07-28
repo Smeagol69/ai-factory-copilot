@@ -8,7 +8,7 @@ $root = Split-Path -Parent $PSScriptRoot
 
 $descriptorPath = Join-Path $root 'AIFactoryCopilot.uplugin'
 $descriptor = Get-Content -Raw -LiteralPath $descriptorPath | ConvertFrom-Json
-if ($descriptor.SemVersion -ne '0.4.1') {
+if ($descriptor.SemVersion -ne '0.4.2') {
     throw "Unexpected plugin SemVersion '$($descriptor.SemVersion)'."
 }
 if ($descriptor.GameVersion -ne '>=491125') {
@@ -102,6 +102,9 @@ if ($upstream) {
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\GameFramework\PlayerController.h'; Pattern = 'struct FInputModeUIOnly' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\GameFramework\Controller.h'; Pattern = 'SetIgnoreMoveInput' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Slate\Public\Framework\Application\SlateApplication.h'; Pattern = 'SetAllUserFocus' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Blueprint\WidgetBlueprintLibrary.h'; Pattern = 'GetAllWidgetsOfClass' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Blueprint\WidgetTree.h'; Pattern = 'GetAllWidgets' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Components\TextBlock.h'; Pattern = 'FText GetText' }
         @{ Path = 'Mods\SML\Source\SML\Private\ModLoading\ModLoadingLibrary.cpp'; Pattern = 'Resources/Icon128.png' }
     )
     foreach ($check in $checks) {

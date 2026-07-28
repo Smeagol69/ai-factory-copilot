@@ -248,6 +248,7 @@ export function buildLeanPayload(snapshot, { maxActors = 120, maxCharacters = 20
     world: snapshot?.world ?? null,
     interaction_context: interaction,
     mods: (snapshot?.mods ?? []).map((mod) => ({ reference: mod?.reference, version: mod?.version })),
+    visible_ui: snapshot?.visible_ui ?? null,
     progression_summary: {
       highest_available_tech_tier: progression.highest_available_tech_tier ?? null,
       purchased_schematic_count: (progression.purchased_schematics ?? []).length,
@@ -261,7 +262,7 @@ export function buildLeanPayload(snapshot, { maxActors = 120, maxCharacters = 20
         unavailable_recipe_count: snapshot?.content?.unavailable_recipe_count ?? null,
       },
       detail:
-        "Current objective, active milestone, phase, and recipe availability are live runtime state. Call get_unlock_status for the purchased schematic list.",
+        "Progression-manager state and rendered visible_ui text are separate live observations. Report any conflict. Call get_unlock_status for the purchased schematic list.",
     },
     actors_nearest_to_the_player: kept,
     completeness: {

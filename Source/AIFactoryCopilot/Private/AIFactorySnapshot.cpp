@@ -4,6 +4,9 @@
 #include "AIFactoryDataProvider.h"
 #include "AIFactorySettings.h"
 #include "AIFactoryTerrain.h"
+#include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Blueprint/WidgetTree.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableConveyorBase.h"
 #include "Buildables/FGBuildableFactory.h"
@@ -11,7 +14,11 @@
 #include "Buildables/FGBuildablePipeline.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Components/PanelWidget.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/RichTextBlock.h"
+#include "Components/TextBlock.h"
+#include "Components/Widget.h"
 #include "Dom/JsonObject.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
@@ -184,6 +191,163 @@ namespace
         {
             Result.Add(MakeShared<FJsonValueString>(Text.ToString()));
         }
+        return Result;
+    }
+
+    FString SlateVisibilityName(const ESlateVisibility Visibility)
+    {
+        switch (Visibility)
+        {
+        case ESlateVisibility::Visible:
+            return TEXT("visible");
+        case ESlateVisibility::Collapsed:
+            return TEXT("collapsed");
+        case ESlateVisibility::Hidden:
+            return TEXT("hidden");
+        case ESlateVisibility::HitTestInvisible:
+            return TEXT("hit_test_invisible");
+        case ESlateVisibility::SelfHitTestInvisible:
+            return TEXT("self_hit_test_invisible");
+        default:
+            return TEXT("unknown");
+        }
+    }
+
+    bool TryGetRenderedWidgetText(
+        const UWidget* Widget,
+        FString& OutText,
+        FString& OutSource)
+    {
+        if (const UTextBlock* TextBlock = Cast<UTextBlock>(Widget))
+        {
+            OutText = TextBlock->GetText().ToString();
+            OutSource = TEXT("UTextBlock::GetText");
+            return true;
+        }
+        if (const URichTextBlock* RichTextBlock = Cast<URichTextBlock>(Widget))
+        {
+            OutText = RichTextBlock->GetText().ToString();
+            OutSource = TEXT("URichTextBlock::GetText");
+            return true;
+        }
+        return false;
+    }
+
+    TSharedRef<FJsonObject> VisibleUiJson(UWorld* World)
+    {
+        constexpr int32 MaxEntries = 512;
+        constexpr int32 MaxCharacters = 32768;
+        constexpr int32 MaxCharactersPerEntry = 4096;
+
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        TArray<TSharedPtr<FJsonValue>> RenderedText;
+        const bool bAvailable =
+            IsValid(World) &&
+            World->GetNetMode() != NM_DedicatedServer;
+        Result->SetBoolField(TEXT("available"), bAvailable);
+        Result->SetStringField(
+            TEXT("source"),
+            TEXT("rendered Unreal UMG widget state; no screenshot or OCR"));
+        Result->SetStringField(TEXT("certainty"), TEXT("authoritative_at_capture_time"));
+        Result->SetNumberField(TEXT("entry_limit"), MaxEntries);
+        Result->SetNumberField(TEXT("character_limit"), MaxCharacters);
+        if (!bAvailable)
+        {
+            Result->SetArrayField(TEXT("rendered_text"), RenderedText);
+            Result->SetNumberField(TEXT("user_widget_count"), 0);
+            Result->SetNumberField(TEXT("rendered_text_count"), 0);
+            Result->SetNumberField(TEXT("captured_text_count"), 0);
+            Result->SetBoolField(TEXT("truncated"), false);
+            return Result;
+        }
+
+        TArray<UUserWidget*> UserWidgets;
+        UWidgetBlueprintLibrary::GetAllWidgetsOfClass(
+            World,
+            UserWidgets,
+            UUserWidget::StaticClass(),
+            false);
+
+        TSet<const UWidget*> SeenWidgets;
+        int32 RenderedTextCount = 0;
+        int32 CapturedCharacters = 0;
+        bool bTruncated = false;
+        for (const UUserWidget* UserWidget : UserWidgets)
+        {
+            if (!IsValid(UserWidget) ||
+                UserWidget->GetWorld() != World ||
+                !IsValid(UserWidget->WidgetTree))
+            {
+                continue;
+            }
+
+            TArray<UWidget*> Widgets;
+            UserWidget->WidgetTree->GetAllWidgets(Widgets);
+            for (const UWidget* Widget : Widgets)
+            {
+                if (!IsValid(Widget) ||
+                    SeenWidgets.Contains(Widget) ||
+                    !Widget->IsRendered())
+                {
+                    continue;
+                }
+                SeenWidgets.Add(Widget);
+
+                FString Text;
+                FString TextSource;
+                if (!TryGetRenderedWidgetText(Widget, Text, TextSource) ||
+                    Text.TrimStartAndEnd().IsEmpty())
+                {
+                    continue;
+                }
+                ++RenderedTextCount;
+
+                const bool bEntryTruncated = Text.Len() > MaxCharactersPerEntry;
+                const FString CapturedText = bEntryTruncated
+                    ? Text.Left(MaxCharactersPerEntry)
+                    : Text;
+                if (RenderedText.Num() >= MaxEntries ||
+                    CapturedCharacters + CapturedText.Len() > MaxCharacters)
+                {
+                    bTruncated = true;
+                    continue;
+                }
+
+                const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+                Entry->SetStringField(TEXT("text"), CapturedText);
+                Entry->SetStringField(TEXT("text_source"), TextSource);
+                Entry->SetBoolField(TEXT("text_truncated"), bEntryTruncated);
+                Entry->SetStringField(TEXT("widget_name"), Widget->GetName());
+                Entry->SetStringField(TEXT("widget_class"), ClassPath(Widget->GetClass()));
+                Entry->SetStringField(TEXT("visibility"), SlateVisibilityName(Widget->GetVisibility()));
+                Entry->SetStringField(TEXT("user_widget_name"), UserWidget->GetName());
+                Entry->SetStringField(
+                    TEXT("user_widget_class"),
+                    ClassPath(UserWidget->GetClass()));
+                Entry->SetStringField(
+                    TEXT("owner_mod"),
+                    OwnerModForObject(UserWidget->GetClass()));
+                if (const UPanelWidget* Parent = Widget->GetParent())
+                {
+                    Entry->SetStringField(TEXT("parent_name"), Parent->GetName());
+                    Entry->SetStringField(TEXT("parent_class"), ClassPath(Parent->GetClass()));
+                }
+                RenderedText.Add(MakeShared<FJsonValueObject>(Entry));
+                CapturedCharacters += CapturedText.Len();
+                bTruncated = bTruncated || bEntryTruncated;
+            }
+        }
+
+        Result->SetArrayField(TEXT("rendered_text"), RenderedText);
+        Result->SetNumberField(TEXT("user_widget_count"), UserWidgets.Num());
+        Result->SetNumberField(TEXT("rendered_text_count"), RenderedTextCount);
+        Result->SetNumberField(TEXT("captured_text_count"), RenderedText.Num());
+        Result->SetNumberField(TEXT("captured_characters"), CapturedCharacters);
+        Result->SetBoolField(TEXT("truncated"), bTruncated);
+        Result->SetStringField(
+            TEXT("interpretation"),
+            TEXT("This is the exact text the local UMG tree rendered. Progression manager fields "
+                 "are separate authoritative state; report both if they conflict."));
         return Result;
     }
 
@@ -1310,6 +1474,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
         Root->SetObjectField(TEXT("content"), ContentJson(World, Result.ItemCount, Result.RecipeCount));
     }
     Root->SetObjectField(TEXT("progression"), ProgressionJson(World, Request.PlayerController));
+    Root->SetObjectField(TEXT("visible_ui"), VisibleUiJson(World));
 
     TArray<TSharedPtr<FJsonValue>> Actors;
     if (IsValid(World))

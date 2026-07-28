@@ -462,6 +462,7 @@ test("reports objectives and authoritative recipe-manager availability", () => {
   assert.equal(unlocks.highest_available_tech_tier, 5);
   assert.equal(unlocks.purchased_schematic_count, 1);
   assert.equal(unlocks.onboarding.current_step.title, "Build the HUB");
+  assert.equal(unlocks.visible_ui.rendered_text[1].text, "Build the HUB");
   assert.equal(unlocks.recipe_unlock_mapping, "authoritative_AFGRecipeManager_runtime_state");
   assert.equal(unlocks.available_recipe_count, 5);
   assert.equal(unlocks.unavailable_recipe_count, 0);

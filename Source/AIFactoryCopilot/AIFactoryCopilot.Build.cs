@@ -24,7 +24,8 @@ public class AIFactoryCopilot : ModuleRules
             "JsonUtilities",
             "Projects",
             "Slate",
-            "SlateCore"
+            "SlateCore",
+            "UMG"
         });
 
         // SML loads the mod icon from this fixed loose-file path at runtime.

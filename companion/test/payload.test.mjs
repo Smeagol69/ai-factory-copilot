@@ -109,6 +109,8 @@ test("progression summary retains the live objective and recipe availability", (
   );
   assert.equal(payload.progression_summary.recipe_availability.known, true);
   assert.equal(payload.progression_summary.recipe_availability.available_recipe_count, 5);
+  assert.equal(payload.visible_ui.rendered_text[1].text, "Build the HUB");
+  assert.match(payload.visible_ui.source, /no screenshot or OCR/);
   assert.match(payload.progression_summary.detail, /get_unlock_status/);
   assert.equal(payload.progression, undefined);
 });

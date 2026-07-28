@@ -215,7 +215,7 @@ export const SOLVER_TOOLS = [
   {
     name: "get_unlock_status",
     description:
-      "The current onboarding objective, active milestone and remaining cost, game phase, todo lists, purchased schematics, highest tech tier, and exact available/unavailable recipe counts from the loaded save's recipe manager.",
+      "The rendered HUD text plus progression-manager onboarding state, active milestone and remaining cost, game phase, todo lists, purchased schematics, highest tech tier, and exact available/unavailable recipe counts. If the HUD and manager disagree, both authoritative observations are returned.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     run: (graph) => solveUnlockStatus(graph),
   },
