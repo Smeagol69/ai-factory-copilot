@@ -254,22 +254,30 @@ pulls a model, bakes an explicit `num_ctx` into a derived Ollama model so the
 base stays untouched, sizes the payload to match, and refuses to report success
 until it has proved the model can actually call a tool.
 
-**Before reaching for a small local model again, read this.** `qwen3:4b` was
-measured on the real save, same question both times:
+**Local models were measured on this machine; the numbers are the answer.**
+ROCm works on the RX 7800 XT (`library=ROCm compute=gfx1101`, 15.8 GiB), so
+inference runs on the GPU. The ceiling is memory, not setup:
 
-| Config | Request | Result |
+| Model | Needs | Verdict with the game running |
 |---|---|---|
-| `num_ctx` 32768, payload trimmed to 30k chars | ~21.7k tok | Correct `highlight` action; prose falsely claimed no Mercer Spheres within 150 m (there are two, at 105 m and 125 m) |
-| `num_ctx` 40960, full payload | ~29.4k tok | **No action at all**; ignored the question and fabricated "3 Paleberry bushes within 50 m" and "raw quartz, copper ore deposits" |
+| `qwen3:14b` @ 32k ctx | ~14 GB (9 weights + 5 KV) | **OOM** — only 10.9 GB free |
+| `qwen3:8b` @ 32k ctx, q8_0 KV | ~7.5 GB | Fits |
 
-More context made it worse, not better — a 4B model drifts as the payload grows.
+The payload is why: 26k tokens of snapshot, tools, and prompt before the
+model says a word, so the context cannot simply be shrunk.
 
-The useful part is where it broke. **The action path survived the weak model**,
-because the mod resolves overlays against live actors and appends the real
-outcome, so a wrong count in the prose gets corrected by the game. The prose did
-not survive: a 4B model violates rule 2 (unknown stays unknown) freely. If a
-local model is wanted again, start at `-BaseModel 'qwen3:14b'` and re-measure
-before trusting anything it narrates.
+`qwen3:8b` benchmarked at **5/7** on `scripts/benchmark-provider.mjs`, at a
+**median 71s per question against Sonnet 5's ~5s**. It called tools correctly
+and did not invent resources, but it failed the two checks that matter most:
+it did not cite a solver coordinate for a siting question, and it asserted a
+causal reason as fact where the data cannot show one. That second failure is
+the same shape as the 4B's — not refusal, but confident fabrication — so a
+small local model is not trustworthy as an unattended default here.
+
+Where it *is* useful is the hybrid cheap tier, because escalation is decided
+by question shape before the model runs: causal, comparative, and planning
+questions never reach it. `AI_PROVIDER=hybrid` with `AIFACTORY_CHEAP_PROVIDER`
+and `AIFACTORY_STRONG_PROVIDER`.
 
 Open, in rough order:
 
