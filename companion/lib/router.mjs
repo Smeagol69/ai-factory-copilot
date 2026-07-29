@@ -478,7 +478,7 @@ export function answerLocally(question, graph, services) {
   }
 
   return {
-    reply: `${route.format(result)}\n\n_Computed locally from the live snapshot — no API call, no credit used._`,
+    reply: route.format(result),
     provider: "solvers",
     model: "deterministic",
     solver_calls: [{ name: route.name, source: "local_route" }],
@@ -496,9 +496,7 @@ export function answerLocally(question, graph, services) {
 
 function localAnswer(text, solver, started, why) {
   return {
-    reply: `${text}
-
-_Computed locally from the live snapshot — no API call, no credit used._`,
+    reply: text,
     provider: "solvers",
     model: "deterministic",
     solver_calls: [{ name: solver, source: "local_route" }],

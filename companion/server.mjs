@@ -5,6 +5,11 @@ import { pathToFileURL } from "node:url";
 import { readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askProvider } from "./lib/providers.mjs";
+import {
+  createSessionLedger,
+  estimateCost,
+  formatCostFooter,
+} from "./lib/pricing.mjs";
 import { answerLocally } from "./lib/router.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
@@ -119,6 +124,10 @@ export function createBridgeServer({ env = process.env } = {}) {
   const solverServices = { listBlueprints };
   const graphOptions = { conveyorSpeedDivisor };
   const sessions = new Map();
+  // Running spend per chat session, so the panel can show a total alongside
+  // the cost of the answer the player just got.
+  const ledger = createSessionLedger();
+  const showCost = env.AIFACTORY_COST_FOOTER !== "false";
 
   return http.createServer(async (request, response) => {
     try {
@@ -262,6 +271,21 @@ export function createBridgeServer({ env = process.env } = {}) {
           : answerLocally(context.question, graph, requestServices);
       const answer = localAnswer ?? (await askProvider(provider, context, env));
 
+      const answeredBy = answer.provider === "solvers" ? "local_solver" : "model";
+      const cost =
+        answeredBy === "local_solver"
+          ? { ...estimateCost(answer.model, {}), usd: 0 }
+          : estimateCost(answer.model, answer.cache ?? {});
+      const sessionTotal = ledger.add(sessionId, cost.usd ?? 0);
+      if (showCost) {
+        answer.reply += formatCostFooter({
+          answeredBy,
+          cost,
+          sessionUsd: sessionTotal.usd,
+          sessionAnswers: sessionTotal.answers,
+        });
+      }
+
       history.push({ role: "user", text: context.question });
       history.push({ role: "assistant", text: answer.reply });
       if (!sessions.has(sessionId) && sessions.size >= maximumSessions) {
@@ -292,7 +316,9 @@ export function createBridgeServer({ env = process.env } = {}) {
         // rather than assumed.
         cache: answer.cache ?? null,
         // Which path answered: a local solver route, or the model.
-        answered_by: answer.provider === "solvers" ? "local_solver" : "model",
+        answered_by: answeredBy,
+        cost,
+        session_spend: { usd: sessionTotal.usd, answers: sessionTotal.answers },
         local: answer.local ?? null,
         // The mod executes these server-side, re-validates each one, and only
         // commits those with commit:true when its own allowWriteActions is on.

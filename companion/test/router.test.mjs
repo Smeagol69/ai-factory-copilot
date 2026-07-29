@@ -113,9 +113,11 @@ test("a show request emits the overlay action without any model call", () => {
   assert.equal(services.emitted[0].commit, true);
 });
 
-test("a local answer says it cost nothing, and refuses to guess a count", () => {
+test("a local answer is marked as free and refuses to guess a count", () => {
   const answer = answerLocally("show me every paleberry", graphOf(), sink());
-  assert.match(answer.reply, /no API call, no credit used/);
+  // The cost footer is appended by the server so every answer carries the same
+  // one; the router's job is the content.
+  assert.equal(answer.provider, "solvers");
   assert.match(answer.reply, /not guessing a count/);
 });
 
