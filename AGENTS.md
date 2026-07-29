@@ -3,6 +3,22 @@
 Shared handoff notes for anyone — human or agent — picking this up. Read this
 before changing anything; it records the decisions and the traps.
 
+**Repo:** <https://github.com/Smeagol69/ai-factory-copilot> (public, default
+branch `master`). Claude and Codex collaborate here through git only — there is
+no shared chat memory between them, so anything the next agent needs must be in
+the code, its comments, or this file.
+
+Working agreement, same as the owner's other shared repo:
+
+- Fetch and read `master` before editing; never rebuild something that is
+  already there.
+- **Only improve, extend, or optimise. Never remove a working feature unless
+  the owner explicitly asks.** This is the owner's standing rule and it applies
+  to the other agent's work as much as your own.
+- Branch by author: `claude/<task>`, `codex/<task>`. `master` is integration.
+- Run `cd companion; npm test` before you commit. 324 tests as of 2026-07-29.
+- Finish with a handoff: what changed, what was verified, what is still open.
+
 ## What this is
 
 An SML mod plus a localhost Node companion. The mod captures authoritative game
@@ -314,18 +330,24 @@ field — rather than a blanket "not determinable".
 
 Latest verified checkpoint (2026-07-29): all 324 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
-Project headers. The repo source was synced into the Starter Project after that
-compile. The companion is clean-installed at
+Project headers. The repo source was synced into the Starter Project before
+that compile. The companion is clean-installed at
 `D:\Modding\Satisfactory\Companion`; its scheduled task is healthy on port 8142
-using Anthropic, and the installer verifies all runtime copies by SHA-256. The
-mod is version 0.4.0. Its FactoryGameSteam Shipping target compiled, cooked, and
-packaged successfully through UAT/Alpakit, producing a 14,660,733-byte archive
-at `Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`. The
-same build is deployed into the game; the deployed DLL SHA-256 is
-`4EE45459FC2AC0CBB6390E1B8FFDE1E8F3C1B66BABA3C7AEB4D36A1FD728098A`
-(built 2026-07-28 12:11, i.e. including `864ba53`; an earlier note here recorded
-a hash from before the last three commits).
-It has not yet been exercised in a live save.
+using Anthropic, and the installer verifies all 17 runtime copies by SHA-256.
+The mod is version 0.4.0. Its FactoryGameSteam Shipping target compiled, cooked,
+and packaged successfully through UAT/Alpakit in 1m17s, producing a
+14,808,615-byte archive at
+`Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`. The same
+build is deployed into the game; the deployed DLL SHA-256 is
+`4DE9EC9714EAD0B7B0D47A7E86178F34AB621E33D6698A37B6DE16333CC7F500`
+(built 2026-07-29 19:55, i.e. including `62b6c0b` — waypoints, the rotation
+fix, and the local placement route).
+
+**Exercised in a live save on 2026-07-29**, partially: teleport, highlight, and
+place_building all committed server-side and were confirmed in
+`latest-bridge-response.json`. Waypoints and the rotation fix are in this build
+but were written after that session, so they are compiled and deployed yet
+still untested in-game. See open item 4.
 
 **Provider state as of 2026-07-28.** The bridge runs on **Anthropic /
 `claude-sonnet-5`**, verified answering in ~5 s with prompt caching engaged
