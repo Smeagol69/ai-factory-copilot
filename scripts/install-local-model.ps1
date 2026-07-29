@@ -33,6 +33,9 @@ param(
     # snapshot leaves room for the tool schemas, the prompt, and the answer.
     [int]    $LeanMaxCharacters = 30000,
     [int]    $LeanMaxActors = 30,
+    [string] $ModelDirectory = '',
+    # Short by default: the GPU is shared with the game.
+    [string] $KeepAlive = '60s',
     [switch] $SkipPull
 )
 
@@ -57,6 +60,67 @@ function Invoke-Native {
     }
 }
 
+
+<#
+    Ollama reads OLLAMA_MODELS when its server process starts, not per command.
+    Setting the variable and pulling immediately therefore writes to the default
+    location on C: anyway — which matters here, because C: is the small drive.
+    Relocating means moving the directory and restarting the server, so this
+    does both rather than leaving a 9 GB surprise on the wrong disk.
+#>
+<#
+    How long the model stays resident in VRAM after answering.
+
+    This is the setting that decides whether the copilot fights the game for
+    video memory. Ollama's default holds the weights for five minutes, which on
+    a 16 GB card means Satisfactory is competing for what is left long after the
+    question was answered. A short value releases the VRAM promptly at the cost
+    of reloading on the next question.
+#>
+function Set-OllamaKeepAlive {
+    param([string] $KeepAlive)
+    if (-not $KeepAlive) { return }
+    [Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', $KeepAlive, 'User')
+    $env:OLLAMA_KEEP_ALIVE = $KeepAlive
+    Write-Host "Model stays loaded for $KeepAlive after each answer."
+}
+
+function Set-OllamaModelDirectory {
+    param([string] $Path, [string] $OllamaPath)
+
+    if (-not $Path) { return }
+    $current = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'User')
+    $default = Join-Path $env:USERPROFILE '.ollama\models'
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+
+    # Move anything already pulled, so the change does not orphan existing models.
+    if ((Test-Path $default) -and -not (Test-Path (Join-Path $Path 'blobs'))) {
+        $size = (Get-ChildItem $default -Recurse -File -ErrorAction SilentlyContinue |
+                 Measure-Object Length -Sum).Sum
+        if ($size -gt 0) {
+            Write-Host ("Moving {0:N1} GB of existing models to {1}..." -f ($size / 1GB), $Path)
+            Get-Process -Name 'ollama*' -ErrorAction SilentlyContinue | Stop-Process -Force
+            Start-Sleep -Seconds 2
+            Get-ChildItem $default -Force | Move-Item -Destination $Path -Force
+        }
+    }
+
+    if ($current -ne $Path) {
+        [Environment]::SetEnvironmentVariable('OLLAMA_MODELS', $Path, 'User')
+    }
+    $env:OLLAMA_MODELS = $Path
+
+    # Restart so the server actually reads the new location.
+    Get-Process -Name 'ollama*' -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Seconds 2
+    Start-Process -FilePath $OllamaPath -ArgumentList 'serve' -WindowStyle Hidden
+    for ($i = 0; $i -lt 15; $i++) {
+        Start-Sleep -Seconds 1
+        try { Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2 | Out-Null; break } catch { }
+    }
+    Write-Host "Models directory: $Path"
+}
+
 if (-not $DerivedModel) {
     # Keep the base model untouched so other tools that use it are unaffected.
     $DerivedModel = ($BaseModel -replace ':', '-') + '-copilot'
@@ -75,6 +139,9 @@ try {
 catch {
     throw "Ollama is installed but not responding at $apiRoot. Start it, then re-run this script."
 }
+
+Set-OllamaKeepAlive -KeepAlive $KeepAlive
+Set-OllamaModelDirectory -Path $ModelDirectory -OllamaPath $ollamaPath
 
 if (-not $SkipPull) {
     Write-Host "Pulling $BaseModel (this is a one-time download)..."
