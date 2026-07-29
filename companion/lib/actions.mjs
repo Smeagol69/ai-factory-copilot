@@ -27,7 +27,16 @@ export const WRITE_ACTION_KINDS = [
  * Actions that only draw. These change nothing, so they are never gated behind
  * the write switch and never need confirming.
  */
-export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight"];
+export const OVERLAY_ACTION_KINDS = [
+  "highlight",
+  "clear_highlight",
+  // The game's own map markers. Distinct from `highlight`, which draws tracer
+  // lines and boxes over many targets at once: a waypoint is one destination,
+  // and it belongs on the map and the compass with the live distance readout
+  // the game already provides. Reimplementing that would have been worse.
+  "waypoint",
+  "clear_waypoints",
+];
 
 /** Everything the mod knows how to execute. */
 export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
@@ -322,6 +331,13 @@ export function validateAction(graph, proposal) {
     const radius = finite(proposal.radius_m);
     if (radius !== null && radius <= 0) {
       return reject(kind, "radius_must_be_positive");
+    }
+    // A waypoint without a position is a pin dropped at the origin, which is a
+    // silent wrong answer rather than an error the player would notice.
+    if (kind === "waypoint") {
+      const location = vector(proposal.location);
+      if (!location) return reject(kind, "location_must_be_an_xyz_object");
+      rest.location = location;
     }
     return {
       valid: true,

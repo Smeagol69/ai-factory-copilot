@@ -12,6 +12,8 @@
 #include "FGBlueprintSubsystem.h"
 #include "FGBuildableSubsystem.h"
 #include "FGCharacterPlayer.h"
+#include "FGMapManager.h"
+#include "FGMapMarker.h"
 #include "FGConstructDisqualifier.h"
 #include "FGDismantleInterface.h"
 #include "FGInventoryComponent.h"
@@ -482,17 +484,30 @@ namespace
         double YawError = FRotator::NormalizeAxis(
             RequestedYaw - Hologram->GetActorRotation().Yaw);
         constexpr double YawToleranceDegrees = 0.5;
+        bool bRotationUnavailable = false;
         if (FMath::Abs(YawError) > YawToleranceDegrees)
         {
             const int32 RotationStep = Hologram->GetRotationStep();
             if (RotationStep <= 0)
             {
-                OutFailure = FString::Printf(
-                    TEXT("hologram_has_no_rotation_step:requested_yaw=%.3f,actual_yaw=%.3f"),
-                    RequestedYaw,
-                    Hologram->GetActorRotation().Yaw);
-                return false;
+                // The building has no rotation freedom at all — a miner snaps to
+                // its node, a wall to its frame. The player asked for the
+                // building, and the yaw was never theirs to choose, so placing
+                // it and saying the rotation was ignored is the honest outcome.
+                // Refusing meant "place a miner on this node facing north"
+                // failed outright over a detail the game does not offer.
+                bRotationUnavailable = true;
+                Predicted->SetBoolField(TEXT("rotation_ignored"), true);
+                Predicted->SetStringField(
+                    TEXT("rotation_ignored_reason"),
+                    FString::Printf(
+                        TEXT("This building has no rotation step: the game fixes its orientation. "
+                             "Requested yaw %.1f, placed at %.1f."),
+                        RequestedYaw,
+                        Hologram->GetActorRotation().Yaw));
             }
+            else
+            {
             const int32 ScrollTicks =
                 FMath::RoundToInt(YawError / static_cast<double>(RotationStep));
             if (ScrollTicks == 0)
@@ -504,13 +519,14 @@ namespace
             Hologram->UpdateHologramPlacement(Hit);
             YawError = FRotator::NormalizeAxis(
                 RequestedYaw - Hologram->GetActorRotation().Yaw);
+            }
         }
 
         Predicted->SetObjectField(
             TEXT("hologram_transform"),
             ActionTransformJson(Hologram->GetActorTransform()));
         Predicted->SetNumberField(TEXT("hologram_yaw_error_degrees"), YawError);
-        if (FMath::Abs(YawError) > YawToleranceDegrees)
+        if (!bRotationUnavailable && FMath::Abs(YawError) > YawToleranceDegrees)
         {
             OutFailure = FString::Printf(
                 TEXT("requested_yaw_is_not_representable:requested=%.3f,actual=%.3f"),
@@ -635,6 +651,152 @@ namespace
         if (Lower == TEXT("white")) return FLinearColor::White;
         // An unrecognised name keeps the default rather than drawing nothing.
         return Fallback;
+    }
+
+    /** Marks the markers this copilot owns, so the player's own pins are safe. */
+    const FString AIFactoryWaypointCategory = TEXT("AI Factory Copilot");
+
+    /**
+     * `waypoint` / `clear_waypoints`, using the game's own map markers.
+     *
+     * The drawn overlay is the right tool for "show me every beryl nut in 100 m"
+     * — many targets, seen at once, gone when you clear them. It is the wrong
+     * tool for "mark the best HUB site", because the game already has a marker
+     * system that puts a pin on the map and a bearing with a live distance
+     * readout on the compass, exactly like the resource scanner. Reimplementing
+     * that would be worse than using it.
+     *
+     * Markers are saved with the world, so they survive a reload — which is why
+     * this reports the marker's GUID and offers a targeted clear rather than
+     * only clearing everything.
+     */
+    FAIFactoryActionResult RunWaypointAction(
+        const FAIFactoryActionContext& Context,
+        const FString& Kind,
+        const TSharedPtr<FJsonObject>& Spec)
+    {
+        FAIFactoryActionResult Result;
+        Result.Action = Kind;
+
+        if (!IsValid(Context.World))
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("no_world"));
+        }
+
+        AFGMapManager* MapManager = AFGMapManager::Get(Context.World);
+        if (!IsValid(MapManager))
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("map_manager_unavailable"));
+        }
+
+        if (Kind == TEXT("clear_waypoints"))
+        {
+            FString NameFilter;
+            Spec->TryGetStringField(TEXT("name_contains"), NameFilter);
+
+            TArray<FMapMarker> Markers;
+            MapManager->GetMapMarkers(Markers);
+
+            int32 Removed = 0;
+            for (const FMapMarker& Marker : Markers)
+            {
+                // Only markers this copilot placed are removable by default: the
+                // player's own pins are not ours to delete.
+                const bool bIsOurs = Marker.CategoryName == AIFactoryWaypointCategory;
+                const bool bMatchesName =
+                    NameFilter.IsEmpty() || Marker.Name.Contains(NameFilter);
+                if (bIsOurs && bMatchesName)
+                {
+                    MapManager->RemoveMapMarker(Marker);
+                    ++Removed;
+                }
+            }
+
+            TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
+            Observed->SetNumberField(TEXT("waypoints_removed"), Removed);
+            Observed->SetNumberField(TEXT("markers_left"), MapManager->GetNumMapMarkers());
+            Result.Observed = Observed;
+            Result.bAccepted = true;
+            Result.bCommitted = true;
+            Result.Status = Removed > 0 ? TEXT("committed") : TEXT("nothing_to_clear");
+            return Result;
+        }
+
+        const TSharedPtr<FJsonObject>* LocationJson = nullptr;
+        if (!Spec->TryGetObjectField(TEXT("location"), LocationJson) || !LocationJson)
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("location_is_required"));
+        }
+        double LocationX = 0.0;
+        double LocationY = 0.0;
+        double LocationZ = 0.0;
+        if (!(*LocationJson)->TryGetNumberField(TEXT("x"), LocationX) ||
+            !(*LocationJson)->TryGetNumberField(TEXT("y"), LocationY) ||
+            !(*LocationJson)->TryGetNumberField(TEXT("z"), LocationZ))
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("location_must_be_an_xyz_object"));
+        }
+        const FVector Location(LocationX, LocationY, LocationZ);
+        if (Location.ContainsNaN())
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("location_is_not_a_number"));
+        }
+
+        if (!MapManager->CanAddNewMapMarker())
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("map_marker_limit_reached"));
+        }
+
+        FMapMarker Marker;
+        Marker.Location = Location;
+        Marker.Name = TEXT("Copilot waypoint");
+        Spec->TryGetStringField(TEXT("name"), Marker.Name);
+        Marker.CategoryName = AIFactoryWaypointCategory;
+        Marker.MapMarkerType = ERepresentationType::RT_MapMarker;
+        Marker.Color = FLinearColor(0.1f, 0.8f, 1.0f, 1.0f);
+        Marker.Scale = 1.0f;
+        // The point of using the game's markers is the compass readout, so it is
+        // on by default rather than left at the struct's CVD_Off.
+        Marker.CompassViewDistance = ECompassViewDistance::CVD_Always;
+
+        int32 IconId = 0;
+        if (Spec->TryGetNumberField(TEXT("icon_id"), IconId))
+        {
+            Marker.IconID = IconId;
+        }
+
+        if (Context.bDryRun)
+        {
+            TSharedPtr<FJsonObject> Predicted = MakeShared<FJsonObject>();
+            Predicted->SetStringField(TEXT("name"), Marker.Name);
+            Predicted->SetObjectField(TEXT("location"), ActionVectorJson(Location));
+            Predicted->SetStringField(TEXT("shown_on"), TEXT("map and compass, with live distance"));
+            Result.Predicted = Predicted;
+            Result.bAccepted = true;
+            Result.bDryRun = true;
+            Result.Status = TEXT("dry_run");
+            return Result;
+        }
+
+        FMapMarker Created;
+        if (!MapManager->AddNewMapMarker(Marker, Created))
+        {
+            return FAIFactoryActionResult::Refuse(Kind, TEXT("game_refused_the_map_marker"));
+        }
+
+        TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
+        Observed->SetStringField(TEXT("marker_guid"), Created.MarkerGUID.ToString());
+        Observed->SetStringField(TEXT("name"), Created.Name);
+        Observed->SetObjectField(TEXT("location"), ActionVectorJson(Created.Location));
+        Observed->SetNumberField(TEXT("total_markers"), MapManager->GetNumMapMarkers());
+        Observed->SetStringField(
+            TEXT("visible_on"),
+            TEXT("The map and the compass, with the game's own live distance readout."));
+        Result.Observed = Observed;
+        Result.bAccepted = true;
+        Result.bCommitted = true;
+        Result.Status = TEXT("committed");
+        return Result;
     }
 
     /** `highlight` / `clear_highlight`, expressed as an action result. */
@@ -1699,6 +1861,10 @@ namespace
         {
             return UndoLast(Context);
         }
+        if (Kind == TEXT("waypoint") || Kind == TEXT("clear_waypoints"))
+        {
+            return RunWaypointAction(Context, Kind, Spec);
+        }
         if (Kind == TEXT("highlight") || Kind == TEXT("clear_highlight"))
         {
             return RunOverlayAction(Context, Kind, Spec);
@@ -1794,7 +1960,8 @@ FString ExecutePlan(
         {
             continue;
         }
-        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight"))
+        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight") ||
+            Item.Kind == TEXT("waypoint") || Item.Kind == TEXT("clear_waypoints"))
         {
             Item.Preflight.Action = Item.Kind;
             Item.Preflight.bAccepted = true;

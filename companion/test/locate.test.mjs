@@ -18,7 +18,9 @@ import {
   explainRoutingMiss,
   isUnactionableInput,
   parseLocateRequest,
+  parsePlaceRequest,
   parseTeleportRequest,
+  parseWaypointRequest,
   parseUndoRequest,
 } from "../lib/router.mjs";
 
@@ -195,4 +197,51 @@ test("a routing miss names the route it nearly took and the word that blocked it
     /find_best_site matched .* but left: .*lake/,
   );
   assert.equal(explainRoutingMiss("tell me a joke"), "no route pattern matched");
+});
+
+/* ---------------- placing and marking without a model ---------------- */
+
+test("a placement request is three lookups, so it costs nothing", () => {
+  const parsed = parsePlaceRequest("place a mk1 miner on this node facing north");
+  assert.deepEqual(parsed.target, { kind: "aim" });
+  assert.equal(parsed.building, "a mk1 miner");
+  assert.equal(parsed.facing.yaw, 0);
+  assert.equal(parsed.facing.described, "north");
+});
+
+test("placement refuses the cases that genuinely need a model", () => {
+  // Multiple buildings, a layout, or a connection is a design problem.
+  for (const question of [
+    "place a mk1 miner on this node and belt it to a smelter",
+    "build me a fully functional mk1 module on this node",
+    "place three miners on these nodes",
+    "place a miner on this node facing sideways",
+  ]) {
+    assert.equal(parsePlaceRequest(question), null, question);
+  }
+});
+
+test("a waypoint uses the game's own marker system", () => {
+  const emitted = [];
+  const services = { actions: { emit: (actions) => emitted.push(...actions) } };
+  const answer = answerLocally("waypoint BP_ResourceNode12_91", graph, services);
+
+  assert.equal(answer.local.solver, "waypoint");
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].action, "waypoint");
+  assert.deepEqual(emitted[0].location, { x: 10_000, y: 0, z: 0 });
+  assert.equal(emitted[0].name, "BP_ResourceNode12_91");
+  // The distance readout is the reason for using the game's markers at all.
+  assert.match(answer.reply, /compass/);
+});
+
+test("waypointing the best site asks the site solver, not the model", () => {
+  const parsed = parseWaypointRequest("create me a waypoint for best hub location");
+  assert.equal(parsed.kind, "best_site");
+});
+
+test("a drawn overlay request is still an overlay, not a waypoint", () => {
+  // Many targets seen at once through terrain is what the line batcher is for;
+  // a single destination with a distance is what the map marker is for.
+  assert.equal(parseWaypointRequest("show me every beryl nut in 100m"), null);
 });

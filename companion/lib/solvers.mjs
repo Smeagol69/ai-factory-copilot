@@ -2059,3 +2059,149 @@ function findPlayerLocation(graph) {
   }
   return null;
 }
+
+/* ---------------- placing a building without a model ---------------- */
+
+/**
+ * A build recipe is one the build gun produces. That is the game's own
+ * distinction, not a name convention, so it holds for modded buildings too.
+ */
+const BUILD_GUN_CLASS = "BP_BuildGun";
+
+/** Tokens that add nothing to a building name: "a mk1 miner" == "Miner Mk.1". */
+const PLACEMENT_NOISE = new Set(["a", "an", "the", "new", "another", "mk", "mark"]);
+
+function placementTokens(text) {
+  return String(text ?? "")
+    .toLowerCase()
+    .replace(/mk\s*\.?\s*(\d)/g, "mk$1")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((token) => token && !PLACEMENT_NOISE.has(token));
+}
+
+/**
+ * Finds the build recipe the player named.
+ *
+ * Exact token-set equality first, then containment. Anything ambiguous is
+ * refused with the candidates listed rather than resolved by preference — the
+ * player asked for one specific building, and picking for them is the kind of
+ * silent guess that puts the wrong machine on a node.
+ */
+export function solveBuildRecipeLookup(graph, args = {}) {
+  const wanted = placementTokens(args.building);
+  if (wanted.length === 0) {
+    return { solver: "build_recipe_lookup", resolved: false, reason: "no building was named" };
+  }
+
+  const recipes = graph?.snapshot?.content?.recipes ?? [];
+  const buildRecipes = recipes.filter((recipe) =>
+    (recipe.produced_in ?? []).some((producer) => String(producer).includes(BUILD_GUN_CLASS)),
+  );
+
+  const wantedKey = [...wanted].sort().join(" ");
+  const exact = [];
+  const partial = [];
+  for (const recipe of buildRecipes) {
+    const tokens = placementTokens(recipe.name);
+    if (tokens.length === 0) continue;
+    if ([...tokens].sort().join(" ") === wantedKey) exact.push(recipe);
+    else if (wanted.every((token) => tokens.includes(token))) partial.push(recipe);
+  }
+
+  // An unavailable recipe is a real answer: the building exists but is not
+  // unlocked, which is different from not existing.
+  const pick = (list) => {
+    const available = list.filter((recipe) => recipe.available);
+    return available.length > 0 ? available : list;
+  };
+
+  const candidates = exact.length > 0 ? pick(exact) : pick(partial);
+  if (candidates.length === 0) {
+    return {
+      solver: "build_recipe_lookup",
+      resolved: false,
+      reason: `nothing buildable is named "${args.building}"`,
+    };
+  }
+  if (candidates.length > 1) {
+    return {
+      solver: "build_recipe_lookup",
+      resolved: false,
+      reason: `"${args.building}" matches more than one building`,
+      candidates: candidates.slice(0, 6).map((recipe) => recipe.name),
+    };
+  }
+
+  const [recipe] = candidates;
+  if (!recipe.available) {
+    return {
+      solver: "build_recipe_lookup",
+      resolved: false,
+      reason: `${recipe.name} is not unlocked yet`,
+      recipe_class: recipe.class_path,
+    };
+  }
+  return {
+    solver: "build_recipe_lookup",
+    resolved: true,
+    recipe_class: recipe.class_path,
+    name: recipe.name,
+    owner_mod: recipe.owner_mod ?? null,
+  };
+}
+
+/**
+ * Where "this", "here", or a named thing actually is.
+ *
+ * "this" is whatever the player is aiming at, which the mod captures every
+ * tick — the snapshot's own grounding rules say to prefer it over anything in
+ * the conversation, because the player has usually moved since.
+ */
+export function solvePlacementTarget(graph, args = {}) {
+  const context = graph?.snapshot?.interaction_context ?? {};
+  const kind = args.kind;
+
+  if (kind === "aim") {
+    const target = context.preferred_target;
+    if (!target?.available) {
+      return { resolved: false, reason: "you are not aiming at anything the capture could identify" };
+    }
+    const snapshotOfActor = target.actor_snapshot ?? {};
+    // A resource node is placed *on*, so its own centre is the target. Ground
+    // is placed *at*, so the exact point under the crosshair is.
+    if (snapshotOfActor.kind === "resource_node" && snapshotOfActor.location) {
+      return {
+        resolved: true,
+        location: snapshotOfActor.location,
+        on: snapshotOfActor.name ?? target.actor_name,
+        node_type: snapshotOfActor.node_type ?? null,
+        occupied: Boolean(snapshotOfActor.occupied),
+      };
+    }
+    if (target.hit_location) {
+      return { resolved: true, location: target.hit_location, on: target.actor_name ?? "the ground" };
+    }
+    return { resolved: false, reason: "the thing you are aiming at has no usable position" };
+  }
+
+  if (kind === "here") {
+    const here = context.preferred_target?.hit_location ?? context.player?.pawn_location;
+    return here
+      ? { resolved: true, location: here, on: "where you are standing" }
+      : { resolved: false, reason: "your position is not in this capture" };
+  }
+
+  const found = solveActorLookup(graph, { ...args.lookup, limit: 1 });
+  const [match] = found?.matches ?? [];
+  if (!match?.location_cm) {
+    return { resolved: false, reason: `nothing in the snapshot matches "${args.lookup?.target}"` };
+  }
+  return {
+    resolved: true,
+    location: match.location_cm,
+    on: match.name ?? match.actor_id,
+    node_type: match.node_type ?? null,
+    occupied: match.occupied ?? false,
+  };
+}

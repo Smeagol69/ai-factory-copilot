@@ -197,9 +197,104 @@ A plan is preflighted whole, stops at its first runtime failure, and rolls back
 the reversible writes it already made. Successful multi-step writes are one undo
 transaction. Dismantle and undo must each be standalone committed writes.
 
+## Where the last session left off (2026-07-29)
+
+Read this first if you are picking up work. Everything below was driven by
+watching a live play session and reading what it actually cost.
+
+**The finding that mattered: nothing was free.** Local routing was measured at
+~75% coverage, but a whole play session went by paying for every question. Three
+causes, all now fixed:
+
+1. The bridge runs from a clean-install copy, so repo edits were not live. See
+   the deploy trap below — it has now bitten twice.
+2. **The question text was never logged**, so routing patterns had been tuned
+   against phrasings I invented. Real ones missed by one word: "where should i
+   build my hub **on the whole map**" left `whole, map`; "whats my power
+   **looking like today**" left `looking, today`. Both routes were correct and
+   both were rejected by the residue guard over padding.
+3. Writes had **no local coverage at all**, and the session was write-heavy. The
+   75% was measured on read questions only.
+
+`explainRoutingMiss()` in `companion/lib/router.mjs` now reports the near miss,
+and `server.mjs` appends every question to
+`%LOCALAPPDATA%\FactoryGame\Saved\AIFactoryCopilot\Diagnostics\routing.jsonl`.
+
+**Read that log before adding patterns.** It is the difference between tuning
+against evidence and guessing again:
+
+```powershell
+Get-Content "$env:LOCALAPPDATA\FactoryGame\Saved\AIFactoryCopilot\Diagnostics\routing.jsonl" |
+  ForEach-Object { $_ | ConvertFrom-Json } |
+  Where-Object { $_.answeredBy -eq 'model' } |
+  Select-Object question, miss
+```
+
+### What is now answered locally (free)
+
+| Request | Route | Why it needs no model |
+|---|---|---|
+| "where is BP_ResourceNode12_91" | `locate` | A search of the complete snapshot |
+| "place a mk1 miner on this node facing north" | `place_building` | Three lookups: name→recipe, aim→coordinate, compass→yaw |
+| "waypoint the best hub location" | `waypoint` | Site solver output handed to the game's marker system |
+| "teleport me to \<thing\>" | `teleport_player` | A lookup followed by a move |
+| "undo" | `undo_last` | One meaning, no arguments |
+| a stray "1" or "?" | `clarify` | Cost $0.25 once; now never reaches a model |
+
+Each falls through to the model when its target does not resolve. That is
+deliberate and must stay: placing the wrong building is not a cheaper answer,
+it is a building to dismantle.
+
+### Two things the game already did better than we did
+
+- **Waypoints use `AFGMapManager::AddNewMapMarker`** (`FMapMarker` in
+  `FGMapMarker.h`), with `CompassViewDistance = CVD_Always`. That gives the map
+  pin *and* the compass distance readout for free — the same thing the resource
+  scanner shows. Markers are categorised `"AI Factory Copilot"` so
+  `clear_waypoints` never deletes the player's own pins. The drawn
+  `ULineBatchComponent` overlay is **not** replaced and is still the right tool
+  for "show me every beryl nut in 100 m": many targets, at once, through
+  terrain.
+- **`hologram_has_no_rotation_step` was my bug, not the game's.** A miner on a
+  node has no rotation freedom, so "facing north" is not a request the game can
+  honour. Refusing the whole placement over it was wrong; it now places and
+  reports `rotation_ignored` with the reason.
+
+### Terrain no longer forgets what it measured
+
+`companion/lib/terrain-cache.mjs`. The mod probes terrain with line traces,
+which only hit streamed-in geometry, so it probes within 500 m of the player and
+caps at `MaxTerrainProbes = 150`. On a 996-node save that is at best 15%
+coverage, and every capture threw the results away.
+
+Satisfactory's map is fixed, so a measurement stays true. The cache harvests
+every live reading, refills what the current capture missed, and reports
+coverage in the response as `terrain_cache`. Rules that keep it honest:
+`no_ground_found` is an absence and is never stored; a served reading is marked
+`from_cache` with its age; and obstruction counts carry an explicit caveat
+because the player builds and dismantles.
+
+**Still unverified, and cheap to settle:** `NORTH_IS_YAW_DEGREES = 0` in
+`router.mjs` assumes the game's compass north is Unreal's +X. Every reply states
+the yaw it used, so place one miner facing north in a live save, look at the
+compass, and correct that single constant if it is wrong.
+
+### Immediate next steps
+
+1. **Package the mod.** The C++ changes (waypoints, the rotation fix) compile
+   clean against the Starter Project but the game was running, so
+   `package-local.ps1` refused to replace the deployed DLL. Close Satisfactory
+   and run it. The companion changes are already deployed and live.
+2. **The belted Mk1 module the owner asked for** — miner → smelter → splitter,
+   machines as tight as the game allows, so they can build over it. This is
+   blocked on open item 2 below (belt routing). Start with the narrow case: a
+   straight belt between two placed machines whose connectors already face each
+   other.
+3. Read `routing.jsonl` and widen routing from what is actually in it.
+
 ## State of play
 
-Done: the read-only scanner; fifteen tools (eleven solvers plus four action
+Done: the read-only scanner; sixteen tools (twelve solvers plus four action
 tools); terrain probing; site selection; production planning against the live
 base; the layout designer; server-authoritative writes; in-world overlays;
 official-source web search; adaptive thinking; multi-line in-game chat;
@@ -217,7 +312,7 @@ solvers report unlock status on a three-tier ladder — live recipe-manager stat
 then in-use-in-world, then an explicit unknown for snapshots predating the
 field — rather than a blanket "not determinable".
 
-Latest verified checkpoint (2026-07-28): all 256 companion tests pass and the
+Latest verified checkpoint (2026-07-29): all 324 companion tests pass and the
 FactoryEditor Development target compiles against the local official Starter
 Project headers. The repo source was synced into the Starter Project after that
 compile. The companion is clean-installed at

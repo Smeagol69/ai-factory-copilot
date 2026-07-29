@@ -11,6 +11,7 @@ import {
   formatCostFooter,
 } from "./lib/pricing.mjs";
 import { answerLocally, explainRoutingMiss } from "./lib/router.mjs";
+import { createTerrainCache } from "./lib/terrain-cache.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
 import { resolveSourcePolicy } from "./lib/sources.mjs";
@@ -153,6 +154,10 @@ export function createBridgeServer({ env = process.env } = {}) {
   // the cost of the answer the player just got.
   const ledger = createSessionLedger();
   const showCost = env.AIFACTORY_COST_FOOTER !== "false";
+  // Ground measured on any earlier visit, kept because the map never changes.
+  const terrainCache = createTerrainCache({
+    filePath: env.AIFACTORY_TERRAIN_CACHE || undefined,
+  });
 
   return http.createServer(async (request, response) => {
     try {
@@ -245,6 +250,14 @@ export function createBridgeServer({ env = process.env } = {}) {
           error: "Snapshot does not declare the authoritative-or-unknown data policy.",
         });
       }
+
+      // Terrain measured on an earlier visit is still true — the map does not
+      // change — so it is folded back in before anything reads the snapshot.
+      // Without this, ground the player walked past an hour ago comes back as
+      // "unmeasured" and every site beyond the probe radius scores blind.
+      const harvested = terrainCache.harvest(body.world_snapshot);
+      const restored = terrainCache.apply(body.world_snapshot);
+      terrainCache.flush();
 
       // The solvers read the complete snapshot; only the model's view is reduced.
       // A whole-world content catalog runs to hundreds of thousands of tokens and
@@ -347,6 +360,16 @@ export function createBridgeServer({ env = process.env } = {}) {
         retained_history_messages: sessions.get(sessionId)?.length ?? 0,
         omissions: view.omissions,
         payload_view: payloadView,
+        // Visible because it is the number that says whether travelling is
+        // buying coverage: sites filled from cache are sites that used to score
+        // blind.
+        terrain_cache: {
+          newly_measured: harvested.learned,
+          re_measured: harvested.refreshed,
+          restored_from_cache: restored.filled,
+          measured_live_this_capture: restored.already_live,
+          total_remembered: restored.cache_size,
+        },
         solver_calls: answer.solver_calls ?? [],
         // Prompt-cache accounting for this answer, so the saving is observable
         // rather than assumed.

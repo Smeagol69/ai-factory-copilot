@@ -41,7 +41,9 @@ namespace
         return
             bCommitted &&
             Action != TEXT("highlight") &&
-            Action != TEXT("clear_highlight");
+            Action != TEXT("clear_highlight") &&
+            Action != TEXT("waypoint") &&
+            Action != TEXT("clear_waypoints");
     }
 
     FString DescribeActionResults(const TArray<TSharedPtr<FJsonValue>>& Results)

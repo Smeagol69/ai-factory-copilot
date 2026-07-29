@@ -29,6 +29,8 @@ import {
   solveItemBalance,
   solvePowerCircuits,
   solveActorLookup,
+  solveBuildRecipeLookup,
+  solvePlacementTarget,
   solveSiteSelection,
   solveUnlockStatus,
   solveBlueprintLibrary,
@@ -335,6 +337,9 @@ export function parseShowRequest(question) {
   return { target, radius };
 }
 
+/** "clear waypoints" removes map markers; "clear overlays" removes drawings. */
+const CLEAR_WAYPOINTS = /\bclear\s+(?:my\s+|the\s+|all\s+)?way\s?points?\b|\bremove\s+(?:my\s+|the\s+|all\s+)?way\s?points?\b/i;
+
 const CLEAR_PATTERNS = [
   /^(?:can you |could you |please )?(?:clear|remove|hide|delete|turn off|get rid of)\s+(?:the\s+)?(?:all\s+)?(?:overlays?|highlights?|markers?|tracers?|lines?)\b/i,
 ];
@@ -364,6 +369,52 @@ const LOCATE_VERB =
 /** A siting question also starts with "where", and belongs to find_best_site. */
 const LOCATE_DISQUALIFIER = /\b(?:should|best|good|somewhere|recommend|better)\b/i;
 const LOCATE_LEADING_ARTICLE = /^(?:the|my|a|an|that|this|closest|nearest)\s+/i;
+
+/**
+ * "waypoint the best hub location", "mark BP_ResourceNode217 on my map".
+ *
+ * The game already has this: a map marker shows on the map and on the compass
+ * with a live distance readout, exactly like the resource scanner. So a
+ * waypoint request resolves a position and hands it to that system — there is
+ * nothing here a model would add.
+ *
+ * Distinct from the drawn overlay, which stays the right answer for "show me
+ * every beryl nut in 100 m": many targets, seen at once, through terrain.
+ */
+const WAYPOINT_VERB =
+  /^(?:can you |could you |please )?(?:create |make |set |drop |add |put )?(?:me )?(?:a |an |the )?way\s?point(?:\s+(?:for|on|at|to))?\s+/i;
+const WAYPOINT_ALT =
+  /^(?:can you |could you |please )?(?:mark|pin|flag)\s+(?:me\s+)?(?:a\s+|the\s+)?(.+?)\s+(?:on|to)\s+(?:my\s+|the\s+)?(?:map|compass)\s*$/i;
+/** Phrasings that name the siting solver's answer rather than a known place. */
+const WAYPOINT_BEST_SITE = /\b(?:best|ideal|optimal|recommended)\b.*\b(?:hub|site|spot|location|place|base)\b/i;
+
+export function parseWaypointRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+
+  let target = null;
+  const alt = text.match(WAYPOINT_ALT);
+  if (alt) target = alt[1].trim();
+  else if (WAYPOINT_VERB.test(text)) target = text.replace(WAYPOINT_VERB, "").trim();
+  if (!target) return null;
+
+  // "the best hub location" is not a name to look up — it is the site solver's
+  // output, which is already computed locally.
+  if (WAYPOINT_BEST_SITE.test(target)) return { kind: "best_site", target };
+
+  while (LOCATE_LEADING_ARTICLE.test(target)) {
+    target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  }
+  if (target.length < 2) return null;
+
+  return {
+    kind: "named",
+    target,
+    lookup: /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
+      ? { actor_id: target, target }
+      : { name_contains: target, target },
+  };
+}
 
 /**
  * "undo", "undo that", "revert that".
@@ -404,6 +455,90 @@ export function parseTeleportRequest(question) {
   return /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
     ? { actor_id: target, target, limit: 1 }
     : { name_contains: target, target, limit: 1 };
+}
+
+/**
+ * "place a mk1 miner on this node facing north".
+ *
+ * There is nothing to reason about here: the building is named, the target is
+ * whatever the player is aiming at, and the facing is a compass word. Every
+ * part is a lookup. This was costing half a dollar a go.
+ *
+ * Compound requests, blueprints, and anything with a quantity or a layout are
+ * deliberately excluded — those are the cases where the model earns its keep.
+ */
+const PLACE_VERB = /^(?:can you |could you |please )?(?:place|build|put|drop|spawn|construct|stick)\s+/i;
+const PLACE_PREPOSITION = /\s+(?:on|onto|at|over|in)\s+/i;
+const PLACE_FACING = /\s+(?:facing|pointing|oriented|rotated(?:\s+to)?)\s+([a-z0-9.\s-]+?)\s*$/i;
+const PLACE_EXCLUDED = /\b(?:blueprint|module|layout|factory|line|belt\s+from|and|then|also|plus)\b/i;
+const PLACE_AIM_TARGET = /^(?:this|that|it|the)?\s*(?:node|one|thing|spot|resource|deposit)?$/i;
+const PLACE_HERE = /^(?:here|my (?:feet|position|spot)|where i am(?: standing)?)$/i;
+
+/**
+ * Yaw for a compass word.
+ *
+ * Unreal's yaw is measured about +X, so 0 is +X and yaw increases toward +Y.
+ * Which world axis the game's compass calls north is a separate question, and
+ * the one number below is where that lives — the reply always states the yaw it
+ * used so a wrong convention shows up immediately rather than silently.
+ */
+const NORTH_IS_YAW_DEGREES = 0;
+const COMPASS = {
+  north: 0, n: 0, northeast: 45, ne: 45, east: 90, e: 90, southeast: 135, se: 135,
+  south: 180, s: 180, southwest: 225, sw: 225, west: 270, w: 270, northwest: 315, nw: 315,
+};
+
+function parseFacing(text) {
+  const cleaned = String(text ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  if (cleaned in COMPASS) {
+    return { yaw: (COMPASS[cleaned] + NORTH_IS_YAW_DEGREES) % 360, described: cleaned };
+  }
+  const degrees = cleaned.match(/^(-?\d+(?:\.\d+)?)(?:deg|degrees|°)?$/);
+  if (degrees) {
+    return { yaw: ((Number(degrees[1]) % 360) + 360) % 360, described: `${degrees[1]}°` };
+  }
+  return null;
+}
+
+export function parsePlaceRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || !PLACE_VERB.test(text) || PLACE_EXCLUDED.test(text)) return null;
+
+  let body = text.replace(PLACE_VERB, "").trim();
+
+  // Facing is stripped first so it cannot be mistaken for part of the target.
+  let facing = null;
+  const facingMatch = body.match(PLACE_FACING);
+  if (facingMatch) {
+    facing = parseFacing(facingMatch[1]);
+    if (!facing) return null; // A facing we cannot read is not one to ignore.
+    body = body.slice(0, facingMatch.index).trim();
+  }
+
+  // "build a smelter here" names its target without a preposition.
+  const bareHere = body.match(/^(.*?)\s+(here|at my feet|where i am(?: standing)?)$/i);
+
+  const split = body.split(PLACE_PREPOSITION);
+  if (split.length < 2 && !bareHere) return null;
+  const building = (bareHere ? bareHere[1] : split[0]).trim();
+  const target = bareHere ? bareHere[2].trim() : split.slice(1).join(" ").trim();
+  if (!building || !target) return null;
+
+  // A count means several buildings and a layout, which is a design question.
+  if (/^\d|\b(?:two|three|four|five|couple|few)\b/i.test(building)) return null;
+
+  if (PLACE_HERE.test(target)) return { building, target: { kind: "here" }, facing };
+  if (PLACE_AIM_TARGET.test(target)) return { building, target: { kind: "aim" }, facing };
+  return {
+    building,
+    target: {
+      kind: "named",
+      lookup: /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
+        ? { actor_id: target, target }
+        : { name_contains: target, target },
+    },
+    facing,
+  };
 }
 
 export function parseLocateRequest(question) {
@@ -651,6 +786,86 @@ export function answerLocally(question, graph, services) {
       Date.now(),
       "Undo has one meaning and no arguments.",
     );
+  }
+
+  // A waypoint is a position handed to the game's own marker system. The
+  // position either comes from the site solver or from a name lookup; neither
+  // needs a model.
+  const waypoint = parseWaypointRequest(question);
+  if (waypoint && graph) {
+    const started = Date.now();
+    let location = null;
+    let label = null;
+
+    if (waypoint.kind === "best_site") {
+      const site = solveSiteSelection(graph, {});
+      const best = site?.sites?.[0];
+      if (best?.center_cm) {
+        location = best.center_cm;
+        label = "Best HUB site";
+      }
+    } else {
+      const [match] = solveActorLookup(graph, { ...waypoint.lookup, limit: 1 })?.matches ?? [];
+      if (match?.location_cm) {
+        location = match.location_cm;
+        label = match.name ?? match.actor_id;
+      }
+    }
+
+    if (location) {
+      services?.actions?.emit?.([
+        { action: "waypoint", name: label, location, commit: true },
+      ]);
+      return localAnswer(
+        `Waypoint **${label}** set at \`x=${round(location.x)}, y=${round(location.y)}, ` +
+          `z=${round(location.z)}\`. It uses the game's own map markers, so it shows on your map ` +
+          "and on the compass with a live distance — same as a resource scanner ping. " +
+          'Say "clear waypoints" to remove the ones I placed.',
+        "waypoint",
+        started,
+        "A waypoint is a resolved position handed to the game's marker system.",
+      );
+    }
+  }
+
+  // "place a mk1 miner on this node facing north" is three lookups and no
+  // judgement: name to build recipe, aim target to coordinate, compass word to
+  // yaw. Every part is in the snapshot, so none of it is worth paying for.
+  const place = parsePlaceRequest(question);
+  if (place) {
+    const started = Date.now();
+    const recipe = solveBuildRecipeLookup(graph, { building: place.building });
+    const target = recipe.resolved ? solvePlacementTarget(graph, place.target) : null;
+
+    if (recipe.resolved && target?.resolved) {
+      const yaw = place.facing?.yaw ?? 0;
+      const action = {
+        action: "place_building",
+        recipe_class: recipe.recipe_class,
+        target: target.location,
+        rotation: { pitch: 0, yaw, roll: 0 },
+        commit: true,
+      };
+      services?.actions?.emit?.([action]);
+
+      const notes = [];
+      if (place.facing) notes.push(`facing ${place.facing.described} (yaw ${yaw}°)`);
+      if (target.node_type === "Deposit") {
+        notes.push("note: that is a hand-mined deposit, which cannot host a miner");
+      }
+      if (target.occupied) notes.push("note: something is already built there");
+      return localAnswer(
+        `Placing a **${recipe.name}** on ${target.on}` +
+          `${notes.length > 0 ? ` — ${notes.join("; ")}` : ""}. ` +
+          "The mod validates and reports what actually landed; say \"undo\" to reverse it.",
+        "place_building",
+        started,
+        "The building, the target and the facing were all lookups.",
+      );
+    }
+    // Anything unresolved goes to the model, which can ask or suggest. Placing
+    // the wrong building, or the right one in the wrong place, is not a cheaper
+    // answer — it is a building to dismantle.
   }
 
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
