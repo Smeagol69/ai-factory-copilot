@@ -23,6 +23,7 @@ import {
   solveProductionPlan,
   solveBlueprintLibrary,
   solveRecipeOptions,
+  solveActorLookup,
   solveSiteSelection,
   solveTransportCapacity,
   solveUnlockStatus,
@@ -218,6 +219,28 @@ export const SOLVER_TOOLS = [
       "The rendered HUD text plus progression-manager onboarding state, active milestone and remaining cost, game phase, todo lists, purchased schematics, highest tech tier, and exact available/unavailable recipe counts. If the HUD and manager disagree, both authoritative observations are returned.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     run: (graph) => solveUnlockStatus(graph),
+  },
+
+  {
+    name: "locate",
+    description:
+      "Finds a specific thing in the world and returns its exact coordinates. Use this whenever a placement, teleport, or overlay needs a position and you only have a name — 'BP_ResourceNode12_91', 'the nearest iron node', 'my constructors'. Searches the complete snapshot, not the reduced view you were given, so something absent from your context is often still findable here. For resource nodes it also reports purity, whether the node is occupied, and whether a miner can actually be built on it — a Deposit cannot, which is the usual reason a placement fails.",
+    parameters: {
+      type: "object",
+      properties: {
+        actor_id: { type: "string", description: "Exact actor_id, or the trailing name portion of one." },
+        name_contains: { type: "string", description: "Substring of the actor's name, e.g. \"ResourceNode12\"." },
+        resource_name: { type: "string", description: "Resource held, e.g. \"Iron Ore\", \"Coal\"." },
+        kind: {
+          type: "string",
+          enum: ["resource_node", "buildable", "item_pickup", "player", "vehicle"],
+          description: "Restrict to one kind of actor.",
+        },
+        limit: { type: "number", description: "Maximum matches to return. Defaults to 10, nearest first." },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) => solveActorLookup(graph, args),
   },
 
   /* ---------------- world-changing tools ---------------- */

@@ -10,7 +10,7 @@ import {
   estimateCost,
   formatCostFooter,
 } from "./lib/pricing.mjs";
-import { answerLocally } from "./lib/router.mjs";
+import { answerLocally, explainRoutingMiss } from "./lib/router.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
 import { resolveSourcePolicy } from "./lib/sources.mjs";
@@ -21,6 +21,31 @@ const LOOPBACK_HOST = "127.0.0.1";
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * Appends one line per question describing whether it was answered free.
+ *
+ * Deliberately fire-and-forget: a logging failure must never cost the player an
+ * answer, so every error here is swallowed. The file is JSON lines so a miss
+ * report can be read straight off disk with a one-liner.
+ */
+const ROUTING_LOG = path.join(
+  process.env.LOCALAPPDATA ?? ".",
+  "FactoryGame/Saved/AIFactoryCopilot/Diagnostics/routing.jsonl",
+);
+
+function recordRoutingOutcome(entry) {
+  try {
+    fs.mkdirSync(path.dirname(ROUTING_LOG), { recursive: true });
+    fs.appendFileSync(
+      ROUTING_LOG,
+      `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`,
+      "utf8",
+    );
+  } catch {
+    // Diagnostics are never worth failing a request over.
+  }
 }
 
 function jsonResponse(response, status, body) {
@@ -272,6 +297,17 @@ export function createBridgeServer({ env = process.env } = {}) {
       const answer = localAnswer ?? (await askProvider(provider, context, env));
 
       const answeredBy = answer.provider === "solvers" ? "local_solver" : "model";
+
+      // Every question is recorded with why it did or did not route. Routing was
+      // tuned against invented phrasings, and a whole play session went by with
+      // nothing free because real questions are not phrased the way I guessed.
+      // The log is what turns that from a guess into a list.
+      recordRoutingOutcome({
+        question: context.question,
+        answeredBy,
+        solver: answer.local?.solver ?? null,
+        miss: answeredBy === "model" ? explainRoutingMiss(context.question) : null,
+      });
       const cost =
         answeredBy === "local_solver"
           ? { ...estimateCost(answer.model, {}), usd: 0 }

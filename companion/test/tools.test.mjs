@@ -41,6 +41,7 @@ test("exposes the roadmap solver set to the model", () => {
     "get_unlock_status",
     "highlight",
     "list_blueprints",
+    "locate",
     "perform_actions",
     "plan_production",
   ]);

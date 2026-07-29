@@ -28,6 +28,7 @@ import {
   solveBottlenecks,
   solveItemBalance,
   solvePowerCircuits,
+  solveActorLookup,
   solveSiteSelection,
   solveUnlockStatus,
   solveBlueprintLibrary,
@@ -48,6 +49,19 @@ const FILLER = new Set([
   // Contraction remnants: the normaliser splits "where's" into "where" + "s",
   // so the orphaned letters must not count as meaningful leftovers.
   "s", "t", "re", "ll", "ve", "d", "dont", "cant", "wont", "isnt", "arent",
+  // Conversational padding, harvested from the routing miss log rather than
+  // imagined. Every one of these blocked a route that would have been correct:
+  // "where should i build my hub on the whole map" left "whole, map"; "whats my
+  // power looking like today" left "looking, today". None of them change what
+  // is being asked.
+  "actually", "again", "all", "already", "also", "always", "anyway", "area",
+  "bit", "doing", "even", "ever", "exactly", "far", "going", "guess",
+  "keep", "kind", "looking", "lot", "many", "map", "maybe", "mean",
+  "much", "new", "over", "pretty", "quick", "really", "rest",
+  "sort", "still", "sure", "think", "today", "total", "whole", "yet",
+  // Deliberately NOT filler: make, need, next, help, time, build. Each one can
+  // be the whole question ("what should I make there"), and treating them as
+  // padding let a compound question take a route that answered only half of it.
 ]);
 
 function normalize(question) {
@@ -223,6 +237,43 @@ function formatBlueprints(result) {
 }
 
 
+/**
+ * Input that cannot mean anything, answered for free.
+ *
+ * A stray "1" cost $0.25: the bridge sent 26k tokens of snapshot and ran solver
+ * rounds so a frontier model could say it did not understand. Nothing about
+ * that needed a model.
+ *
+ * Deliberately narrow. Short input is often perfectly actionable in context —
+ * "yes", "do it", "undo" all follow a previous turn — so only input with no
+ * possible meaning is caught: bare numbers, lone characters, and punctuation.
+ * Anything with a real word goes through.
+ */
+const MEANINGLESS = [
+  /^[\s\p{P}\p{S}]*$/u,        // punctuation or symbols only
+  /^\s*\d+\s*$/,               // a bare number
+  /^\s*\w\s*$/,                // a single character
+];
+
+export function isUnactionableInput(question) {
+  const text = String(question ?? "").trim();
+  if (!text) return true;
+  return MEANINGLESS.some((pattern) => pattern.test(text));
+}
+
+/** What to say instead, with enough of a nudge to be useful. */
+export function clarificationReply() {
+  return [
+    "That doesn't read as a question I can act on — could you say what you're after?",
+    "",
+    "Things that work well, and most of these cost nothing:",
+    "- **where should I build my hub** — scores real sites from measured terrain",
+    "- **show me every mercer sphere within 150 m** — draws them in-world",
+    "- **what's my power situation** / **what am I short of** / **what tier am I**",
+    "- **place a Mk1 Miner on BP_ResourceNode12_91** — builds it, if the game allows",
+  ].join("\n");
+}
+
 /* ---------------- overlays ---------------- */
 
 /**
@@ -300,6 +351,105 @@ export function parseClearRequest(question) {
  * normalised question, and the pattern's own text is what `residueIsFiller`
  * treats as consumed — so a route only fires when it explains the question.
  */
+/**
+ * "where is BP_ResourceNode12_91", "locate the nearest coal".
+ *
+ * A named lookup is the cheapest useful thing the copilot does and it was the
+ * one gap that forced a paid call: the model is given a reduced view, so a name
+ * it cannot see becomes "I don't know" unless something searches the complete
+ * snapshot for it. Nothing here needs reasoning, so nothing here should cost.
+ */
+const LOCATE_VERB =
+  /^(?:where\s+(?:is|are|s|was)|wheres|locate|find\s+me|find|show\s+me\s+the\s+location\s+of|coordinates?\s+(?:of|for)|coords?\s+(?:of|for)|position\s+of)\s+/i;
+/** A siting question also starts with "where", and belongs to find_best_site. */
+const LOCATE_DISQUALIFIER = /\b(?:should|best|good|somewhere|recommend|better)\b/i;
+const LOCATE_LEADING_ARTICLE = /^(?:the|my|a|an|that|this|closest|nearest)\s+/i;
+
+/**
+ * "undo", "undo that", "revert that".
+ *
+ * Nothing follows it and nothing modifies it, so anything past the verb other
+ * than filler means something else was asked and the model should handle it.
+ */
+const UNDO_VERB = /^(?:undo|revert|rewind|take that back|put it back)\b/i;
+
+export function parseUndoRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!UNDO_VERB.test(text)) return false;
+  const residue = text.replace(UNDO_VERB, "").trim().toLowerCase();
+  const words = residue.split(/\s+/).filter(Boolean);
+  const allowed = new Set(["that", "it", "the", "last", "one", "thing", "please", "action", "build"]);
+  return words.every((word) => allowed.has(word));
+}
+
+/** "teleport me to the pure iron node", "tp to BP_ResourceNode217". */
+const TELEPORT_VERB =
+  /^(?:can you |could you |please )?(?:teleport|tp|warp|take|send|move|bring)\s+(?:me\s+)?(?:back\s+)?(?:to|over to)\s+/i;
+
+export function parseTeleportRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || MULTI_CLAUSE.test(text)) return null;
+
+  const verb = text.match(TELEPORT_VERB);
+  if (!verb) return null;
+
+  let target = text.slice(verb[0].length).trim();
+  while (LOCATE_LEADING_ARTICLE.test(target)) {
+    target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  }
+  // A raw coordinate is not a name, and deserves the plausibility conversation
+  // the model gives it, so those still go to the model.
+  if (!target || target.length < 2 || /[=,]|\d{4,}/.test(target)) return null;
+
+  return /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
+    ? { actor_id: target, target, limit: 1 }
+    : { name_contains: target, target, limit: 1 };
+}
+
+export function parseLocateRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  if (LOCATE_DISQUALIFIER.test(text)) return null;
+  if (MULTI_CLAUSE.test(text)) return null;
+
+  const verb = text.match(LOCATE_VERB);
+  if (!verb) return null;
+
+  let target = text.slice(verb[0].length).trim();
+  // "nearest"/"the" carry no search value; the solver already sorts by distance.
+  while (LOCATE_LEADING_ARTICLE.test(target)) {
+    target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  }
+  if (!target || target.length < 2) return null;
+
+  // An exact actor name is worth matching as an id; anything else is a substring.
+  return /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
+    ? { actor_id: target, target }
+    : { name_contains: target, target };
+}
+
+function formatLocate(result, target) {
+  const matches = result?.matches ?? [];
+  if (!matches.length) {
+    return `Nothing in the snapshot matches **${target}**. ${
+      result?.searched ?? "The complete snapshot was searched"
+    }.`;
+  }
+  const lines = matches.slice(0, 6).map((m) => {
+    const at = `\`x=${round(m.location_cm?.x ?? 0)}, y=${round(m.location_cm?.y ?? 0)}, z=${round(m.location_cm?.z ?? 0)}\``;
+    const parts = [`**${m.name ?? m.actor_id}** — ${at}`];
+    if (m.distance_meters !== undefined) parts.push(`${round(m.distance_meters)} m away`);
+    if (m.purity) parts.push(m.purity);
+    if (m.can_host_a_miner === true) parts.push("a miner can be built here");
+    if (m.can_host_a_miner === false) parts.push(`no miner: ${m.why_not}`);
+    return `- ${parts.join(" · ")}`;
+  });
+  if (matches.length > lines.length) {
+    lines.push("", `${matches.length - lines.length} further match(es) not listed.`);
+  }
+  return lines.join("\n");
+}
+
 const ROUTES = [
   {
     name: "find_best_site",
@@ -423,12 +573,59 @@ export function routeQuestion(question) {
 }
 
 /**
+ * Why a question was not answered locally.
+ *
+ * Routing was tuned against phrasings I invented, which is how a session went
+ * by with every question paid: the routes were fine, the guesses about how the
+ * player actually types were not. This reports the near miss — which route was
+ * one word away, and which word blocked it — so the logged misses can be read
+ * later and turned into patterns. It costs nothing and runs only on the paid
+ * path, where a few microseconds are already lost in the noise.
+ */
+export function explainRoutingMiss(question) {
+  const normalized = normalize(question);
+  if (!normalized) return "empty question";
+
+  const candidates = [];
+  for (const route of ROUTES) {
+    for (const pattern of route.patterns) {
+      if (normalized.includes(pattern)) candidates.push({ route, pattern });
+    }
+  }
+  if (candidates.length === 0) return "no route pattern matched";
+
+  const distinctRoutes = new Set(candidates.map((entry) => entry.route.name));
+  if (distinctRoutes.size > 1) {
+    return `compound question spanning ${[...distinctRoutes].join(" + ")}`;
+  }
+
+  candidates.sort((a, b) => b.pattern.length - a.pattern.length);
+  const { route, pattern } = candidates[0];
+  const consumed = new Set(normalize([pattern, ...(route.extraFiller ?? [])].join(" ")).split(" "));
+  const leftover = normalized
+    .split(" ")
+    .filter((word) => word && !consumed.has(word) && !FILLER.has(word));
+  return `${route.name} matched "${pattern}" but left: ${leftover.join(", ")}`;
+}
+
+/**
  * Answers locally when a single solver covers the question.
  *
  * Returns null when it does not — the caller then falls through to the model,
  * which is always the safe direction to fail.
  */
 export function answerLocally(question, graph, services) {
+  // Cheapest possible check first: input that cannot mean anything never
+  // reaches a model.
+  if (isUnactionableInput(question)) {
+    return localAnswer(
+      clarificationReply(),
+      "clarify",
+      Date.now(),
+      "The input carried no actionable content, so no model was consulted.",
+    );
+  }
+
   // Overlays are pure action: no solver, no model, just a parsed filter the mod
   // resolves live. Handled before routing because they never need either.
   const clear = parseClearRequest(question);
@@ -441,6 +638,49 @@ export function answerLocally(question, graph, services) {
       Date.now(),
       "An overlay request is a filter, not a question — nothing to reason about.",
     );
+  }
+
+  // Undo carries no argument and needs no thought — it is the one word whose
+  // meaning is fixed. Paying a model to forward it was pure waste.
+  if (parseUndoRequest(question)) {
+    const action = { action: "undo_last", commit: true };
+    services?.actions?.emit?.([action]);
+    return localAnswer(
+      "Undoing the last thing I did. The mod reports what it actually reversed.",
+      "undo_last",
+      Date.now(),
+      "Undo has one meaning and no arguments.",
+    );
+  }
+
+  // "teleport me to <thing>" is a lookup followed by a move. Both halves are
+  // mechanical, so the whole request is: resolve the name against the complete
+  // snapshot, then emit the move at the coordinates that came back.
+  const teleport = parseTeleportRequest(question);
+  if (teleport) {
+    const started = Date.now();
+    const found = solveActorLookup(graph, teleport);
+    const [match] = found?.matches ?? [];
+    if (match?.location_cm) {
+      const action = {
+        action: "teleport_player",
+        target: match.location_cm,
+        snap_to_ground: true,
+        commit: true,
+      };
+      services?.actions?.emit?.([action]);
+      return localAnswer(
+        `Teleporting you to **${match.name ?? match.actor_id}** at \`x=${round(match.location_cm.x)}, ` +
+          `y=${round(match.location_cm.y)}, z=${round(match.location_cm.z)}\`` +
+          `${match.distance_meters !== undefined ? ` — ${round(match.distance_meters)} m away` : ""}. ` +
+          "Ground-snapped; the mod reports the actual landing spot.",
+        "teleport_player",
+        started,
+        "The destination was found by name; moving there needs no judgement.",
+      );
+    }
+    // The name did not resolve, so the model gets it — it may know a synonym,
+    // or need to ask. Guessing a coordinate here would drop the player in rock.
   }
 
   const show = parseShowRequest(question);
@@ -462,6 +702,25 @@ export function answerLocally(question, graph, services) {
       Date.now(),
       "An overlay request is a filter, not a question — nothing to reason about.",
     );
+  }
+
+  // A named lookup is answered from the snapshot. Deliberately after the
+  // overlay parse, which owns the "show"/"find"/"locate" verbs: those already
+  // draw a marker in-world, which beats reading coordinates off a chat panel.
+  const locate = parseLocateRequest(question);
+  if (locate) {
+    const started = Date.now();
+    const result = solveActorLookup(graph, locate);
+    if ((result?.matches ?? []).length > 0) {
+      return localAnswer(
+        formatLocate(result, locate.target),
+        "locate",
+        started,
+        "A lookup by name is a search of the snapshot, not a judgement.",
+      );
+    }
+    // No match may mean the thing exists under a name this parse did not guess,
+    // so an empty result falls through to the model rather than denying it.
   }
 
   const route = routeQuestion(question);

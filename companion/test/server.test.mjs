@@ -30,7 +30,7 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.conveyor_speed_divisor, 2);
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
   assert.ok(body.solver_tools.includes("find_best_site"));
-  assert.equal(body.solver_tools.length, 15);
+  assert.equal(body.solver_tools.length, 16);
   assert.ok(body.solver_tools.includes("design_factory_layout"));
   assert.ok(body.solver_tools.includes("perform_actions"));
   assert.equal(body.outside_references.web_search, true);

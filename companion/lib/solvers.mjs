@@ -10,6 +10,7 @@
 import { costAgainstInventory } from "./blueprints.mjs";
 import {
   buildGraph,
+  distanceMeters,
   finiteNumber,
   finitePositive,
   normalizeProductionStatus,
@@ -1963,3 +1964,98 @@ export function analyzeSnapshot(snapshot, options = {}) {
 }
 
 export { buildGraph, normalizeProductionStatus };
+
+/**
+ * Finds a specific thing in the world and says exactly where it is.
+ *
+ * The gap this closes: the model could be told a node's name by another solver,
+ * then had no way to ask where it was. It said so honestly rather than
+ * inventing a coordinate, but a build request naming a node could never
+ * succeed. The solvers read the complete snapshot, so the answer was always
+ * available — there was simply no tool that returned it.
+ *
+ * Matches on actor id, name, class, or resource, in that order of specificity.
+ */
+export function solveActorLookup(graph, args = {}) {
+  const { actor_id, name_contains, resource_name, kind, limit = 10 } = args;
+  const wanted = String(actor_id ?? "").trim();
+  const nameNeedle = String(name_contains ?? "").trim().toLowerCase();
+  const resourceNeedle = String(resource_name ?? "").trim().toLowerCase();
+  const kindNeedle = String(kind ?? "").trim().toLowerCase();
+
+  if (!wanted && !nameNeedle && !resourceNeedle && !kindNeedle) {
+    return {
+      solver: "actor_lookup",
+      found: false,
+      reason: "give an actor_id, name_contains, resource_name, or kind to look for",
+    };
+  }
+
+  const playerLocation = findPlayerLocation(graph);
+  const matches = [];
+
+  for (const node of graph.nodes.values()) {
+    const raw = node.raw ?? {};
+    const id = String(node.actor_id ?? "");
+    const name = String(raw.name ?? "");
+    const resource = String(raw.resource_name ?? "");
+
+    if (wanted && id !== wanted && !id.endsWith(wanted) && name !== wanted) continue;
+    if (nameNeedle && !name.toLowerCase().includes(nameNeedle) && !id.toLowerCase().includes(nameNeedle)) continue;
+    if (resourceNeedle && !resource.toLowerCase().includes(resourceNeedle)) continue;
+    if (kindNeedle && String(raw.kind ?? "").toLowerCase() !== kindNeedle) continue;
+
+    const location = raw.location ?? null;
+    const entry = {
+      actor_id: id,
+      name: name || null,
+      kind: raw.kind ?? null,
+      class_path: node.class_path ?? null,
+      location_cm: location,
+      distance_meters: location && playerLocation ? round(distanceMeters(playerLocation, location), 1) : null,
+    };
+
+    // Resource nodes carry the details that decide whether you can build here.
+    if (raw.kind === "resource_node") {
+      const nodeType = String(raw.node_type ?? "");
+      entry.resource_name = resource || null;
+      entry.purity = normalizeResourcePurity(raw.purity);
+      entry.node_type = nodeType || null;
+      entry.occupied = Boolean(raw.occupied);
+      entry.can_host_a_miner = (nodeType === "Node" || nodeType === "FrackingCore") && !raw.occupied;
+      if (!entry.can_host_a_miner) {
+        entry.why_not = raw.occupied
+          ? "something is already built on this node"
+          : "this is a hand-mined deposit, which cannot host a miner";
+      }
+    }
+    matches.push(entry);
+  }
+
+  matches.sort((a, b) => (a.distance_meters ?? 1e9) - (b.distance_meters ?? 1e9));
+  const capped = matches.slice(0, Math.max(1, limit));
+
+  return {
+    solver: "actor_lookup",
+    found: capped.length > 0,
+    query: { actor_id: wanted || null, name_contains: name_contains ?? null, resource_name: resource_name ?? null, kind: kind ?? null },
+    match_count: matches.length,
+    returned: capped.length,
+    matches: capped,
+    source: "read_from_the_complete_snapshot",
+    certainty: "authoritative",
+    note:
+      matches.length === 0
+        ? "Nothing in this snapshot matches. The capture is radius-limited, so it may exist outside what was scanned."
+        : "Coordinates are in centimetres and can be used directly in a placement.",
+  };
+}
+
+function findPlayerLocation(graph) {
+  const fromContext = graph?.snapshot?.interaction_context?.player?.pawn_location;
+  if (fromContext) return fromContext;
+  for (const node of graph?.nodes?.values() ?? []) {
+    if (node.raw?.kind === "player" && node.raw?.location) return node.raw.location;
+  }
+  return null;
+}

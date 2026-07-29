@@ -72,7 +72,8 @@ factory arithmetic yourself:
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - placing, removing, moving, or teleporting -> perform_actions;
-- showing the player where things are -> highlight / clear_highlight.
+- showing the player where things are -> highlight / clear_highlight;
+- the coordinates of a named thing, or whether a node can host a miner -> locate.
 Never rank locations or estimate a distance by reading coordinates yourself;
 find_best_site computes both. It also returns why_this_site, which explains the
 choice: which factor decided it, what the winner traded away, and the resources
