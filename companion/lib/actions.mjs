@@ -103,13 +103,27 @@ function reject(kind, reason, detail = {}) {
 }
 
 /**
- * Bind a proposed action to the exact world revision the solver read.
+ * Bind a proposed action to an exact world revision — opt in only.
  *
- * The game compares this string with its live revision immediately before
- * execution. Keeping the stamp out of the model-facing schema prevents the
- * model from inventing or accidentally reusing one.
+ * This was applied to every action, and it made writes impossible in a live
+ * game. `MarkWorldDirty` fires on every actor spawn and destroy, so items
+ * moving along a belt tick the counter continuously: a real build attempt
+ * failed with `expected=569, actual=600` because the world moved 31 times
+ * while the model was thinking. A global counter cannot distinguish "a leaf
+ * spawned two kilometres away" from "a building now occupies your target", so
+ * it rejected everything indiscriminately.
+ *
+ * The protection that actually matters is per-action and already runs mod-side
+ * immediately before mutation: the recipe is re-resolved, the ground re-probed,
+ * the footprint overlap-tested, the cost re-checked against live inventories,
+ * and the game's own hologram asked whether it can construct. That is precise
+ * where a revision counter is blunt, and it is what rule 4 relies on.
+ *
+ * The stamp is now attached only when a caller explicitly asks for "nothing
+ * may have changed at all" semantics.
  */
-function bindWorldRevision(graph, action) {
+function bindWorldRevision(graph, action, proposal) {
+  if (proposal?.require_unchanged_world !== true) return action;
   const revision = graph?.world_revision;
   if (revision === null || revision === undefined) return action;
   return { ...action, expect_world_revision: String(revision) };
@@ -165,7 +179,7 @@ export function validateAction(graph, proposal) {
         snap_to_ground: snapToGround,
         snap_clearance_cm: finite(proposal.snap_clearance_cm) ?? 200,
         commit: proposal.commit === true,
-      }),
+      }, proposal),
     };
   }
 
@@ -226,7 +240,7 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
         commit: proposal.commit === true,
-      }),
+      }, proposal),
     };
   }
 
@@ -266,7 +280,7 @@ export function validateAction(graph, proposal) {
         location,
         yaw: finite(proposal.yaw) ?? 0,
         commit: proposal.commit === true,
-      }),
+      }, proposal),
     };
   }
 
@@ -290,7 +304,7 @@ export function validateAction(graph, proposal) {
         action: kind,
         actor_id: actorId,
         commit: proposal.commit === true,
-      }),
+      }, proposal),
     };
   }
 
@@ -307,7 +321,7 @@ export function validateAction(graph, proposal) {
       valid: true,
       warnings,
       checks: { draws_only: true },
-      action: bindWorldRevision(graph, { ...rest, action: kind, commit: true }),
+      action: bindWorldRevision(graph, { ...rest, action: kind, commit: true }, proposal),
     };
   }
 
@@ -316,7 +330,7 @@ export function validateAction(graph, proposal) {
     valid: true,
     warnings,
     checks,
-    action: bindWorldRevision(graph, { action: kind, commit: proposal.commit === true }),
+    action: bindWorldRevision(graph, { action: kind, commit: proposal.commit === true }, proposal),
   };
 }
 

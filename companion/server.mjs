@@ -319,6 +319,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         answered_by: answeredBy,
         cost,
         session_spend: { usd: sessionTotal.usd, answers: sessionTotal.answers },
+        tier: answer.tier ?? null,
         local: answer.local ?? null,
         // The mod executes these server-side, re-validates each one, and only
         // commits those with commit:true when its own allowWriteActions is on.

@@ -79,7 +79,10 @@ test("commit is false unless the proposal set it", () => {
   assert.equal(asked.action.commit, true);
 });
 
-test("every validated action is bound to the snapshot revision", () => {
+test("actions are not bound to the world revision by default", () => {
+  // Binding every action made writes impossible in a live game: the revision
+  // ticks on every actor spawn, so a real build failed with expected=569
+  // actual=600 simply because belts were moving while the model thought.
   const graph = graphOf();
   const result = validateAction(graph, {
     action: "place_building",
@@ -87,6 +90,17 @@ test("every validated action is bound to the snapshot revision", () => {
     location: HERE,
   });
   assert.equal(result.valid, true);
+  assert.equal("expect_world_revision" in result.action, false);
+});
+
+test("a caller can still demand an unchanged world explicitly", () => {
+  const graph = graphOf();
+  const result = validateAction(graph, {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+    require_unchanged_world: true,
+  });
   assert.equal(result.action.expect_world_revision, String(graph.world_revision));
 });
 
@@ -181,7 +195,6 @@ test("perform_actions puts validated actions in the sink for the mod", () => {
   assert.equal(services.emitted.length, 1);
   assert.equal(services.emitted[0].action, "teleport_player");
   assert.equal(services.emitted[0].commit, true);
-  assert.equal(services.emitted[0].expect_world_revision, "41");
 });
 
 test("an invalid plan reaches the sink as nothing at all", () => {

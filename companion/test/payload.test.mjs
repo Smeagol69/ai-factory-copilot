@@ -250,7 +250,7 @@ test("askProvider routes local and ollama, and names every option on error", asy
   }
   await assert.rejects(
     () => askProvider("gpt9", makeContext(), {}),
-    /Use mock, local, openai, or anthropic/,
+    /Use mock, local, openai, anthropic, or hybrid/,
   );
 });
 

@@ -893,12 +893,85 @@ export async function askMock(context) {
   };
 }
 
+/**
+ * Questions the cheap tier should not be trusted with.
+ *
+ * The free tier narrates solver output well — that is a much easier job than
+ * reasoning, because every number is already computed. What it does badly is
+ * open-ended judgement, and the failure mode measured on a small local model
+ * was not a refusal but a confident fabrication: it invented Paleberry bushes
+ * and ore deposits that were not there.
+ *
+ * So escalation is by *shape of question*, not by whether the cheap tier
+ * happened to answer. Anything asking for a causal explanation, a comparison,
+ * a plan, or outside knowledge goes to the strong model.
+ */
+const ESCALATE_PATTERNS = [
+  /\bwhy\b/i,
+  /\bshould i\b/i,
+  /\bcompare|versus|vs\.?\b/i,
+  /\bbest way\b|\bbetter\b|\bworth it\b/i,
+  /\bexplain\b|\breason\b/i,
+  /\bplan\b|\bdesign\b|\blayout\b|\bstrategy\b/i,
+  /\brecommend|\bsuggest|\badvice\b/i,
+  /\bwhat if\b|\bwould it\b|\bcould i\b/i,
+];
+
+/** True when a question deserves the strong model rather than the cheap one. */
+export function needsStrongModel(question, env = process.env) {
+  const text = String(question ?? "");
+  if (env.AIFACTORY_ESCALATE === "always") return true;
+  if (env.AIFACTORY_ESCALATE === "never") return false;
+  // A long question is usually a compound or nuanced one.
+  if (text.split(/\s+/).length > 28) return true;
+  return ESCALATE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
+ * Free tier first, paid tier when the question earns it.
+ *
+ * Set AI_PROVIDER=hybrid with AIFACTORY_CHEAP_PROVIDER (default "local") and
+ * AIFACTORY_STRONG_PROVIDER (default "anthropic"). Escalation happens for two
+ * reasons, and both are reported on the answer so the choice is never silent:
+ *
+ *   - the question looks like one the cheap tier answers badly, or
+ *   - the cheap tier failed outright, in which case falling back is strictly
+ *     better than surfacing an error the player cannot act on.
+ */
+export async function askHybrid(context, env = process.env) {
+  const cheap = env.AIFACTORY_CHEAP_PROVIDER || "local";
+  const strong = env.AIFACTORY_STRONG_PROVIDER || "anthropic";
+
+  if (needsStrongModel(context.question, env)) {
+    const answer = await askProvider(strong, context, env);
+    return { ...answer, tier: { used: "strong", provider: strong, why: "question_shape_needs_reasoning" } };
+  }
+
+  try {
+    const answer = await askProvider(cheap, context, env);
+    return { ...answer, tier: { used: "cheap", provider: cheap, why: "answered_by_the_free_tier" } };
+  } catch (error) {
+    // A dead or misconfigured free tier must not cost the player their answer.
+    const answer = await askProvider(strong, context, env);
+    return {
+      ...answer,
+      tier: {
+        used: "strong",
+        provider: strong,
+        why: "cheap_tier_failed",
+        cheap_error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
 export async function askProvider(provider, context, env = process.env) {
   if (provider === "openai") return askOpenAI(context, env);
   if (provider === "anthropic") return askAnthropic(context, env);
   if (provider === "local" || provider === "ollama") return askLocal(context, env);
   if (provider === "mock") return askMock(context);
+  if (provider === "hybrid") return askHybrid(context, env);
   throw new Error(
-    `Unsupported AI_PROVIDER "${provider}". Use mock, local, openai, or anthropic.`,
+    `Unsupported AI_PROVIDER "${provider}". Use mock, local, openai, anthropic, or hybrid.`,
   );
 }
