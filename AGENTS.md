@@ -49,7 +49,7 @@ These are the project's spine. Breaking one is a regression even if tests pass.
 
 | Thing | Path |
 |---|---|
-| Repo | `C:\Users\roesl\Documents\satisfactory` |
+| Repo | `%USERPROFILE%\Documents\satisfactory` |
 | Coffee Stain engine | `D:\Modding\Satisfactory\UnrealEngine-CSS` (registry: `5.6.1-CSS`) |
 | Starter Project | `D:\Modding\Satisfactory\StarterProject` |
 | Game | `D:\SteamLibrary\steamapps\common\Satisfactory` |
