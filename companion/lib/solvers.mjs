@@ -1275,6 +1275,11 @@ export function solveSiteSelection(
           purity_weight_total: 0,
           nearest_distance_meters: Infinity,
           nearest_actor_id: null,
+          // The coordinate matters as much as the distance: without it a build
+          // request on "the nearest iron node" has nowhere to go, and the model
+          // is left trying to triangulate a position from distances alone.
+          nearest_location_cm: null,
+          nearest_purity: null,
         });
       }
       const entry = byResource.get(key);
@@ -1286,6 +1291,8 @@ export function solveSiteSelection(
       if (distanceCm / 100 < entry.nearest_distance_meters) {
         entry.nearest_distance_meters = distanceCm / 100;
         entry.nearest_actor_id = node.actor_id;
+        entry.nearest_location_cm = node.location ?? null;
+        entry.nearest_purity = node.purity ?? null;
       }
     }
 

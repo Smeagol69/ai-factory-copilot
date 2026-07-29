@@ -263,7 +263,7 @@ export function buildFactorySnapshot(overrides = {}) {
         occupied: true,
         resource_class: "Desc_OreIron",
         resource_name: "Iron Ore",
-        node_type: "RNT_Standard",
+        node_type: "Node",
         purity: "RP_Normal",
         amount_type: "RA_Infinite",
         has_resources: true,

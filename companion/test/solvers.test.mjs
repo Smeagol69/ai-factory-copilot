@@ -9,6 +9,7 @@ import {
   solveMachineRates,
   solvePowerCircuits,
   solveRecipeOptions,
+  solveSiteSelection,
   solveTransportCapacity,
   solveUnlockStatus,
 } from "../lib/solvers.mjs";
@@ -510,4 +511,42 @@ test("every solver survives an empty snapshot", () => {
   assert.deepEqual(solveTransportCapacity(graph).conveyors, []);
   assert.equal(solveRecipeOptions(graph, { item_class: "Desc_Anything" }).catalog_recipe_count, 0);
   assert.equal(solveUnlockStatus(graph).purchased_schematic_count, 0);
+});
+
+test("a resource entry reports where the nearest node is, not just how far", () => {
+  // Reporting distance without a coordinate left a build request on "the nearest
+  // iron node" with nowhere to go: the model tried to triangulate a position from
+  // distances alone, correctly refused to trust the result, and the question cost
+  // real money for no action. The fixture's own node is occupied, so this builds
+  // a minimal world with a free one.
+  const snapshot = buildFactorySnapshot();
+  snapshot.actors = [
+    ...snapshot.actors,
+    {
+      actor_id: "/Game/Test.Test:PersistentLevel.BP_FreeIronNode_C_1",
+      name: "BP_FreeIronNode_C_1",
+      class_path: "/Game/FactoryGame/Resource/BP_ResourceNode.BP_ResourceNode_C",
+      owner_mod: "FactoryGame",
+      kind: "resource_node",
+      location: { x: 5000, y: -2500, z: 120 },
+      occupied: false,
+      resource_class: "Desc_OreIron",
+      resource_name: "Iron Ore",
+      node_type: "Node",
+      purity: "RP_Normal",
+      amount_type: "RA_Infinite",
+      has_resources: true,
+    },
+  ];
+
+  const result = solveSiteSelection(buildGraph(snapshot), {});
+  const entries = result.sites.flatMap((site) => site.resources_in_radius ?? []);
+  assert.ok(entries.length > 0, "a free node should produce at least one scored site");
+
+  const iron = entries.find((entry) => entry.resource_name === "Iron Ore");
+  assert.ok(iron, "the free iron node should be reported");
+  assert.ok(iron.nearest_actor_id, "names which node is nearest");
+  assert.ok(Number.isFinite(iron.nearest_distance_meters), "says how far it is");
+  assert.deepEqual(iron.nearest_location_cm, { x: 5000, y: -2500, z: 120 }, "and says where it is");
+  assert.equal(iron.nearest_purity, "normal", "purity comes through normalised");
 });
