@@ -53,6 +53,9 @@ struct FAIFactoryActionResult
     bool bUndoable = false;
     FString UndoDescription;
 
+    /** Set when the world moved under the plan, whether or not that refused it. */
+    FString WorldRevisionDrift;
+
     TArray<FString> Warnings;
 
     static FAIFactoryActionResult Refuse(const FString& InAction, const FString& InReason)
@@ -93,6 +96,17 @@ struct FAIFactoryActionContext
     /** When set, the action is refused if the live world revision differs. */
     FString ExpectedWorldRevision;
     FString ActualWorldRevision;
+    /**
+     * Whether a moved world revision refuses the action, or is merely reported.
+     *
+     * It must be reported either way, but refusing on any drift makes writes
+     * impossible in a live game: `MarkWorldDirty` fires on every actor spawn
+     * and destroy, so items travelling along a belt tick the counter
+     * continuously. A global counter cannot tell a distant leaf from a building
+     * appearing on the target tile, and the per-action preflight below — recipe,
+     * ground, overlap, cost, hologram — is what actually answers that question.
+     */
+    bool bRequireUnchangedWorld = false;
 };
 
 namespace AIFactoryActions

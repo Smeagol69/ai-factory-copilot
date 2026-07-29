@@ -117,14 +117,17 @@ succeed; only the final copy fails.
   it is not free and it is not silent: the answer lands in the player's chat
   panel looking like an unrequested status dump. The repo default is `false`;
   turn it on to verify a deploy, then turn it back off.
-- **The world revision moves constantly — do not gate writes on it.**
+- **The world revision moves constantly — report drift, do not refuse on it.**
   `MarkWorldDirty` fires on every actor spawn and destroy, so items moving
   along a belt tick it continuously. A real build failed with
   `expected=569, actual=600` because the world moved 31 times while the model
-  was thinking. A global counter cannot tell a distant leaf from a building on
-  your target, so binding every action to it rejected everything. The real
-  protection is the mod's per-action preflight (recipe, ground, overlap, cost,
-  hologram), which is precise. `require_unchanged_world: true` opts back in.
+  was thinking. Two rules were in direct conflict: a committed write **must**
+  carry `expect_world_revision`, and the stamp had to match **exactly**. In a
+  live game both cannot hold. The stamp is now always sent and any drift is
+  reported on the result, but it only refuses the action when the caller sets
+  `require_unchanged_world`. The real check is the per-action preflight —
+  recipe, ground, overlap, cost, hologram — which is precise where a global
+  counter is blunt.
 - **`allowed_domains` can 400 the whole request.** Anthropic rejects a search
   tool naming a site that blocks its crawler (reddit.com does). Blocked hosts
   are filtered per provider in `sources.mjs`, and an unknown one is parsed out

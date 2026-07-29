@@ -566,7 +566,12 @@ namespace
         {
             return TEXT("not_server_authoritative");
         }
-        if (!Context.ExpectedWorldRevision.IsEmpty() &&
+        // Drift is always reported, but only refuses the action when the caller
+        // asked for it. Refusing on any drift made writes impossible in a live
+        // game — a real build failed with expected=569 actual=600 purely because
+        // belts were moving while the model was thinking.
+        if (Context.bRequireUnchangedWorld &&
+            !Context.ExpectedWorldRevision.IsEmpty() &&
             !Context.ActualWorldRevision.IsEmpty() &&
             Context.ExpectedWorldRevision != Context.ActualWorldRevision)
         {
@@ -1804,7 +1809,20 @@ FString ExecutePlan(
         Context.ActualWorldRevision = ActualWorldRevision;
         Context.bDryRun = true;
         Item.Spec->TryGetStringField(TEXT("expect_world_revision"), Context.ExpectedWorldRevision);
+        Item.Spec->TryGetBoolField(TEXT("require_unchanged_world"), Context.bRequireUnchangedWorld);
         Item.Preflight = RunActionSpec(Context, Item.Spec);
+        // Record drift on the result even when it did not refuse the action, so
+        // a world that moved under the plan stays visible to the player.
+        if (!Context.ExpectedWorldRevision.IsEmpty() &&
+            !Context.ActualWorldRevision.IsEmpty() &&
+            Context.ExpectedWorldRevision != Context.ActualWorldRevision)
+        {
+            Item.Preflight.WorldRevisionDrift = FString::Printf(
+                TEXT("world moved from %s to %s while the plan was prepared; per-action checks still ran"),
+                *Context.ExpectedWorldRevision,
+                *Context.ActualWorldRevision);
+        }
+
         if (!Item.Preflight.bAccepted && PlanRefusal.IsEmpty())
         {
             PlanRefusal = TEXT("one_or_more_actions_failed_preflight");
@@ -1868,6 +1886,7 @@ FString ExecutePlan(
         Context.Player = Player;
         Context.ActualWorldRevision = ActualWorldRevision;
         Item.Spec->TryGetStringField(TEXT("expect_world_revision"), Context.ExpectedWorldRevision);
+        Item.Spec->TryGetBoolField(TEXT("require_unchanged_world"), Context.bRequireUnchangedWorld);
 
         // The reply may request a commit, but only the game side can grant one.
         Context.bDryRun = !(bAllowCommit && Item.bRequestedCommit);
@@ -1998,6 +2017,12 @@ TSharedPtr<FJsonObject> ResultToJson(const FAIFactoryActionResult& Result)
     if (!Result.UndoDescription.IsEmpty())
     {
         Object->SetStringField(TEXT("undo"), Result.UndoDescription);
+    }
+    // Surfaced even when it did not refuse the action, so a world that moved
+    // under a plan is never silently invisible.
+    if (!Result.WorldRevisionDrift.IsEmpty())
+    {
+        Object->SetStringField(TEXT("world_revision_drift"), Result.WorldRevisionDrift);
     }
     Object->SetNumberField(TEXT("undo_steps_available"), GAIFactoryUndoJournal.Num());
     Object->SetStringField(TEXT("source"), TEXT("executed_by_the_game_and_read_back"));

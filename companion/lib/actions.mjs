@@ -123,10 +123,16 @@ function reject(kind, reason, detail = {}) {
  * may have changed at all" semantics.
  */
 function bindWorldRevision(graph, action, proposal) {
-  if (proposal?.require_unchanged_world !== true) return action;
+  // The mod requires a stamp on every committed write and reports any drift,
+  // so it is always sent. Whether drift *refuses* the action is the caller's
+  // choice, carried alongside it.
   const revision = graph?.world_revision;
   if (revision === null || revision === undefined) return action;
-  return { ...action, expect_world_revision: String(revision) };
+  return {
+    ...action,
+    expect_world_revision: String(revision),
+    require_unchanged_world: proposal?.require_unchanged_world === true,
+  };
 }
 
 /**

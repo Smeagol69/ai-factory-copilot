@@ -79,10 +79,9 @@ test("commit is false unless the proposal set it", () => {
   assert.equal(asked.action.commit, true);
 });
 
-test("actions are not bound to the world revision by default", () => {
-  // Binding every action made writes impossible in a live game: the revision
-  // ticks on every actor spawn, so a real build failed with expected=569
-  // actual=600 simply because belts were moving while the model thought.
+test("every action carries the revision stamp the mod requires", () => {
+  // The mod refuses a committed write with no stamp, so it is always sent.
+  // What the stamp *does* is the separate question below.
   const graph = graphOf();
   const result = validateAction(graph, {
     action: "place_building",
@@ -90,18 +89,29 @@ test("actions are not bound to the world revision by default", () => {
     location: HERE,
   });
   assert.equal(result.valid, true);
-  assert.equal("expect_world_revision" in result.action, false);
+  assert.equal(result.action.expect_world_revision, String(graph.world_revision));
 });
 
-test("a caller can still demand an unchanged world explicitly", () => {
+test("drift is reported but does not refuse, unless asked", () => {
+  // Refusing on any drift made writes impossible in a live game: the revision
+  // ticks on every actor spawn, so a real build failed with expected=569
+  // actual=600 purely because belts were moving while the model thought.
   const graph = graphOf();
-  const result = validateAction(graph, {
+  const relaxed = validateAction(graph, {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+  });
+  assert.equal(relaxed.action.require_unchanged_world, false);
+
+  const strict = validateAction(graph, {
     action: "place_building",
     recipe_class: "Recipe_ConstructorMk1",
     location: HERE,
     require_unchanged_world: true,
   });
-  assert.equal(result.action.expect_world_revision, String(graph.world_revision));
+  assert.equal(strict.action.require_unchanged_world, true);
+  assert.equal(strict.action.expect_world_revision, String(graph.world_revision));
 });
 
 /* ---------------- a plan is all-or-nothing ---------------- */
