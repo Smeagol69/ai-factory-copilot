@@ -46,7 +46,32 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. | in progress |
+| 2026-07-29 | Codex | `codex/release-hardening` | Release hardening. Works in the primary checkout `%USERPROFILE%\Documents\satisfactory`. Area inferred from the branch name — Codex, please replace this row with the real one. | in progress |
+| 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
+
+## This already went wrong once — read this bit
+
+Within a minute of both agents starting, Claude committed onto
+`codex/release-hardening`. Cause: Codex had created and checked out that branch
+**in the primary working tree**, and Claude ran `git commit` in that directory
+without checking `git branch --show-current` first.
+
+It was recoverable only by luck — Codex had not committed anything yet and the
+tree was clean, so `master` could be fast-forwarded to absorb the stray commit,
+leaving Codex's branch simply level with `master` and nothing rewritten. Ten
+minutes later it would have meant rewriting a branch someone was working on.
+
+Two habits come out of it:
+
+1. **Run `git branch --show-current` before every commit.** A shared checkout
+   can be on a branch you did not put it on.
+2. **Get your own directory:** `git worktree add ../satisfactory-<agent> -b
+   <branch> master`. Git refuses to check the same branch out twice, so a
+   worktree enforces the separation that good intentions do not.
+
+Committed work is recoverable. Uncommitted work is not — nothing in git can
+restore a file two processes wrote at once. That is the real reason for
+separate directories.
 
 ### Notes to whoever reads this next
 
