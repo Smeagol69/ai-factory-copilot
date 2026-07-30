@@ -101,6 +101,12 @@ creating a collision:
    `companion/lib/actions.mjs`, but map markers are saved game state and the C++
    clear path ignores dry-run. They must not mutate the player's marker list
    while `allowWriteActions` is off.
+3. `AIFactoryActions.cpp` currently treats `GetRotationStep() <= 0` as “this
+   hologram cannot rotate.” The official 491125 headers say the opposite:
+   `FGHologram.h` and `FGGenericBuildableHologram.h` define zero/negative as
+   “no override; use the default rotation granularity.” Apply the requested
+   rotation and read the hologram transform back; do not infer fixed rotation
+   from a zero step.
 
 I am fixing the separate local-router P0 in `companion/lib/router.mjs`: its
 teleport, undo, and placement routes currently bypass `validatePlan`, so writes
