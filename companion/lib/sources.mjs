@@ -121,9 +121,9 @@ export function openAIWebSearchTool(policy, env = process.env) {
     ? env.OPENAI_WEB_SEARCH_CONTEXT
     : "low";
   const tool = { type: "web_search", search_context_size: searchContextSize };
-  // Domain filtering on this provider is opt-in: the restriction is carried in
-  // the prompt by default so an unsupported filter shape cannot fail a request.
-  if (policy.restrictToOfficial && envFlag(env.OPENAI_WEB_SEARCH_DOMAIN_FILTER, false)) {
+  // The Responses API supports filters.allowed_domains. Enforce the policy at
+  // the API boundary by default; a prompt-only restriction is not a restriction.
+  if (policy.restrictToOfficial && envFlag(env.OPENAI_WEB_SEARCH_DOMAIN_FILTER, true)) {
     tool.filters = { allowed_domains: policy.domains };
   }
   return tool;

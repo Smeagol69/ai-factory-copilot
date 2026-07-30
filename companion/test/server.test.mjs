@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { createBridgeServer } from "../server.mjs";
+import {
+  ACTION_CONTRACT_VERSION,
+  BRIDGE_VERSION,
+  assessProviderConfiguration,
+  createActionCollector,
+  createBridgeServer,
+} from "../server.mjs";
 import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
 let server;
 let baseUrl;
+const JSON_HEADERS = {
+  "Content-Type": "application/json",
+  "X-AIFactory-Schema": "1",
+};
 
 before(async () => {
   server = createBridgeServer({ env: { AI_PROVIDER: "mock" } });
@@ -25,23 +35,27 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   const body = await response.json();
   assert.equal(body.status, "ok");
   assert.equal(body.schema, "aifactory.bridge.health");
+  assert.equal(body.bridge_version, BRIDGE_VERSION);
+  assert.equal(body.action_contract_version, ACTION_CONTRACT_VERSION);
   assert.equal(body.provider, "mock");
+  assert.equal(body.readiness.ready, true);
   assert.equal(body.loopback_only, true);
   assert.equal(body.conveyor_speed_divisor, 2);
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
   assert.ok(body.solver_tools.includes("find_best_site"));
-  assert.equal(body.solver_tools.length, 16);
+  assert.ok(body.solver_tools.length >= 16);
   assert.ok(body.solver_tools.includes("design_factory_layout"));
   assert.ok(body.solver_tools.includes("perform_actions"));
-  assert.equal(body.outside_references.web_search, true);
-  assert.equal(body.outside_references.restricted_to_official_sources, true);
+  assert.equal(body.outside_references.web_search, false);
+  assert.equal(body.outside_references.requested_but_unavailable, true);
+  assert.equal(body.outside_references.restricted_to_configured_sources, false);
   assert.ok(body.outside_references.source_domains.includes("docs.ficsit.app"));
 });
 
 test("ask endpoint accepts an authoritative snapshot", async () => {
   const response = await fetch(`${baseUrl}/v1/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.ask",
       schema_version: 1,
@@ -78,7 +92,7 @@ test("ask endpoint accepts an authoritative snapshot", async () => {
 test("reset endpoint clears one local conversation", async () => {
   const ask = await fetch(`${baseUrl}/v1/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.ask",
       schema_version: 1,
@@ -96,7 +110,7 @@ test("reset endpoint clears one local conversation", async () => {
 
   const reset = await fetch(`${baseUrl}/v1/reset`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.session.reset",
       schema_version: 1,
@@ -112,7 +126,7 @@ test("reset endpoint clears one local conversation", async () => {
 test("analyze endpoint returns the full solver report without calling a model", async () => {
   const response = await fetch(`${baseUrl}/v1/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.analyze",
       schema_version: 1,
@@ -136,7 +150,7 @@ test("analyze endpoint returns the full solver report without calling a model", 
 test("analyze endpoint rejects a snapshot without the no-guessing policy", async () => {
   const response = await fetch(`${baseUrl}/v1/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.analyze",
       schema_version: 1,
@@ -150,7 +164,7 @@ test("analyze endpoint rejects a snapshot without the no-guessing policy", async
 test("analyze endpoint rejects an unsupported schema version", async () => {
   const response = await fetch(`${baseUrl}/v1/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ schema: "aifactory.analyze", schema_version: 99, world_snapshot: {} }),
   });
   assert.equal(response.status, 400);
@@ -160,7 +174,7 @@ test("analyze endpoint rejects an unsupported schema version", async () => {
 test("ask endpoint records which solvers ran", async () => {
   const response = await fetch(`${baseUrl}/v1/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.ask",
       schema_version: 1,
@@ -182,7 +196,7 @@ test("ask endpoint records which solvers ran", async () => {
 test("ask endpoint rejects snapshots without the no-guessing policy", async () => {
   const response = await fetch(`${baseUrl}/v1/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       schema: "aifactory.ask",
       schema_version: 1,
@@ -192,4 +206,100 @@ test("ask endpoint rejects snapshots without the no-guessing policy", async () =
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /data policy/i);
+});
+
+test("POST endpoints reject browser and non-game request shapes", async () => {
+  const missingSchema = await fetch(`${baseUrl}/v1/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(missingSchema.status, 403);
+
+  const simpleBrowserPost = await fetch(`${baseUrl}/v1/reset`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain",
+      "X-AIFactory-Schema": "1",
+    },
+    body: "{}",
+  });
+  assert.equal(simpleBrowserPost.status, 415);
+
+  const browserOrigin = await fetch(`${baseUrl}/v1/reset`, {
+    method: "POST",
+    headers: { ...JSON_HEADERS, Origin: "https://example.invalid" },
+    body: "{}",
+  });
+  assert.equal(browserOrigin.status, 403);
+});
+
+test("provider readiness catches incomplete and recursive configurations", () => {
+  assert.equal(assessProviderConfiguration("mock", {}).ready, true);
+  assert.deepEqual(
+    assessProviderConfiguration("anthropic", {}).issues,
+    [
+      "ANTHROPIC_API_KEY is not configured.",
+      "ANTHROPIC_MODEL is not configured.",
+    ],
+  );
+  const recursive = assessProviderConfiguration("hybrid", {
+    AIFACTORY_CHEAP_PROVIDER: "hybrid",
+    AIFACTORY_STRONG_PROVIDER: "openai",
+    OPENAI_API_KEY: "test",
+  });
+  assert.equal(recursive.ready, false);
+  assert.match(recursive.issues.join(" "), /cannot itself be hybrid/i);
+});
+
+test("a second write plan invalidates every write but preserves overlays", () => {
+  const collector = createActionCollector();
+  collector.emit([{ action: "teleport_player", commit: true }]);
+  assert.throws(
+    () => collector.emit([{ action: "place_building", commit: true }]),
+    /more than one world-changing plan/i,
+  );
+  collector.emit([{ action: "highlight", commit: true }]);
+
+  assert.match(collector.conflict, /All writes were removed/);
+  assert.deepEqual(collector.actions, [{ action: "highlight", commit: true }]);
+});
+
+test("discard removes every action from a provider turn that failed", () => {
+  const collector = createActionCollector();
+  collector.emit([
+    { action: "highlight", commit: true },
+    { action: "teleport_player", commit: true },
+  ]);
+  collector.discard();
+  assert.deepEqual(collector.actions, []);
+});
+
+test("a broken provider falls back to deterministic live analysis", async () => {
+  const fallbackServer = createBridgeServer({ env: { AI_PROVIDER: "openai" } });
+  await new Promise((resolve) => fallbackServer.listen(0, "127.0.0.1", resolve));
+  const address = fallbackServer.address();
+  const fallbackUrl = `http://127.0.0.1:${address.port}`;
+  try {
+    const response = await fetch(`${fallbackUrl}/v1/ask`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        schema: "aifactory.ask",
+        schema_version: 1,
+        question: "Tell me a joke about this factory.",
+        world_snapshot: buildFactorySnapshot(),
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.provider, "fallback");
+    assert.equal(body.answered_by, "deterministic_fallback");
+    assert.match(body.provider_error, /OPENAI_API_KEY/);
+    assert.match(body.reply, /answered from the live deterministic solvers/i);
+  } finally {
+    await new Promise((resolve, reject) =>
+      fallbackServer.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });

@@ -324,9 +324,21 @@ async function fetchWithRateLimitRetry(url, init, env = process.env) {
   const maximumRetries =
     Number.parseInt(env.AIFACTORY_MAX_RATE_LIMIT_RETRIES ?? "", 10) ||
     DEFAULT_MAXIMUM_RATE_LIMIT_RETRIES;
+  const configuredTimeout = Number.parseInt(
+    env.AIFACTORY_PROVIDER_TIMEOUT_SECONDS ?? "",
+    10,
+  );
+  const timeoutSeconds =
+    Number.isFinite(configuredTimeout) && configuredTimeout > 0
+      ? Math.min(configuredTimeout, 3600)
+      : 180;
 
   for (let attempt = 0; ; attempt += 1) {
-    const response = await fetch(url, init);
+    const request = {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(timeoutSeconds * 1000),
+    };
+    const response = await fetch(url, request);
     if (response.status !== 429 && response.status !== 529) return response;
     if (attempt >= maximumRetries) return response;
 
@@ -405,6 +417,86 @@ function envFlag(value, fallback) {
   return !["0", "false", "off", "no"].includes(String(value).toLowerCase());
 }
 
+const GROUNDING_REQUIREMENTS = [
+  {
+    pattern: /\b(power|megawatts?|mw|fuse|battery|batteries|circuit|grid capacity)\b/i,
+    tools: ["get_power_circuits"],
+  },
+  {
+    pattern:
+      /\b(stopped|stalled|idle|standby|not producing|bottleneck|starved|blocked|slow (?:machine|factory|line|production))\b/i,
+    tools: ["diagnose_bottlenecks"],
+  },
+  {
+    pattern: /\b(rate|rates|per minute|\/min|throughput|overclock|output|input rate)\b/i,
+    tools: ["get_machine_rates", "get_item_balance", "get_transport_capacity", "plan_production"],
+  },
+  {
+    pattern: /\b(short of|deficit|surplus|balance|oversuppl|undersuppl)\w*\b/i,
+    tools: ["get_item_balance"],
+  },
+  {
+    pattern: /\b(recipe|alternate|alt recipe|ingredients?)\b/i,
+    tools: ["find_recipes", "plan_production", "get_build_cost"],
+  },
+  {
+    pattern:
+      /\b(?:(?:belt|pipe|pipeline)(?: (?:speed|rate|throughput|capacity|saturation))?|saturated (?:belt|pipe|pipeline))\b/i,
+    tools: ["get_transport_capacity"],
+  },
+  {
+    pattern: /\b(cost|afford|materials? needed|build cost)\b/i,
+    tools: ["get_build_cost", "list_blueprints"],
+  },
+  {
+    pattern: /\b(where should|best (?:place|site|spot)|coordinates?|how far|nearest)\b/i,
+    tools: ["find_best_site", "locate"],
+  },
+  {
+    pattern: /\b(tier|milestone|objective|unlock|game phase|space elevator)\w*\b/i,
+    tools: ["get_unlock_status"],
+  },
+  {
+    pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
+    tools: ["list_blueprints", "design_factory_layout", "plan_production"],
+  },
+];
+
+export function missingRequiredSolverGrounding(question, solverCalls = []) {
+  const called = new Set(solverCalls.map((entry) => entry?.tool).filter(Boolean));
+  const missing = [];
+  for (const requirement of GROUNDING_REQUIREMENTS) {
+    if (
+      requirement.pattern.test(String(question ?? "")) &&
+      !requirement.tools.some((tool) => called.has(tool))
+    ) {
+      missing.push(requirement.tools);
+    }
+  }
+  return missing;
+}
+
+function enforceSolverGrounding(context, reply, solverCalls, env) {
+  if (!context.graph || !envFlag(env.AIFACTORY_ENFORCE_SOLVER_GROUNDING, true)) return;
+  const missing = missingRequiredSolverGrounding(context.question, solverCalls);
+  if (
+    solverCalls.length === 0 &&
+    /\d/.test(String(reply ?? "")) &&
+    /\b(your|this|current|machine|factory|belt|pipe|power|inventory|position|coordinate|meters?|items?)\b/i.test(
+      String(reply ?? ""),
+    )
+  ) {
+    missing.push(["an appropriate deterministic solver"]);
+  }
+  if (missing.length === 0) return;
+
+  const toolText = missing.map((tools) => tools.join(" or ")).join("; ");
+  throw new Error(
+    `The model returned an ungrounded live-game answer without the required solver ` +
+      `tool(s): ${toolText}. Its draft was withheld instead of presenting guesses as game data.`,
+  );
+}
+
 export async function askOpenAI(context, env = process.env) {
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured in the companion environment.");
@@ -430,6 +522,7 @@ export async function askOpenAI(context, env = process.env) {
   let input = providerMessages(context);
   const solverCalls = [];
   const sources = new Map();
+  const usage = emptyCacheUsage();
   let lastResponseId = null;
 
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
@@ -464,6 +557,10 @@ export async function askOpenAI(context, env = process.env) {
       throw new Error(`OpenAI API HTTP ${response.status}: ${await parseErrorResponse(response)}`);
     }
     const json = await response.json();
+    const cachedInput = json.usage?.input_tokens_details?.cached_tokens ?? 0;
+    usage.input_tokens += Math.max(0, (json.usage?.input_tokens ?? 0) - cachedInput);
+    usage.cache_read_input_tokens += cachedInput;
+    usage.output_tokens += json.usage?.output_tokens ?? 0;
     lastResponseId = json.id ?? lastResponseId;
     for (const source of extractOpenAISources(json)) {
       sources.set(source.url, source);
@@ -473,6 +570,7 @@ export async function askOpenAI(context, env = process.env) {
     if (functionCalls.length === 0) {
       const reply = extractOpenAIText(json);
       if (!reply) throw new Error("OpenAI returned no output_text.");
+      enforceSolverGrounding(context, reply, solverCalls, env);
       const collected = [...sources.values()].slice(0, 8);
       const sourceText = collected.length
         ? `\n\nExternal sources:\n${collected
@@ -486,6 +584,7 @@ export async function askOpenAI(context, env = process.env) {
         response_id: lastResponseId,
         sources: collected,
         solver_calls: solverCalls,
+        cache: summarizeCacheUsage(usage),
       };
     }
 
@@ -702,6 +801,7 @@ export async function askAnthropic(context, env = process.env) {
         .join("\n")
         .trim();
       if (!reply) throw new Error("Anthropic returned no text content.");
+      enforceSolverGrounding(context, reply, solverCalls, env);
       const collected = [...sources.values()].slice(0, 8);
       return {
         reply: `${reply}${formatSourceFooter(collected, searchErrors)}`,
@@ -765,10 +865,18 @@ export async function askLocal(context, env = process.env) {
   const toolsEnabled = Boolean(context.graph) && envFlag(env.LOCAL_AI_TOOLS, true);
 
   const messages = [
-    { role: "system", content: buildSystemInstructions(env) },
+    {
+      role: "system",
+      content:
+        buildSystemInstructions(env) +
+        (toolsEnabled
+          ? ""
+          : "\n\nSolver tools are unavailable for this local model. Do not state live-game numbers, causes, coordinates, or actions."),
+    },
     ...providerMessages(context),
   ];
   const solverCalls = [];
+  const usage = emptyCacheUsage();
 
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
     const body = { model, messages, stream: false };
@@ -796,6 +904,8 @@ export async function askLocal(context, env = process.env) {
     }
 
     const json = await response.json();
+    usage.input_tokens += json.usage?.prompt_tokens ?? 0;
+    usage.output_tokens += json.usage?.completion_tokens ?? 0;
     const message = json?.choices?.[0]?.message;
     if (!message) throw new Error("Local AI server returned no choices.");
 
@@ -803,14 +913,14 @@ export async function askLocal(context, env = process.env) {
     if (toolCalls.length === 0) {
       const reply = String(message.content ?? "").trim();
       if (!reply) throw new Error("Local AI server returned no message content.");
+      enforceSolverGrounding(context, reply, solverCalls, env);
       return {
-        reply: toolsEnabled
-          ? reply
-          : `${reply}\n\nNote: solver tools are disabled for this local model, so any number above that did not come from the deterministic digest is unverified.`,
+        reply,
         provider: "local",
         model,
         sources: [],
         solver_calls: solverCalls,
+        cache: summarizeCacheUsage(usage),
       };
     }
 

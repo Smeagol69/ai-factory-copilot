@@ -2,9 +2,10 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { WRITE_ACTION_KINDS } from "./lib/actions.mjs";
 import { readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
-import { askProvider } from "./lib/providers.mjs";
+import { askMock, askProvider } from "./lib/providers.mjs";
 import {
   createSessionLedger,
   estimateCost,
@@ -18,10 +19,160 @@ import { resolveSourcePolicy } from "./lib/sources.mjs";
 import { SOLVER_TOOLS } from "./lib/tools.mjs";
 
 const LOOPBACK_HOST = "127.0.0.1";
+const BRIDGE_PACKAGE = JSON.parse(
+  fs.readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+);
+export const BRIDGE_VERSION = BRIDGE_PACKAGE.version;
+export const ACTION_CONTRACT_VERSION = 1;
 
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function providerModel(provider, env) {
+  if (provider === "openai") return env.OPENAI_MODEL || "gpt-5.6-sol";
+  if (provider === "anthropic") return env.ANTHROPIC_MODEL || null;
+  if (provider === "local" || provider === "ollama") return env.LOCAL_AI_MODEL || null;
+  if (provider === "mock") return "deterministic-diagnostic";
+  return null;
+}
+
+export function assessProviderConfiguration(provider, env = process.env, seen = new Set()) {
+  const selected = String(provider || "mock").toLowerCase();
+  if (seen.has(selected)) {
+    return {
+      ready: false,
+      provider: selected,
+      model: null,
+      issues: [`Provider configuration recurses through "${selected}".`],
+    };
+  }
+
+  if (selected === "mock") {
+    return { ready: true, provider: selected, model: providerModel(selected, env), issues: [] };
+  }
+  if (selected === "openai") {
+    const issues = env.OPENAI_API_KEY ? [] : ["OPENAI_API_KEY is not configured."];
+    return {
+      ready: issues.length === 0,
+      provider: selected,
+      model: providerModel(selected, env),
+      issues,
+    };
+  }
+  if (selected === "anthropic") {
+    const issues = [];
+    if (!env.ANTHROPIC_API_KEY) issues.push("ANTHROPIC_API_KEY is not configured.");
+    if (!env.ANTHROPIC_MODEL) issues.push("ANTHROPIC_MODEL is not configured.");
+    return {
+      ready: issues.length === 0,
+      provider: selected,
+      model: providerModel(selected, env),
+      issues,
+    };
+  }
+  if (selected === "local" || selected === "ollama") {
+    const issues = env.LOCAL_AI_MODEL ? [] : ["LOCAL_AI_MODEL is not configured."];
+    return {
+      ready: issues.length === 0,
+      provider: selected,
+      model: providerModel(selected, env),
+      issues,
+      endpoint: (env.LOCAL_AI_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/+$/, ""),
+    };
+  }
+  if (selected === "hybrid") {
+    const nextSeen = new Set(seen).add(selected);
+    const cheapName = String(env.AIFACTORY_CHEAP_PROVIDER || "local").toLowerCase();
+    const strongName = String(env.AIFACTORY_STRONG_PROVIDER || "anthropic").toLowerCase();
+    const cheap = assessProviderConfiguration(cheapName, env, nextSeen);
+    const strong = assessProviderConfiguration(strongName, env, nextSeen);
+    const issues = [];
+    if (cheapName === "hybrid" || strongName === "hybrid") {
+      issues.push("A hybrid subprovider cannot itself be hybrid.");
+    }
+    if (!cheap.ready) issues.push(...cheap.issues.map((issue) => `cheap: ${issue}`));
+    if (!strong.ready) issues.push(...strong.issues.map((issue) => `strong: ${issue}`));
+    return {
+      ready: issues.length === 0,
+      provider: selected,
+      model: null,
+      issues,
+      cheap,
+      strong,
+    };
+  }
+
+  return {
+    ready: false,
+    provider: selected,
+    model: null,
+    issues: [`Unsupported AI_PROVIDER "${selected}".`],
+  };
+}
+
+function validatePostRequest(request) {
+  if (request.headers.origin) {
+    return { status: 403, error: "Browser-origin requests are not accepted by the loopback bridge." };
+  }
+
+  const host = String(request.headers.host ?? "").toLowerCase().split(":")[0];
+  if (host && !["127.0.0.1", "localhost"].includes(host)) {
+    return { status: 403, error: "The loopback bridge only accepts localhost Host headers." };
+  }
+
+  const contentType = String(request.headers["content-type"] ?? "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (contentType !== "application/json") {
+    return { status: 415, error: "Content-Type must be application/json." };
+  }
+  if (String(request.headers["x-aifactory-schema"] ?? "") !== "1") {
+    return { status: 403, error: "X-AIFactory-Schema: 1 is required." };
+  }
+  return null;
+}
+
+/**
+ * Collects action-tool output without allowing a model to submit one plan,
+ * revise it, and accidentally execute both. Overlay-only calls may accumulate.
+ */
+export function createActionCollector() {
+  const actions = [];
+  let writePlanSeen = false;
+  let conflict = null;
+
+  return {
+    actions,
+    get conflict() {
+      return conflict;
+    },
+    discard() {
+      actions.splice(0, actions.length);
+      writePlanSeen = false;
+    },
+    emit(proposed) {
+      const list = Array.isArray(proposed) ? proposed : [];
+      const carriesWritePlan = list.some((action) =>
+        WRITE_ACTION_KINDS.includes(String(action?.action ?? "")),
+      );
+      if (carriesWritePlan && writePlanSeen) {
+        conflict =
+          "The model submitted more than one world-changing plan in one answer. All writes were removed.";
+        for (let index = actions.length - 1; index >= 0; --index) {
+          if (WRITE_ACTION_KINDS.includes(String(actions[index]?.action ?? ""))) {
+            actions.splice(index, 1);
+          }
+        }
+        throw new Error(conflict);
+      }
+      if (carriesWritePlan) writePlanSeen = true;
+      if (conflict && carriesWritePlan) throw new Error(conflict);
+      actions.push(...list);
+    },
+  };
 }
 
 /**
@@ -129,8 +280,17 @@ export function makeBlueprintReader(env = process.env) {
 
 export function createBridgeServer({ env = process.env } = {}) {
   const provider = (env.AI_PROVIDER || "mock").toLowerCase();
+  const providerConfiguration = assessProviderConfiguration(provider, env);
   const maximumBodyBytes =
     positiveInteger(env.AIFACTORY_MAX_BODY_MB, 64) * 1024 * 1024;
+  const maximumQuestionCharacters = positiveInteger(
+    env.AIFACTORY_MAX_QUESTION_CHARS,
+    16_000,
+  );
+  const maximumConcurrentRequests = Math.min(
+    positiveInteger(env.AIFACTORY_MAX_CONCURRENT_REQUESTS, 2),
+    16,
+  );
   const maximumSnapshotCharacters = positiveInteger(
     env.AIFACTORY_MAX_SNAPSHOT_CHARS,
     2_000_000,
@@ -158,28 +318,48 @@ export function createBridgeServer({ env = process.env } = {}) {
   const terrainCache = createTerrainCache({
     filePath: env.AIFACTORY_TERRAIN_CACHE || undefined,
   });
+  let activeAskRequests = 0;
 
   return http.createServer(async (request, response) => {
     try {
       if (request.method === "GET" && request.url === "/health") {
+        const sourcePolicy = resolveSourcePolicy(env);
+        const providerHasWebSearch =
+          provider === "openai" ||
+          provider === "anthropic" ||
+          (provider === "hybrid" &&
+            ["openai", "anthropic"].includes(
+              String(env.AIFACTORY_STRONG_PROVIDER || "anthropic").toLowerCase(),
+            ));
         return jsonResponse(response, 200, {
-          status: "ok",
+          status: providerConfiguration.ready ? "ok" : "degraded",
           schema: "aifactory.bridge.health",
+          bridge_version: BRIDGE_VERSION,
+          action_contract_version: ACTION_CONTRACT_VERSION,
           provider,
+          model: providerConfiguration.model,
+          readiness: providerConfiguration,
           loopback_only: true,
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
-          outside_references: (() => {
-            const policy = resolveSourcePolicy(env);
-            return {
-              web_search: policy.enabled,
-              restricted_to_official_sources: policy.restrictToOfficial,
-              source_domains: policy.domains,
-              using_configured_domains: policy.domainsAreConfigured,
-            };
-          })(),
+          outside_references: {
+            web_search: sourcePolicy.enabled && providerHasWebSearch,
+            requested_but_unavailable:
+              sourcePolicy.enabled && !providerHasWebSearch,
+            restricted_to_configured_sources:
+              sourcePolicy.restrictToOfficial && providerHasWebSearch,
+            source_domains: sourcePolicy.domains,
+            using_configured_domains: sourcePolicy.domainsAreConfigured,
+          },
         });
+      }
+
+      if (request.method === "POST") {
+        const requestError = validatePostRequest(request);
+        if (requestError) {
+          return jsonResponse(response, requestError.status, { error: requestError.error });
+        }
       }
 
       if (request.method === "POST" && request.url === "/v1/analyze") {
@@ -219,6 +399,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         }
         const sessionId = body.session_id.trim().slice(0, 256);
         const existed = sessions.delete(sessionId);
+        ledger.reset(sessionId);
         return jsonResponse(response, 200, {
           schema: "aifactory.session.reset.answer",
           schema_version: 1,
@@ -241,6 +422,11 @@ export function createBridgeServer({ env = process.env } = {}) {
       }
       if (typeof body.question !== "string" || !body.question.trim()) {
         return jsonResponse(response, 400, { error: "question must be a non-empty string." });
+      }
+      if (body.question.length > maximumQuestionCharacters) {
+        return jsonResponse(response, 413, {
+          error: `question exceeds ${maximumQuestionCharacters} characters.`,
+        });
       }
       if (!body.world_snapshot || typeof body.world_snapshot !== "object") {
         return jsonResponse(response, 400, { error: "world_snapshot must be an object." });
@@ -276,14 +462,10 @@ export function createBridgeServer({ env = process.env } = {}) {
 
       // Collected per request, never shared: two questions in flight must not
       // hand each other's actions to the game.
-      const collectedActions = [];
+      const actionCollector = createActionCollector();
       const requestServices = {
         ...solverServices,
-        actions: {
-          emit(actions) {
-            for (const action of actions ?? []) collectedActions.push(action);
-          },
-        },
+        actions: actionCollector,
       };
 
       const sessionId = String(body.session_id || "default").trim().slice(0, 256);
@@ -307,9 +489,50 @@ export function createBridgeServer({ env = process.env } = {}) {
         env.AIFACTORY_LOCAL_ROUTING === "false"
           ? null
           : answerLocally(context.question, graph, requestServices);
-      const answer = localAnswer ?? (await askProvider(provider, context, env));
+      let answer = localAnswer;
+      let providerFailure = null;
+      if (!answer) {
+        if (activeAskRequests >= maximumConcurrentRequests) {
+          return jsonResponse(response, 429, {
+            error:
+              `The companion is already handling ${activeAskRequests} AI request(s); ` +
+              "wait for one to finish before sending another.",
+          });
+        }
+        activeAskRequests += 1;
+        try {
+          answer = await askProvider(provider, context, env);
+        } catch (error) {
+          providerFailure = error instanceof Error ? error.message : String(error);
+          // A provider failure also invalidates any actions it proposed before
+          // failing (for example, a tool call followed by an ungrounded final
+          // answer). Never execute a plan whose accompanying answer was withheld.
+          actionCollector.discard();
+          const fallback = await askMock(context);
+          answer = {
+            ...fallback,
+            provider: "fallback",
+            model: "deterministic-fallback",
+            provider_error: providerFailure,
+            reply:
+              `The configured ${provider} model is unavailable, so I answered from the live ` +
+              `deterministic solvers instead of dropping your question.\n\n${fallback.reply}`,
+          };
+        } finally {
+          activeAskRequests -= 1;
+        }
+      }
 
-      const answeredBy = answer.provider === "solvers" ? "local_solver" : "model";
+      if (actionCollector.conflict) {
+        answer.reply += `\n\nSafety: ${actionCollector.conflict}`;
+      }
+
+      const answeredBy =
+        answer.provider === "solvers"
+          ? "local_solver"
+          : answer.provider === "fallback"
+            ? "deterministic_fallback"
+            : "model";
 
       // Every question is recorded with why it did or did not route. Routing was
       // tuned against invented phrasings, and a whole play session went by with
@@ -319,16 +542,19 @@ export function createBridgeServer({ env = process.env } = {}) {
         question: context.question,
         answeredBy,
         solver: answer.local?.solver ?? null,
-        miss: answeredBy === "model" ? explainRoutingMiss(context.question) : null,
+        miss: answeredBy !== "local_solver" ? explainRoutingMiss(context.question) : null,
       });
+      const freeAnswer =
+        answeredBy === "local_solver" || answeredBy === "deterministic_fallback";
       const cost =
-        answeredBy === "local_solver"
+        freeAnswer
           ? { ...estimateCost(answer.model, {}), usd: 0 }
           : estimateCost(answer.model, answer.cache ?? {});
       const sessionTotal = ledger.add(sessionId, cost.usd ?? 0);
+      const historyReply = answer.reply;
       if (showCost) {
         answer.reply += formatCostFooter({
-          answeredBy,
+          answeredBy: freeAnswer ? "local_solver" : answeredBy,
           cost,
           sessionUsd: sessionTotal.usd,
           sessionAnswers: sessionTotal.answers,
@@ -336,18 +562,23 @@ export function createBridgeServer({ env = process.env } = {}) {
       }
 
       history.push({ role: "user", text: context.question });
-      history.push({ role: "assistant", text: answer.reply });
+      history.push({ role: "assistant", text: historyReply });
       if (!sessions.has(sessionId) && sessions.size >= maximumSessions) {
-        sessions.delete(sessions.keys().next().value);
+        const evictedSession = sessions.keys().next().value;
+        sessions.delete(evictedSession);
+        ledger.reset(evictedSession);
       }
       sessions.set(sessionId, history.slice(-maximumHistoryMessages));
 
       return jsonResponse(response, 200, {
         schema: "aifactory.answer",
         schema_version: 1,
+        bridge_version: BRIDGE_VERSION,
+        action_contract_version: ACTION_CONTRACT_VERSION,
         reply: answer.reply,
         provider: answer.provider,
         model: answer.model,
+        provider_error: answer.provider_error ?? null,
         provider_response_id: answer.response_id ?? null,
         external_sources: answer.sources ?? [],
         world_revision: body.world_snapshot.world_revision ?? null,
@@ -380,9 +611,10 @@ export function createBridgeServer({ env = process.env } = {}) {
         session_spend: { usd: sessionTotal.usd, answers: sessionTotal.answers },
         tier: answer.tier ?? null,
         local: answer.local ?? null,
+        action_plan_conflict: actionCollector.conflict,
         // The mod executes these server-side, re-validates each one, and only
         // commits those with commit:true when its own allowWriteActions is on.
-        actions: collectedActions,
+        actions: actionCollector.actions,
       });
     } catch (error) {
       const status = error.statusCode || 502;
