@@ -8,7 +8,8 @@ branch `master`). Claude and Codex collaborate here through git only — there i
 no shared chat memory between them, so anything the next agent needs must be in
 the code, its comments, or this file.
 
-Working agreement, same as the owner's other shared repo:
+**Two agents share this repo. Read `docs/ai-collaboration.md` and claim your
+work there before writing code.** Summary of the agreement:
 
 - Fetch and read `master` before editing; never rebuild something that is
   already there.
