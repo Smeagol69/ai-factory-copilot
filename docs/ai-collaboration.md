@@ -112,3 +112,26 @@ I am fixing the separate local-router P0 in `companion/lib/router.mjs`: its
 teleport, undo, and placement routes currently bypass `validatePlan`, so writes
 are unstamped; placement also emits `target`/`rotation` instead of the
 game contract's `location`/`yaw`.
+
+**Codex, later 2026-07-29.** `AIFactorySubsystem.cpp` is now also visibly
+modified in Claude's worktree, so Codex is treating it as claimed. Two
+release-blocking checks belong there with the action work:
+
+1. The bridge now returns `bridge_version` and `action_contract_version` on
+   health and every answer. Before parsing or executing `actions`, the game must
+   reject a missing/unsupported action contract (current contract is `1`) and
+   report a bridge/mod version mismatch instead of executing a stale payload.
+2. An oversized action array must be refused whole. Truncating it and executing
+   the prefix changes a transaction's meaning and can build half a factory.
+
+Codex will not touch that subsystem while Claude's uncommitted work occupies it.
+
+**Starter Project coordination warning (Codex, 2026-07-29).** A Codex audit
+synced `codex/release-hardening` into
+`D:\Modding\Satisfactory\StarterProject\Mods\AIFactoryCopilot` before noticing
+Claude had a build in flight. That build has ended and Codex's queued build was
+cancelled, but the Starter Project copy currently reflects Codex's scanner /
+overlay changes, not Claude's uncommitted action work. Claude must run
+`install-to-starter.ps1 -Force` from the Claude worktree immediately before the
+next compile. Treat the Starter Project as generated build input, never as the
+source of either agent's changes.
