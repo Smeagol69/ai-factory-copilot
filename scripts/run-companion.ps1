@@ -10,26 +10,96 @@ $companionRoot = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'server.mjs
 else {
     $repositoryCompanion
 }
-$nodePath = 'C:\Program Files\nodejs\node.exe'
 $logRoot = Join-Path $companionRoot 'Logs'
 $logPath = Join-Path $logRoot 'companion.log'
-
-if (-not (Test-Path -LiteralPath $nodePath -PathType Leaf)) {
-    throw "Node.js was not found at '$nodePath'."
+trap {
+    $message = "[$([DateTime]::UtcNow.ToString('o'))] Companion startup failed:`r`n$($_ | Out-String)"
+    try {
+        New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
+        Add-Content -LiteralPath $logPath -Value $message
+    }
+    catch {
+        # There is nowhere else reliable for a hidden scheduled task to log.
+    }
+    [Console]::Error.WriteLine($message)
+    exit 1
 }
-
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 
-# A local .env file is optional. Process/user environment variables win so a
-# scheduled task and an interactive launch behave the same without copying
-# secrets into the repository.
-$environmentPath = Join-Path $companionRoot '.env'
-if (Test-Path -LiteralPath $environmentPath -PathType Leaf) {
+$runtimePath = Join-Path $companionRoot '.runtime.json'
+$runtime = if (Test-Path -LiteralPath $runtimePath -PathType Leaf) {
+    Get-Content -Raw -LiteralPath $runtimePath | ConvertFrom-Json
+}
+else {
+    $null
+}
+
+function Resolve-NodePath {
+    param([string]$ConfiguredPath)
+
+    if ($ConfiguredPath -and (Test-Path -LiteralPath $ConfiguredPath -PathType Leaf)) {
+        return (Resolve-Path -LiteralPath $ConfiguredPath).Path
+    }
+
+    $command = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    foreach ($candidate in @(
+        (Join-Path $env:ProgramFiles 'nodejs\node.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\nodejs\node.exe')
+    )) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    throw 'Node.js 20 or newer was not found. Install it from https://nodejs.org/ and run the companion installer again.'
+}
+
+function Get-EnvironmentNames {
+    $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    [void]$names.Add('AI_PROVIDER')
+
+    $examplePath = Join-Path $companionRoot '.env.example'
+    if (Test-Path -LiteralPath $examplePath -PathType Leaf) {
+        foreach ($line in Get-Content -LiteralPath $examplePath) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
+                [void]$names.Add($Matches[1])
+            }
+        }
+    }
+
+    return @($names)
+}
+
+function Import-CompanionEnvironment {
+    param([string[]]$Names)
+
+    # Persisted User values are read explicitly because Task Scheduler can keep
+    # an environment captured before the user changed provider settings.
+    foreach ($name in $Names) {
+        $persistedValue = [Environment]::GetEnvironmentVariable($name, 'User')
+        if ($null -ne $persistedValue) {
+            [Environment]::SetEnvironmentVariable($name, $persistedValue, 'Process')
+        }
+    }
+
+    # An installation-local .env is the final authority. This makes scheduled
+    # startup deterministic and prevents stale machine-wide keys from silently
+    # selecting a different provider than the user configured for this mod.
+    $environmentPath = Join-Path $companionRoot '.env'
+    if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
+        return
+    }
+
     foreach ($line in Get-Content -LiteralPath $environmentPath) {
         $trimmed = $line.Trim()
         if (-not $trimmed -or $trimmed.StartsWith('#') -or -not $trimmed.Contains('=')) {
             continue
         }
+
         $name, $value = $trimmed.Split('=', 2)
         $name = $name.Trim()
         $value = $value.Trim()
@@ -38,30 +108,38 @@ if (Test-Path -LiteralPath $environmentPath -PathType Leaf) {
              ($value.StartsWith("'") -and $value.EndsWith("'")))) {
             $value = $value.Substring(1, $value.Length - 2)
         }
-        if ($name -match '^[A-Za-z_][A-Za-z0-9_]*$' -and
-            -not [Environment]::GetEnvironmentVariable($name, 'Process')) {
+        if ($name -match '^[A-Za-z_][A-Za-z0-9_]*$') {
             [Environment]::SetEnvironmentVariable($name, $value, 'Process')
         }
     }
 }
 
-# A scheduled task inherits the environment as it stood when the task started,
-# and at logon that is before the user has necessarily set anything. Read the
-# persisted User scope directly so a key added after logon still counts.
-# Without this, provider selection silently depends on boot ordering: the task
-# fell through to OpenAI on a machine that had a working Anthropic key, and
-# every question failed on an OpenAI quota error.
-foreach ($persistedName in @(
-    'AI_PROVIDER',
-    'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL',
-    'OPENAI_API_KEY', 'OPENAI_MODEL',
-    'LOCAL_AI_BASE_URL', 'LOCAL_AI_MODEL')) {
-    if (-not [Environment]::GetEnvironmentVariable($persistedName, 'Process')) {
-        $persistedValue = [Environment]::GetEnvironmentVariable($persistedName, 'User')
-        if ($persistedValue) {
-            [Environment]::SetEnvironmentVariable($persistedName, $persistedValue, 'Process')
+function Rotate-CompanionLog {
+    param([string]$Path, [long]$MaximumBytes = 10MB, [int]$Copies = 3)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf) -or
+        (Get-Item -LiteralPath $Path).Length -lt $MaximumBytes) {
+        return
+    }
+
+    for ($index = $Copies; $index -ge 1; --$index) {
+        $source = if ($index -eq 1) { $Path } else { "$Path.$($index - 1)" }
+        $destination = "$Path.$index"
+        if (Test-Path -LiteralPath $source -PathType Leaf) {
+            Move-Item -LiteralPath $source -Destination $destination -Force
         }
     }
+}
+
+$nodePath = Resolve-NodePath -ConfiguredPath $runtime.node_path
+$versionText = (& $nodePath --version).Trim()
+if ($versionText -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 20) {
+    throw "AI Factory Copilot requires Node.js 20 or newer; found '$versionText' at '$nodePath'."
+}
+
+Import-CompanionEnvironment -Names (Get-EnvironmentNames)
+if ($runtime.port) {
+    $env:AIFACTORY_PORT = [string]$runtime.port
 }
 
 if (-not $env:AI_PROVIDER) {
@@ -71,6 +149,9 @@ if (-not $env:AI_PROVIDER) {
     elseif ($env:OPENAI_API_KEY) {
         $env:AI_PROVIDER = 'openai'
     }
+    elseif ($env:LOCAL_AI_MODEL) {
+        $env:AI_PROVIDER = 'local'
+    }
     else {
         $env:AI_PROVIDER = 'mock'
     }
@@ -79,10 +160,11 @@ if (-not $env:AI_PROVIDER) {
 if ($env:AI_PROVIDER -eq 'openai' -and -not $env:OPENAI_MODEL) {
     $env:OPENAI_MODEL = 'gpt-5.6-sol'
 }
-
 if ($env:AI_PROVIDER -eq 'openai' -and -not $env:OPENAI_WEB_SEARCH) {
     $env:OPENAI_WEB_SEARCH = 'true'
 }
+
+Rotate-CompanionLog -Path $logPath
 
 Push-Location $companionRoot
 try {
