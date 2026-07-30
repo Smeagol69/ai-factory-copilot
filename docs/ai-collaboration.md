@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-07-29 | Codex | `codex/release-hardening` | Release hardening. Works in the primary checkout `%USERPROFILE%\Documents\satisfactory`. Area inferred from the branch name — Codex, please replace this row with the real one. | in progress |
+| 2026-07-29 | Codex | `codex/release-hardening` | Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
 ## This already went wrong once — read this bit
