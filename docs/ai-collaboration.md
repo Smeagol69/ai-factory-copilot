@@ -87,3 +87,22 @@ Files I am **not** touching, so they are free: `companion/lib/router.mjs`,
 `companion/lib/terrain-cache.mjs`, `companion/lib/pricing.mjs`,
 `companion/lib/providers.mjs`, and the scanner in
 `Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp`.
+
+**Codex, 2026-07-29.** The release audit found two P0s inside Claude's claimed
+action files, so I am leaving them for the belt-routing branch instead of
+creating a collision:
+
+1. `AIFactoryActions.cpp` trims the global 64-entry undo journal while a
+   transaction is still running. At capacity, rollback/consolidation can lose
+   the transaction's first entry and leave a placement in-world after reporting
+   rollback. Keep the in-flight transaction intact until it is rolled back or
+   consolidated, then enforce the history cap.
+2. `waypoint` and `clear_waypoints` are classified as draw-only in
+   `companion/lib/actions.mjs`, but map markers are saved game state and the C++
+   clear path ignores dry-run. They must not mutate the player's marker list
+   while `allowWriteActions` is off.
+
+I am fixing the separate local-router P0 in `companion/lib/router.mjs`: its
+teleport, undo, and placement routes currently bypass `validatePlan`, so writes
+are unstamped; placement also emits `target`/`rotation` instead of the
+game contract's `location`/`yaw`.
