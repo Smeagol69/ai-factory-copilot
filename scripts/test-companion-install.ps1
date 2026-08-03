@@ -33,6 +33,19 @@ try {
     }
     Write-Host "Isolated companion install passed on port $testPort."
 
+    & (Join-Path $PSScriptRoot 'configure-companion.ps1') `
+        -Provider mock `
+        -InstallRoot $testInstallRoot `
+        -TaskName $testTaskName
+    if (-not (Test-Path -LiteralPath (Join-Path $testInstallRoot '.env') -PathType Leaf)) {
+        throw 'The provider configurator did not create the private environment file.'
+    }
+    $configuredHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$testPort/health" -TimeoutSec 3
+    if ($configuredHealth.provider -ne 'mock' -or $configuredHealth.status -ne 'ok') {
+        throw 'The configured isolated companion did not restart ready in mock mode.'
+    }
+    Write-Host 'Secure provider configuration and task restart passed.'
+
     if (-not $SkipRollback) {
         # Preserve a harmless local marker in the old runtime. A deliberately
         # invalid provider then forces the upgrade's post-swap health check to

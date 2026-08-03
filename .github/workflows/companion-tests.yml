@@ -1,0 +1,25 @@
+name: Companion tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Validate release metadata, source contracts, and companion
+        shell: pwsh
+        run: ./scripts/validate.ps1 -StarterProjectPath ''

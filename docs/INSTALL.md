@@ -1,116 +1,151 @@
 # Installation and packaging
 
-## Required official environment
+AI Factory Copilot has two local pieces: the SML mod loaded by Satisfactory and
+the loopback-only Node companion that talks to the selected model provider. The
+public beta targets the Windows Steam/Epic client. Dedicated-server and Linux
+targets are not claimed yet.
 
-The current plugin descriptor targets SML 3.12.0 and FactoryGame changelist
-491125. Use the official Satisfactory Modding Starter Project and its required
-Coffee Stain Unreal Engine 5.6.1-CSS installation.
+## Player installation
 
-The official guide calls for Visual Studio 2022 with:
+1. Install Satisfactory Mod Manager and SML using the
+   [official installation guide](https://docs.ficsit.app/satisfactory-modding/latest/ForUsers/SatisfactoryModManager.html).
+2. Install AI Factory Copilot through Mod Manager when its release is listed.
+   Prereleases are not auto-downloaded; for a GitHub beta, use the packaged
+   `AIFactoryCopilot-<version>-Windows.zip` and the
+   [official manual-install directions](https://docs.ficsit.app/satisfactory-modding/latest/ManualInstallDirections.html).
+3. Extract `AIFactoryCopilot-Companion-<version>-Windows.zip` to a temporary
+   folder, open PowerShell there, and run:
 
-- .NET desktop development
-- Desktop development with C++
-- Game development with C++
-- MSVC v143 14.38 toolchain
-- .NET 8 runtime
-- .NET Framework 4.8.1 SDK
+   ```powershell
+   ./scripts/install-companion.ps1
+   ```
 
-Do not package with stock Unreal 5.7 or another Epic launcher engine.
+   Node.js 20 or newer is required. The installer uses
+   `%LOCALAPPDATA%\AI Factory Copilot\Companion` for a new install, preserves an
+   already verified older location during upgrades, registers a limited-user
+   logon task, verifies every runtime file by SHA-256, and waits for the health
+   endpoint. It will not clean a directory it cannot prove belongs to this
+   product and will not stop an unrelated process occupying port 8142.
+4. Configure a provider. API key input is hidden and is written only to the
+   installed private `.env`:
 
-## Add the plugin to the Starter Project
+   ```powershell
+   ./scripts/configure-companion.ps1 -Provider openai
+   ```
 
-From this repository:
+   If an upgrade kept a previous location, the installer prints that exact path;
+   the configurator resolves it from the verified scheduled task. Anthropic and
+   local examples are:
 
-```powershell
-./scripts/install-to-starter.ps1 -StarterProjectPath 'C:\Modding\Satisfactory'
-```
+   ```powershell
+   ./scripts/configure-companion.ps1 -Provider anthropic -Model 'your-explicit-model-id'
+   ./scripts/configure-companion.ps1 -Provider local -Model 'your-local-model-id'
+   ```
 
-The script validates `FactoryGame.uproject`, checks its engine association, and
-copies the plugin to:
+   Advanced users can instead copy and edit the installed `.env.example`:
 
-```text
-<Starter Project>\Mods\AIFactoryCopilot
-```
+   ```powershell
+   $companionDir = Join-Path $env:LOCALAPPDATA 'AI Factory Copilot\Companion'
+   Copy-Item "$companionDir\.env.example" "$companionDir\.env"
+   notepad "$companionDir\.env"
+   ```
 
-It refuses to overwrite an existing destination unless `-Force` is supplied.
+   Local OpenAI-compatible servers use `AI_PROVIDER=local`,
+   `LOCAL_AI_BASE_URL`, and `LOCAL_AI_MODEL`. The local `.env` is the final
+   authority over process, user, and machine variables. It is preserved across
+   upgrades and is never copied back into the repository.
+5. Restart the installed companion and verify it:
 
-Alternatively, clone this repository directly into that `Mods` directory.
+   ```powershell
+   Stop-ScheduledTask -TaskName 'AI Factory Copilot Companion'
+   Start-ScheduledTask -TaskName 'AI Factory Copilot Companion'
+   Invoke-RestMethod http://127.0.0.1:8142/health
+   ```
 
-## Build and package
+   Health must report `status: ok`, the selected provider as ready, and the same
+   `bridge_version` as the installed mod. A mismatch is intentionally refused
+   before any game action can execute.
+6. Launch a save and press **Insert**. Ask a read-only question first, such as
+   "what machines and resource nodes are near me?" Writes remain off by default.
 
-1. Open the Starter Project through the Coffee Stain engine.
-2. Allow Unreal to build the C++ module.
-3. Open Alpakit Dev.
-4. Confirm SML is the `^3.12.0` dependency.
-5. Package AI Factory Copilot for Windows, Windows Server, and Linux Server as
-   appropriate.
-6. Use Alpakit's copy-to-mods-directory option for local testing.
-7. Run at least single-player, host-and-play, and dedicated-server tests before
-   release.
+## Game configuration
 
-## Configuration
-
-Copy `Config/AIFactoryCopilot.cfg` to:
+The mod reads:
 
 ```text
 <Satisfactory>\FactoryGame\Configs\AIFactoryCopilot.cfg
 ```
 
-The defaults expect the companion at:
+The release companion bundle includes `Config/AIFactoryCopilot.cfg`. Copy it to
+that path only when the packaged mod has not already installed a config. Its
+default bridge URL is `http://127.0.0.1:8142/v1/ask`.
 
-```text
-http://127.0.0.1:8142/v1/ask
+World writes require an explicit opt-in:
+
+```json
+{ "allowWriteActions": true }
 ```
 
-## Companion
+Keep writes off until read-only answers and dry-run action previews match the
+loaded save. `includeVisibleUiText` is also off by default because another mod's
+rendered UI can contain private text.
 
-Install the localhost bridge as a clean, supervised runtime:
+## Source build environment
+
+The descriptor targets SML 3.12.0 and FactoryGame changelist 491125. Use the
+official Satisfactory Modding Starter Project and its Coffee Stain Unreal Engine
+5.6.1-CSS installation. Do not package with a stock Epic engine.
+
+The official guide calls for Visual Studio 2022 with .NET desktop development,
+Desktop development with C++, Game development with C++, MSVC v143 14.38, .NET
+8, and the .NET Framework 4.8.1 SDK.
+
+Sync the repository into the Starter Project:
 
 ```powershell
-./scripts/install-companion.ps1
+./scripts/install-to-starter.ps1 `
+  -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject' -Force
 ```
 
-By default this installs only the files required at runtime into
-`D:\Modding\Satisfactory\Companion`, preserves a local `.env` and the `Logs`
-directory, removes stale runtime files, verifies every copied file by SHA-256,
-registers the `AI Factory Copilot Companion` logon task, and waits for
-`http://127.0.0.1:8142/health` to report healthy. The installer refuses to clean
-any destination whose leaf folder is not exactly `Companion`, and it refuses to
-stop an unrelated process listening on the configured port.
-
-The runner reads an optional `.env` in the installed directory. Existing
-process or user environment variables take precedence. It selects Anthropic
-when `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are set, OpenAI when
-`OPENAI_API_KEY` is set, and mock mode otherwise. Set `AI_PROVIDER` explicitly
-to override that selection. Secrets are not copied from the repository.
-
-For development without installing the task, run:
+Then validate, build, package, and assemble public artifacts:
 
 ```powershell
-./scripts/run-companion.ps1
+./scripts/validate.ps1 `
+  -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject'
+./scripts/package-local.ps1
+./scripts/package-release.ps1
 ```
 
-Start the bridge before using `/aifactory ask`. The `status`, `scan`, and
-`export` commands do not need it.
+`package-local.ps1` refuses to deploy while Satisfactory holds the DLL open. It
+builds the official editor target required for cooking, invokes UAT with
+`-ScriptsForProject`, packages the Windows client, deploys it to the game, and
+checks the deployed version and icon. `package-release.ps1` then refuses a stale
+mod archive, creates separate mod and companion ZIPs in `dist`, verifies their
+required contents, and writes SHA-256 checksums.
 
 ## Smoke test
 
 After loading a save:
 
-1. Run `/aifactory status`.
-2. Run `/aifactory scan 250`.
-3. Run `/aifactory export 250`.
-4. Check `FactoryGame/Saved/AIFactoryCopilot/Snapshots/latest.json`.
-5. Start the companion in mock mode.
-6. Run `/aifactory ask What verified objects are nearby?`.
+1. Press Insert and verify the live player position changes as you move.
+2. Ask "what verified objects are nearby?" in diagnostic/mock mode.
+3. Ask a solver-backed production or power question with the configured model.
+4. Keep writes off and ask for a placement; verify the dry-run reports no world
+   change.
+5. Enable writes only in a disposable test save, then compare the returned
+   action outcome with the world and
+   `Saved/AIFactoryCopilot/Diagnostics/latest-bridge-response.json`.
 
-Mock mode must report the received actor, recipe, item, and mod counts without
-making strategic claims.
+The full public-beta construction matrix is tracked in
+[COMPATIBILITY.md](COMPATIBILITY.md) and [CHANGELOG.md](../CHANGELOG.md). Do not
+describe placement as production-ready until valid, blocked, unaffordable,
+rotation, no-build-cost, rollback, refund, blueprint-proxy, belt, and modded
+recipe cases have all been exercised in a packaged live game.
 
-## Non-interactive live self-test
+## Diagnostic startup self-test
 
-For diagnostics when chat input cannot be automated, temporarily set these
-values in `FactoryGame/Configs/AIFactoryCopilot.cfg`:
+`startupSelfTest` submits a real paid question after every save load and places
+the result in the panel. Use it only for a deploy check, then turn it off:
 
 ```json
 {
@@ -119,10 +154,3 @@ values in `FactoryGame/Configs/AIFactoryCopilot.cfg`:
   "startupSelfTestQuestion": "Using only the authoritative snapshot, what should the player do next?"
 }
 ```
-
-On the next save load, the mod executes `aifactory export 250` and
-`aifactory ask ...` through SML's actual chat-command subsystem. It writes the
-snapshot to `Saved/AIFactoryCopilot/Snapshots/latest.json` and the raw bridge
-response to
-`Saved/AIFactoryCopilot/Diagnostics/latest-bridge-response.json`. Set
-`startupSelfTest` back to `false` after verification so it does not repeat.

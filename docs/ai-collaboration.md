@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master 2026-08-03; Codex out of credits.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
+| 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
 ## This already went wrong once — read this bit
@@ -237,3 +237,12 @@ his latest handoff leaves the response-contract checks open. Codex is taking
 only the bridge/action version gate and whole-plan oversize refusal in
 `AIFactorySubsystem.cpp`, plus validation coverage. The action executor and
 routing implementations remain Claude's work and will not be rewritten.
+
+**Codex, 2026-08-03 — public-beta release claim.** The response-contract work
+is merged and deployed. Codex is now taking only release metadata, public
+installation/configuration documentation, release validation, and CI. This
+lane will not edit Claude's routing, solvers, designer, or C++ action executor.
+The target is an honestly labelled Windows public beta: package/bridge versions
+must agree, official SML descriptor rules must validate automatically, and the
+remaining live-game test matrix must stay visible rather than being presented
+as complete.

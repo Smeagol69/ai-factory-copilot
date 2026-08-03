@@ -62,6 +62,8 @@ absence in the model's view is never treated as an absence in the world.
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | rendered HUD, objective, active milestone, game phase, recipe availability, schematics, and tech tier |
 | `design_factory_layout` | a placeable layout fitted to this base, with exact coordinates |
+| `plan_belt_route` | a direct conveyor route between two captured connection components |
+| `plan_belted_module` | a compact two-phase miner-to-machine module using measured footprints |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
 | `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
 | `clear_highlight` | removes an overlay |
@@ -109,12 +111,15 @@ draws overlays. Every action runs through the same contract:
 | `teleport_player` | Moves the player, snapping to measured ground so a bare coordinate cannot drop them through the map |
 | `dismantle` | Removes a building. The one action with no undo, and it says so everywhere |
 | `undo_last` | Reverses the previous action |
+| `give_item` | Adds a validated catalog item to the player's inventory; creative, write-gated, and reversible |
+| `waypoint` / `clear_waypoints` | Adds or removes only the copilot's persistent map markers |
 | `highlight` / `clear_highlight` | Tracer lines and bounding boxes drawn in-world, visible through terrain |
 
-Five gates stand between a model deciding something and the world changing:
-server authority, an optional world-revision match so an action cannot land on
-a world the model never saw, per-action validation on both sides, the mod's own
-`allowWriteActions` switch, and `commit: true` on the action itself. The model
+Six gates stand between a model deciding something and the world changing: an
+exact bridge-version and action-contract match, server authority, a mandatory
+captured world-revision stamp with optional strict unchanged-world enforcement,
+per-action validation on both sides, the mod's own `allowWriteActions` switch,
+and `commit: true` on the action itself. The model
 can *request* a commit; only the game can grant one. With writes off, every
 action still runs its validation and reports exactly what it would have done.
 
@@ -150,8 +155,11 @@ fix — place one by hand, then ask again — rather than guessed at. Both the
 footprint and the build recipe come from a real machine, so they fail together
 and they fail honestly.
 
-Belts, pipes, and power poles are not routed yet. The layout leaves a
-foundation-wide aisle between rows for them.
+Direct belts can now be routed between two already captured connection
+components, and `plan_belted_module` lays out a compact two-phase machine chain:
+place the machines first, recapture their actual snapped connectors, then route
+the belt legs. General obstacle-aware belts, pipes, and power poles are not yet
+routed. The layout leaves a foundation-wide aisle between rows for that work.
 
 ## In-game commands
 
@@ -277,7 +285,16 @@ restartable logon task, and waits for the health endpoint. The installed runner
 selects Anthropic when both its key and an explicit model are configured,
 OpenAI when its key is available, and mock mode otherwise. `AI_PROVIDER`
 overrides the automatic choice. API keys are never copied into this repository
-or its logs. See [docs/INSTALL.md](docs/INSTALL.md) for the exact behavior.
+or its logs. A local `.env` in the installed companion is the final authority,
+so the scheduled task always uses the provider the player deliberately chose.
+See [docs/INSTALL.md](docs/INSTALL.md) for the exact behavior.
+
+Configure a hosted key without placing it on the command line or in shell
+history:
+
+```powershell
+./scripts/configure-companion.ps1 -Provider openai
+```
 
 ## Build the mod
 
@@ -286,6 +303,10 @@ This source targets:
 - Satisfactory changelist `491125` or newer
 - SML `3.12.0`
 - the Coffee Stain `5.6.1-CSS` Unreal build used by the official Starter Project
+
+The `1.0.0-beta.1` package is a Windows-client public beta. It does not claim
+dedicated-server or Linux compatibility until those targets pass the live test
+matrix. See [CHANGELOG.md](CHANGELOG.md) for the remaining beta limits.
 
 Follow [docs/INSTALL.md](docs/INSTALL.md). A stock Epic Unreal installation is
 not ABI-compatible with Satisfactory and must not be used to package the mod.

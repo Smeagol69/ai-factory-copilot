@@ -17,6 +17,7 @@ $sourceRoot = Join-Path $repositoryRoot 'companion'
 $sourceServer = Join-Path $sourceRoot 'server.mjs'
 $sourceLibrary = Join-Path $sourceRoot 'lib'
 $sourceRunner = Join-Path $PSScriptRoot 'run-companion.ps1'
+$sourceConfigurator = Join-Path $PSScriptRoot 'configure-companion.ps1'
 $sourcePackage = Join-Path $sourceRoot 'package.json'
 $sourceEnvironmentExample = Join-Path $sourceRoot '.env.example'
 
@@ -170,6 +171,7 @@ foreach ($requiredPath in @(
     $sourceServer,
     $sourceLibrary,
     $sourceRunner,
+    $sourceConfigurator,
     $sourcePackage,
     $sourceEnvironmentExample
 )) {
@@ -273,7 +275,8 @@ $runtimeFiles = @(
     [pscustomobject]@{ Source = $sourceServer; Relative = 'server.mjs' },
     [pscustomobject]@{ Source = $sourcePackage; Relative = 'package.json' },
     [pscustomobject]@{ Source = $sourceEnvironmentExample; Relative = '.env.example' },
-    [pscustomobject]@{ Source = $sourceRunner; Relative = 'run-companion.ps1' }
+    [pscustomobject]@{ Source = $sourceRunner; Relative = 'run-companion.ps1' },
+    [pscustomobject]@{ Source = $sourceConfigurator; Relative = 'configure-companion.ps1' }
 )
 foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceLibrary -File -Filter '*.mjs') {
     $runtimeFiles += [pscustomobject]@{

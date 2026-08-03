@@ -58,3 +58,26 @@ ContentLib, FicsIt-Networks, Circuitry/Wiremod, Refined Power, Industrial
 Evolution/MkPlus, Smart!, and numerous content-only architecture mods. They are
 useful runtime fixtures, but compatibility claims require an in-game snapshot
 and, for custom systems, an adapter review.
+
+## Public-beta live test status
+
+Compilation and synthetic tests are necessary but do not replace observing the
+packaged mod in the game. As of 2026-08-03:
+
+| Case | Status |
+|---|---|
+| whole-world capture, Insert panel, bridge round trip | exercised in a live save |
+| teleport, highlight, single-building commit | committed and read back in a live save |
+| Windows Shipping compile, cook, archive, deploy | passed against the official local Starter Project |
+| waypoint and rotation-ignore behavior | compiled and packaged; live observation still required |
+| `give_item` commit and undo | synthetic/compile coverage only |
+| direct belt-route and compact belted-module planning | deterministic tests only; no conveyor write action exists yet |
+| blocked and unaffordable placement | live observation required |
+| rotation snapping and no-build-cost placement | live observation required |
+| multi-action rollback and undo refunds | live observation required |
+| blueprint proxy placement/undo | live observation required |
+| modded recipe placement and adapter semantics | live observation and per-mod review required |
+| multiplayer client/host and dedicated server | not yet validated |
+
+Until every relevant row is exercised, the release remains a Windows-client
+beta and must not be described as production-ready placement automation.

@@ -8,8 +8,31 @@ $root = Split-Path -Parent $PSScriptRoot
 
 $descriptorPath = Join-Path $root 'AIFactoryCopilot.uplugin'
 $descriptor = Get-Content -Raw -LiteralPath $descriptorPath | ConvertFrom-Json
-if ($descriptor.SemVersion -ne '0.4.2') {
-    throw "Unexpected plugin SemVersion '$($descriptor.SemVersion)'."
+$packagePath = Join-Path $root 'companion\package.json'
+$package = Get-Content -Raw -LiteralPath $packagePath | ConvertFrom-Json
+$semVersion = [string]$descriptor.SemVersion
+if ($semVersion -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$') {
+    throw "Plugin SemVersion '$semVersion' is not a supported semantic version."
+}
+$semanticMajor = [int]$Matches[1]
+if ([int]$descriptor.Version -ne $semanticMajor) {
+    throw "Plugin Version '$($descriptor.Version)' must equal SemVersion major '$semanticMajor'."
+}
+if ([string]$descriptor.VersionName -ne $semVersion) {
+    throw "Plugin VersionName '$($descriptor.VersionName)' must exactly equal SemVersion '$semVersion'."
+}
+if ([string]$package.version -ne $semVersion) {
+    throw "Companion version '$($package.version)' must exactly equal plugin SemVersion '$semVersion'."
+}
+$isPrerelease = $semVersion.Contains('-')
+if ([bool]$descriptor.IsBetaVersion -ne $isPrerelease) {
+    throw "IsBetaVersion must be true exactly when SemVersion '$semVersion' is a prerelease."
+}
+foreach ($urlField in @('CreatedByURL', 'DocsURL', 'SupportURL')) {
+    $url = [string]$descriptor.$urlField
+    if ($url -notmatch '^https://github\.com/Smeagol69/ai-factory-copilot(?:$|[/#])') {
+        throw "$urlField must point to the AI Factory Copilot GitHub project, found '$url'."
+    }
 }
 if ($descriptor.GameVersion -ne '>=491125') {
     throw "Unexpected FactoryGame range '$($descriptor.GameVersion)'."
@@ -33,8 +56,12 @@ $requiredFiles = @(
     'companion\lib\tools.mjs',
     'companion\lib\sources.mjs',
     'scripts\package-local.ps1',
+    'scripts\package-release.ps1',
     'scripts\install-companion.ps1',
-    'scripts\run-companion.ps1'
+    'scripts\configure-companion.ps1',
+    'scripts\run-companion.ps1',
+    'CHANGELOG.md',
+    'LICENSE'
 )
 foreach ($relative in $requiredFiles) {
     $path = Join-Path $root $relative
