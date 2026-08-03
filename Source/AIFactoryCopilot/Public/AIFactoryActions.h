@@ -79,6 +79,13 @@ struct FAIFactoryUndoStep
     TArray<TWeakObjectPtr<AActor>> DismantleActors;
     /** Buildables to remove to undo a placement. */
     TArray<TWeakObjectPtr<AFGBuildable>> SpawnedBuildables;
+    /**
+     * Items handed to the player, to be taken back on undo.
+     *
+     * The count is what actually landed, not what was asked for — a partial add
+     * into a nearly full inventory must not have undo remove more than it gave.
+     */
+    TArray<TPair<TSubclassOf<class UFGItemDescriptor>, int32>> GrantedItems;
     /** Where the player was before a teleport. */
     bool bHadPlayerTransform = false;
     FTransform PreviousPlayerTransform;
@@ -146,6 +153,21 @@ namespace AIFactoryActions
         const FAIFactoryActionContext& Context,
         const FString& BlueprintName,
         const FTransform& Origin);
+
+    /**
+     * Puts items into the player's inventory.
+     *
+     * The item class must resolve to a real `UFGItemDescriptor`, so an unknown
+     * name is refused rather than silently producing nothing. Partial adds are
+     * allowed and reported: a nearly full inventory is a normal outcome, and
+     * "12 of the 50 you asked for went in" is more use than a flat refusal.
+     *
+     * Reversible — undo removes exactly what went in, never more.
+     */
+    FAIFactoryActionResult GiveItem(
+        const FAIFactoryActionContext& Context,
+        const FString& ItemClassPath,
+        int32 Count);
 
     /** Removes a placed building, addressed by the scanner's actor id. */
     FAIFactoryActionResult DismantleActor(
