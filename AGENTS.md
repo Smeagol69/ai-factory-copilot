@@ -17,7 +17,7 @@ work there before writing code.** Summary of the agreement:
   the owner explicitly asks.** This is the owner's standing rule and it applies
   to the other agent's work as much as your own.
 - Branch by author: `claude/<task>`, `codex/<task>`. `master` is integration.
-- Run `cd companion; npm test` before you commit. 380 tests as of 2026-08-03.
+- Run `cd companion; npm test` before you commit. 381 tests as of 2026-08-03.
 - Finish with a handoff: what changed, what was verified, what is still open.
 
 ## What this is
@@ -427,7 +427,7 @@ Open, in rough order:
 
 ## Superseding verified checkpoint (2026-08-03)
 
-This section supersedes the older 2026-07-29 checkpoint above. All 380 companion
+This section supersedes the older 2026-07-29 checkpoint above. All 381 companion
 tests pass, including release metadata and fail-closed response contracts, and
 the exact SML 3.12.0 / FactoryGame 491125 header checks pass. Version
 `1.0.0-beta.1` compiled for FactoryGameSteam Shipping and FactoryEditor
@@ -446,3 +446,13 @@ empty. It cost $0.1014537. The public companion ZIP SHA-256 is
 `AB6353EFBA5B94ADE9A6A9990A87EBDC95A66863B552C476D160D2A3E3D6F9BA`.
 The three verified assets are published as a GitHub prerelease at
 <https://github.com/Smeagol69/ai-factory-copilot/releases/tag/v1.0.0-beta.1>.
+
+Routing diagnostics are now instance-scoped. Before `4077a98`, every local test
+server wrote fixture questions into the player's real `routing.jsonl`, making
+the evidence used for free-route tuning unreliable. Test environments without
+`LOCALAPPDATA` now log nowhere; a dedicated test proves an explicitly redirected
+log carries session, provider, model, revision, and capture-time provenance.
+Production keeps its existing LocalAppData path. `AIFACTORY_ROUTING_LOG=off`
+disables the question log, and a full path redirects it. Entries through
+2026-08-03 17:23 EDT may contain test traffic; do not tune from those without
+filtering the known fixture questions.

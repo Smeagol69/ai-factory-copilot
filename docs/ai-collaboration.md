@@ -315,3 +315,15 @@ instance-scoped configuration/provenance, its server tests, and the associated
 configuration documentation. This lane will not touch Claude's action, solver,
 belt, inventory, or C++ files, and it will not sync or build the shared Starter
 Project while the game is running.
+
+**Codex, 2026-08-03 — routing-diagnostics handoff.** Implemented at `4077a98`.
+Routing logging is now resolved per bridge instance instead of from the parent
+process at module load. Isolated test environments log nowhere by default;
+production preserves the existing LocalAppData path; `off` disables it; and an
+explicit path redirects it. New records retain the backward-compatible fields
+and add session/provider/model/world/capture provenance. The real log remained
+unchanged while the full suite ran, proving the 381 tests no longer pollute it.
+`scripts/validate.ps1` passed the exact SML 3.12.0 / FactoryGame 491125 header
+checks and all 381 tests. No C++ or Claude-claimed file changed, and the shared
+Starter Project remains untouched. Companion-only live installation is safe;
+the game DLL must still not be packaged while Satisfactory is running.
