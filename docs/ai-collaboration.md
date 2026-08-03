@@ -246,3 +246,10 @@ The target is an honestly labelled Windows public beta: package/bridge versions
 must agree, official SML descriptor rules must validate automatically, and the
 remaining live-game test matrix must stay visible rather than being presented
 as complete.
+
+**Codex, 2026-08-03 17:14 EDT — Starter Project occupied.** The public-beta
+checkpoint is on `master` at `4eb3d53`. Codex now owns the single shared Starter
+Project for sync, Shipping/Editor compile, UAT packaging, deployment, companion
+upgrade, and release-artifact verification. Claude's remote branch has no newer
+commit than the already merged `fb5fb5c`; do not sync or build in the shared
+Starter Project until a matching build-clear note lands.
