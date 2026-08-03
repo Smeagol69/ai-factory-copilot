@@ -21,6 +21,10 @@ export const WRITE_ACTION_KINDS = [
   "place_blueprint",
   "dismantle",
   "undo_last",
+  // Puts items straight into the player's inventory. Creative by nature, which
+  // is exactly what was asked for — but it is still a write: gated, stamped,
+  // dry-runnable, and reversible by taking back only what actually landed.
+  "give_item",
   // The game's own map markers, used instead of reimplementing the compass
   // distance readout the resource scanner already shows.
   //
@@ -45,6 +49,56 @@ export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
 /** Beyond this the player almost certainly meant something else. */
 const MAX_TELEPORT_METERS = 200_000;
 const MAX_PLACEMENT_REACH_METERS = 5_000;
+/**
+ * A cap on one give, not on generosity.
+ *
+ * The point is to catch a slipped decimal — "500000 iron plate" is a typo, not
+ * a request — while leaving any amount a player would actually want. Ask twice
+ * if you genuinely want more.
+ */
+const MAX_ITEMS_PER_GIVE = 50_000;
+
+/** Finds an item by class path, class name, or display name, in that order. */
+function findItemInCatalog(graph, requested) {
+  const items = graph?.snapshot?.content?.items ?? [];
+  const needle = requested.toLowerCase();
+  const shortOf = (path) => String(path ?? "").split(".").pop()?.toLowerCase() ?? "";
+
+  return (
+    items.find((item) => item.class_path === requested) ??
+    items.find((item) => shortOf(item.class_path) === needle) ??
+    items.find((item) => shortOf(item.class_path) === `${needle}_c`) ??
+    items.find((item) => String(item.name ?? "").toLowerCase() === needle) ??
+    // Last resort: a unique substring match. Ambiguity is treated as no match,
+    // because handing over the wrong item is worse than asking again.
+    (() => {
+      const partial = items.filter((item) =>
+        String(item.name ?? "").toLowerCase().includes(needle),
+      );
+      return partial.length === 1 ? partial[0] : null;
+    })() ??
+    null
+  );
+}
+
+function nearestItemNames(graph, requested) {
+  const needle = requested.toLowerCase();
+  // Match on any word of the request, so "iron plates" still suggests "Iron
+  // Plate". The reverse test — item name inside the request — was tried and
+  // removed: it matched "Tan" inside "unobtanium" and suggested nonsense.
+  const words = needle.split(/\s+/).filter((word) => word.length >= 3);
+  const names = new Set();
+  for (const item of graph?.snapshot?.content?.items ?? []) {
+    const name = String(item.name ?? "").trim();
+    if (!name) continue;
+    const lowered = name.toLowerCase();
+    if (lowered.includes(needle) || words.some((word) => lowered.includes(word))) {
+      names.add(name);
+      if (names.size >= 5) break;
+    }
+  }
+  return [...names];
+}
 
 function finite(value) {
   const number = Number(value);
@@ -338,6 +392,44 @@ export function validateAction(graph, proposal) {
       warnings,
       checks: { draws_only: true },
       action: bindWorldRevision(graph, { ...rest, action: kind, commit: true }, proposal),
+    };
+  }
+
+  if (kind === "give_item") {
+    const requested = String(proposal.item_class ?? proposal.item_name ?? "").trim();
+    if (!requested) return reject(kind, "item_class_or_item_name_is_required");
+
+    const count = finite(proposal.count) ?? 1;
+    if (!Number.isInteger(count) || count <= 0) {
+      return reject(kind, "count_must_be_a_positive_whole_number");
+    }
+    if (count > MAX_ITEMS_PER_GIVE) {
+      return reject(kind, "count_is_implausibly_large", { limit: MAX_ITEMS_PER_GIVE });
+    }
+
+    // Resolve against the catalog the game actually reported, so a misspelled
+    // or modded-away item is refused here with suggestions rather than
+    // bouncing off the mod with a bare class-not-found.
+    const resolved = findItemInCatalog(graph, requested);
+    if (!resolved) {
+      return reject(kind, "no_such_item", { closest: nearestItemNames(graph, requested) });
+    }
+
+    return {
+      valid: true,
+      warnings,
+      checks: {
+        ...checks,
+        item_name: resolved.name,
+        // The mod adds partially and reports what landed; the bridge cannot see
+        // free inventory slots, so it does not pretend to.
+        inventory_space: "unknown until the mod adds them",
+      },
+      action: bindWorldRevision(
+        graph,
+        { action: kind, item_class: resolved.class_path, count, commit: proposal.commit === true },
+        proposal,
+      ),
     };
   }
 

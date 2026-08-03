@@ -566,6 +566,53 @@ export function parsePlaceRequest(question) {
   };
 }
 
+/**
+ * "insert biomass into my inventory", "give me 50 iron plate", "spawn 20 coal".
+ *
+ * The player asked for exactly this and got a refusal, because no give action
+ * existed. Now that it does, the request is a name and a number — the item is
+ * checked against the game's own catalog by the validator, so nothing here has
+ * to know what a Biomass is.
+ */
+const GIVE_VERB =
+  /^(?:can you |could you |please )?(?:give|add|insert|put|spawn|grant|hand)\s+(?:me\s+)?/i;
+const GIVE_DESTINATION =
+  /\s+(?:in|into|to)\s+(?:my|the)\s+(?:inventory|inv|pockets|bag)\s*$/i;
+const GIVE_TRAILING = /\s+(?:please|now|for me)\s*$/i;
+
+export function parseGiveRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || MULTI_CLAUSE.test(text)) return null;
+
+  const verb = text.match(GIVE_VERB);
+  if (!verb) return null;
+
+  let body = text.slice(verb[0].length).replace(GIVE_DESTINATION, "").replace(GIVE_TRAILING, "").trim();
+  if (!body) return null;
+
+  // A leading count is the common phrasing ("50 biomass"); a trailing one is
+  // not, and "x50" shows up often enough to be worth reading.
+  let count = 1;
+  const leading = body.match(/^(\d+)\s*x?\s+(.+)$/i);
+  const trailing = body.match(/^(.+?)\s+x?\s*(\d+)$/i);
+  if (leading) {
+    count = Number(leading[1]);
+    body = leading[2].trim();
+  } else if (trailing) {
+    count = Number(trailing[2]);
+    body = trailing[1].trim();
+  }
+
+  body = body.replace(/^(?:a|an|some|the)\s+/i, "").trim();
+  if (!body || body.length < 2 || !Number.isFinite(count) || count <= 0) return null;
+
+  // A stack count is a real request; anything with punctuation or arithmetic in
+  // it is not something to guess at.
+  if (/[=,;:]/.test(body)) return null;
+
+  return { item: body, count };
+}
+
 export function parseLocateRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
@@ -784,6 +831,30 @@ export function answerLocally(question, graph, services) {
       Date.now(),
       "The input carried no actionable content, so no model was consulted.",
     );
+  }
+
+  // "give me 50 biomass" is a catalog lookup and a number. The validator
+  // resolves the item name against the game's own 2,405-entry item catalog and
+  // refuses anything that is not in it, so there is nothing here for a model to
+  // decide — and an unknown name falls through to one rather than being denied.
+  const give = parseGiveRequest(question);
+  if (give) {
+    const started = Date.now();
+    const plan = emitValidatedPlan(graph, services, [
+      { action: "give_item", item_name: give.item, count: give.count, commit: true },
+    ]);
+    if (plan) {
+      const [action] = plan.actions;
+      const name = plan.steps?.[0]?.checks?.item_name ?? give.item;
+      return localAnswer(
+        `Adding **${action.count} × ${name}** to your inventory. ` +
+          "The mod reports how many actually fitted; say \"undo\" to take them back.",
+        "give_item",
+        started,
+        "The item was resolved from the game's own catalog; the count was stated.",
+      );
+    }
+    // Unresolved item or a refused count: the model can ask, or spell it right.
   }
 
   // Display actions need no model: the game resolves their exact targets and
