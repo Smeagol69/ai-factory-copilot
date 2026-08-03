@@ -38,12 +38,15 @@ namespace
         FString Action;
         (*Object)->TryGetBoolField(TEXT("committed"), bCommitted);
         (*Object)->TryGetStringField(TEXT("action"), Action);
+        // Only the drawn overlay is exempt. Map markers were briefly listed
+        // here too, on the reasoning that a waypoint is just a marker — but
+        // FMapMarker is a SaveGame property, so a waypoint survives a reload
+        // and clearing one is a real deletion. Persistent state belongs behind
+        // the write gate however harmless it looks on screen.
         return
             bCommitted &&
             Action != TEXT("highlight") &&
-            Action != TEXT("clear_highlight") &&
-            Action != TEXT("waypoint") &&
-            Action != TEXT("clear_waypoints");
+            Action != TEXT("clear_highlight");
     }
 
     FString DescribeActionResults(const TArray<TSharedPtr<FJsonValue>>& Results)

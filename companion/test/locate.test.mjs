@@ -255,7 +255,9 @@ test("clear waypoints uses the dedicated map-marker action", () => {
   assert.equal(answer.local.solver, "clear_waypoints");
   assert.equal(emitted.length, 1);
   assert.equal(emitted[0].action, "clear_waypoints");
-  assert.equal(emitted[0].all, true);
+  assert.equal(emitted[0].name_contains, undefined);
+  assert.equal(emitted[0].commit, true);
+  assert.equal(emitted[0].expect_world_revision, "73");
 });
 
 test("waypointing the best site asks the site solver, not the model", () => {

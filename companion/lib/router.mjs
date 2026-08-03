@@ -789,7 +789,10 @@ export function answerLocally(question, graph, services) {
   // Display actions need no model: the game resolves their exact targets and
   // the shared validator applies the same write/dry-run policy as every tool.
   if (parseClearWaypointRequest(question)) {
-    const action = { action: "clear_waypoints", all: true, commit: true };
+    // No name filter is the action contract's canonical spelling for "all".
+    // Unlike line overlays, saved map markers are writes, so an explicit clear
+    // request is committed here and still remains gated by the mod.
+    const action = { action: "clear_waypoints", commit: true };
     if (!emitValidatedPlan(graph, services, [action])) return null;
     return localAnswer(
       "Clearing the map waypoints created by AI Factory Copilot.",

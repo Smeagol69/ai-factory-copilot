@@ -250,14 +250,55 @@ namespace
         return Object;
     }
 
-    void RecordActionUndo(FAIFactoryUndoStep&& Step)
+    /**
+     * Suppresses history trimming while a plan is mid-flight.
+     *
+     * A transaction remembers where it began as an *index* into the journal,
+     * and trimming removes from the front, which shifts every index down. At
+     * capacity that silently repoints the transaction: rollback starts too late
+     * and leaves its own first placement standing in the world while reporting
+     * that it rolled back — the worst kind of wrong, because the report is
+     * confident.
+     *
+     * So the cap is enforced at transaction boundaries rather than on every
+     * insert. The journal may sit a few entries over its limit for the duration
+     * of one plan, bounded by MaxActionsPerReply, which costs nothing.
+     *
+     * Found by Codex during a release audit of this file; see
+     * docs/ai-collaboration.md.
+     */
+    int32 GAIFactoryUndoTrimSuspensions = 0;
+
+    void TrimActionUndoJournal()
     {
-        Step.RecordedAt = FDateTime::UtcNow();
-        GAIFactoryUndoJournal.Add(MoveTemp(Step));
+        if (GAIFactoryUndoTrimSuspensions > 0)
+        {
+            return;
+        }
         while (GAIFactoryUndoJournal.Num() > MaximumActionUndoSteps)
         {
             GAIFactoryUndoJournal.RemoveAt(0);
         }
+    }
+
+    /** Holds journal indices stable for the lifetime of one plan. */
+    struct FAIFactoryUndoTrimGuard
+    {
+        FAIFactoryUndoTrimGuard() { ++GAIFactoryUndoTrimSuspensions; }
+        ~FAIFactoryUndoTrimGuard()
+        {
+            --GAIFactoryUndoTrimSuspensions;
+            TrimActionUndoJournal();
+        }
+        FAIFactoryUndoTrimGuard(const FAIFactoryUndoTrimGuard&) = delete;
+        FAIFactoryUndoTrimGuard& operator=(const FAIFactoryUndoTrimGuard&) = delete;
+    };
+
+    void RecordActionUndo(FAIFactoryUndoStep&& Step)
+    {
+        Step.RecordedAt = FDateTime::UtcNow();
+        GAIFactoryUndoJournal.Add(MoveTemp(Step));
+        TrimActionUndoJournal();
     }
 
     int32 RollBackActionUndoFrom(const int32 FirstStep)
@@ -697,28 +738,49 @@ namespace
             TArray<FMapMarker> Markers;
             MapManager->GetMapMarkers(Markers);
 
-            int32 Removed = 0;
+            TArray<FMapMarker> Matching;
             for (const FMapMarker& Marker : Markers)
             {
-                // Only markers this copilot placed are removable by default: the
-                // player's own pins are not ours to delete.
+                // Only markers this copilot placed are removable: the player's
+                // own pins are not ours to delete.
                 const bool bIsOurs = Marker.CategoryName == AIFactoryWaypointCategory;
                 const bool bMatchesName =
                     NameFilter.IsEmpty() || Marker.Name.Contains(NameFilter);
                 if (bIsOurs && bMatchesName)
                 {
-                    MapManager->RemoveMapMarker(Marker);
-                    ++Removed;
+                    Matching.Add(Marker);
                 }
             }
 
+            // A map marker is saved with the world, so removing one is a real
+            // deletion and a dry run must not perform it. This path deleted
+            // regardless of bDryRun, which made "show me what this would do"
+            // destructive. Found by Codex during a release audit.
+            if (Context.bDryRun)
+            {
+                TSharedPtr<FJsonObject> Predicted = MakeShared<FJsonObject>();
+                Predicted->SetNumberField(TEXT("waypoints_would_be_removed"), Matching.Num());
+                Predicted->SetNumberField(TEXT("markers_now"), MapManager->GetNumMapMarkers());
+                Result.Predicted = Predicted;
+                Result.bAccepted = true;
+                Result.bDryRun = true;
+                Result.Status = TEXT("dry_run");
+                return Result;
+            }
+
+            for (const FMapMarker& Marker : Matching)
+            {
+                MapManager->RemoveMapMarker(Marker);
+            }
+
             TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
-            Observed->SetNumberField(TEXT("waypoints_removed"), Removed);
+            Observed->SetNumberField(TEXT("waypoints_removed"), Matching.Num());
             Observed->SetNumberField(TEXT("markers_left"), MapManager->GetNumMapMarkers());
             Result.Observed = Observed;
             Result.bAccepted = true;
             Result.bCommitted = true;
-            Result.Status = Removed > 0 ? TEXT("committed") : TEXT("nothing_to_clear");
+            Result.Status = Matching.Num() > 0 ? TEXT("committed") : TEXT("nothing_to_clear");
+            Result.UndoDescription = TEXT("Removed map markers are not restored by undo.");
             return Result;
         }
 
@@ -1960,8 +2022,7 @@ FString ExecutePlan(
         {
             continue;
         }
-        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight") ||
-            Item.Kind == TEXT("waypoint") || Item.Kind == TEXT("clear_waypoints"))
+        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight"))
         {
             Item.Preflight.Action = Item.Kind;
             Item.Preflight.bAccepted = true;
@@ -2022,6 +2083,9 @@ FString ExecutePlan(
             *PlanRefusal);
     }
 
+    // Everything below indexes the journal from here, so it must not move
+    // underneath us. The guard defers the history cap until the plan is done.
+    const FAIFactoryUndoTrimGuard UndoTrimGuard;
     const int32 UndoJournalStart = GAIFactoryUndoJournal.Num();
     int32 Committed = 0;
     int32 CommittedWrites = 0;
