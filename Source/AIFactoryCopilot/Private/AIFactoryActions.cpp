@@ -1,4 +1,5 @@
 #include "AIFactoryActions.h"
+#include "AIFactoryWaypointDisplay.h"
 
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
@@ -749,9 +750,6 @@ namespace
         return Fallback;
     }
 
-    /** Marks the markers this copilot owns, so the player's own pins are safe. */
-    const FString AIFactoryWaypointCategory = TEXT("AI Factory Copilot");
-
     /**
      * `waypoint` / `clear_waypoints`, using the game's own map markers.
      *
@@ -798,7 +796,7 @@ namespace
             {
                 // Only markers this copilot placed are removable: the player's
                 // own pins are not ours to delete.
-                const bool bIsOurs = Marker.CategoryName == AIFactoryWaypointCategory;
+                const bool bIsOurs = Marker.CategoryName == AIFactoryWaypointDisplay::Category;
                 const bool bMatchesName =
                     NameFilter.IsEmpty() || Marker.Name.Contains(NameFilter);
                 if (bIsOurs && bMatchesName)
@@ -868,13 +866,21 @@ namespace
         Marker.Location = Location;
         Marker.Name = TEXT("Copilot waypoint");
         Spec->TryGetStringField(TEXT("name"), Marker.Name);
-        Marker.CategoryName = AIFactoryWaypointCategory;
+        Marker.CategoryName = AIFactoryWaypointDisplay::Category;
         Marker.MapMarkerType = ERepresentationType::RT_MapMarker;
         Marker.Color = FLinearColor(0.1f, 0.8f, 1.0f, 1.0f);
         Marker.Scale = 1.0f;
         // The point of using the game's markers is the compass readout, so it is
         // on by default rather than left at the struct's CVD_Off.
         Marker.CompassViewDistance = ECompassViewDistance::CVD_Always;
+
+        if (IsValid(Context.Player))
+        {
+            Marker.Name = AIFactoryWaypointDisplay::FormatName(
+                Marker.Name,
+                Context.Player->GetActorLocation(),
+                Location);
+        }
 
         int32 IconId = 0;
         if (Spec->TryGetNumberField(TEXT("icon_id"), IconId))
@@ -905,6 +911,12 @@ namespace
         Observed->SetStringField(TEXT("marker_guid"), Created.MarkerGUID.ToString());
         Observed->SetStringField(TEXT("name"), Created.Name);
         Observed->SetObjectField(TEXT("location"), ActionVectorJson(Created.Location));
+        if (IsValid(Context.Player))
+        {
+            Observed->SetNumberField(
+                TEXT("distance_m"),
+                FVector::Dist(Context.Player->GetActorLocation(), FVector(Created.Location)) / 100.0);
+        }
         Observed->SetNumberField(TEXT("total_markers"), MapManager->GetNumMapMarkers());
         Observed->SetStringField(
             TEXT("visible_on"),
