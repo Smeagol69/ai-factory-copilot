@@ -16,10 +16,12 @@
 #include "FGMapMarker.h"
 #include "FGConstructDisqualifier.h"
 #include "FGDismantleInterface.h"
+#include "FGFactoryConnectionComponent.h"
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
 #include "Hologram/FGBlueprintHologram.h"
+#include "Hologram/FGConveyorBeltHologram.h"
 #include "Hologram/FGHologram.h"
 #include "Resources/FGBuildingDescriptor.h"
 #include "Resources/FGItemDescriptor.h"
@@ -1766,6 +1768,269 @@ FAIFactoryActionResult GiveItem(
     return Result;
 }
 
+/**
+ * Resolves an exported connection component path back to the live component.
+ *
+ * The scanner exports `GetPathName()`, so the same string round-trips through
+ * `FindObject`. A path that no longer resolves means the machine was dismantled
+ * between the snapshot and the write, which is a refusal, not a retry.
+ */
+UFGFactoryConnectionComponent* FindActionFactoryConnection(const FString& ComponentPath)
+{
+    if (ComponentPath.IsEmpty())
+    {
+        return nullptr;
+    }
+    return FindObject<UFGFactoryConnectionComponent>(nullptr, *ComponentPath);
+}
+
+/**
+ * A hit result aimed at a connection, shaped the way the build gun would.
+ *
+ * The conveyor hologram snaps to connections by inspecting what the hit points
+ * at, so the owning actor and the connector's own world location are what make
+ * it snap rather than free-place.
+ */
+FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
+{
+    FHitResult Hit;
+    Hit.bBlockingHit = true;
+    const FVector Location = Connection->GetConnectorLocation(false);
+    Hit.ImpactPoint = Location;
+    Hit.Location = Location;
+    Hit.TraceStart = Location + Connection->GetConnectorNormal() * 100.0;
+    Hit.TraceEnd = Location;
+    Hit.ImpactNormal = Connection->GetConnectorNormal();
+    Hit.Normal = Hit.ImpactNormal;
+    Hit.HitObjectHandle = FActorInstanceHandle(Connection->GetOwner());
+    Hit.Component = Connection;
+    return Hit;
+}
+
+FAIFactoryActionResult PlaceBelt(
+    const FAIFactoryActionContext& Context,
+    const FString& RecipeClassPath,
+    const FString& FromConnectionComponent,
+    const FString& ToConnectionComponent)
+{
+    const FString Action = TEXT("place_belt");
+    const FString Blocked = CheckActionPreconditions(Context);
+    if (!Blocked.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, Blocked);
+    }
+
+    UFGFactoryConnectionComponent* From = FindActionFactoryConnection(FromConnectionComponent);
+    UFGFactoryConnectionComponent* To = FindActionFactoryConnection(ToConnectionComponent);
+    if (!IsValid(From))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("from_connection_did_not_resolve"));
+    }
+    if (!IsValid(To))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("to_connection_did_not_resolve"));
+    }
+    if (From == To)
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("a_belt_needs_two_different_connections"));
+    }
+
+    // An occupied port is the most common reason a planned route cannot be
+    // built: the plan was made against a snapshot, and the player may have
+    // belted it themselves since.
+    if (From->IsConnected())
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("from_connection_is_already_connected"));
+    }
+    if (To->IsConnected())
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("to_connection_is_already_connected"));
+    }
+
+    const EFactoryConnectionDirection FromDirection = From->GetDirection();
+    const EFactoryConnectionDirection ToDirection = To->GetDirection();
+    if (FromDirection == EFactoryConnectionDirection::FCD_INPUT)
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("from_connection_is_an_input"));
+    }
+    if (ToDirection == EFactoryConnectionDirection::FCD_OUTPUT)
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("to_connection_is_an_output"));
+    }
+
+    UClass* RecipeClass = FindActionClassByPath(RecipeClassPath);
+    if (!RecipeClass || !RecipeClass->IsChildOf(UFGRecipe::StaticClass()))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("recipe_class_did_not_resolve_to_a_recipe"));
+    }
+
+    AFGBuildableSubsystem* Buildables = AFGBuildableSubsystem::Get(Context.World);
+    if (!IsValid(Buildables))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("buildable_subsystem_unavailable"));
+    }
+
+    FAIFactoryActionResult Result;
+    Result.Action = Action;
+    Result.bDryRun = Context.bDryRun;
+
+    const TSharedRef<FJsonObject> Predicted = MakeShared<FJsonObject>();
+    Predicted->SetStringField(TEXT("from_component"), FromConnectionComponent);
+    Predicted->SetStringField(TEXT("to_component"), ToConnectionComponent);
+    Predicted->SetObjectField(TEXT("from_location"), ActionVectorJson(From->GetConnectorLocation(false)));
+    Predicted->SetObjectField(TEXT("to_location"), ActionVectorJson(To->GetConnectorLocation(false)));
+    Predicted->SetNumberField(
+        TEXT("straight_line_length_cm"),
+        FVector::Dist(From->GetConnectorLocation(false), To->GetConnectorLocation(false)));
+
+    AActor* HologramOwner = Context.Player;
+    if (AFGBuildGun* BuildGun = Context.Player->GetBuildGun();
+        IsValid(BuildGun))
+    {
+        HologramOwner = BuildGun;
+    }
+
+    AFGHologram* Spawned = AFGHologram::SpawnHologramFromRecipe(
+        RecipeClass,
+        HologramOwner,
+        From->GetConnectorLocation(false),
+        Context.Player);
+    AFGConveyorBeltHologram* Belt = Cast<AFGConveyorBeltHologram>(Spawned);
+    if (!IsValid(Belt))
+    {
+        if (IsValid(Spawned))
+        {
+            Spawned->Destroy();
+        }
+        // A recipe that is not a belt would otherwise be free-placed at the
+        // start connector, which is a building appearing where a belt was asked
+        // for. Naming the mismatch is more useful than building the wrong thing.
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("recipe_is_not_a_conveyor_belt"));
+    }
+
+    Belt->SetConstructionInstigator(Context.Player);
+
+    // Two-step placement, exactly as the build gun drives it: aim at the source
+    // connector, lock it, aim at the destination, finish. The hologram does the
+    // routing, bend radius, incline and length checks itself — this only has to
+    // put the crosshair in the right two places.
+    const FHitResult FromHit = MakeActionConnectionHit(From);
+    Belt->SetHologramLocationAndRotation(FromHit);
+    if (!Belt->DoMultiStepPlacement(false))
+    {
+        // The belt hologram is inherently two-step, so a first step that reports
+        // "finished" means it did not take the connection.
+        Belt->Destroy();
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_did_not_accept_the_source_connection"));
+    }
+
+    const FHitResult ToHit = MakeActionConnectionHit(To);
+    Belt->SetHologramLocationAndRotation(ToHit);
+
+    FString HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
+    Belt->ValidatePlacementAndCost(
+        IsValid(Context.Player) ? Context.Player->GetInventory() : nullptr);
+    if (!Belt->CanConstruct())
+    {
+        Predicted->SetStringField(
+            TEXT("hologram_transform"),
+            Belt->GetActorTransform().ToString());
+        Result.Predicted = Predicted;
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = HardReason.IsEmpty()
+            ? TEXT("belt_hologram_refused_placement_or_cost")
+            : TEXT("belt_hologram_disqualified:") + HardReason;
+        return Result;
+    }
+
+    if (Context.bDryRun)
+    {
+        Belt->Destroy();
+        Result.Predicted = Predicted;
+        Result.bAccepted = true;
+        Result.Status = TEXT("dry_run");
+        return Result;
+    }
+
+    if (!Belt->DoMultiStepPlacement(true))
+    {
+        Belt->Destroy();
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_wants_more_placement_points"));
+    }
+
+    TArray<AActor*> ConstructedChildren;
+    AActor* Constructed = Belt->Construct(
+        ConstructedChildren,
+        Buildables->GetNewNetConstructionID());
+    if (IsValid(Belt))
+    {
+        Belt->Destroy();
+    }
+
+    TArray<AFGBuildable*> Built;
+    if (AFGBuildable* Root = Cast<AFGBuildable>(Constructed);
+        IsValid(Root))
+    {
+        Built.Add(Root);
+    }
+    for (AActor* Child : ConstructedChildren)
+    {
+        if (AFGBuildable* ChildBuildable = Cast<AFGBuildable>(Child);
+            IsValid(ChildBuildable))
+        {
+            Built.AddUnique(ChildBuildable);
+        }
+    }
+    if (Built.Num() == 0)
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("game_constructed_no_belt"));
+    }
+
+    // Read the world back rather than trusting the request: whether the belt
+    // actually joined both ports is the only thing that answers "did it work".
+    const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetBoolField(TEXT("from_connected"), From->IsConnected());
+    Observed->SetBoolField(TEXT("to_connected"), To->IsConnected());
+    TArray<TSharedPtr<FJsonValue>> BuiltIds;
+    for (AFGBuildable* Buildable : Built)
+    {
+        Result.CreatedActorIds.Add(Buildable->GetPathName());
+        BuiltIds.Add(MakeShared<FJsonValueString>(Buildable->GetPathName()));
+    }
+    Observed->SetArrayField(TEXT("belt_actors"), BuiltIds);
+
+    FAIFactoryUndoStep Step;
+    Step.Action = Action;
+    Step.Description = FString::Printf(TEXT("Dismantle the %d belt piece(s) just built."), Built.Num());
+    for (AFGBuildable* Buildable : Built)
+    {
+        Step.SpawnedBuildables.Add(Buildable);
+    }
+
+    Result.Predicted = Predicted;
+    Result.Observed = Observed;
+    Result.bAccepted = true;
+    Result.bCommitted = true;
+    Result.Status = TEXT("committed");
+    Result.bUndoable = true;
+    Result.UndoDescription = Step.Description;
+    if (!From->IsConnected() || !To->IsConnected())
+    {
+        Result.Warnings.Add(
+            TEXT("The belt was built but at least one end did not register as connected. "
+                 "Check both machines before relying on the throughput."));
+    }
+    RecordActionUndo(MoveTemp(Step));
+    return Result;
+}
+
 FAIFactoryActionResult DismantleActor(const FAIFactoryActionContext& Context, const FString& ActorId)
 {
     const FString Action = TEXT("dismantle");
@@ -1985,6 +2250,7 @@ namespace
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
             Kind == TEXT("give_item") ||
+            Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
             Kind == TEXT("undo_last");
     }
@@ -2084,6 +2350,26 @@ namespace
                 Context,
                 Name,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location));
+        }
+        if (Kind == TEXT("place_belt"))
+        {
+            FString RecipeClass;
+            FString FromComponent;
+            FString ToComponent;
+            Spec->TryGetStringField(TEXT("recipe_class"), RecipeClass);
+            Spec->TryGetStringField(TEXT("from_component"), FromComponent);
+            Spec->TryGetStringField(TEXT("to_component"), ToComponent);
+            if (RecipeClass.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("recipe_class_is_required"));
+            }
+            if (FromComponent.IsEmpty() || ToComponent.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("from_component_and_to_component_are_required"));
+            }
+            return PlaceBelt(Context, RecipeClass, FromComponent, ToComponent);
         }
         if (Kind == TEXT("give_item"))
         {

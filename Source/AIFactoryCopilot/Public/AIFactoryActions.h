@@ -169,6 +169,27 @@ namespace AIFactoryActions
         const FString& ItemClassPath,
         int32 Count);
 
+    /**
+     * Runs a conveyor belt between two existing factory connections.
+     *
+     * `plan_belt_route` on the bridge already chooses the connector pair and
+     * measures the span; this is the half that builds it. Both endpoints are
+     * addressed by their connection *component* path, because that is what the
+     * scanner exports and what identifies a port uniquely — an actor id alone
+     * does not say which of a machine's four ports was meant.
+     *
+     * The belt is built through `AFGConveyorBeltHologram`, driven by the same
+     * two-step placement the build gun uses, so Satisfactory itself decides the
+     * spline shape, the bend radius, the maximum length, the incline limit,
+     * clearance, and cost. Nothing here reimplements any of that, and anything
+     * the game refuses is reported as refused.
+     */
+    FAIFactoryActionResult PlaceBelt(
+        const FAIFactoryActionContext& Context,
+        const FString& RecipeClassPath,
+        const FString& FromConnectionComponent,
+        const FString& ToConnectionComponent);
+
     /** Removes a placed building, addressed by the scanner's actor id. */
     FAIFactoryActionResult DismantleActor(
         const FAIFactoryActionContext& Context,

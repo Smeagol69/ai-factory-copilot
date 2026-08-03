@@ -19,6 +19,11 @@ export const WRITE_ACTION_KINDS = [
   "teleport_player",
   "place_building",
   "place_blueprint",
+  // Runs a conveyor between two existing connection components. `plan_belt_route`
+  // chooses and measures the pair; this builds it. Addressed by connection
+  // component rather than by actor, because an actor id does not say which of a
+  // machine's ports was meant.
+  "place_belt",
   "dismantle",
   "undo_last",
   // Puts items straight into the player's inventory. Creative by nature, which
@@ -392,6 +397,49 @@ export function validateAction(graph, proposal) {
       warnings,
       checks: { draws_only: true },
       action: bindWorldRevision(graph, { ...rest, action: kind, commit: true }, proposal),
+    };
+  }
+
+  if (kind === "place_belt") {
+    const recipeClass = String(proposal.recipe_class ?? "").trim();
+    const fromComponent = String(proposal.from_component ?? "").trim();
+    const toComponent = String(proposal.to_component ?? "").trim();
+
+    if (!recipeClass) return reject(kind, "recipe_class_is_required");
+    if (!fromComponent || !toComponent) {
+      return reject(kind, "from_component_and_to_component_are_required");
+    }
+    if (fromComponent === toComponent) {
+      return reject(kind, "a_belt_needs_two_different_connections");
+    }
+
+    // The route planner already knows whether these ports exist, face each
+    // other, and are free. Re-deriving that here would be a second opinion on
+    // data the mod is about to re-check anyway against the *live* world, which
+    // is the only check that counts — a port can be belted by the player
+    // between the snapshot and the write.
+    return {
+      valid: true,
+      warnings: [
+        ...warnings,
+        "Belt length, bend radius, incline and clearance are decided by the game's " +
+          "conveyor hologram; anything it refuses is reported as refused.",
+      ],
+      checks: {
+        ...checks,
+        endpoints_rechecked_by: "the mod, against the live world",
+      },
+      action: bindWorldRevision(
+        graph,
+        {
+          action: kind,
+          recipe_class: recipeClass,
+          from_component: fromComponent,
+          to_component: toComponent,
+          commit: proposal.commit === true,
+        },
+        proposal,
+      ),
     };
   }
 
