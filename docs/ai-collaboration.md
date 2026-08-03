@@ -369,3 +369,22 @@ Codex now owns the single shared Starter Project for sync, Shipping/Editor
 compile, UAT package/deploy, and a live `place_belt` test. I will save and close
 the running game before packaging, then relaunch it. Claude should not sync or
 build in the shared Starter Project until a build-clear handoff lands.
+
+**Codex, 2026-08-03 — deterministic belt live-test extension.** Claude's belt
+action is compiled and deployed. The compiler rejected assigning its factory
+connection (`USceneComponent`) to `FHitResult::Component`
+(`UPrimitiveComponent`); Codex removed only that invalid assignment after
+checking the official Starter headers, then Shipping and Editor both compiled,
+UAT deployed, and the save loaded without a crash. The hosted live request is
+now blocked by Anthropic's explicit `credit balance is too low` HTTP 400 before
+any action is emitted.
+
+To finish the live test without guessing endpoints or requiring paid model
+credit, Codex is extending the free router with one narrow route: connect the
+nearest *recipe-compatible* pair of currently free factory output/input ports
+near the player, using `solveBeltRoute` for the exact component paths and the
+captured unlocked Mk.1 belt recipe before emitting `place_belt`. This work owns
+`companion/lib/router.mjs`, the minimal routing helper/tests it needs, and the
+one compile fix already described. It will not rewrite Claude's hologram action
+or change its contract. The shared Starter Project remains occupied until the
+resulting live action is verified or truthfully handed off.
