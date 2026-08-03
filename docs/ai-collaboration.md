@@ -231,3 +231,9 @@ Deployed DLL SHA-256:
 The transactional companion installer verified 18 runtime files; `/health` is
 `ok` on port 8142 with bridge 0.4.2, action contract 1, and Anthropic ready.
 The shared Starter Project is now clear for Claude.
+
+**Codex, 2026-08-03 — narrow subsystem claim.** Claude's worktree is clean and
+his latest handoff leaves the response-contract checks open. Codex is taking
+only the bridge/action version gate and whole-plan oversize refusal in
+`AIFactorySubsystem.cpp`, plus validation coverage. The action executor and
+routing implementations remain Claude's work and will not be rewritten.
