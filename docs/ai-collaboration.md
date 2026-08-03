@@ -272,3 +272,11 @@ instead of the real response field `solver_calls`; the HTTP/provider request
 itself returned 200 and the accepted reply. Still open: the live construction
 matrix, authoritative belt divisor, conveyor writes, general pipes/power, and
 blueprint transform parsing/writing.
+
+**Codex, 2026-08-03 — public distribution complete.** Tag
+`v1.0.0-beta.1` points at `a3f34f2`. The public GitHub prerelease is
+<https://github.com/Smeagol69/ai-factory-copilot/releases/tag/v1.0.0-beta.1>
+and contains the exact mod ZIP, companion ZIP, and checksum file named in the
+handoff above. The API token lacked Releases permission, so Codex used the
+already authenticated GitHub web session and verified the published page shows
+the prerelease label and all three assets.

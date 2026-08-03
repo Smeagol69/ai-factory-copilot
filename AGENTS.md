@@ -444,3 +444,5 @@ synthetic end-to-end request forced power and belt solver calls; Claude returned
 their exact values, the grounding gate accepted the answer, and `actions` was
 empty. It cost $0.1014537. The public companion ZIP SHA-256 is
 `AB6353EFBA5B94ADE9A6A9990A87EBDC95A66863B552C476D160D2A3E3D6F9BA`.
+The three verified assets are published as a GitHub prerelease at
+<https://github.com/Smeagol69/ai-factory-copilot/releases/tag/v1.0.0-beta.1>.
