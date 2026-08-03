@@ -1787,9 +1787,11 @@ UFGFactoryConnectionComponent* FindActionFactoryConnection(const FString& Compon
 /**
  * A hit result aimed at a connection, shaped the way the build gun would.
  *
- * The conveyor hologram snaps to connections by inspecting what the hit points
- * at, so the owning actor and the connector's own world location are what make
- * it snap rather than free-place.
+ * The conveyor hologram snaps to connections by inspecting the hit actor near
+ * the impact point. Factory connections derive from USceneComponent, not
+ * UPrimitiveComponent, so they cannot be stored in FHitResult::Component. A
+ * real trace's primitive is not needed to identify the owning buildable and
+ * connector location, and inventing one would make this hit less authoritative.
  */
 FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
 {
@@ -1803,7 +1805,6 @@ FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
     Hit.ImpactNormal = Connection->GetConnectorNormal();
     Hit.Normal = Hit.ImpactNormal;
     Hit.HitObjectHandle = FActorInstanceHandle(Connection->GetOwner());
-    Hit.Component = Connection;
     return Hit;
 }
 

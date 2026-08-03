@@ -36,6 +36,7 @@ import {
   solveBlueprintLibrary,
 } from "./solvers.mjs";
 import { validatePlan } from "./actions.mjs";
+import { solveNearestCompatibleBeltRoute } from "./routing.mjs";
 
 /**
  * Run locally routed actions through the same validator used for model tools.
@@ -567,6 +568,54 @@ export function parsePlaceRequest(question) {
 }
 
 /**
+ * A deliberately narrow, fully deterministic conveyor write.
+ *
+ * "Nearest" alone is not safe: two adjacent ports can carry unrelated items.
+ * Requiring the player to say compatible makes the contract explicit, and the
+ * solver then proves compatibility from the machines' captured current recipes
+ * (or an extractor's captured resource node). The Mk.1 tier is also explicit so
+ * this route never silently chooses a belt tier.
+ */
+const NEAREST_COMPATIBLE_BELT =
+  /^(?:can you |could you |please )?(?:connect|link|join|belt)\s+(?:the\s+)?(?:nearest|closest)\s+(?:(?:recipe[- ]compatible|compatible)\s+)(?:(?:currently\s+)?(?:unconnected|free)\s+)?(?:(?:production|factory)\s+)?(?:machines?|machine\s+pair|pair)(?:\s+(?:near|around)\s+me)?(?:\s+within\s+(\d+)\s*(?:m|meters|metres))?\s+(?:with|using)\s+(?:a\s+|an\s+)?(?:mk\.?\s*1|mark\s*1)\s+(?:conveyor\s+)?belt$/i;
+
+export function parseNearestCompatibleBeltRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(NEAREST_COMPATIBLE_BELT);
+  if (!match) return null;
+  return { radius_m: match[1] ? Number.parseInt(match[1], 10) : 100 };
+}
+
+function capturedUnlockedMk1BeltRecipe(graph) {
+  if (graph?.snapshot?.content?.availability_known !== true) {
+    return {
+      recipe_class: null,
+      reason: "the snapshot did not prove live recipe availability",
+      missing: "content.availability_known",
+    };
+  }
+
+  const candidates = [];
+  for (const [classPath, recipe] of graph?.recipesByClass ?? []) {
+    const short = String(classPath).split(".").pop();
+    if (short === "Recipe_ConveyorBeltMk1_C" && recipe?.available === true) {
+      candidates.push(String(recipe.class_path ?? classPath));
+    }
+  }
+  if (candidates.length !== 1) {
+    return {
+      recipe_class: null,
+      reason:
+        candidates.length === 0
+          ? "the captured catalog did not contain an unlocked Mk.1 conveyor belt build recipe"
+          : "more than one unlocked Mk.1 conveyor belt recipe matched, so the choice is ambiguous",
+      candidates,
+    };
+  }
+  return { recipe_class: candidates[0] };
+}
+
+/**
  * "insert biomass into my inventory", "give me 50 iron plate", "spawn 20 coal".
  *
  * The player asked for exactly this and got a refusal, because no give action
@@ -855,6 +904,63 @@ export function answerLocally(question, graph, services) {
       );
     }
     // Unresolved item or a refused count: the model can ask, or spell it right.
+  }
+
+  // "Connect the nearest compatible machines with a Mk.1 belt" is fully
+  // determined by captured recipes, free connector state, player position and
+  // the game's captured unlock state. Keeping it local is not just cheaper: it
+  // means a hosted-provider outage cannot prevent a precisely specified write.
+  const nearestBelt = parseNearestCompatibleBeltRequest(question);
+  if (nearestBelt) {
+    const started = Date.now();
+    const recipe = capturedUnlockedMk1BeltRecipe(graph);
+    if (!recipe.recipe_class) {
+      return localAnswer(
+        `I did not place a belt: ${recipe.reason}.`,
+        "place_belt",
+        started,
+        "The requested tier was explicit, but its live unlock could not be proven.",
+      );
+    }
+
+    const route = solveNearestCompatibleBeltRoute(graph, nearestBelt);
+    if (!route.routed) {
+      return localAnswer(
+        `I did not place a belt: ${route.reason}. ` +
+          "No endpoint or item compatibility was guessed.",
+        "place_belt",
+        started,
+        "The compatible endpoint search was completed from the authoritative snapshot.",
+      );
+    }
+
+    const plan = emitValidatedPlan(graph, services, [
+      {
+        action: "place_belt",
+        recipe_class: recipe.recipe_class,
+        from_component: route.from.connector,
+        to_component: route.to.connector,
+        commit: true,
+      },
+    ]);
+    if (!plan) {
+      return localAnswer(
+        "I found exact compatible endpoints, but the action contract refused the plan, so nothing was emitted.",
+        "place_belt",
+        started,
+        "The route was exact; the shared action validator retained final authority.",
+      );
+    }
+
+    return localAnswer(
+      `Connecting **${route.from.name}** to **${route.to.name}** with an unlocked Mk.1 belt ` +
+        `for **${route.compatible_items.join(" / ")}** (${route.length_meters} m). ` +
+        `Exact endpoints: \`${route.from.connector}\` → \`${route.to.connector}\`. ` +
+        "The game hologram still owns bend, incline, clearance, length and cost; its readback reports what actually happened.",
+      "place_belt",
+      started,
+      "Current recipes proved item compatibility; the solver chose the shortest free connector pair near the player.",
+    );
   }
 
   // Display actions need no model: the game resolves their exact targets and

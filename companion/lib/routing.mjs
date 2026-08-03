@@ -236,6 +236,181 @@ export function solveBeltRoute(graph, args = {}) {
   };
 }
 
+/** Return the captured recipe for a running manufacturer, accepting full or short paths. */
+function recipeOf(graph, node) {
+  const wanted = String(node?.recipe_class ?? "").trim();
+  if (!wanted) return null;
+  const exact = graph?.recipesByClass?.get?.(wanted);
+  if (exact) return exact;
+  const short = wanted.split(".").pop();
+  for (const [classPath, recipe] of graph?.recipesByClass ?? []) {
+    if (String(classPath).split(".").pop() === short) return recipe;
+  }
+  return null;
+}
+
+function itemClasses(entries) {
+  return new Set(
+    (entries ?? [])
+      .map((entry) => String(entry?.item_class ?? "").trim())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * Items this actor is proven to produce from the current snapshot.
+ *
+ * Manufacturers use their current recipe. Resource extractors have no recipe,
+ * so their resource node is the authoritative source instead. Inventory
+ * contents are deliberately not used: an old stack does not prove what a
+ * reconfigured machine will produce next.
+ */
+function producedItemClasses(graph, node) {
+  const recipe = recipeOf(graph, node);
+  if (recipe) return itemClasses(recipe.products);
+
+  const resourceActorId = node?.raw?.extractor?.extractable_resource_actor_id;
+  if (!resourceActorId) return new Set();
+  const resourceNode = findNode(graph, resourceActorId);
+  const resourceClass = String(resourceNode?.raw?.resource_class ?? "").trim();
+  return resourceClass ? new Set([resourceClass]) : new Set();
+}
+
+function consumedItemClasses(graph, node) {
+  return itemClasses(recipeOf(graph, node)?.ingredients);
+}
+
+function capturedPlayerPosition(graph) {
+  const direct = vectorOf(graph?.snapshot?.interaction_context?.player?.pawn_location);
+  if (direct) return direct;
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    if (node?.kind === "player") return vectorOf(node?.raw?.location);
+  }
+  return null;
+}
+
+function displayItem(graph, itemClass) {
+  const exact = graph?.itemsByClass?.get?.(itemClass);
+  if (exact?.name) return exact.name;
+  const short = String(itemClass).split(".").pop();
+  for (const [classPath, item] of graph?.itemsByClass ?? []) {
+    if (String(classPath).split(".").pop() === short && item?.name) return item.name;
+  }
+  return itemClass;
+}
+
+/**
+ * Find the nearest free output/input pair whose live recipes prove item
+ * compatibility.
+ *
+ * This is intentionally narrower than "connect anything nearby". A short belt
+ * between incompatible machines is still the wrong belt. Modded machines and
+ * recipes work without a table because the comparison is over the captured
+ * item class paths. Anything without enough recipe/resource evidence is left
+ * out and reported, never inferred from its name.
+ */
+export function solveNearestCompatibleBeltRoute(graph, args = {}) {
+  const radius = Number(args.radius_m ?? 100);
+  if (!Number.isFinite(radius) || radius <= 0 || radius > 5_000) {
+    return {
+      solver: "nearest_compatible_belt_route",
+      routed: false,
+      reason: "radius_m must be between 0 and 5000",
+      source: "authoritative_snapshot",
+      certainty: "exact_for_captured_data",
+    };
+  }
+
+  const player = capturedPlayerPosition(graph);
+  if (!player) {
+    return {
+      solver: "nearest_compatible_belt_route",
+      routed: false,
+      reason: "the snapshot did not contain the player's position",
+      missing: ["interaction_context.player.pawn_location"],
+      source: "authoritative_snapshot",
+      certainty: "unknown",
+    };
+  }
+
+  const nearby = [];
+  let omittedWithoutProductionEvidence = 0;
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    const location = vectorOf(node?.raw?.location);
+    if (!location || node?.kind !== "buildable") continue;
+    const distanceFromPlayer = distanceMeters(player, location);
+    if (distanceFromPlayer === null || distanceFromPlayer > radius) continue;
+
+    const produces = producedItemClasses(graph, node);
+    const consumes = consumedItemClasses(graph, node);
+    if (produces.size === 0 && consumes.size === 0) {
+      omittedWithoutProductionEvidence += 1;
+      continue;
+    }
+    nearby.push({ node, produces, consumes, distance_from_player_m: distanceFromPlayer });
+  }
+
+  const candidates = [];
+  for (const source of nearby) {
+    if (source.produces.size === 0) continue;
+    for (const target of nearby) {
+      if (source.node.actor_id === target.node.actor_id || target.consumes.size === 0) continue;
+      const compatible = [...source.produces].filter((itemClass) => target.consumes.has(itemClass));
+      if (compatible.length === 0) continue;
+
+      const route = solveBeltRoute(graph, {
+        from_actor_id: source.node.actor_id,
+        to_actor_id: target.node.actor_id,
+      });
+      if (!route.routed) continue;
+      candidates.push({
+        route,
+        compatible,
+        furthest_from_player_m: Math.max(
+          source.distance_from_player_m,
+          target.distance_from_player_m,
+        ),
+      });
+    }
+  }
+
+  candidates.sort(
+    (a, b) =>
+      (a.route.length_cm ?? Number.POSITIVE_INFINITY) -
+        (b.route.length_cm ?? Number.POSITIVE_INFINITY) ||
+      a.furthest_from_player_m - b.furthest_from_player_m ||
+      String(a.route.from.actor_id).localeCompare(String(b.route.from.actor_id)) ||
+      String(a.route.to.actor_id).localeCompare(String(b.route.to.actor_id)),
+  );
+
+  if (candidates.length === 0) {
+    return {
+      solver: "nearest_compatible_belt_route",
+      routed: false,
+      reason:
+        `no recipe-compatible pair of free factory output/input ports was captured within ${round(radius)} m`,
+      radius_m: round(radius),
+      examined_production_actors: nearby.length,
+      omitted_without_recipe_or_resource_evidence: omittedWithoutProductionEvidence,
+      source: "authoritative_snapshot",
+      certainty: "exact_for_captured_data",
+    };
+  }
+
+  const best = candidates[0];
+  return {
+    ...best.route,
+    solver: "nearest_compatible_belt_route",
+    radius_m: round(radius),
+    compatible_item_classes: best.compatible,
+    compatible_items: best.compatible.map((itemClass) => displayItem(graph, itemClass)),
+    candidate_count: candidates.length,
+    furthest_endpoint_from_player_m: round(best.furthest_from_player_m),
+    source: "authoritative_snapshot",
+    certainty: "exact_for_captured_data_except_game_owned_hologram_checks",
+  };
+}
+
 function findNode(graph, actorId) {
   const wanted = String(actorId);
   const direct = graph?.nodes?.get?.(wanted);
