@@ -43,6 +43,8 @@ test("exposes the roadmap solver set to the model", () => {
     "list_blueprints",
     "locate",
     "perform_actions",
+    "plan_belt_route",
+    "plan_belted_module",
     "plan_production",
   ]);
 });
