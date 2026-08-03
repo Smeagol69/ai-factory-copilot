@@ -1913,24 +1913,44 @@ FAIFactoryActionResult PlaceBelt(
 
     Belt->SetConstructionInstigator(Context.Player);
 
-    // Two-step placement, exactly as the build gun drives it: aim at the source
-    // connector, lock it, aim at the destination, finish. The hologram does the
-    // routing, bend radius, incline and length checks itself — this only has to
-    // put the crosshair in the right two places.
+    // Multi-step placement, exactly as the build gun drives it: update from the
+    // source hit, lock it, update from the destination hit, finish. Calling
+    // SetHologramLocationAndRotation directly skips AFGHologram's snap path:
+    // the official header says it is called only after TrySnapToActor did not
+    // snap. UpdateHologramPlacement owns that sequence and must receive the hit.
     const FHitResult FromHit = MakeActionConnectionHit(From);
-    Belt->SetHologramLocationAndRotation(FromHit);
-    if (!Belt->DoMultiStepPlacement(false))
+    Belt->UpdateHologramPlacement(FromHit);
+    if (!Belt->IsConnectionSnapped(false))
     {
-        // The belt hologram is inherently two-step, so a first step that reports
-        // "finished" means it did not take the connection.
         Belt->Destroy();
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("belt_hologram_did_not_accept_the_source_connection"));
     }
 
+    const ESplineHologramBuildStep SourceStep = Belt->GetCurrentBuildStep();
+    const bool bFinishedAtSource = Belt->DoMultiStepPlacement(false);
+    if (bFinishedAtSource || Belt->GetCurrentBuildStep() == SourceStep)
+    {
+        // DoMultiStepPlacement returns true only when placement is finished.
+        // At the source it must instead advance to the destination step.
+        Belt->Destroy();
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            bFinishedAtSource
+                ? TEXT("belt_hologram_finished_before_destination")
+                : TEXT("belt_hologram_did_not_advance_from_source"));
+    }
+
     const FHitResult ToHit = MakeActionConnectionHit(To);
-    Belt->SetHologramLocationAndRotation(ToHit);
+    Belt->UpdateHologramPlacement(ToHit);
+    if (!Belt->IsConnectionSnapped(true))
+    {
+        Belt->Destroy();
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_did_not_accept_the_destination_connection"));
+    }
 
     FString HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
     Belt->ValidatePlacementAndCost(
