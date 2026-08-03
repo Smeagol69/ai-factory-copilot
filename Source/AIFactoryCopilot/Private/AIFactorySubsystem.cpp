@@ -15,6 +15,7 @@
 #include "Hologram/FGHologram.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
+#include "Interfaces/IPluginManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Player/SMLRemoteCallObject.h"
@@ -26,6 +27,8 @@
 
 namespace
 {
+    constexpr int32 SupportedActionContractVersion = 1;
+
     bool IsCommittedWorldWriteResult(const TSharedPtr<FJsonValue>& Value)
     {
         const TSharedPtr<FJsonObject>* Object = nullptr;
@@ -407,8 +410,15 @@ void AAIFactorySubsystem::AskBridge(
 
     const TWeakObjectPtr<UCommandSender> WeakSender(Sender);
     const TWeakObjectPtr<AAIFactorySubsystem> WeakThis(this);
+    FString ExpectedBridgeVersion;
+    if (const TSharedPtr<IPlugin> CopilotPlugin =
+            IPluginManager::Get().FindPlugin(TEXT("AIFactoryCopilot"));
+        CopilotPlugin.IsValid())
+    {
+        ExpectedBridgeVersion = CopilotPlugin->GetDescriptor().VersionName;
+    }
     HttpRequest->OnProcessRequestComplete().BindLambda(
-        [WeakSender, WeakThis, bEchoToGameChat](
+        [WeakSender, WeakThis, bEchoToGameChat, ExpectedBridgeVersion](
             FHttpRequestPtr RequestPtr,
             FHttpResponsePtr Response,
             const bool bConnectedSuccessfully)
@@ -488,31 +498,72 @@ void AAIFactorySubsystem::AskBridge(
             if (bSuccess && ResponseJson->TryGetArrayField(TEXT("actions"), Actions) && Actions)
             {
                 const FAIFactorySettings ActionSettings = FAIFactorySettings::Load();
-                TArray<TSharedPtr<FJsonValue>> Requested = *Actions;
-                FString Truncated;
-                if (Requested.Num() > ActionSettings.MaxActionsPerReply)
+                int32 ActionContractVersion = 0;
+                FString BridgeVersion;
+                const bool bHasActionContract = ResponseJson->TryGetNumberField(
+                    TEXT("action_contract_version"),
+                    ActionContractVersion);
+                const bool bHasBridgeVersion = ResponseJson->TryGetStringField(
+                    TEXT("bridge_version"),
+                    BridgeVersion);
+
+                FString RefusalReason;
+                if (Actions->Num() > 0 &&
+                    (!bHasActionContract ||
+                     ActionContractVersion != SupportedActionContractVersion))
                 {
-                    Truncated = FString::Printf(
-                        TEXT(" (%d of %d actions run; the rest exceeded maxActionsPerReply)"),
-                        ActionSettings.MaxActionsPerReply,
-                        Requested.Num());
-                    Requested.SetNum(ActionSettings.MaxActionsPerReply);
+                    RefusalReason = FString::Printf(
+                        TEXT("unsupported action contract (expected %d, received %s)"),
+                        SupportedActionContractVersion,
+                        bHasActionContract
+                            ? *LexToString(ActionContractVersion)
+                            : TEXT("missing"));
+                }
+                else if (Actions->Num() > 0 &&
+                    (!bHasBridgeVersion ||
+                     ExpectedBridgeVersion.IsEmpty() ||
+                     BridgeVersion != ExpectedBridgeVersion))
+                {
+                    RefusalReason = FString::Printf(
+                        TEXT("bridge/mod version mismatch (mod %s, bridge %s)"),
+                        ExpectedBridgeVersion.IsEmpty()
+                            ? TEXT("unknown")
+                            : *ExpectedBridgeVersion,
+                        bHasBridgeVersion ? *BridgeVersion : TEXT("missing"));
+                }
+                else if (Actions->Num() > ActionSettings.MaxActionsPerReply)
+                {
+                    RefusalReason = FString::Printf(
+                        TEXT("action plan contains %d steps, exceeding maxActionsPerReply=%d"),
+                        Actions->Num(),
+                        ActionSettings.MaxActionsPerReply);
                 }
 
                 TArray<TSharedPtr<FJsonValue>> ActionResults;
-                const FString ActionSummary = AIFactoryActions::ExecutePlan(
-                    WeakThis->GetWorld(),
-                    WeakThis->FindLocalPlayerCharacter(),
-                    Requested,
-                    ActionSettings.bAllowWriteActions,
-                    LexToString(WeakThis->GetWorldRevision()),
-                    ActionResults);
+                FString ActionSummary;
+                if (RefusalReason.IsEmpty())
+                {
+                    ActionSummary = AIFactoryActions::ExecutePlan(
+                        WeakThis->GetWorld(),
+                        WeakThis->FindLocalPlayerCharacter(),
+                        *Actions,
+                        ActionSettings.bAllowWriteActions,
+                        LexToString(WeakThis->GetWorldRevision()),
+                        ActionResults);
+                }
+                else
+                {
+                    ActionSummary = TEXT("No actions ran: ") + RefusalReason + TEXT(".");
+                    UE_LOG(LogAIFactoryCopilot, Error,
+                        TEXT("AI bridge action plan refused whole: %s"),
+                        *RefusalReason);
+                }
 
                 if (!ActionSummary.IsEmpty())
                 {
-                    Reply += TEXT("\n\n") + ActionSummary + Truncated;
+                    Reply += TEXT("\n\n") + ActionSummary;
                     Reply += DescribeActionResults(ActionResults);
-                    if (!ActionSettings.bAllowWriteActions)
+                    if (RefusalReason.IsEmpty() && !ActionSettings.bAllowWriteActions)
                     {
                         Reply += TEXT(
                             "\nWrite actions are off, so nothing was changed. "
@@ -538,6 +589,12 @@ void AAIFactorySubsystem::AskBridge(
                 ResponseJson->SetBoolField(
                     TEXT("game_world_was_mutated"),
                     bCommittedWorldWrite);
+                ResponseJson->SetBoolField(
+                    TEXT("game_actions_refused"),
+                    !RefusalReason.IsEmpty());
+                ResponseJson->SetStringField(
+                    TEXT("game_actions_refusal_reason"),
+                    RefusalReason);
                 ResponseJson->SetNumberField(
                     TEXT("game_actions_requested_count"),
                     Actions->Num());
@@ -546,7 +603,7 @@ void AAIFactorySubsystem::AskBridge(
                     ActionResults.Num());
                 ResponseJson->SetBoolField(
                     TEXT("game_actions_truncated"),
-                    Requested.Num() < Actions->Num());
+                    false);
                 ResponseJson->SetStringField(
                     TEXT("game_world_revision_after"),
                     LexToString(WeakThis->GetWorldRevision()));
