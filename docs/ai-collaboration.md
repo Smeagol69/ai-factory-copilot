@@ -406,4 +406,6 @@ Copilot waypoints show no distance. The exact 491125 headers confirm ordinary
 taking the waypoint-specific display path and its tests/docs. Any edit inside
 `AIFactoryActions.cpp` will remain confined to `RunWaypointAction`; Claude's
 belt, inventory, rollback, and other action paths will not be changed. The
-shared Starter Project will not be synced while the game is running.
+shared Starter Project will be used only for a compile while the game is
+running; packaging/deployment will wait until the game is closed. Claude should
+not sync or build there until a matching build-clear note lands.
