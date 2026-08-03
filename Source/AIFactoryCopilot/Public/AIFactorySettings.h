@@ -13,6 +13,8 @@ struct FAIFactorySettings
     int32 MaxReflectedValueCharacters = 2048;
     bool bIncludeContentCatalog = true;
     bool bIncludeReflectedProperties = true;
+    /** Rendered UI can contain chat or credentials from another mod; opt in. */
+    bool bIncludeVisibleUiText = false;
     /** Ground, slope, and water probing for build-site suitability. */
     bool bIncludeTerrain = true;
     float TerrainFootprintMeters = 24.0f;

@@ -3,6 +3,7 @@
 #include "AIFactoryCopilotModule.h"
 #include "Dom/JsonObject.h"
 #include "HAL/FileManager.h"
+#include "Math/NumericLimits.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -10,13 +11,24 @@
 
 namespace
 {
-    template <typename TValue>
-    void ReadNumber(const TSharedPtr<FJsonObject>& Json, const TCHAR* Name, TValue& Target)
+    void ReadNumber(const TSharedPtr<FJsonObject>& Json, const TCHAR* Name, int32& Target)
     {
-        double Value = 0.0;
+        int32 Value = 0;
         if (Json->TryGetNumberField(Name, Value))
         {
-            Target = static_cast<TValue>(Value);
+            Target = Value;
+        }
+    }
+
+    void ReadNumber(const TSharedPtr<FJsonObject>& Json, const TCHAR* Name, float& Target)
+    {
+        double Value = 0.0;
+        if (Json->TryGetNumberField(Name, Value) &&
+            FMath::IsFinite(Value) &&
+            Value >= static_cast<double>(TNumericLimits<float>::Lowest()) &&
+            Value <= static_cast<double>(TNumericLimits<float>::Max()))
+        {
+            Target = static_cast<float>(Value);
         }
     }
 }
@@ -55,6 +67,7 @@ FAIFactorySettings FAIFactorySettings::Load()
     ReadNumber(Json, TEXT("maxReflectedValueCharacters"), Settings.MaxReflectedValueCharacters);
     Json->TryGetBoolField(TEXT("includeContentCatalog"), Settings.bIncludeContentCatalog);
     Json->TryGetBoolField(TEXT("includeReflectedProperties"), Settings.bIncludeReflectedProperties);
+    Json->TryGetBoolField(TEXT("includeVisibleUiText"), Settings.bIncludeVisibleUiText);
     Json->TryGetBoolField(TEXT("uiWholeWorldSnapshot"), Settings.bUIWholeWorldSnapshot);
     Json->TryGetBoolField(TEXT("includeTerrain"), Settings.bIncludeTerrain);
     ReadNumber(Json, TEXT("terrainFootprintMeters"), Settings.TerrainFootprintMeters);

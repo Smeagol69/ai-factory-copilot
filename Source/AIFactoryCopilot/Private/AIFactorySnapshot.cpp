@@ -247,7 +247,7 @@ namespace
         return true;
     }
 
-    TSharedRef<FJsonObject> VisibleUiJson(UWorld* World)
+    TSharedRef<FJsonObject> VisibleUiJson(UWorld* World, const bool bEnabled)
     {
         constexpr int32 MaxEntries = 512;
         constexpr int32 MaxCharacters = 32768;
@@ -256,8 +256,10 @@ namespace
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         TArray<TSharedPtr<FJsonValue>> RenderedText;
         const bool bAvailable =
+            bEnabled &&
             IsValid(World) &&
             World->GetNetMode() != NM_DedicatedServer;
+        Result->SetBoolField(TEXT("enabled"), bEnabled);
         Result->SetBoolField(TEXT("available"), bAvailable);
         Result->SetStringField(
             TEXT("source"),
@@ -267,6 +269,11 @@ namespace
         Result->SetNumberField(TEXT("character_limit"), MaxCharacters);
         if (!bAvailable)
         {
+            Result->SetStringField(
+                TEXT("unavailable_reason"),
+                !bEnabled
+                    ? TEXT("disabled_by_config_to_avoid_exporting_rendered_text")
+                    : TEXT("no_local_viewport"));
             Result->SetArrayField(TEXT("rendered_text"), RenderedText);
             Result->SetNumberField(TEXT("top_level_user_widget_count"), 0);
             Result->SetNumberField(TEXT("user_widget_count"), 0);
@@ -507,6 +514,29 @@ namespace
             const FProperty* Property = *It;
             if (!Property ||
                 Property->HasAnyPropertyFlags(CPF_Transient | CPF_Deprecated | CPF_EditorOnly | CPF_SkipSerialization))
+            {
+                continue;
+            }
+            const FString PropertyName = Property->GetName().ToLower();
+            if (PropertyName.Contains(TEXT("password")) ||
+                PropertyName.Contains(TEXT("passphrase")) ||
+                PropertyName.Contains(TEXT("secret")) ||
+                PropertyName.Contains(TEXT("credential")) ||
+                PropertyName.Contains(TEXT("authorization")) ||
+                PropertyName.Contains(TEXT("bearer")) ||
+                PropertyName.EndsWith(TEXT("token")) ||
+                PropertyName.Contains(TEXT("authtoken")) ||
+                PropertyName.Contains(TEXT("auth_token")) ||
+                PropertyName.Contains(TEXT("accesstoken")) ||
+                PropertyName.Contains(TEXT("access_token")) ||
+                PropertyName.Contains(TEXT("refreshtoken")) ||
+                PropertyName.Contains(TEXT("refresh_token")) ||
+                PropertyName.Contains(TEXT("apikey")) ||
+                PropertyName.Contains(TEXT("api_key")) ||
+                PropertyName.Contains(TEXT("privatekey")) ||
+                PropertyName.Contains(TEXT("private_key")) ||
+                PropertyName.Contains(TEXT("clientsecret")) ||
+                PropertyName.Contains(TEXT("client_secret")))
             {
                 continue;
             }
@@ -1458,6 +1488,9 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
 {
     const double CaptureStartSeconds = FPlatformTime::Seconds();
     const FString CaptureStartedAtUtc = FDateTime::UtcNow().ToIso8601();
+    FAIFactorySettings CaptureSettings = Settings;
+    CaptureSettings.bIncludeReflectedProperties =
+        Settings.bIncludeReflectedProperties && Request.bIncludeReflectedProperties;
     FAIFactorySnapshotResult Result;
     const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
     Root->SetStringField(TEXT("schema"), TEXT("aifactory.snapshot"));
@@ -1466,6 +1499,15 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     Root->SetStringField(TEXT("capture_started_at_utc"), CaptureStartedAtUtc);
     Root->SetStringField(TEXT("data_policy"), TEXT("authoritative_or_explicitly_unknown"));
     Root->SetNumberField(TEXT("world_revision"), static_cast<double>(WorldRevision));
+    const TSharedRef<FJsonObject> ReflectionPolicy = MakeShared<FJsonObject>();
+    ReflectionPolicy->SetBoolField(
+        TEXT("enabled"),
+        CaptureSettings.bIncludeReflectedProperties);
+    ReflectionPolicy->SetBoolField(TEXT("sensitive_property_names_omitted"), true);
+    ReflectionPolicy->SetStringField(
+        TEXT("omission_reason"),
+        TEXT("Properties named like credentials, secrets, passwords, private keys, authorization values, or tokens are never exported."));
+    Root->SetObjectField(TEXT("reflection_policy"), ReflectionPolicy);
 
     const TSharedRef<FJsonObject> Units = MakeShared<FJsonObject>();
     Units->SetStringField(TEXT("positions_and_extents"), TEXT("unreal_centimeters"));
@@ -1516,7 +1558,9 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                  "nodes beyond it are unmeasured, not flat."));
         Root->SetObjectField(TEXT("terrain"), TerrainRoot);
     }
-    Root->SetObjectField(TEXT("interaction_context"), InteractionContextJson(World, Request, Settings, TerrainBudget));
+    Root->SetObjectField(
+        TEXT("interaction_context"),
+        InteractionContextJson(World, Request, CaptureSettings, TerrainBudget));
 
     Root->SetArrayField(TEXT("mods"), ModsJson(World, Result.ModCount));
     if (Request.bIncludeContentCatalog)
@@ -1524,7 +1568,9 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
         Root->SetObjectField(TEXT("content"), ContentJson(World, Result.ItemCount, Result.RecipeCount));
     }
     Root->SetObjectField(TEXT("progression"), ProgressionJson(World, Request.PlayerController));
-    Root->SetObjectField(TEXT("visible_ui"), VisibleUiJson(World));
+    Root->SetObjectField(
+        TEXT("visible_ui"),
+        VisibleUiJson(World, Settings.bIncludeVisibleUiText));
 
     TArray<TSharedPtr<FJsonValue>> Actors;
     if (IsValid(World))
@@ -1547,7 +1593,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                 Result.bActorLimitReached = true;
                 break;
             }
-            Actors.Add(MakeShared<FJsonValueObject>(BuildableJson(Buildable, Settings)));
+            Actors.Add(MakeShared<FJsonValueObject>(BuildableJson(Buildable, CaptureSettings)));
             ++Result.ActorCount;
             ++Result.BuildableCount;
         }
@@ -1570,7 +1616,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                     Result.bActorLimitReached = true;
                     break;
                 }
-                Actors.Add(MakeShared<FJsonValueObject>(ResourceNodeJson(Node, Settings, World, TerrainBudget)));
+                Actors.Add(MakeShared<FJsonValueObject>(
+                    ResourceNodeJson(Node, CaptureSettings, World, TerrainBudget)));
                 ++Result.ActorCount;
                 ++Result.ResourceNodeCount;
             }
@@ -1608,7 +1655,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                     break;
                 }
 
-                Actors.Add(MakeShared<FJsonValueObject>(GenericActorJson(Actor, Kind, Settings)));
+                Actors.Add(MakeShared<FJsonValueObject>(
+                    GenericActorJson(Actor, Kind, CaptureSettings)));
                 ++Result.ActorCount;
                 if (Kind == TEXT("player")) ++Result.PlayerCount;
                 else if (Kind == TEXT("vehicle")) ++Result.VehicleCount;
@@ -1652,7 +1700,7 @@ uint32 FAIFactorySnapshot::ComputeWorldFingerprint(UWorld* World)
         }
 
         Hash = HashCombineFast(Hash, GetTypeHash(Buildable->GetPathName()));
-        Hash = HashCombineFast(Hash, GetTypeHash(Buildable->GetActorTransform().ToHumanReadableString()));
+        Hash = HashCombineFast(Hash, GetTypeHash(Buildable->GetActorTransform()));
         Hash = HashCombineFast(Hash, GetTypeHash(ClassPath(Buildable->GetBuiltWithRecipe().Get())));
 
         if (const AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Buildable))

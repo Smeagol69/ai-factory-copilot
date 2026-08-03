@@ -13,15 +13,38 @@
 namespace
 {
     /**
-     * Overlay name -> line-batcher batch id, so `Clear("beryl")` removes exactly
-     * that overlay's geometry and leaves everything else on screen.
+     * Overlay names are scoped to the world that owns their line batcher. A
+     * process-global name -> id map can survive a save transition and clear an
+     * unrelated batch carrying the same numeric id in the next world.
      */
-    TMap<FString, uint32> GOverlayBatchIds;
+    TMap<TWeakObjectPtr<UWorld>, TMap<FString, uint32>> GOverlayBatchIdsByWorld;
     uint32 GNextOverlayBatchId = 1;
+
+    constexpr int32 MaximumOverlayResults = 500;
+    constexpr int32 MaximumExplicitActorIds = 4096;
+    constexpr int32 MaximumActorIdCharacters = 2048;
+    constexpr double MaximumOverlayRadiusMeters = 100000.0;
 
     /** Depth priority 1 (SDPG_Foreground) renders over world geometry. */
     constexpr uint8 OverlayDepthWorld = 0;
     constexpr uint8 OverlayDepthForeground = 1;
+
+    struct FAIFactoryOverlayCandidate
+    {
+        FAIFactoryOverlayHit Hit;
+        TWeakObjectPtr<AActor> Actor;
+    };
+
+    void PruneOverlayWorldStates()
+    {
+        for (auto It = GOverlayBatchIdsByWorld.CreateIterator(); It; ++It)
+        {
+            if (!It.Key().IsValid())
+            {
+                It.RemoveCurrent();
+            }
+        }
+    }
 
     ULineBatchComponent* GetOverlayBatcher(UWorld* World, bool bThroughWalls)
     {
@@ -87,7 +110,6 @@ FAIFactoryOverlayResult Draw(
 {
     FAIFactoryOverlayResult Result;
     Result.OverlayName = OverlayName.IsEmpty() ? TEXT("overlay") : OverlayName;
-    Result.RadiusMeters = Query.RadiusMeters;
 
     if (!IsValid(World))
     {
@@ -95,6 +117,33 @@ FAIFactoryOverlayResult Draw(
         Result.Reason = TEXT("no_world");
         return Result;
     }
+
+    if (!FMath::IsFinite(Query.RadiusMeters) || Query.RadiusMeters <= 0.0)
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("radius_must_be_finite_and_positive");
+        return Result;
+    }
+    if (Query.ActorIds.Num() > MaximumExplicitActorIds)
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("too_many_explicit_actor_ids");
+        return Result;
+    }
+    for (const FString& ActorId : Query.ActorIds)
+    {
+        if (ActorId.Len() > MaximumActorIdCharacters)
+        {
+            Result.Status = TEXT("refused");
+            Result.Reason = TEXT("explicit_actor_id_too_long");
+            return Result;
+        }
+    }
+
+    const double SearchRadiusMeters =
+        FMath::Min(Query.RadiusMeters, MaximumOverlayRadiusMeters);
+    const int32 Limit = FMath::Clamp(Query.MaxResults, 1, MaximumOverlayResults);
+    Result.RadiusMeters = SearchRadiusMeters;
 
     ULineBatchComponent* Batcher = GetOverlayBatcher(World, Style.bDrawThroughWalls);
     if (!IsValid(Batcher))
@@ -117,11 +166,11 @@ FAIFactoryOverlayResult Draw(
         return Result;
     }
 
-    const double RadiusCm = FMath::Max(1.0, Query.RadiusMeters) * 100.0;
+    const double RadiusCm = SearchRadiusMeters * 100.0;
     const TSet<FString> WantedIds(Query.ActorIds);
     const bool bByIdOnly = WantedIds.Num() > 0;
 
-    TArray<FAIFactoryOverlayHit> Hits;
+    TArray<FAIFactoryOverlayCandidate> Candidates;
     for (TActorIterator<AActor> It(World); It; ++It)
     {
         AActor* Actor = *It;
@@ -169,30 +218,31 @@ FAIFactoryOverlayResult Draw(
             }
         }
 
-        FAIFactoryOverlayHit Hit;
-        Hit.ActorId = ActorId;
-        Hit.Kind = ClassifyActor(Actor);
-        Hit.Location = Actor->GetActorLocation();
-        Hit.DisplayName = DescribeActor(Actor, Hit.ItemCount);
-        Hit.DistanceMeters = bHasPlayer ? FVector::Dist(Origin, Hit.Location) / 100.0 : 0.0;
-        Hits.Add(Hit);
+        FAIFactoryOverlayCandidate Candidate;
+        Candidate.Actor = Actor;
+        Candidate.Hit.ActorId = ActorId;
+        Candidate.Hit.Kind = ClassifyActor(Actor);
+        Candidate.Hit.Location = Actor->GetActorLocation();
+        Candidate.Hit.DisplayName = DescribeActor(Actor, Candidate.Hit.ItemCount);
+        Candidate.Hit.DistanceMeters =
+            bHasPlayer ? FVector::Dist(Origin, Candidate.Hit.Location) / 100.0 : 0.0;
+        Candidates.Add(MoveTemp(Candidate));
     }
 
-    Result.Matched = Hits.Num();
+    Result.Matched = Candidates.Num();
 
     // Nearest first, so a truncated list keeps the ones the player can act on.
-    Hits.Sort([](const FAIFactoryOverlayHit& A, const FAIFactoryOverlayHit& B)
+    Candidates.Sort([](const FAIFactoryOverlayCandidate& A, const FAIFactoryOverlayCandidate& B)
     {
-        return A.DistanceMeters < B.DistanceMeters;
+        return A.Hit.DistanceMeters < B.Hit.DistanceMeters;
     });
-    const int32 Limit = FMath::Max(1, Query.MaxResults);
-    if (Hits.Num() > Limit)
+    if (Candidates.Num() > Limit)
     {
-        Result.Truncated = Hits.Num() - Limit;
-        Hits.SetNum(Limit);
+        Result.Truncated = Candidates.Num() - Limit;
+        Candidates.SetNum(Limit);
     }
 
-    if (Hits.Num() == 0)
+    if (Candidates.Num() == 0)
     {
         Result.Status = TEXT("nothing_matched");
         return Result;
@@ -202,22 +252,17 @@ FAIFactoryOverlayResult Draw(
     // re-running a query updates in place instead of stacking.
     Clear(World, Result.OverlayName);
     const uint32 BatchId = GNextOverlayBatchId++;
-    GOverlayBatchIds.Add(Result.OverlayName, BatchId);
+    PruneOverlayWorldStates();
+    GOverlayBatchIdsByWorld.FindOrAdd(TWeakObjectPtr<UWorld>(World))
+        .Add(Result.OverlayName, BatchId);
 
     const uint8 Depth = Style.bDrawThroughWalls ? OverlayDepthForeground : OverlayDepthWorld;
     const float Lifetime = FMath::Max(0.0f, Style.LifetimeSeconds);
 
-    for (const FAIFactoryOverlayHit& Hit : Hits)
+    for (const FAIFactoryOverlayCandidate& Candidate : Candidates)
     {
-        AActor* Actor = nullptr;
-        for (TActorIterator<AActor> It(World); It; ++It)
-        {
-            if (It->GetPathName() == Hit.ActorId)
-            {
-                Actor = *It;
-                break;
-            }
-        }
+        const FAIFactoryOverlayHit& Hit = Candidate.Hit;
+        AActor* Actor = Candidate.Actor.Get();
 
         FVector BoxOrigin = Hit.Location;
         FVector BoxExtent(60.0, 60.0, 60.0);
@@ -243,7 +288,11 @@ FAIFactoryOverlayResult Draw(
         }
     }
 
-    Result.Hits = MoveTemp(Hits);
+    Result.Hits.Reserve(Candidates.Num());
+    for (FAIFactoryOverlayCandidate& Candidate : Candidates)
+    {
+        Result.Hits.Add(MoveTemp(Candidate.Hit));
+    }
     Result.bDrawn = true;
     Result.Status = TEXT("drawn");
     return Result;
@@ -255,7 +304,14 @@ bool Clear(UWorld* World, const FString& OverlayName)
     {
         return false;
     }
-    const uint32* BatchId = GOverlayBatchIds.Find(OverlayName);
+    PruneOverlayWorldStates();
+    const TWeakObjectPtr<UWorld> WorldKey(World);
+    TMap<FString, uint32>* WorldBatches = GOverlayBatchIdsByWorld.Find(WorldKey);
+    if (!WorldBatches)
+    {
+        return false;
+    }
+    const uint32* BatchId = WorldBatches->Find(OverlayName);
     if (!BatchId)
     {
         return false;
@@ -270,14 +326,27 @@ bool Clear(UWorld* World, const FString& OverlayName)
     {
         World_->ClearBatch(*BatchId);
     }
-    GOverlayBatchIds.Remove(OverlayName);
+    WorldBatches->Remove(OverlayName);
+    if (WorldBatches->IsEmpty())
+    {
+        GOverlayBatchIdsByWorld.Remove(WorldKey);
+    }
     return true;
 }
 
 int32 ClearAll(UWorld* World)
 {
+    if (!IsValid(World))
+    {
+        return 0;
+    }
+    PruneOverlayWorldStates();
     TArray<FString> Names;
-    GOverlayBatchIds.GetKeys(Names);
+    const TWeakObjectPtr<UWorld> WorldKey(World);
+    if (const TMap<FString, uint32>* WorldBatches = GOverlayBatchIdsByWorld.Find(WorldKey))
+    {
+        WorldBatches->GetKeys(Names);
+    }
     int32 Cleared = 0;
     for (const FString& Name : Names)
     {
@@ -291,8 +360,16 @@ int32 ClearAll(UWorld* World)
 
 TArray<FString> ActiveOverlays()
 {
+    PruneOverlayWorldStates();
     TArray<FString> Names;
-    GOverlayBatchIds.GetKeys(Names);
+    for (const TPair<TWeakObjectPtr<UWorld>, TMap<FString, uint32>>& WorldEntry :
+        GOverlayBatchIdsByWorld)
+    {
+        for (const TPair<FString, uint32>& OverlayEntry : WorldEntry.Value)
+        {
+            Names.AddUnique(OverlayEntry.Key);
+        }
+    }
     return Names;
 }
 

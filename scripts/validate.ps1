@@ -105,6 +105,9 @@ if ($upstream) {
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Blueprint\WidgetBlueprintLibrary.h'; Pattern = 'GetAllWidgetsOfClass' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Blueprint\WidgetTree.h'; Pattern = 'GetAllWidgets' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Components\TextBlock.h'; Pattern = 'FText GetText' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Core\Public\Math\Transform.h'; Pattern = 'GetTypeHash\(const TTransform' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Json\Public\Dom\JsonObject.h'; Pattern = 'TryGetNumberField\(FStringView FieldName, int32& OutNumber\)' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Components\LineBatchComponent.h'; Pattern = 'ClearBatch\(uint32 InBatchID\)' }
         @{ Path = 'Mods\SML\Source\SML\Private\ModLoading\ModLoadingLibrary.cpp'; Pattern = 'Resources/Icon128.png' }
     )
     foreach ($check in $checks) {
