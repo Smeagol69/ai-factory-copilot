@@ -5,8 +5,12 @@ import { buildGraph } from "../lib/graph.mjs";
 import {
   answerLocally,
   parseNearestCompatibleBeltRequest,
+  parseTemporaryFreeBeltTestRequest,
 } from "../lib/router.mjs";
-import { solveNearestCompatibleBeltRoute } from "../lib/routing.mjs";
+import {
+  solveNearestCompatibleBeltRoute,
+  solveTemporaryFreeBeltRoute,
+} from "../lib/routing.mjs";
 
 const BELT =
   "/Game/FactoryGame/Recipes/Buildings/Recipe_ConveyorBeltMk1.Recipe_ConveyorBeltMk1_C";
@@ -188,4 +192,50 @@ test("no compatible free pair is a deterministic refusal, not a model guess", ()
   assert.match(answer.reply, /did not place/i);
   assert.match(answer.reply, /No endpoint or item compatibility was guessed/);
   assert.deepEqual(emitted, []);
+});
+
+test("the temporary test route permits unknown compatibility but never proven incompatibility", () => {
+  const graph = graphOf();
+  graph.nodes.get("RightTarget").recipe_class = null;
+  graph.nodes.get("RightTarget").raw.manufacturer.recipe_class = "";
+
+  const route = solveTemporaryFreeBeltRoute(graph, { radius_m: 5_000 });
+  assert.equal(route.routed, true);
+  assert.equal(route.from.actor_id, "Source");
+  assert.equal(route.to.actor_id, "RightTarget");
+  assert.equal(route.compatibility, "unknown");
+  assert.deepEqual(route.missing_compatibility_evidence, ["target_current_recipe"]);
+
+  graph.nodes.delete("RightTarget");
+  const refused = solveTemporaryFreeBeltRoute(graph, { radius_m: 5_000 });
+  assert.equal(refused.routed, false);
+  assert.ok(refused.proven_incompatible_pairs_refused > 0);
+});
+
+test("only an explicit temporary live-test phrase can use unknown compatibility", () => {
+  const phrase =
+    "temporarily connect the nearest free output to the nearest free input within 5000m using a mk1 belt for a live belt test";
+  assert.deepEqual(parseTemporaryFreeBeltTestRequest(phrase), { radius_m: 5_000 });
+  assert.equal(
+    parseTemporaryFreeBeltTestRequest(
+      "connect the nearest free output to the nearest free input using a mk1 belt",
+    ),
+    null,
+  );
+
+  const graph = graphOf();
+  graph.nodes.get("RightTarget").recipe_class = null;
+  graph.nodes.get("RightTarget").raw.manufacturer.recipe_class = "";
+  const emitted = [];
+  const answer = answerLocally(phrase, graph, {
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.equal(answer.local.solver, "place_belt_live_test");
+  assert.match(answer.reply, /compatibility is \*\*unknown\*\*/i);
+  assert.match(answer.reply, /say "undo"/i);
+  assert.equal(emitted[0].action, "place_belt");
+  assert.equal(emitted[0].from_component, "Source.Output0");
+  assert.equal(emitted[0].to_component, "RightTarget.Input0");
+  assert.equal(emitted[0].expect_world_revision, "73");
 });

@@ -411,6 +411,135 @@ export function solveNearestCompatibleBeltRoute(graph, args = {}) {
   };
 }
 
+/**
+ * Pick a physical free-port pair for an explicitly temporary live test.
+ *
+ * A pair whose captured recipes prove different items is never returned. When
+ * one side has no selected/captured recipe, the geometry can still be tested,
+ * but the result says compatibility is unknown and names the missing evidence.
+ * This is not a fallback used by production planning; callers must opt in to
+ * the separate test route that makes the temporary intent explicit.
+ */
+export function solveTemporaryFreeBeltRoute(graph, args = {}) {
+  const radius = Number(args.radius_m ?? 100);
+  if (!Number.isFinite(radius) || radius <= 0 || radius > 5_000) {
+    return {
+      solver: "temporary_free_belt_route",
+      routed: false,
+      reason: "radius_m must be between 0 and 5000",
+      source: "authoritative_snapshot",
+      certainty: "exact_for_captured_data",
+    };
+  }
+
+  const player = capturedPlayerPosition(graph);
+  if (!player) {
+    return {
+      solver: "temporary_free_belt_route",
+      routed: false,
+      reason: "the snapshot did not contain the player's position",
+      missing: ["interaction_context.player.pawn_location"],
+      source: "authoritative_snapshot",
+      certainty: "unknown",
+    };
+  }
+
+  const nearby = [];
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    const location = vectorOf(node?.raw?.location);
+    if (!location || node?.kind !== "buildable") continue;
+    // A loose belt segment is transport, not a production endpoint. Connecting
+    // two conveyor actors would test a different hologram/snap case.
+    if (node?.role === "conveyor" || node?.role === "pipeline") continue;
+    const distanceFromPlayer = distanceMeters(player, location);
+    if (distanceFromPlayer === null || distanceFromPlayer > radius) continue;
+    nearby.push({
+      node,
+      produces: producedItemClasses(graph, node),
+      consumes: consumedItemClasses(graph, node),
+      distance_from_player_m: distanceFromPlayer,
+    });
+  }
+
+  const candidates = [];
+  let provenIncompatiblePairs = 0;
+  for (const source of nearby) {
+    for (const target of nearby) {
+      if (source.node.actor_id === target.node.actor_id) continue;
+
+      const compatible = [...source.produces].filter((itemClass) => target.consumes.has(itemClass));
+      const bothKnown = source.produces.size > 0 && target.consumes.size > 0;
+      if (bothKnown && compatible.length === 0) {
+        provenIncompatiblePairs += 1;
+        continue;
+      }
+
+      const route = solveBeltRoute(graph, {
+        from_actor_id: source.node.actor_id,
+        to_actor_id: target.node.actor_id,
+      });
+      if (!route.routed) continue;
+
+      const missing = [];
+      if (source.produces.size === 0) missing.push("source_current_recipe_or_resource");
+      if (target.consumes.size === 0) missing.push("target_current_recipe");
+      candidates.push({
+        route,
+        compatible,
+        compatibility: compatible.length > 0 ? "proven" : "unknown",
+        missing,
+        furthest_from_player_m: Math.max(
+          source.distance_from_player_m,
+          target.distance_from_player_m,
+        ),
+      });
+    }
+  }
+
+  // A proven-compatible pair is always safer than an unknown one. Inside each
+  // evidence tier, "nearest" means the shortest proposed belt.
+  candidates.sort(
+    (a, b) =>
+      Number(a.compatibility !== "proven") - Number(b.compatibility !== "proven") ||
+      (a.route.length_cm ?? Number.POSITIVE_INFINITY) -
+        (b.route.length_cm ?? Number.POSITIVE_INFINITY) ||
+      a.furthest_from_player_m - b.furthest_from_player_m ||
+      String(a.route.from.actor_id).localeCompare(String(b.route.from.actor_id)) ||
+      String(a.route.to.actor_id).localeCompare(String(b.route.to.actor_id)),
+  );
+
+  if (candidates.length === 0) {
+    return {
+      solver: "temporary_free_belt_route",
+      routed: false,
+      reason:
+        `no free factory output/input pair that was not proven incompatible was captured within ${round(radius)} m`,
+      radius_m: round(radius),
+      proven_incompatible_pairs_refused: provenIncompatiblePairs,
+      source: "authoritative_snapshot",
+      certainty: "exact_for_captured_data",
+    };
+  }
+
+  const best = candidates[0];
+  return {
+    ...best.route,
+    solver: "temporary_free_belt_route",
+    radius_m: round(radius),
+    compatibility: best.compatibility,
+    compatible_item_classes: best.compatible,
+    compatible_items: best.compatible.map((itemClass) => displayItem(graph, itemClass)),
+    missing_compatibility_evidence: best.missing,
+    candidate_count: candidates.length,
+    furthest_endpoint_from_player_m: round(best.furthest_from_player_m),
+    source: "authoritative_snapshot",
+    certainty:
+      best.compatibility === "proven"
+        ? "exact_for_captured_data_except_game_owned_hologram_checks"
+        : "geometry_exact_item_compatibility_unknown",
+  };
+}
+
 function findNode(graph, actorId) {
   const wanted = String(actorId);
   const direct = graph?.nodes?.get?.(wanted);

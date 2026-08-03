@@ -36,7 +36,10 @@ import {
   solveBlueprintLibrary,
 } from "./solvers.mjs";
 import { validatePlan } from "./actions.mjs";
-import { solveNearestCompatibleBeltRoute } from "./routing.mjs";
+import {
+  solveNearestCompatibleBeltRoute,
+  solveTemporaryFreeBeltRoute,
+} from "./routing.mjs";
 
 /**
  * Run locally routed actions through the same validator used for model tools.
@@ -586,6 +589,16 @@ export function parseNearestCompatibleBeltRequest(question) {
   return { radius_m: match[1] ? Number.parseInt(match[1], 10) : 100 };
 }
 
+const TEMPORARY_FREE_BELT_TEST =
+  /^temporarily\s+connect\s+the\s+nearest\s+free\s+output\s+to\s+(?:the\s+)?nearest\s+free\s+input\s+within\s+(\d+)\s*(?:m|meters|metres)\s+using\s+(?:a\s+)?(?:mk\.?\s*1|mark\s*1)\s+(?:conveyor\s+)?belt\s+for\s+(?:a\s+)?live\s+(?:belt\s+)?test$/i;
+
+export function parseTemporaryFreeBeltTestRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(TEMPORARY_FREE_BELT_TEST);
+  if (!match) return null;
+  return { radius_m: Number.parseInt(match[1], 10) };
+}
+
 function capturedUnlockedMk1BeltRecipe(graph) {
   if (graph?.snapshot?.content?.availability_known !== true) {
     return {
@@ -960,6 +973,66 @@ export function answerLocally(question, graph, services) {
       "place_belt",
       started,
       "Current recipes proved item compatibility; the solver chose the shortest free connector pair near the player.",
+    );
+  }
+
+  // An explicit temporary geometry test may use a pair whose item
+  // compatibility is unknown, but never one the captured recipes prove wrong.
+  // It is a separate phrase so the safe compatible production route above can
+  // never silently degrade into this behaviour.
+  const temporaryBelt = parseTemporaryFreeBeltTestRequest(question);
+  if (temporaryBelt) {
+    const started = Date.now();
+    const recipe = capturedUnlockedMk1BeltRecipe(graph);
+    if (!recipe.recipe_class) {
+      return localAnswer(
+        `I did not run the temporary belt test: ${recipe.reason}.`,
+        "place_belt_live_test",
+        started,
+        "The requested belt tier must be proven unlocked even for a temporary test.",
+      );
+    }
+
+    const route = solveTemporaryFreeBeltRoute(graph, temporaryBelt);
+    if (!route.routed) {
+      return localAnswer(
+        `I did not run the temporary belt test: ${route.reason}.`,
+        "place_belt_live_test",
+        started,
+        "Known-incompatible pairs are refused; unknown compatibility is allowed only by this explicit test phrase.",
+      );
+    }
+
+    const plan = emitValidatedPlan(graph, services, [
+      {
+        action: "place_belt",
+        recipe_class: recipe.recipe_class,
+        from_component: route.from.connector,
+        to_component: route.to.connector,
+        commit: true,
+      },
+    ]);
+    if (!plan) {
+      return localAnswer(
+        "I found exact free endpoints, but the action contract refused the temporary plan, so nothing was emitted.",
+        "place_belt_live_test",
+        started,
+        "The shared action validator retained final authority.",
+      );
+    }
+
+    const compatibility =
+      route.compatibility === "proven"
+        ? `Recipe compatibility is proven for **${route.compatible_items.join(" / ")}**.`
+        : `Item compatibility is **unknown** because the snapshot lacks: ${route.missing_compatibility_evidence.join(", ")}.`;
+    return localAnswer(
+      `Temporary live test: connecting **${route.from.name}** to **${route.to.name}** ` +
+        `with a Mk.1 belt (${route.length_meters} m). ${compatibility} ` +
+        `Exact endpoints: \`${route.from.connector}\` → \`${route.to.connector}\`. ` +
+        "The game hologram owns every geometry/cost check; say \"undo\" after verifying the readback.",
+      "place_belt_live_test",
+      started,
+      "The player explicitly requested a temporary physical test; proven-incompatible pairs were excluded.",
     );
   }
 
