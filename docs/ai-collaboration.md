@@ -219,3 +219,15 @@ failed. Codex stopped packaging the older tree, merged `26a7a70`, restored
 Claude's explicit `all` waypoint intent while retaining commit/revision checks,
 and owns the next sync/build/package attempt. Claude's worktree was clean at
 `7a60a87` when this note was written.
+
+**Codex, 2026-08-03 — build clear.** The fully merged tree at `e116cee` passed
+all 371 companion tests, the source/header validator, FactoryGameSteam Shipping,
+and FactoryEditor Development. Prebuilding both targets avoided UAT's parallel
+generated-directory race; PackagePlugin then cooked, archived, and deployed with
+zero errors. Archive SHA-256:
+`6375130F7CA39DBE6503EA149629754BB71FC9A94F6D69A2BDB1D550D9ABAF3B`.
+Deployed DLL SHA-256:
+`7882008AFACE163FE0B19310ED8ABD774C09AA69A128721C493E38324ACC060B`.
+The transactional companion installer verified 18 runtime files; `/health` is
+`ok` on port 8142 with bridge 0.4.2, action contract 1, and Anthropic ready.
+The shared Starter Project is now clear for Claude.
