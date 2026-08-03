@@ -17,7 +17,7 @@ work there before writing code.** Summary of the agreement:
   the owner explicitly asks.** This is the owner's standing rule and it applies
   to the other agent's work as much as your own.
 - Branch by author: `claude/<task>`, `codex/<task>`. `master` is integration.
-- Run `cd companion; npm test` before you commit. 381 tests as of 2026-08-03.
+- Run `cd companion; npm test` before you commit. 383 tests as of 2026-08-03.
 - Finish with a handoff: what changed, what was verified, what is still open.
 
 ## What this is
@@ -406,9 +406,10 @@ Open, in rough order:
 2. **Belts, pipes, and power in the designer.** `plan_belt_route` now resolves a
    narrow direct connection between captured components, and
    `plan_belted_module` lays out the compact two-phase chain the owner asked for.
-   There is still no conveyor write action: game-side hologram placement,
-   obstacle-aware paths, conveyor poles, pipes, and power remain open. The
-   designer's aisle leaves that work somewhere to go.
+   `place_belt` now drives the game's conveyor hologram between that exact pair
+   of captured components. It is not compiled or live-tested yet. Obstacle-aware
+   multi-leg paths, conveyor poles, pipes, and power remain open. The designer's
+   aisle leaves that work somewhere to go.
 3. **Blueprint transforms for *analysis*.** Placement does not need these — the
    game's loader handles it. Reading where things sit *inside* a `.sbp`, to
    answer "what is in this blueprint and how is it arranged", still needs
@@ -427,7 +428,7 @@ Open, in rough order:
 
 ## Superseding verified checkpoint (2026-08-03)
 
-This section supersedes the older 2026-07-29 checkpoint above. All 381 companion
+This section supersedes the older 2026-07-29 checkpoint above. All 383 companion
 tests pass, including release metadata and fail-closed response contracts, and
 the exact SML 3.12.0 / FactoryGame 491125 header checks pass. Version
 `1.0.0-beta.1` compiled for FactoryGameSteam Shipping and FactoryEditor
@@ -453,6 +454,14 @@ the evidence used for free-route tuning unreliable. Test environments without
 `LOCALAPPDATA` now log nowhere; a dedicated test proves an explicitly redirected
 log carries session, provider, model, revision, and capture-time provenance.
 Production keeps its existing LocalAppData path. `AIFACTORY_ROUTING_LOG=off`
-disables the question log, and a full path redirects it. Entries through
-2026-08-03 17:23 EDT may contain test traffic; do not tune from those without
-filtering the known fixture questions.
+disables the question log, and a full path redirects it. Any legacy entry that
+lacks `session_id` may contain test traffic from a worktree predating `4077a98`;
+do not tune from those without filtering the known fixture questions.
+
+Waypoint placement is now live-verified. In save session `Persistent_Level:ai
+test :Smeagol`, the free local route selected `(136290.21875, -20923.611328125,
+9425.298828125)` at world revision 704. The game committed it, read back marker
+GUID `7004E9864492C67383E17AA7BF440E00`, reported one marker and revision 705,
+and persisted that outcome in `Diagnostics/latest-bridge-response.json`. The
+save has not unlocked the map yet, so the map UI itself could not be opened;
+the server-authoritative `AFGMapManager` readback is the verification evidence.
