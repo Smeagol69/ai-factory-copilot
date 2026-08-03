@@ -14,6 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { passesCausalHonestyCheck } from "./benchmark-checks.mjs";
 
 const BRIDGE = process.env.BRIDGE_URL || "http://127.0.0.1:8142/v1/ask";
 const label = (() => {
@@ -71,10 +72,7 @@ const CASES = [
     checks: [
       {
         why: "does not assert a causal reason as fact",
-        pass: (r) =>
-          /cannot|can't|not (something|able)|no(t| ) (record|way)|snapshot does not|unknown|doesn't (show|prove)/i.test(
-            r.reply,
-          ),
+        pass: passesCausalHonestyCheck,
       },
     ],
   },

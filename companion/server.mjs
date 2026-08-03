@@ -78,6 +78,29 @@ function providerFailureDetails(error, selectedProvider) {
   };
 }
 
+const HISTORICAL_CAUSE_PATTERN =
+  /\b(?:why\s+(?:did|was|were|had)|what\s+caused|what\s+made)\b/i;
+
+/**
+ * Turns a grounding refusal into a useful, truthful first paragraph.
+ * Historical intent is distinct from a live diagnostic: a snapshot can show a
+ * currently starved smelter through a solver, but it cannot recover why a past
+ * spawn or placement decision was made merely from present-day correlation.
+ */
+export function formatGroundingFailureReply(question, deterministicReply) {
+  const lead = HISTORICAL_CAUSE_PATTERN.test(String(question ?? ""))
+    ? `The snapshot records the current game state, but it cannot establish why ` +
+      `that past choice was made. I won't present correlation as a cause.`
+    : `The model's live-game claims were not backed by usable deterministic ` +
+      `evidence, so I withheld its draft.`;
+
+  return (
+    `${lead} No model-proposed action was kept. Verified current-state diagnostics ` +
+    `follow; they may not answer the original question, but they contain no guessed ` +
+    `game data.\n\n${deterministicReply}`
+  );
+}
+
 export function assessProviderConfiguration(provider, env = process.env, seen = new Set()) {
   const selected = String(provider || "mock").toLowerCase();
   if (seen.has(selected)) {
@@ -730,10 +753,7 @@ export function createBridgeServer({ env = process.env } = {}) {
             response_id: providerFailureInfo.response_id,
             reply:
               providerFailureInfo.kind === "solver_grounding_required"
-                ? `I withheld the model's draft because it did not support its live-game claims ` +
-                  `with usable deterministic evidence. No model-proposed action was kept. ` +
-                  `The verified diagnostic below may not answer the original question, but it ` +
-                  `contains no guessed game data.\n\n${fallback.reply}`
+                ? formatGroundingFailureReply(context.question, fallback.reply)
                 : `The configured ${provider} request did not complete. No model-proposed action ` +
                   `was kept. The verified diagnostic below may not answer the original question, ` +
                   `but it preserves live evidence instead of dropping the request.\n\n${fallback.reply}`,

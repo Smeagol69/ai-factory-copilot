@@ -11,6 +11,7 @@ import {
   assessProviderReadiness,
   createActionCollector,
   createBridgeServer,
+  formatGroundingFailureReply,
   resolveRoutingLogPath,
 } from "../server.mjs";
 import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
@@ -481,6 +482,29 @@ test("discard removes every action from a provider turn that failed", () => {
   ]);
   collector.discard();
   assert.deepEqual(collector.actions, []);
+});
+
+test("a withheld historical-cause answer leads with the snapshot's real limit", () => {
+  const reply = formatGroundingFailureReply(
+    "why did the game place my starting area next to coal",
+    "Current factory diagnostic.",
+  );
+  assert.match(reply, /^The snapshot records the current game state/i);
+  assert.match(reply, /cannot establish why/i);
+  assert.match(reply, /won't present correlation as a cause/i);
+  assert.match(reply, /No model-proposed action was kept/i);
+  assert.match(reply, /Current factory diagnostic\.$/);
+});
+
+test("a withheld live diagnostic asks for solver evidence instead of denying capability", () => {
+  const reply = formatGroundingFailureReply(
+    "why is my smelter starved",
+    "Current factory diagnostic.",
+  );
+  assert.match(reply, /^The model's live-game claims were not backed/i);
+  assert.match(reply, /usable deterministic evidence/i);
+  assert.doesNotMatch(reply, /cannot establish why/i);
+  assert.match(reply, /Current factory diagnostic\.$/);
 });
 
 test("a broken provider falls back to deterministic live analysis", async () => {
