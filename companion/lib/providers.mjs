@@ -1434,8 +1434,42 @@ export async function askHybrid(context, env = process.env) {
   const strong = env.AIFACTORY_STRONG_PROVIDER || "anthropic";
 
   if (needsStrongModel(context.question, env)) {
-    const answer = await askProvider(strong, context, env);
-    return { ...answer, tier: { used: "strong", provider: strong, why: "question_shape_needs_reasoning" } };
+    try {
+      const answer = await askProvider(strong, context, env);
+      return { ...answer, tier: { used: "strong", provider: strong, why: "question_shape_needs_reasoning" } };
+    } catch (error) {
+      // The strong tier can fail for reasons that have nothing to do with the
+      // question — an exhausted credit balance is the one that actually
+      // happened here, and it returns 400 before a single token is billed.
+      //
+      // Falling back to the cheap tier is **off by default and deliberately
+      // so**. This branch is reached only for causal, comparative and planning
+      // questions, and the small local model was measured on exactly those:
+      // it asserted a causal reason as fact where the data cannot show one.
+      // Silently answering a "why" with a model that fabricates would trade a
+      // visible outage for an invisible wrong answer, which is the worse of
+      // the two. So the caller has to ask for it, and when they do the answer
+      // says plainly what produced it.
+      if (env.AIFACTORY_FALLBACK_TO_CHEAP !== "true") throw error;
+
+      const answer = await askProvider(cheap, context, env);
+      const reason = error instanceof Error ? error.message : String(error);
+      return {
+        ...answer,
+        reply:
+          `${answer.reply}\n\n---\n**Answered by the local fallback model, not the main one.** ` +
+          `The configured ${strong} tier was unavailable (${reason}). This question is the ` +
+          `kind that needs reasoning, and the local model has been measured asserting causes ` +
+          `it cannot know — treat anything here that is not a solver number as unverified.`,
+        tier: {
+          used: "cheap",
+          provider: cheap,
+          why: "strong_tier_failed_and_fallback_was_enabled",
+          strong_error: reason,
+          caveat: "escalated question answered by the weaker model",
+        },
+      };
+    }
   }
 
   try {
