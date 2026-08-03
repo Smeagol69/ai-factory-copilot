@@ -4,6 +4,7 @@
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
 #include "CollisionQueryParams.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Equipment/FGBuildGun.h"
@@ -1788,10 +1789,10 @@ UFGFactoryConnectionComponent* FindActionFactoryConnection(const FString& Compon
  * A hit result aimed at a connection, shaped the way the build gun would.
  *
  * The conveyor hologram snaps to connections by inspecting the hit actor near
- * the impact point. Factory connections derive from USceneComponent, not
- * UPrimitiveComponent, so they cannot be stored in FHitResult::Component. A
- * real trace's primitive is not needed to identify the owning buildable and
- * connector location, and inventing one would make this hit less authoritative.
+ * the impact point. Factory connections derive from USceneComponent and cannot
+ * be stored in FHitResult::Component, but a real build-gun trace also carries
+ * the machine primitive it hit. Preserve that part of the contract with an
+ * actual UPrimitiveComponent owned by the connection's buildable.
  */
 FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
 {
@@ -1804,7 +1805,12 @@ FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
     Hit.TraceEnd = Location;
     Hit.ImpactNormal = Connection->GetConnectorNormal();
     Hit.Normal = Hit.ImpactNormal;
-    Hit.HitObjectHandle = FActorInstanceHandle(Connection->GetOwner());
+    AActor* Owner = Connection->GetOwner();
+    Hit.HitObjectHandle = FActorInstanceHandle(Owner);
+    if (IsValid(Owner))
+    {
+        Hit.Component = Owner->FindComponentByClass<UPrimitiveComponent>();
+    }
     return Hit;
 }
 
