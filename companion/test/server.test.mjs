@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { after, before, test } from "node:test";
 import {
   ACTION_CONTRACT_VERSION,
@@ -8,6 +11,7 @@ import {
   assessProviderReadiness,
   createActionCollector,
   createBridgeServer,
+  resolveRoutingLogPath,
 } from "../server.mjs";
 import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
@@ -91,6 +95,84 @@ test("ask endpoint accepts an authoritative snapshot", async () => {
   assert.equal(body.world_revision, 7);
   assert.equal(body.retained_history_messages, 2);
   assert.match(body.reply, /1 actors/);
+});
+
+test("routing diagnostics are instance-scoped and carry request provenance", async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "aifactory-routing-"));
+  context.after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
+  const routingLog = path.join(temporaryDirectory, "routing.jsonl");
+  const diagnosticServer = createBridgeServer({
+    env: {
+      AI_PROVIDER: "mock",
+      AIFACTORY_ROUTING_LOG: routingLog,
+    },
+  });
+
+  assert.equal(resolveRoutingLogPath({ AI_PROVIDER: "mock" }), null);
+  assert.equal(resolveRoutingLogPath({ AIFACTORY_ROUTING_LOG: "off" }), null);
+  assert.equal(
+    resolveRoutingLogPath({ AIFACTORY_ROUTING_LOG: routingLog }),
+    path.resolve(routingLog),
+  );
+  assert.equal(
+    resolveRoutingLogPath({ LOCALAPPDATA: temporaryDirectory }),
+    path.join(
+      temporaryDirectory,
+      "FactoryGame",
+      "Saved",
+      "AIFactoryCopilot",
+      "Diagnostics",
+      "routing.jsonl",
+    ),
+  );
+
+  try {
+    await new Promise((resolve) => diagnosticServer.listen(0, "127.0.0.1", resolve));
+    const address = diagnosticServer.address();
+    const response = await fetch(`http://127.0.0.1:${address.port}/v1/ask`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        schema: "aifactory.ask",
+        schema_version: 1,
+        session_id: "routing-provenance-test",
+        question_received_at_game_utc: "2026-08-03T21:00:00.000Z",
+        question: "Tell me a joke about this factory.",
+        world_snapshot: {
+          schema: "aifactory.snapshot",
+          schema_version: 1,
+          data_policy: "authoritative_or_explicitly_unknown",
+          world_revision: 42,
+          generated_at_utc: "2026-08-03T20:59:59.000Z",
+          actors: [],
+        },
+      }),
+    });
+    assert.equal(response.status, 200);
+  } finally {
+    if (diagnosticServer.listening) {
+      await new Promise((resolve, reject) =>
+        diagnosticServer.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  }
+
+  const entries = fs
+    .readFileSync(routingLog, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line));
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].question, "Tell me a joke about this factory.");
+  assert.equal(entries[0].answeredBy, "deterministic_diagnostic");
+  assert.equal(entries[0].session_id, "routing-provenance-test");
+  assert.equal(entries[0].provider, "mock");
+  assert.equal(entries[0].model, "deterministic-diagnostic");
+  assert.equal(entries[0].world_revision, 42);
+  assert.equal(entries[0].snapshot_generated_at_utc, "2026-08-03T20:59:59.000Z");
+  assert.equal(entries[0].question_received_at_game_utc, "2026-08-03T21:00:00.000Z");
+  assert.match(entries[0].at, /^2026-/);
+  assert.match(entries[0].bridge_received_at_utc, /^2026-/);
 });
 
 test("reset endpoint clears one local conversation", async () => {

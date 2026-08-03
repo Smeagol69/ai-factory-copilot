@@ -364,28 +364,50 @@ export function createActionCollector() {
 }
 
 /**
+ * Resolves the per-instance routing log.
+ *
+ * A server constructed with an isolated test environment has no LOCALAPPDATA,
+ * so it logs nowhere unless the caller explicitly supplies a path. This keeps
+ * fixture questions out of the player's real diagnostics without introducing
+ * test-only behavior into the request handler.
+ */
+export function resolveRoutingLogPath(env = process.env) {
+  const configured = String(env.AIFACTORY_ROUTING_LOG ?? "").trim();
+  if (["0", "false", "off", "none"].includes(configured.toLowerCase())) return null;
+  if (configured) return path.resolve(configured);
+  if (!env.LOCALAPPDATA) return null;
+  return path.join(
+    env.LOCALAPPDATA,
+    "FactoryGame",
+    "Saved",
+    "AIFactoryCopilot",
+    "Diagnostics",
+    "routing.jsonl",
+  );
+}
+
+/**
  * Appends one line per question describing whether it was answered free.
  *
  * Deliberately fire-and-forget: a logging failure must never cost the player an
  * answer, so every error here is swallowed. The file is JSON lines so a miss
  * report can be read straight off disk with a one-liner.
  */
-const ROUTING_LOG = path.join(
-  process.env.LOCALAPPDATA ?? ".",
-  "FactoryGame/Saved/AIFactoryCopilot/Diagnostics/routing.jsonl",
-);
-
-function recordRoutingOutcome(entry) {
-  try {
-    fs.mkdirSync(path.dirname(ROUTING_LOG), { recursive: true });
-    fs.appendFileSync(
-      ROUTING_LOG,
-      `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`,
-      "utf8",
-    );
-  } catch {
-    // Diagnostics are never worth failing a request over.
-  }
+function makeRoutingRecorder(env) {
+  const routingLog = resolveRoutingLogPath(env);
+  if (!routingLog) return () => {};
+  return (entry) => {
+    try {
+      fs.mkdirSync(path.dirname(routingLog), { recursive: true });
+      fs.appendFileSync(
+        routingLog,
+        `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`,
+        "utf8",
+      );
+    } catch {
+      // Diagnostics are never worth failing a request over.
+    }
+  };
 }
 
 function jsonResponse(response, status, body) {
@@ -505,6 +527,7 @@ export function createBridgeServer({ env = process.env } = {}) {
   const terrainCache = createTerrainCache({
     filePath: env.AIFACTORY_TERRAIN_CACHE || undefined,
   });
+  const recordRoutingOutcome = makeRoutingRecorder(env);
   let activeAskRequests = 0;
 
   return http.createServer(async (request, response) => {
@@ -740,6 +763,13 @@ export function createBridgeServer({ env = process.env } = {}) {
         answeredBy,
         solver: answer.local?.solver ?? null,
         miss: answeredBy !== "local_solver" ? explainRoutingMiss(context.question) : null,
+        session_id: sessionId,
+        provider: answer.provider,
+        model: answer.model,
+        world_revision: body.world_snapshot.world_revision ?? null,
+        snapshot_generated_at_utc: body.world_snapshot.generated_at_utc ?? null,
+        question_received_at_game_utc: body.question_received_at_game_utc ?? null,
+        bridge_received_at_utc: bridgeReceivedAtUtc,
       });
       const intrinsicallyFreeAnswer =
         answeredBy === "local_solver" ||
