@@ -68,6 +68,13 @@ targets are not claimed yet.
 6. Launch a save and press **Insert**. Ask a read-only question first, such as
    "what machines and resource nodes are near me?" Writes remain off by default.
 
+The installed companion records question text and routing outcomes in
+`%LOCALAPPDATA%\FactoryGame\Saved\AIFactoryCopilot\Diagnostics\routing.jsonl`.
+This diagnostic is used to improve free deterministic routing. Set
+`AIFACTORY_ROUTING_LOG=off` in the companion's private `.env` to disable it, or
+set the value to a full path to redirect it. Isolated test servers do not write
+to the player's log.
+
 ## Game configuration
 
 The mod reads:
