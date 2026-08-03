@@ -21,22 +21,23 @@ export const WRITE_ACTION_KINDS = [
   "place_blueprint",
   "dismantle",
   "undo_last",
+  // The game's own map markers, used instead of reimplementing the compass
+  // distance readout the resource scanner already shows.
+  //
+  // These look like drawings and were briefly classified as such, which was
+  // wrong twice over: `FMapMarker` is a `SaveGame` property, so a waypoint
+  // survives a reload, and the clear path then ran on a dry run — a "show me
+  // what this would do" that deleted things. Persistent state is a write, and
+  // a write is gated, stamped, and honours a dry run.
+  "waypoint",
+  "clear_waypoints",
 ];
 
 /**
  * Actions that only draw. These change nothing, so they are never gated behind
  * the write switch and never need confirming.
  */
-export const OVERLAY_ACTION_KINDS = [
-  "highlight",
-  "clear_highlight",
-  // The game's own map markers. Distinct from `highlight`, which draws tracer
-  // lines and boxes over many targets at once: a waypoint is one destination,
-  // and it belongs on the map and the compass with the live distance readout
-  // the game already provides. Reimplementing that would have been worse.
-  "waypoint",
-  "clear_waypoints",
-];
+export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight"];
 
 /** Everything the mod knows how to execute. */
 export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
@@ -332,18 +333,58 @@ export function validateAction(graph, proposal) {
     if (radius !== null && radius <= 0) {
       return reject(kind, "radius_must_be_positive");
     }
-    // A waypoint without a position is a pin dropped at the origin, which is a
-    // silent wrong answer rather than an error the player would notice.
-    if (kind === "waypoint") {
-      const location = vector(proposal.location);
-      if (!location) return reject(kind, "location_must_be_an_xyz_object");
-      rest.location = location;
-    }
     return {
       valid: true,
       warnings,
       checks: { draws_only: true },
       action: bindWorldRevision(graph, { ...rest, action: kind, commit: true }, proposal),
+    };
+  }
+
+  if (kind === "waypoint") {
+    // A waypoint without a position is a pin silently dropped at the world
+    // origin — a wrong answer that looks like a success, which is worse than
+    // an error the player can see.
+    const location = vector(proposal.location);
+    if (!location || finite(proposal.location?.z) === null) {
+      return reject(kind, "location_must_be_an_xyz_object_with_an_explicit_z");
+    }
+    const name = String(proposal.name ?? "").trim().slice(0, 120);
+    return {
+      valid: true,
+      warnings,
+      checks: { ...checks, persists_in_the_save: true },
+      action: bindWorldRevision(
+        graph,
+        {
+          action: kind,
+          location,
+          ...(name ? { name } : {}),
+          commit: proposal.commit === true,
+        },
+        proposal,
+      ),
+    };
+  }
+
+  if (kind === "clear_waypoints") {
+    const nameFilter = String(proposal.name_contains ?? "").trim().slice(0, 120);
+    return {
+      valid: true,
+      warnings: [
+        ...warnings,
+        "Removed map markers are not restored by undo.",
+      ],
+      checks: { ...checks, removes_only_copilot_markers: true },
+      action: bindWorldRevision(
+        graph,
+        {
+          action: kind,
+          ...(nameFilter ? { name_contains: nameFilter } : {}),
+          commit: proposal.commit === true,
+        },
+        proposal,
+      ),
     };
   }
 
