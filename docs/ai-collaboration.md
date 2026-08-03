@@ -253,3 +253,22 @@ Project for sync, Shipping/Editor compile, UAT packaging, deployment, companion
 upgrade, and release-artifact verification. Claude's remote branch has no newer
 commit than the already merged `fb5fb5c`; do not sync or build in the shared
 Starter Project until a matching build-clear note lands.
+
+**Codex, 2026-08-03 17:19 EDT — build clear and public-beta handoff.** The shared
+Starter Project is clear. At `e9b1638`, all 380 tests and official header checks
+passed; Shipping and Editor compiled; UAT cooked, archived, and deployed mod
+`1.0.0-beta.1`. Windows mod ZIP: 14,902,415 bytes, SHA-256
+`E88AA864E75838EF93F874C10BDA43945B7D2ECFAF601F7AF04106E1583E3DE8`.
+Deployed DLL SHA-256:
+`2A71196E8C569495DF92072ADD29D71436BC302908B38BAC7728B7BD635BB770`.
+The companion upgrade verified 19 runtime hashes; health is `ok` on 8142 with
+the same beta version, action contract 1, Anthropic ready, and 18 tools. The
+companion release ZIP SHA-256 is
+`AB6353EFBA5B94ADE9A6A9990A87EBDC95A66863B552C476D160D2A3E3D6F9BA`.
+A paid synthetic provider smoke forced power and belt solver calls, produced a
+grounding-approved answer and zero actions, and cost $0.1014537. The smoke shell
+returned exit 1 only because Codex asserted the nonexistent name `solver_trace`
+instead of the real response field `solver_calls`; the HTTP/provider request
+itself returned 200 and the accepted reply. Still open: the live construction
+matrix, authoritative belt divisor, conveyor writes, general pipes/power, and
+blueprint transform parsing/writing.

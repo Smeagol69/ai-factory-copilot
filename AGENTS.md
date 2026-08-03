@@ -17,7 +17,7 @@ work there before writing code.** Summary of the agreement:
   the owner explicitly asks.** This is the owner's standing rule and it applies
   to the other agent's work as much as your own.
 - Branch by author: `claude/<task>`, `codex/<task>`. `master` is integration.
-- Run `cd companion; npm test` before you commit. 324 tests as of 2026-07-29.
+- Run `cd companion; npm test` before you commit. 380 tests as of 2026-08-03.
 - Finish with a handoff: what changed, what was verified, what is still open.
 
 ## What this is
@@ -403,11 +403,12 @@ Open, in rough order:
    `ITEM_SPACING` (120 cm) is authoritative from the header, but whether `mSpeed`
    is cm/s or cm/min is not — both readings give 60/min for a Mk1. Check one known
    belt in a live save and set `AIFACTORY_BELT_SPEED_DIVISOR` if it is 120.
-2. **Belts, pipes, and power in the designer.** `design_factory_layout` places
-   machines and leaves a foundation-wide aisle between rows for them, but does
-   not run the connections. Belt routing needs a path between two connection
-   components plus conveyor-pole placement; the aisle exists so that work has
-   somewhere to go.
+2. **Belts, pipes, and power in the designer.** `plan_belt_route` now resolves a
+   narrow direct connection between captured components, and
+   `plan_belted_module` lays out the compact two-phase chain the owner asked for.
+   There is still no conveyor write action: game-side hologram placement,
+   obstacle-aware paths, conveyor poles, pipes, and power remain open. The
+   designer's aisle leaves that work somewhere to go.
 3. **Blueprint transforms for *analysis*.** Placement does not need these — the
    game's loader handles it. Reading where things sit *inside* a `.sbp`, to
    answer "what is in this blueprint and how is it arranged", still needs
@@ -423,3 +424,23 @@ Open, in rough order:
    in `latest-bridge-response.json` and checked against the world.
 5. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
    than placing it directly. Needs (3).
+
+## Superseding verified checkpoint (2026-08-03)
+
+This section supersedes the older 2026-07-29 checkpoint above. All 380 companion
+tests pass, including release metadata and fail-closed response contracts, and
+the exact SML 3.12.0 / FactoryGame 491125 header checks pass. Version
+`1.0.0-beta.1` compiled for FactoryGameSteam Shipping and FactoryEditor
+Development, then cooked, archived, and deployed through UAT/Alpakit. The
+14,902,415-byte Windows archive SHA-256 is
+`E88AA864E75838EF93F874C10BDA43945B7D2ECFAF601F7AF04106E1583E3DE8`;
+the deployed Shipping DLL SHA-256 is
+`2A71196E8C569495DF92072ADD29D71436BC302908B38BAC7728B7BD635BB770`.
+
+The clean companion install at `D:\Modding\Satisfactory\Companion` verifies 19
+runtime files. `/health` is `ok` on port 8142 with bridge `1.0.0-beta.1`, action
+contract 1, Anthropic / `claude-sonnet-5` ready, and 18 solver tools. A paid
+synthetic end-to-end request forced power and belt solver calls; Claude returned
+their exact values, the grounding gate accepted the answer, and `actions` was
+empty. It cost $0.1014537. The public companion ZIP SHA-256 is
+`AB6353EFBA5B94ADE9A6A9990A87EBDC95A66863B552C476D160D2A3E3D6F9BA`.
