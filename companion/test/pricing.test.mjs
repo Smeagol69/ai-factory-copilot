@@ -25,6 +25,23 @@ test("an introductory rate applies while it lasts and lapses afterwards", () => 
   assert.equal(after.introductory_until, undefined);
 });
 
+test("GPT-5.6 models use the official standard input and output rates", () => {
+  const expectedRates = {
+    "gpt-5.6-sol": { input: 5, output: 30 },
+    "gpt-5.6-terra": { input: 2.5, output: 15 },
+    "gpt-5.6-luna": { input: 1, output: 6 },
+  };
+
+  for (const [model, expected] of Object.entries(expectedRates)) {
+    assert.deepEqual(rateFor(model), expected);
+    const cost = estimateCost(model, {
+      input_tokens: 1_000_000,
+      output_tokens: 1_000_000,
+    });
+    assert.equal(cost.usd, expected.input + expected.output);
+  }
+});
+
 test("an unpriced model reports no rate rather than a guessed one", () => {
   assert.equal(rateFor("some-model-released-next-year"), null);
 });

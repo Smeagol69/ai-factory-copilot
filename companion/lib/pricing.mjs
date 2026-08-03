@@ -16,8 +16,14 @@
  *     cheap.
  */
 
-/** USD per million tokens. Checked against the published rates 2026-07-28. */
+/** USD per million tokens. Provider-specific verification dates are recorded inline. */
 const RATES = {
+  // OpenAI standard rates verified 2026-07-29 against the official model table:
+  // https://developers.openai.com/api/docs/models/compare
+  "gpt-5.6-sol": { input: 5, output: 30 },
+  "gpt-5.6-terra": { input: 2.5, output: 15 },
+  "gpt-5.6-luna": { input: 1, output: 6 },
+  // Anthropic rates checked against the published rates 2026-07-28.
   "claude-fable-5": { input: 10, output: 50 },
   "claude-mythos-5": { input: 10, output: 50 },
   "claude-opus-5": { input: 5, output: 25 },

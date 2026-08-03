@@ -106,7 +106,10 @@ async function ask(question, sessionId) {
   const started = Date.now();
   const response = await fetch(BRIDGE, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-AIFactory-Schema": "1",
+    },
     body,
   });
   const elapsed = Date.now() - started;

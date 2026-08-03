@@ -429,7 +429,18 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(rate|rates|per minute|\/min|throughput|overclock|output|input rate)\b/i,
-    tools: ["get_machine_rates", "get_item_balance", "get_transport_capacity", "plan_production"],
+    tools: (question) => [
+      "get_machine_rates",
+      "get_item_balance",
+      "get_transport_capacity",
+      "plan_production",
+      // find_recipes returns registered per-minute input/output rates. It is
+      // sufficient for a recipe-rate comparison, but not for a live machine's
+      // current output.
+      ...(/\b(recipe|alternate|alt recipe|ingredients?)\b/i.test(question)
+        ? ["find_recipes"]
+        : []),
+    ],
   },
   {
     pattern: /\b(short of|deficit|surplus|balance|oversuppl|undersuppl)\w*\b/i,
@@ -462,25 +473,365 @@ const GROUNDING_REQUIREMENTS = [
   },
 ];
 
+const LIVE_SCOPE_PATTERN =
+  /\b(my|our|this|that|these|those|current|currently|right now|here|nearby|in (?:my|our) save|player'?s)\b/i;
+const EXTERNAL_REFERENCE_PATTERN =
+  /\b(official (?:docs?|documentation|wiki)|according to (?:the )?(?:docs?|documentation|wiki)|patch notes?|release notes?|game version|mod wiki)\b/i;
+const CONCEPTUAL_PATTERN =
+  /\b(?:how (?:do|does|is|are) .{0,100}\bwork|what (?:do|does|is|are) .{0,100}\bmean|explain|define)\b/i;
+const LIVE_DIAGNOSTIC_PATTERN =
+  /(?:\b(?:why is|why are|explain why)\b.{0,100}\b(?:stopped|stalled|idle|standby|not producing|bottleneck|starved|blocked|slow)\b|\b(?:stopped|stalled|idle|standby|not producing|bottleneck|starved|blocked)\b.{0,100}\b(?:why|explain)\b)/i;
+
+function isExternalOrConceptualQuestion(question) {
+  const text = String(question ?? "");
+  if (LIVE_SCOPE_PATTERN.test(text) || LIVE_DIAGNOSTIC_PATTERN.test(text)) return false;
+  return EXTERNAL_REFERENCE_PATTERN.test(text) || CONCEPTUAL_PATTERN.test(text);
+}
+
+function isClarificationReply(reply) {
+  const text = String(reply ?? "").trim();
+  // A clarification exemption must be a single, short question/request. Do
+  // not let a model prefix an unsupported factual answer with "Which ...?"
+  // and thereby bypass the deterministic-grounding gate.
+  if (text.length > 240 || /[\r\n]/.test(text)) return false;
+  if (
+    /^(?:which|what|where|when|who|could you|can you|would you|do you mean)\b/i.test(text)
+  ) {
+    return /^[^.!?]{1,239}\?$/.test(text);
+  }
+  return (
+    /^(?:please|i need(?: you)? to)\b/i.test(text) &&
+    /\b(aim|clarify|specify|identify|choose|tell me which|tell me what)\b/i.test(text) &&
+    /^[^.!?]{1,239}[?.]?$/.test(text)
+  );
+}
+
+function parsedSolverResult(result) {
+  try {
+    const parsed = JSON.parse(String(result?.serialized ?? ""));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function evidenceRows(tool, parsed) {
+  switch (tool) {
+    case "get_machine_rates":
+      return Array.isArray(parsed.machines) ? parsed.machines : [];
+    case "get_item_balance":
+      return Array.isArray(parsed.items) ? parsed.items : [];
+    case "find_recipes":
+      return [
+        ...(Array.isArray(parsed.recipes_producing_item) ? parsed.recipes_producing_item : []),
+        ...(Array.isArray(parsed.recipes_consuming_item) ? parsed.recipes_consuming_item : []),
+      ];
+    case "get_transport_capacity":
+      return [
+        ...(Array.isArray(parsed.conveyors) ? parsed.conveyors : []),
+        ...(Array.isArray(parsed.pipelines) ? parsed.pipelines : []),
+      ];
+    case "get_power_circuits":
+      return Array.isArray(parsed.circuits) ? parsed.circuits : [];
+    case "diagnose_bottlenecks":
+      return Array.isArray(parsed.reports) ? parsed.reports : [];
+    case "get_build_cost":
+      return parsed.resolved === true ? [parsed] : [];
+    case "find_best_site":
+      return Array.isArray(parsed.sites) ? parsed.sites : [];
+    case "plan_production":
+      return parsed.planned === true ? [parsed] : [];
+    case "list_blueprints":
+      return Array.isArray(parsed.blueprints) ? parsed.blueprints : [];
+    case "get_unlock_status":
+      return parsed.source && parsed.certainty ? [parsed] : [];
+    case "locate":
+      return Array.isArray(parsed.matches) ? parsed.matches : [];
+    case "design_factory_layout":
+      return parsed.designed === true ? [parsed] : [];
+    default:
+      return null;
+  }
+}
+
+function actorIdsInEvidence(tool, parsed, rows) {
+  const ids = new Set();
+  const add = (value) => {
+    if (typeof value === "string" && value) ids.add(value);
+  };
+  for (const row of rows ?? []) {
+    add(row?.actor_id);
+    add(row?.root_cause_actor_id);
+    for (const id of row?.causal_chain_actor_ids ?? []) add(id);
+    for (const endpoint of row?.upstream_endpoints ?? []) add(endpoint?.endpoint_actor_id);
+    for (const endpoint of row?.downstream_endpoints ?? []) add(endpoint?.endpoint_actor_id);
+  }
+  // A build-cost query may resolve a class without returning an actor. It is
+  // not an actor-scoped grounding tool, so an empty set is expected there.
+  return ids;
+}
+
+function normalizedIncludes(value, expected) {
+  return String(value ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+}
+
+function solverTargetMatch(context, tool, args, parsed, rows) {
+  const checks = [];
+  const serialized = JSON.stringify(parsed);
+
+  if (tool === "get_power_circuits") {
+    const ids = new Set((rows ?? []).map((row) => Number(row?.circuit_id)));
+    if (args?.circuit_id !== undefined && args?.circuit_id !== null) {
+      checks.push(ids.has(Number(args.circuit_id)));
+    }
+    const namedCircuit =
+      /\bcircuit\s*(?:#|id|number)?\s*[:#-]?\s*(\d+)\b/i.exec(String(context?.question ?? ""));
+    if (namedCircuit) checks.push(ids.has(Number(namedCircuit[1])));
+  }
+
+  const actorScoped = new Set([
+    "get_machine_rates",
+    "get_transport_capacity",
+    "diagnose_bottlenecks",
+    "locate",
+  ]);
+  if (actorScoped.has(tool)) {
+    const ids = actorIdsInEvidence(tool, parsed, rows);
+    if (Array.isArray(args?.actor_ids) && args.actor_ids.length > 0) {
+      checks.push(args.actor_ids.every((id) => ids.has(id)));
+    }
+    if (typeof args?.actor_id === "string" && args.actor_id) {
+      checks.push([...ids].some((id) => id === args.actor_id || id.endsWith(args.actor_id)));
+    }
+    if (
+      /\b(this|that|it|these|those)(?:\s+(?:machine|belt|pipe|building|node|factory|thing))?\b/i.test(
+        String(context?.question ?? ""),
+      )
+    ) {
+      const preferred = context?.snapshot?.interaction_context?.preferred_target?.actor_id;
+      if (preferred) checks.push(ids.has(preferred));
+    }
+  }
+
+  const questionClasses = [
+    ...String(context?.question ?? "").matchAll(
+      /\b((?:Desc|Recipe)_[A-Za-z0-9_]+)\b/g,
+    ),
+  ].map((match) => match[1]);
+  const itemClasses = questionClasses.filter((entry) => entry.startsWith("Desc_"));
+  const recipeClasses = questionClasses.filter((entry) => entry.startsWith("Recipe_"));
+  const itemTargetTools = new Set(["get_item_balance", "find_recipes", "plan_production"]);
+  const recipeTargetTools = new Set([
+    "find_recipes",
+    "get_build_cost",
+    "plan_production",
+    "design_factory_layout",
+  ]);
+
+  if (typeof args?.item_class === "string" && args.item_class) {
+    checks.push(serialized.includes(`"${args.item_class}"`));
+    if (itemTargetTools.has(tool) && itemClasses.length > 0) {
+      checks.push(itemClasses.includes(args.item_class));
+    }
+  } else if (itemTargetTools.has(tool) && itemClasses.length > 0) {
+    checks.push(itemClasses.every((itemClass) => serialized.includes(`"${itemClass}"`)));
+  }
+  if (typeof args?.recipe_class === "string" && args.recipe_class) {
+    checks.push(serialized.includes(`"${args.recipe_class}"`));
+    if (recipeTargetTools.has(tool) && recipeClasses.length > 0) {
+      checks.push(recipeClasses.includes(args.recipe_class));
+    }
+  } else if (recipeTargetTools.has(tool) && recipeClasses.length > 0) {
+    checks.push(recipeClasses.every((recipeClass) => serialized.includes(`"${recipeClass}"`)));
+  }
+
+  if (tool === "find_recipes" && typeof args?.name_contains === "string" && args.name_contains) {
+    checks.push(
+      (rows ?? []).some(
+        (row) =>
+          normalizedIncludes(row?.recipe_name, args.name_contains) ||
+          normalizedIncludes(row?.recipe_class, args.name_contains),
+      ),
+    );
+  }
+  if (tool === "list_blueprints" && typeof args?.name_contains === "string" && args.name_contains) {
+    checks.push(
+      (rows ?? []).some(
+        (row) =>
+          normalizedIncludes(row?.name, args.name_contains) ||
+          normalizedIncludes(row?.blueprint_name, args.name_contains),
+      ),
+    );
+  }
+  if (tool === "locate" && typeof args?.name_contains === "string" && args.name_contains) {
+    checks.push(
+      (rows ?? []).some(
+        (row) =>
+          normalizedIncludes(row?.name, args.name_contains) ||
+          normalizedIncludes(row?.actor_id, args.name_contains),
+      ),
+    );
+  }
+  if (tool === "locate" && typeof args?.resource_name === "string" && args.resource_name) {
+    checks.push((rows ?? []).some((row) => normalizedIncludes(row?.resource_name, args.resource_name)));
+  }
+  if (tool === "plan_production" && typeof args?.item_name === "string" && args.item_name) {
+    checks.push(normalizedIncludes(parsed?.target?.item_name, args.item_name));
+  }
+
+  return checks.length === 0 ? null : checks.every(Boolean);
+}
+
+/**
+ * Compact provenance attached to every recorded tool call. A tool name alone
+ * is not evidence: failed, unknown, empty, and off-target results remain
+ * visible for diagnostics but cannot unlock a live-save factual answer.
+ */
+export function solverEvidenceMetadata(context, tool, args, result) {
+  const parsed = parsedSolverResult(result);
+  const metadata = {
+    usable: false,
+    reason: "malformed_result",
+    source: null,
+    certainty: null,
+    row_count: null,
+    target_match: null,
+  };
+  if (!parsed) return metadata;
+
+  const rows = evidenceRows(tool, parsed);
+  metadata.source =
+    typeof parsed.source === "string"
+      ? parsed.source
+      : typeof rows?.[0]?.source === "string"
+        ? rows[0].source
+        : null;
+  metadata.certainty =
+    typeof parsed.certainty === "string"
+      ? parsed.certainty
+      : typeof rows?.[0]?.certainty === "string"
+        ? rows[0].certainty
+        : null;
+  metadata.row_count = rows === null ? null : rows.length;
+
+  if (parsed.error) {
+    metadata.reason = "solver_error";
+    return metadata;
+  }
+  if (/\b(unknown|unresolved)\b/i.test(String(parsed.certainty ?? ""))) {
+    metadata.reason = "unknown_result";
+    return metadata;
+  }
+  if (
+    parsed.resolved === false ||
+    parsed.found === false ||
+    parsed.planned === false ||
+    parsed.designed === false ||
+    (tool === "list_blueprints" && parsed.available === false)
+  ) {
+    metadata.reason = "unknown_result";
+    return metadata;
+  }
+  if (rows !== null && rows.length === 0) {
+    metadata.reason = "empty_result";
+    return metadata;
+  }
+
+  metadata.target_match = solverTargetMatch(context, tool, args, parsed, rows);
+  if (metadata.target_match === false) {
+    metadata.reason = "target_mismatch";
+    return metadata;
+  }
+
+  metadata.usable = true;
+  metadata.reason = "usable";
+  return metadata;
+}
+
+function solverCallRecord(context, tool, args, result) {
+  return {
+    tool,
+    arguments: args,
+    truncated: result.truncated,
+    result_characters: result.serialized.length,
+    evidence: solverEvidenceMetadata(context, tool, args, result),
+  };
+}
+
 export function missingRequiredSolverGrounding(question, solverCalls = []) {
-  const called = new Set(solverCalls.map((entry) => entry?.tool).filter(Boolean));
+  if (isExternalOrConceptualQuestion(question)) return [];
+  const called = new Set(
+    solverCalls
+      .filter((entry) => entry?.evidence?.usable === true)
+      .map((entry) => entry?.tool)
+      .filter(Boolean),
+  );
   const missing = [];
   for (const requirement of GROUNDING_REQUIREMENTS) {
+    const tools =
+      typeof requirement.tools === "function"
+        ? requirement.tools(String(question ?? ""))
+        : requirement.tools;
     if (
       requirement.pattern.test(String(question ?? "")) &&
-      !requirement.tools.some((tool) => called.has(tool))
+      !tools.some((tool) => called.has(tool))
     ) {
-      missing.push(requirement.tools);
+      missing.push(tools);
     }
   }
   return missing;
 }
 
-function enforceSolverGrounding(context, reply, solverCalls, env) {
+function tokenUsage(cache) {
+  return {
+    input_tokens: cache.input_tokens,
+    output_tokens: cache.output_tokens,
+    cache_creation_input_tokens: cache.cache_creation_input_tokens,
+    cache_read_input_tokens: cache.cache_read_input_tokens,
+  };
+}
+
+function providerFailureMetadata(provider, model, totals, responseId = null) {
+  const cache = summarizeCacheUsage(totals);
+  return {
+    provider,
+    model,
+    response_id: responseId,
+    usage: tokenUsage(cache),
+    cache,
+  };
+}
+
+function annotateProviderError(error, metadata) {
+  const annotated = error instanceof Error ? error : new Error(String(error));
+  for (const [key, value] of Object.entries(metadata)) {
+    if (annotated[key] === undefined) annotated[key] = value;
+  }
+  return annotated;
+}
+
+export class SolverGroundingError extends Error {
+  constructor(missing, metadata = {}) {
+    const toolText = missing.map((tools) => tools.join(" or ")).join("; ");
+    super(
+      `The model returned an ungrounded live-game answer without the required solver ` +
+        `tool(s): ${toolText}. Its draft was withheld instead of presenting guesses as game data.`,
+    );
+    this.name = "SolverGroundingError";
+    this.code = "solver_grounding_required";
+    this.missing_solver_tools = missing.map((tools) => [...tools]);
+    for (const [key, value] of Object.entries(metadata)) this[key] = value;
+  }
+}
+
+function enforceSolverGrounding(context, reply, solverCalls, env, failureMetadata) {
   if (!context.graph || !envFlag(env.AIFACTORY_ENFORCE_SOLVER_GROUNDING, true)) return;
+  if (isClarificationReply(reply)) return;
+  if (isExternalOrConceptualQuestion(context.question)) return;
   const missing = missingRequiredSolverGrounding(context.question, solverCalls);
+  const usableCalls = solverCalls.filter((entry) => entry?.evidence?.usable === true);
   if (
-    solverCalls.length === 0 &&
+    usableCalls.length === 0 &&
     /\d/.test(String(reply ?? "")) &&
     /\b(your|this|current|machine|factory|belt|pipe|power|inventory|position|coordinate|meters?|items?)\b/i.test(
       String(reply ?? ""),
@@ -490,11 +841,7 @@ function enforceSolverGrounding(context, reply, solverCalls, env) {
   }
   if (missing.length === 0) return;
 
-  const toolText = missing.map((tools) => tools.join(" or ")).join("; ");
-  throw new Error(
-    `The model returned an ungrounded live-game answer without the required solver ` +
-      `tool(s): ${toolText}. Its draft was withheld instead of presenting guesses as game data.`,
-  );
+  throw new SolverGroundingError(missing, failureMetadata);
 }
 
 export async function askOpenAI(context, env = process.env) {
@@ -506,12 +853,15 @@ export async function askOpenAI(context, env = process.env) {
     Number.parseInt(env.OPENAI_MAX_OUTPUT_TOKENS ?? "", 10) || 2400;
   const maximumSolverRounds =
     Number.parseInt(env.AIFACTORY_MAX_SOLVER_ROUNDS ?? "", 10) || DEFAULT_MAXIMUM_SOLVER_ROUNDS;
-  const systemInstructions = buildSystemInstructions(env);
 
   const tools = [];
   const policy = resolveSourcePolicy(env);
   // OPENAI_WEB_SEARCH stays honoured for compatibility with existing configs.
-  const webSearchTool = envFlag(env.OPENAI_WEB_SEARCH, true)
+  const webSearchAvailable = policy.enabled && envFlag(env.OPENAI_WEB_SEARCH, true);
+  const systemInstructions = buildSystemInstructions(
+    webSearchAvailable ? env : { ...env, AIFACTORY_WEB_SEARCH: "false" },
+  );
+  const webSearchTool = webSearchAvailable
     ? openAIWebSearchTool(policy, env)
     : null;
   if (webSearchTool) tools.push(webSearchTool);
@@ -525,6 +875,7 @@ export async function askOpenAI(context, env = process.env) {
   const usage = emptyCacheUsage();
   let lastResponseId = null;
 
+  try {
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
     const body = {
       model,
@@ -570,7 +921,13 @@ export async function askOpenAI(context, env = process.env) {
     if (functionCalls.length === 0) {
       const reply = extractOpenAIText(json);
       if (!reply) throw new Error("OpenAI returned no output_text.");
-      enforceSolverGrounding(context, reply, solverCalls, env);
+      enforceSolverGrounding(
+        context,
+        reply,
+        solverCalls,
+        env,
+        providerFailureMetadata("openai", model, usage, lastResponseId),
+      );
       const collected = [...sources.values()].slice(0, 8);
       const sourceText = collected.length
         ? `\n\nExternal sources:\n${collected
@@ -599,12 +956,7 @@ export async function askOpenAI(context, env = process.env) {
         parsedArguments = {};
       }
       const result = runSolverTool(context.graph, call.name, parsedArguments, { services: context.services });
-      solverCalls.push({
-        tool: call.name,
-        arguments: parsedArguments,
-        truncated: result.truncated,
-        result_characters: result.serialized.length,
-      });
+      solverCalls.push(solverCallRecord(context, call.name, parsedArguments, result));
       input.push({
         type: "function_call_output",
         call_id: call.call_id,
@@ -616,6 +968,12 @@ export async function askOpenAI(context, env = process.env) {
   throw new Error(
     `OpenAI kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
   );
+  } catch (error) {
+    throw annotateProviderError(
+      error,
+      providerFailureMetadata("openai", model, usage, lastResponseId),
+    );
+  }
 }
 
 /**
@@ -732,7 +1090,9 @@ export async function askAnthropic(context, env = process.env) {
   const sources = new Map();
   const searchErrors = [];
   let pauseResumes = 0;
+  let lastResponseId = null;
 
+  try {
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
     const requestBody = { ...requestBase, messages };
     if (tools.length > 0) requestBody.tools = tools;
@@ -775,6 +1135,7 @@ export async function askAnthropic(context, env = process.env) {
       throw new Error(`Anthropic API HTTP ${response.status}: ${detail}`);
     }
     const json = await response.json();
+    lastResponseId = json.id ?? lastResponseId;
     accumulateCacheUsage(cacheUsage, json.usage);
     collectAnthropicSources(json, sources, searchErrors);
     const toolUses = (json.content ?? []).filter((block) => block?.type === "tool_use");
@@ -801,7 +1162,13 @@ export async function askAnthropic(context, env = process.env) {
         .join("\n")
         .trim();
       if (!reply) throw new Error("Anthropic returned no text content.");
-      enforceSolverGrounding(context, reply, solverCalls, env);
+      enforceSolverGrounding(
+        context,
+        reply,
+        solverCalls,
+        env,
+        providerFailureMetadata("anthropic", model, cacheUsage, lastResponseId),
+      );
       const collected = [...sources.values()].slice(0, 8);
       return {
         reply: `${reply}${formatSourceFooter(collected, searchErrors)}`,
@@ -821,12 +1188,7 @@ export async function askAnthropic(context, env = process.env) {
     for (const use of toolUses) {
       const parsedArguments = use.input && typeof use.input === "object" ? use.input : {};
       const result = runSolverTool(context.graph, use.name, parsedArguments, { services: context.services });
-      solverCalls.push({
-        tool: use.name,
-        arguments: parsedArguments,
-        truncated: result.truncated,
-        result_characters: result.serialized.length,
-      });
+      solverCalls.push(solverCallRecord(context, use.name, parsedArguments, result));
       toolResults.push({
         type: "tool_result",
         tool_use_id: use.id,
@@ -840,6 +1202,12 @@ export async function askAnthropic(context, env = process.env) {
   throw new Error(
     `Anthropic kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
   );
+  } catch (error) {
+    throw annotateProviderError(
+      error,
+      providerFailureMetadata("anthropic", model, cacheUsage, lastResponseId),
+    );
+  }
 }
 
 /**
@@ -868,7 +1236,7 @@ export async function askLocal(context, env = process.env) {
     {
       role: "system",
       content:
-        buildSystemInstructions(env) +
+        buildSystemInstructions({ ...env, AIFACTORY_WEB_SEARCH: "false" }) +
         (toolsEnabled
           ? ""
           : "\n\nSolver tools are unavailable for this local model. Do not state live-game numbers, causes, coordinates, or actions."),
@@ -877,7 +1245,9 @@ export async function askLocal(context, env = process.env) {
   ];
   const solverCalls = [];
   const usage = emptyCacheUsage();
+  let lastResponseId = null;
 
+  try {
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
     const body = { model, messages, stream: false };
     if (toolsEnabled) {
@@ -904,6 +1274,7 @@ export async function askLocal(context, env = process.env) {
     }
 
     const json = await response.json();
+    lastResponseId = json.id ?? lastResponseId;
     usage.input_tokens += json.usage?.prompt_tokens ?? 0;
     usage.output_tokens += json.usage?.completion_tokens ?? 0;
     const message = json?.choices?.[0]?.message;
@@ -913,7 +1284,13 @@ export async function askLocal(context, env = process.env) {
     if (toolCalls.length === 0) {
       const reply = String(message.content ?? "").trim();
       if (!reply) throw new Error("Local AI server returned no message content.");
-      enforceSolverGrounding(context, reply, solverCalls, env);
+      enforceSolverGrounding(
+        context,
+        reply,
+        solverCalls,
+        env,
+        providerFailureMetadata("local", model, usage, lastResponseId),
+      );
       return {
         reply,
         provider: "local",
@@ -933,12 +1310,9 @@ export async function askLocal(context, env = process.env) {
         parsedArguments = {};
       }
       const result = runSolverTool(context.graph, call.function?.name, parsedArguments, { services: context.services });
-      solverCalls.push({
-        tool: call.function?.name,
-        arguments: parsedArguments,
-        truncated: result.truncated,
-        result_characters: result.serialized.length,
-      });
+      solverCalls.push(
+        solverCallRecord(context, call.function?.name, parsedArguments, result),
+      );
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -950,6 +1324,12 @@ export async function askLocal(context, env = process.env) {
   throw new Error(
     `Local AI model kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
   );
+  } catch (error) {
+    throw annotateProviderError(
+      error,
+      providerFailureMetadata("local", model, usage, lastResponseId),
+    );
+  }
 }
 
 export async function askMock(context) {
@@ -973,8 +1353,8 @@ export async function askMock(context) {
     const bottlenecks = runSolverTool(context.graph, "diagnose_bottlenecks", {});
     const power = runSolverTool(context.graph, "get_power_circuits", {});
     solverCalls.push(
-      { tool: "diagnose_bottlenecks", arguments: {}, truncated: bottlenecks.truncated },
-      { tool: "get_power_circuits", arguments: {}, truncated: power.truncated },
+      solverCallRecord(context, "diagnose_bottlenecks", {}, bottlenecks),
+      solverCallRecord(context, "get_power_circuits", {}, power),
     );
     const parsedBottlenecks = JSON.parse(bottlenecks.serialized);
     const parsedPower = JSON.parse(power.serialized);

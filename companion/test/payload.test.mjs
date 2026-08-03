@@ -170,6 +170,8 @@ test("local provider talks to an ollama-style endpoint by default", async () => 
     assert.equal(answer.reply, "It is starved.");
     // No key is required for a local server.
     assert.equal(stub.calls[0].headers.Authorization, undefined);
+    assert.match(stub.calls[0].body.messages[0].content, /web search is turned off/);
+    assert.doesNotMatch(stub.calls[0].body.messages[0].content, /docs\.ficsit\.app/);
   } finally {
     stub.restore();
   }
@@ -197,11 +199,45 @@ test("local provider runs solver tool calls and feeds results back", async () =>
     const answer = await askLocal(makeContext(), { LOCAL_AI_MODEL: "qwen3" });
     assert.equal(stub.calls.length, 2);
     assert.equal(answer.solver_calls[0].tool, "get_power_circuits");
+    assert.equal(answer.solver_calls[0].evidence.usable, true);
 
     const toolMessage = stub.calls[1].body.messages.at(-1);
     assert.equal(toolMessage.role, "tool");
     assert.equal(toolMessage.tool_call_id, "call_1");
     assert.equal(JSON.parse(toolMessage.content).circuits[0].headroom_mw, -25);
+  } finally {
+    stub.restore();
+  }
+});
+
+test("local provider errors retain billed usage and model metadata", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "local-failure",
+        usage: { prompt_tokens: 20, completion_tokens: 3 },
+        choices: [],
+      },
+    },
+  ]);
+  try {
+    let caught;
+    try {
+      await askLocal(makeContext(), { LOCAL_AI_MODEL: "qwen3" });
+    } catch (error) {
+      caught = error;
+    }
+    assert.match(caught?.message ?? "", /returned no choices/);
+    assert.equal(caught?.provider, "local");
+    assert.equal(caught?.model, "qwen3");
+    assert.equal(caught?.response_id, "local-failure");
+    assert.deepEqual(caught?.usage, {
+      input_tokens: 20,
+      output_tokens: 3,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    });
+    assert.equal(caught?.cache?.effective_input_tokens, 20);
   } finally {
     stub.restore();
   }

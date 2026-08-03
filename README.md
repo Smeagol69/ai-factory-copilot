@@ -91,6 +91,7 @@ Ask the whole report with no model involved:
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8142/v1/analyze `
+  -Headers @{ 'X-AIFactory-Schema' = '1' } `
   -ContentType 'application/json' `
   -Body (Get-Content -Raw 'FactoryGame\Saved\AIFactoryCopilot\Snapshots\latest.json' |
     ForEach-Object { "{`"schema`":`"aifactory.analyze`",`"schema_version`":1,`"world_snapshot`":$_}" })

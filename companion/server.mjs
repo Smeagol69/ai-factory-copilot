@@ -15,7 +15,11 @@ import { answerLocally, explainRoutingMiss } from "./lib/router.mjs";
 import { createTerrainCache } from "./lib/terrain-cache.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
-import { resolveSourcePolicy } from "./lib/sources.mjs";
+import {
+  anthropicWebSearchTool,
+  openAIWebSearchTool,
+  resolveSourcePolicy,
+} from "./lib/sources.mjs";
 import { SOLVER_TOOLS } from "./lib/tools.mjs";
 
 const LOOPBACK_HOST = "127.0.0.1";
@@ -30,12 +34,48 @@ function positiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function envFlag(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  return !["0", "false", "off", "no"].includes(String(value).toLowerCase());
+}
+
 function providerModel(provider, env) {
   if (provider === "openai") return env.OPENAI_MODEL || "gpt-5.6-sol";
   if (provider === "anthropic") return env.ANTHROPIC_MODEL || null;
   if (provider === "local" || provider === "ollama") return env.LOCAL_AI_MODEL || null;
   if (provider === "mock") return "deterministic-diagnostic";
   return null;
+}
+
+function hasTokenUsage(usage) {
+  return [
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+  ].some((name) => Number(usage?.[name] ?? 0) > 0);
+}
+
+function providerFailureDetails(error, selectedProvider) {
+  const preflight =
+    !error?.provider &&
+    /\b(not configured|must be (?:explicitly configured|set)|unsupported ai_provider)\b/i.test(
+      String(error?.message ?? error ?? ""),
+    );
+  const cache = error?.cache ?? null;
+  return {
+    kind: error?.code ?? "provider_error",
+    provider: error?.provider ?? selectedProvider,
+    model: error?.model ?? null,
+    response_id: error?.response_id ?? null,
+    usage: error?.usage ?? null,
+    cache,
+    billing_state: preflight
+      ? "not_started"
+      : hasTokenUsage(cache)
+        ? "measured"
+        : "unknown",
+  };
 }
 
 export function assessProviderConfiguration(provider, env = process.env, seen = new Set()) {
@@ -112,6 +152,152 @@ export function assessProviderConfiguration(provider, env = process.env, seen = 
   };
 }
 
+function providerSourceCapability(provider, env, policy, seen = new Set()) {
+  const selected = String(provider || "mock").toLowerCase();
+  if (seen.has(selected)) {
+    return { webSearch: false, restricted: false, providers: [] };
+  }
+  if (selected === "openai") {
+    const tool = envFlag(env.OPENAI_WEB_SEARCH, true)
+      ? openAIWebSearchTool(policy, env)
+      : null;
+    return {
+      webSearch: Boolean(tool),
+      restricted: Boolean(tool?.filters?.allowed_domains),
+      providers: tool ? ["openai"] : [],
+    };
+  }
+  if (selected === "anthropic") {
+    const tool = anthropicWebSearchTool(policy, env);
+    return {
+      webSearch: Boolean(tool),
+      restricted: Boolean(tool?.allowed_domains),
+      providers: tool ? ["anthropic"] : [],
+    };
+  }
+  if (selected === "hybrid") {
+    const nextSeen = new Set(seen).add(selected);
+    const cheap = providerSourceCapability(
+      env.AIFACTORY_CHEAP_PROVIDER || "local",
+      env,
+      policy,
+      nextSeen,
+    );
+    const strong = providerSourceCapability(
+      env.AIFACTORY_STRONG_PROVIDER || "anthropic",
+      env,
+      policy,
+      nextSeen,
+    );
+    const available = [cheap, strong].filter((entry) => entry.webSearch);
+    return {
+      webSearch: available.length > 0,
+      restricted:
+        available.length > 0 && available.every((entry) => entry.restricted),
+      providers: [...new Set(available.flatMap((entry) => entry.providers))],
+    };
+  }
+  return { webSearch: false, restricted: false, providers: [] };
+}
+
+async function probeLocalConfiguration(configuration, env, fetchImpl) {
+  if (!configuration.ready) {
+    return { ...configuration, operational_ready: false };
+  }
+
+  const timeoutValue = positiveInteger(env.AIFACTORY_HEALTH_TIMEOUT_MS, 1500);
+  const timeoutMs = Math.min(timeoutValue, 10_000);
+  try {
+    const response = await fetchImpl(`${configuration.endpoint}/models`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      return {
+        ...configuration,
+        operational_ready: false,
+        issues: [...configuration.issues, `Local model endpoint returned HTTP ${response.status}.`],
+      };
+    }
+    const body = await response.json();
+    const models = Array.isArray(body?.data)
+      ? body.data.map((entry) => String(entry?.id ?? "")).filter(Boolean)
+      : [];
+    const wanted = String(configuration.model ?? "");
+    const installed = models.some(
+      (model) => model === wanted || model.replace(/:latest$/i, "") === wanted.replace(/:latest$/i, ""),
+    );
+    if (!installed) {
+      return {
+        ...configuration,
+        operational_ready: false,
+        issues: [
+          ...configuration.issues,
+          `Local model "${wanted}" is not listed by ${configuration.endpoint}.`,
+        ],
+      };
+    }
+    return { ...configuration, operational_ready: true, available_models: models };
+  } catch (error) {
+    return {
+      ...configuration,
+      operational_ready: false,
+      issues: [
+        ...configuration.issues,
+        `Local model endpoint is unreachable: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    };
+  }
+}
+
+export async function assessProviderReadiness(
+  provider,
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+) {
+  const configuration = assessProviderConfiguration(provider, env);
+  if (configuration.provider === "local" || configuration.provider === "ollama") {
+    return probeLocalConfiguration(configuration, env, fetchImpl);
+  }
+  if (configuration.provider === "hybrid") {
+    const cheapName = String(env.AIFACTORY_CHEAP_PROVIDER || "local").toLowerCase();
+    const strongName = String(env.AIFACTORY_STRONG_PROVIDER || "anthropic").toLowerCase();
+    if (cheapName === "hybrid" || strongName === "hybrid") {
+      return { ...configuration, operational_ready: false };
+    }
+    const cheap = await assessProviderReadiness(
+      cheapName,
+      env,
+      fetchImpl,
+    );
+    const strong = await assessProviderReadiness(
+      strongName,
+      env,
+      fetchImpl,
+    );
+    const issues = [
+      ...configuration.issues,
+      ...(!cheap.operational_ready ? cheap.issues.map((issue) => `cheap: ${issue}`) : []),
+      ...(!strong.operational_ready ? strong.issues.map((issue) => `strong: ${issue}`) : []),
+    ];
+    return {
+      ...configuration,
+      issues: [...new Set(issues)],
+      operational_ready:
+        configuration.ready && cheap.operational_ready && strong.operational_ready,
+      cheap,
+      strong,
+    };
+  }
+  return {
+    ...configuration,
+    operational_ready: configuration.ready,
+    verification:
+      configuration.provider === "openai" || configuration.provider === "anthropic"
+        ? "configuration_only"
+        : "local_deterministic",
+  };
+}
+
 function validatePostRequest(request) {
   if (request.headers.origin) {
     return { status: 403, error: "Browser-origin requests are not accepted by the loopback bridge." };
@@ -155,8 +341,10 @@ export function createActionCollector() {
     },
     emit(proposed) {
       const list = Array.isArray(proposed) ? proposed : [];
-      const carriesWritePlan = list.some((action) =>
-        WRITE_ACTION_KINDS.includes(String(action?.action ?? "")),
+      const carriesWritePlan = list.some(
+        (action) =>
+          action?.commit === true &&
+          WRITE_ACTION_KINDS.includes(String(action?.action ?? "")),
       );
       if (carriesWritePlan && writePlanSeen) {
         conflict =
@@ -280,7 +468,6 @@ export function makeBlueprintReader(env = process.env) {
 
 export function createBridgeServer({ env = process.env } = {}) {
   const provider = (env.AI_PROVIDER || "mock").toLowerCase();
-  const providerConfiguration = assessProviderConfiguration(provider, env);
   const maximumBodyBytes =
     positiveInteger(env.AIFACTORY_MAX_BODY_MB, 64) * 1024 * 1024;
   const maximumQuestionCharacters = positiveInteger(
@@ -321,34 +508,31 @@ export function createBridgeServer({ env = process.env } = {}) {
   let activeAskRequests = 0;
 
   return http.createServer(async (request, response) => {
+    let admittedAskRequest = false;
     try {
       if (request.method === "GET" && request.url === "/health") {
         const sourcePolicy = resolveSourcePolicy(env);
-        const providerHasWebSearch =
-          provider === "openai" ||
-          provider === "anthropic" ||
-          (provider === "hybrid" &&
-            ["openai", "anthropic"].includes(
-              String(env.AIFACTORY_STRONG_PROVIDER || "anthropic").toLowerCase(),
-            ));
+        const sourceCapability = providerSourceCapability(provider, env, sourcePolicy);
+        const providerReadiness = await assessProviderReadiness(provider, env);
         return jsonResponse(response, 200, {
-          status: providerConfiguration.ready ? "ok" : "degraded",
+          status: providerReadiness.operational_ready ? "ok" : "degraded",
           schema: "aifactory.bridge.health",
           bridge_version: BRIDGE_VERSION,
           action_contract_version: ACTION_CONTRACT_VERSION,
           provider,
-          model: providerConfiguration.model,
-          readiness: providerConfiguration,
+          model: providerReadiness.model,
+          readiness: providerReadiness,
           loopback_only: true,
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
           outside_references: {
-            web_search: sourcePolicy.enabled && providerHasWebSearch,
+            web_search: sourcePolicy.enabled && sourceCapability.webSearch,
             requested_but_unavailable:
-              sourcePolicy.enabled && !providerHasWebSearch,
+              sourcePolicy.enabled && !sourceCapability.webSearch,
             restricted_to_configured_sources:
-              sourcePolicy.restrictToOfficial && providerHasWebSearch,
+              sourcePolicy.restrictToOfficial && sourceCapability.restricted,
+            providers: sourceCapability.providers,
             source_domains: sourcePolicy.domains,
             using_configured_domains: sourcePolicy.domainsAreConfigured,
           },
@@ -360,6 +544,17 @@ export function createBridgeServer({ env = process.env } = {}) {
         if (requestError) {
           return jsonResponse(response, requestError.status, { error: requestError.error });
         }
+      }
+      if (request.method === "POST" && request.url === "/v1/ask") {
+        if (activeAskRequests >= maximumConcurrentRequests) {
+          return jsonResponse(response, 429, {
+            error:
+              `The companion is already handling ${activeAskRequests} ask request(s); ` +
+              "wait for one to finish before sending another.",
+          });
+        }
+        activeAskRequests += 1;
+        admittedAskRequest = true;
       }
 
       if (request.method === "POST" && request.url === "/v1/analyze") {
@@ -491,19 +686,13 @@ export function createBridgeServer({ env = process.env } = {}) {
           : answerLocally(context.question, graph, requestServices);
       let answer = localAnswer;
       let providerFailure = null;
+      let providerFailureInfo = null;
       if (!answer) {
-        if (activeAskRequests >= maximumConcurrentRequests) {
-          return jsonResponse(response, 429, {
-            error:
-              `The companion is already handling ${activeAskRequests} AI request(s); ` +
-              "wait for one to finish before sending another.",
-          });
-        }
-        activeAskRequests += 1;
         try {
           answer = await askProvider(provider, context, env);
         } catch (error) {
           providerFailure = error instanceof Error ? error.message : String(error);
+          providerFailureInfo = providerFailureDetails(error, provider);
           // A provider failure also invalidates any actions it proposed before
           // failing (for example, a tool call followed by an ungrounded final
           // answer). Never execute a plan whose accompanying answer was withheld.
@@ -514,12 +703,18 @@ export function createBridgeServer({ env = process.env } = {}) {
             provider: "fallback",
             model: "deterministic-fallback",
             provider_error: providerFailure,
+            provider_failure: providerFailureInfo,
+            response_id: providerFailureInfo.response_id,
             reply:
-              `The configured ${provider} model is unavailable, so I answered from the live ` +
-              `deterministic solvers instead of dropping your question.\n\n${fallback.reply}`,
+              providerFailureInfo.kind === "solver_grounding_required"
+                ? `I withheld the model's draft because it did not support its live-game claims ` +
+                  `with usable deterministic evidence. No model-proposed action was kept. ` +
+                  `The verified diagnostic below may not answer the original question, but it ` +
+                  `contains no guessed game data.\n\n${fallback.reply}`
+                : `The configured ${provider} request did not complete. No model-proposed action ` +
+                  `was kept. The verified diagnostic below may not answer the original question, ` +
+                  `but it preserves live evidence instead of dropping the request.\n\n${fallback.reply}`,
           };
-        } finally {
-          activeAskRequests -= 1;
         }
       }
 
@@ -532,6 +727,8 @@ export function createBridgeServer({ env = process.env } = {}) {
           ? "local_solver"
           : answer.provider === "fallback"
             ? "deterministic_fallback"
+            : answer.provider === "mock"
+              ? "deterministic_diagnostic"
             : "model";
 
       // Every question is recorded with why it did or did not route. Routing was
@@ -544,12 +741,32 @@ export function createBridgeServer({ env = process.env } = {}) {
         solver: answer.local?.solver ?? null,
         miss: answeredBy !== "local_solver" ? explainRoutingMiss(context.question) : null,
       });
-      const freeAnswer =
-        answeredBy === "local_solver" || answeredBy === "deterministic_fallback";
+      const intrinsicallyFreeAnswer =
+        answeredBy === "local_solver" ||
+        answeredBy === "deterministic_diagnostic";
+      const fallbackWasFree =
+        answeredBy === "deterministic_fallback" &&
+        answer.provider_failure?.billing_state === "not_started";
+      const freeAnswer = intrinsicallyFreeAnswer || fallbackWasFree;
       const cost =
-        freeAnswer
+          freeAnswer
           ? { ...estimateCost(answer.model, {}), usd: 0 }
-          : estimateCost(answer.model, answer.cache ?? {});
+          : answeredBy === "deterministic_fallback"
+            ? answer.provider_failure?.billing_state === "measured"
+              ? estimateCost(
+                  answer.provider_failure.model,
+                  answer.provider_failure.cache ?? {},
+                )
+              : {
+                  ...estimateCost(
+                    answer.provider_failure?.model,
+                    answer.provider_failure?.cache ?? {},
+                  ),
+                  usd: null,
+                  rate_source:
+                    "The provider request may have incurred usage before it failed; exact billing is unavailable.",
+                }
+            : estimateCost(answer.model, answer.cache ?? {});
       const sessionTotal = ledger.add(sessionId, cost.usd ?? 0);
       const historyReply = answer.reply;
       if (showCost) {
@@ -579,6 +796,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         provider: answer.provider,
         model: answer.model,
         provider_error: answer.provider_error ?? null,
+        provider_failure: answer.provider_failure ?? null,
         provider_response_id: answer.response_id ?? null,
         external_sources: answer.sources ?? [],
         world_revision: body.world_snapshot.world_revision ?? null,
@@ -621,6 +839,8 @@ export function createBridgeServer({ env = process.env } = {}) {
       return jsonResponse(response, status, {
         error: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      if (admittedAskRequest) activeAskRequests -= 1;
     }
   });
 }
