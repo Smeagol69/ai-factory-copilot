@@ -14,6 +14,7 @@
 
 import { summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
+import { planBeltedModule, solveBeltChain, solveBeltRoute } from "./routing.mjs";
 import {
   solveBottlenecks,
   solveBuildCost,
@@ -241,6 +242,48 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => solveActorLookup(graph, args),
+  },
+
+  {
+    name: "plan_belt_route",
+    description:
+      "Works out the conveyor between two placed machines: which connector pair to use, where each end sits, how long the belt is, and whether it runs straight or has to bend. Reads the connector geometry the scanner captured, so it is measurement rather than estimation. Give actor_ids in flow order, or a whole chain to route several legs at once. It does not decide maximum belt length or whether the path is clear — both are the game's call, and the mod reports what was actually built.",
+    parameters: {
+      type: "object",
+      properties: {
+        from_actor_id: { type: "string", description: "The machine the items leave." },
+        to_actor_id: { type: "string", description: "The machine the items arrive at." },
+        actor_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "A whole chain in flow order, e.g. [miner, smelter, constructor]. Use instead of from/to.",
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) =>
+      Array.isArray(args?.actor_ids) && args.actor_ids.length > 1
+        ? solveBeltChain(graph, args)
+        : solveBeltRoute(graph, args),
+  },
+  {
+    name: "plan_belted_module",
+    description:
+      "Plans a compact belted module anchored on a resource node — a miner into a smelter into whatever follows, machines spaced by their measured footprints so buildings can be placed over them. Returns the machine placements and the belt legs to route afterwards. Deliberately two-phase: a belt joins connectors, and a connector does not exist until its machine is placed and the game has decided where it actually ended up, so belts are routed after placement rather than to a predicted position.",
+    parameters: {
+      type: "object",
+      properties: {
+        anchor_actor_id: { type: "string", description: "The resource node the module is built on." },
+        chain: {
+          type: "array",
+          items: { type: "string" },
+          description: "Buildable class paths in flow order, starting with the miner.",
+        },
+        spacing_cm: { type: "number", description: "Override the gap between machines. Defaults to their measured footprint." },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) => planBeltedModule(graph, args),
   },
 
   /* ---------------- world-changing tools ---------------- */

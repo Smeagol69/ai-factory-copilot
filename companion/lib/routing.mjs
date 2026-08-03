@@ -292,3 +292,169 @@ export function solveBeltChain(graph, args = {}) {
 }
 
 export { distanceMeters };
+
+/* ---------------- planning a whole belted module ---------------- */
+
+/**
+ * Learns where a building's conveyor connectors sit, from the player's own.
+ *
+ * The same trick `measureBuilding` uses for footprints: rather than shipping a
+ * table of offsets that goes stale with every game patch and knows nothing
+ * about modded buildings, read them off machines already standing in this
+ * world. A connector's world position minus its building's origin, un-rotated
+ * by the building's yaw, is a local offset that holds for every instance.
+ *
+ * Returns null when this world contains no example. That is a real answer —
+ * "I have never seen one of these, so I do not know where its belt goes" — and
+ * it is why the module planner is two-phase rather than guessing.
+ */
+export function measureConnectors(graph, classPath) {
+  const samples = { inputs: [], outputs: [] };
+  let seen = 0;
+
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    if (node.class_path !== classPath) continue;
+    const origin = vectorOf(node.raw?.location);
+    if (!origin) continue;
+
+    const yaw = Number(node.raw?.rotation?.yaw ?? 0);
+    const radians = (-yaw * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+
+    let used = false;
+    for (const connection of node.raw?.connections ?? []) {
+      if (!isFactoryConnection(connection)) continue;
+      const world = vectorOf(connection.location);
+      if (!world) continue;
+
+      const dx = world.x - origin.x;
+      const dy = world.y - origin.y;
+      const local = {
+        x: round(dx * cos - dy * sin),
+        y: round(dx * sin + dy * cos),
+        z: round(world.z - origin.z),
+      };
+
+      const direction = normalizeDirection(connection.direction);
+      if (OUTPUT_DIRECTIONS.has(direction)) samples.outputs.push(local);
+      else if (INPUT_DIRECTIONS.has(direction)) samples.inputs.push(local);
+      used = true;
+    }
+    if (used) seen += 1;
+  }
+
+  if (seen === 0) return null;
+  return {
+    class_path: classPath,
+    inputs: samples.inputs,
+    outputs: samples.outputs,
+    measured_from: seen,
+    source: "measured_from_your_own_buildings_captured_connector_positions",
+    certainty: "authoritative",
+  };
+}
+
+/**
+ * Plans a compact belted module anchored on a resource node.
+ *
+ * The request was: "a miner belted into a smelter belting into the next thing
+ * then splitted, super compact, node-hugging, so I can build over it." Two
+ * things about that shape the design.
+ *
+ * **It is two-phase, and that is not a limitation to apologise for.** Belts
+ * connect *connectors*, and a connector does not exist until its machine does —
+ * the game decides where a placed machine actually ends up, snapping and
+ * adjusting as it goes. So phase one places machines and phase two routes belts
+ * between the connectors the world reports. Predicting connector positions and
+ * building belts to where a machine *should* be would produce a plan that looks
+ * right and fails on contact.
+ *
+ * **Compactness is bounded by the game, not by us.** Machines are spaced by
+ * their measured footprints plus the smallest gap that still clears; the mod's
+ * hologram is what finally accepts or refuses each placement.
+ */
+export function planBeltedModule(graph, args = {}) {
+  const { anchor_actor_id: anchorId, chain = [], spacing_cm: spacingOverride } = args;
+
+  if (!anchorId) {
+    return { solver: "belted_module", planned: false, reason: "give an anchor_actor_id (the resource node)" };
+  }
+  if (chain.length === 0) {
+    return { solver: "belted_module", planned: false, reason: "give a chain of buildings, in flow order" };
+  }
+
+  const anchor = findNode(graph, anchorId);
+  if (!anchor) return { solver: "belted_module", planned: false, reason: `no actor matches "${anchorId}"` };
+
+  const anchorLocation = vectorOf(anchor.raw?.location);
+  if (!anchorLocation) {
+    return { solver: "belted_module", planned: false, reason: "the anchor has no captured position" };
+  }
+  if (anchor.raw?.kind === "resource_node" && anchor.raw?.node_type === "Deposit") {
+    return {
+      solver: "belted_module",
+      planned: false,
+      reason: "that is a hand-mined deposit, which cannot host a miner",
+    };
+  }
+
+  // Flow runs along +X from the node by default: a single axis keeps every belt
+  // straight, which is both the shortest and the easiest to build over.
+  const spacing = Number.isFinite(Number(spacingOverride)) ? Number(spacingOverride) : null;
+  const steps = [];
+  let cursorX = anchorLocation.x;
+  const unmeasured = [];
+
+  for (const [index, entry] of chain.entries()) {
+    const classPath = typeof entry === "string" ? entry : entry?.class_path;
+    const footprint = typeof entry === "object" ? entry?.footprint_cm ?? null : null;
+
+    const measured = classPath ? measureConnectors(graph, classPath) : null;
+    if (!measured) unmeasured.push(classPath ?? `step ${index + 1}`);
+
+    // The first machine sits on the node itself; a miner has to.
+    const width = Number.isFinite(Number(footprint)) ? Number(footprint) : null;
+    const gap = spacing ?? (width !== null ? width : DEFAULT_MODULE_SPACING_CM);
+    if (index > 0) cursorX += gap;
+
+    steps.push({
+      order: index + 1,
+      class_path: classPath ?? null,
+      location_cm: index === 0
+        ? { ...anchorLocation }
+        : { x: round(cursorX), y: anchorLocation.y, z: anchorLocation.z },
+      on_the_node: index === 0,
+      connectors_known: Boolean(measured),
+      connector_offsets: measured ?? null,
+    });
+  }
+
+  return {
+    solver: "belted_module",
+    planned: true,
+    anchor: { actor_id: anchor.actor_id, name: anchor.raw?.name ?? null, location_cm: anchorLocation },
+    steps,
+    belt_legs: steps.slice(0, -1).map((step, index) => ({
+      leg: index + 1,
+      from_order: step.order,
+      to_order: steps[index + 1].order,
+      route_after_placement: true,
+    })),
+    how_to_build:
+      "Place the machines first, then ask to belt them together. Belts join " +
+      "connectors, and a connector only exists once its machine does — the game " +
+      "decides where a placed machine actually ends up. Routing to a predicted " +
+      "position would give you a plan that looks right and fails on contact.",
+    unmeasured_buildings: unmeasured,
+    unverified:
+      unmeasured.length > 0
+        ? `No example of ${unmeasured.join(", ")} exists in this world, so their ` +
+          "connector positions are unknown until one is built. Spacing for those " +
+          "is a default, not a measurement."
+        : "Spacing came from your own buildings; the game's hologram still has the final say on each placement.",
+  };
+}
+
+/** Used only when a building has never been seen in this world. */
+const DEFAULT_MODULE_SPACING_CM = 1_200;
