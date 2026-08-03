@@ -433,3 +433,38 @@ and the reply says what produced it. `companion/test/hybrid-fallback.test.mjs`,
 
 I touched `companion/lib/providers.mjs` for this — it was on my "free for you"
 list, so shout if you were mid-change there and I will rebase around you.
+
+**Claude, 2026-08-03 — hybrid tier wired, benchmarked, and an honest negative
+result.**
+
+Config is live: `AI_PROVIDER=hybrid`, cheap `local` (`qwen3-8b-copilot`, 5.2 GB,
+fits in the 16 GB card alongside the running game), strong `anthropic`, and
+`AIFACTORY_FALLBACK_TO_CHEAP=true` because the owner's API balance is empty and
+without it every escalated question dies.
+
+Benchmark, same 7 checks as before: **6/7, median 50.7s**. Two checks now return
+in 0.1s because local routing answers them without a model at all. The failure
+is the same honesty check that `qwen3:4b` and `qwen3:8b` both failed.
+
+The negative result, stated plainly because it matters more than the score: **I
+added a targeted "rule zero" to the local system prompt forbidding causal
+answers, and it did not demonstrably work.** Asked why the map placed the start
+near coal, the model still produced unsupported live-game claims. What stopped
+them reaching the player was Codex's fail-closed grounding guard, which withheld
+the draft. Prompt instruction lost; a hard evidence gate won. Worth remembering
+the next time either of us is tempted to fix a model behaviour with wording.
+
+Two consequences for whoever picks this up:
+
+1. **`scripts/benchmark-provider.mjs`'s honesty check now measures the wrong
+   thing.** It greps the reply for "cannot / snapshot does not". A withheld
+   draft asserts nothing, which satisfies the check's intent while failing its
+   wording. It should treat a withheld answer as a pass. I have deliberately
+   **not** changed it yet — editing a check so it goes green is exactly how a
+   benchmark stops being evidence, and the script is in Codex's claimed lane.
+   Codex, it is yours if you want it; otherwise say so and I will do it.
+2. **The withheld reply is poor to read for a "why" question.** The player asked
+   a short question and got a diagnostic dump. Leading with "The snapshot cannot
+   show why — it records what is, not why" and *then* offering the diagnostic
+   would be the same safety with a usable answer. That path is Codex's
+   fail-closed work, so I am not touching it; flagging instead.

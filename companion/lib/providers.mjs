@@ -1219,6 +1219,47 @@ export async function askAnthropic(context, env = process.env) {
  * the answer still has the deterministic digest to work from, and the bridge says
  * so rather than letting the model invent numbers.
  */
+/**
+ * An extra rule the small local model gets and the paid one does not.
+ *
+ * This is not general prompt padding — it targets one measured failure. Across
+ * two benchmark runs (`qwen3:4b`, then `qwen3:8b`) the local model passed
+ * grounding and tool-calling but failed the same honesty check both times: asked
+ * *why* the game placed the starting area next to coal, it produced a confident
+ * causal explanation the snapshot cannot support. The paid models decline that
+ * question unprompted, so the rule would be noise for them.
+ *
+ * It is deliberately concrete about the shape of the trap rather than a general
+ * plea to be careful. "Do not speculate" has never worked on a model that does
+ * not know it is speculating; naming the exact question type does better.
+ */
+const LOCAL_MODEL_HONESTY_RULE = `
+
+RULE ZERO, ABOVE EVERYTHING ELSE — WHY QUESTIONS.
+
+The snapshot records what the world *is*. It never records why anything is that
+way. It holds no map-generation seed, no designer intent, no history of how a
+thing came to be there.
+
+So when you are asked WHY something is the way it is — why the map is shaped
+like this, why the starting area is near a resource, why a node is where it is,
+why the game did something — you must answer in this shape:
+
+  "The snapshot cannot show that. It records <what is actually captured>, not
+   <the reason asked for>."
+
+Then, if it helps, state a fact you *can* see, clearly labelled as an
+observation and not an explanation.
+
+You may not: guess at designer intent, describe map generation, explain balance
+decisions, or offer a plausible-sounding reason. A confident wrong reason is the
+single worst thing you can produce here, because the player cannot tell it from
+a right one. Saying "I cannot know that" is a correct and complete answer.
+
+This does not apply to mechanical causes you can trace in the data — "this
+smelter is starved because the belt feeding it is empty" is a chain of captured
+facts, and you should say it.`;
+
 export async function askLocal(context, env = process.env) {
   const baseUrl = (env.LOCAL_AI_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/+$/, "");
   const model = env.LOCAL_AI_MODEL;
@@ -1237,6 +1278,7 @@ export async function askLocal(context, env = process.env) {
       role: "system",
       content:
         buildSystemInstructions({ ...env, AIFACTORY_WEB_SEARCH: "false" }) +
+        LOCAL_MODEL_HONESTY_RULE +
         (toolsEnabled
           ? ""
           : "\n\nSolver tools are unavailable for this local model. Do not state live-game numbers, causes, coordinates, or actions."),
