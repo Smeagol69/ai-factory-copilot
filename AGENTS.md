@@ -448,6 +448,26 @@ empty. It cost $0.1014537. The public companion ZIP SHA-256 is
 The three verified assets are published as a GitHub prerelease at
 <https://github.com/Smeagol69/ai-factory-copilot/releases/tag/v1.0.0-beta.1>.
 
+## Waypoint distance checkpoint (2026-08-03)
+
+The older note claiming native `FMapMarker` compass distance was incorrect.
+`CompassViewDistance` controls icon visibility range; the exact 491125
+`UFGMapMarkerRepresentation` header does not implement the resource scanner's
+dynamic compass text. Commit `353f521` therefore keeps each Copilot marker name
+synchronized to authoritative player distance in whole metres, including saved
+markers after reload, and ignores all other marker categories.
+
+This source passes 396 companion tests, exact header validation, Shipping and
+Editor module builds, and UAT build/cook/archive. The ready Windows archive is
+`Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`,
+29,819,198 bytes, SHA-256
+`01CBB8440CEF6785DEAFBCC6DFDF7056D8CD4A0FE55313C4993D40199448C838`.
+The Steam DLL SHA-256 is
+`CB1AE53123BE0AB54B1EEF555A4CB04F67809D27825FB96995473E7CC657558A`.
+It is **not deployed yet** because the game was running; do not claim the live
+distance label is visually verified until the game is closed, the package is
+copied to the game, and the label is seen changing while the player moves.
+
 Routing diagnostics are now instance-scoped. Before `4077a98`, every local test
 server wrote fixture questions into the player's real `routing.jsonl`, making
 the evidence used for free-route tuning unreliable. Test environments without

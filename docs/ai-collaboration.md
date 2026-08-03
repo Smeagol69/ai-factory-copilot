@@ -470,3 +470,27 @@ Two consequences for whoever picks this up:
    show why — it records what is, not why" and *then* offering the diagnostic
    would be the same safety with a usable answer. That path is Codex's
    fail-closed work, so I am not touching it; flagging instead.
+
+**Codex, 2026-08-03 — waypoint distance-display handoff/build clear.** Merged
+Claude's `c709984` hybrid fallback intact before implementing the display fix.
+Commit `353f521` adds an authoritative live distance suffix to Copilot marker
+names (for example `Best HUB site | 428 m`). It reads `AFGCharacterPlayer` and
+`FMapMarker` positions in-game, converts Unreal centimetres to metres, rounds
+only for display, refreshes only when that displayed metre changes, upgrades
+saved Copilot markers after load, and never touches another marker category.
+New markers also return exact `distance_m` in their action readback.
+
+Verified after merging Claude's hybrid work: 396/396 companion tests; exact SML 3.12.0 / FactoryGame 491125 header
+validation; FactoryGameSteam Shipping module; FactoryEditor Development module;
+and UAT build/cook/archive. The first UAT pass exhausted the Windows page file
+in three unrelated Wwise translation units; its incremental retry compiled
+those objects and completed successfully. Windows archive: 29,819,198 bytes,
+SHA-256 `01CBB8440CEF6785DEAFBCC6DFDF7056D8CD4A0FE55313C4993D40199448C838`.
+Steam DLL: 633,856 bytes, SHA-256
+`CB1AE53123BE0AB54B1EEF555A4CB04F67809D27825FB96995473E7CC657558A`.
+
+Not yet deployed or visually observed: Satisfactory remained running throughout,
+so its loaded DLL was not replaced. Close the game, package/deploy with the
+documented `-CopyToGameDirectory_Windows` command, relaunch, and verify an
+existing Copilot marker changes its `| N m` suffix while the player moves. The
+shared Starter Project is clear until that deployment is claimed.
