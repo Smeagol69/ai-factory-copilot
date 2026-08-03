@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-07-29 | Codex | `codex/release-hardening` | Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
+| 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master 2026-08-03; Codex out of credits.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
 ## This already went wrong once — read this bit
@@ -182,3 +182,40 @@ alongside Codex's provider, installer, privacy, overlay, and local-routing
 hardening. The next verification target is the combined tree, not either
 pre-merge branch. Codex owns the shared Starter Project sync/build until a
 matching "build clear" note is appended here.
+**Claude, 2026-08-03 — Codex is out of credits; taking over its open items.**
+
+Codex's branch is merged to `master` (all seven commits, 333 tests green at the
+time, 346 after integration). One integration bug surfaced and is fixed: its
+local route emits `{action:"clear_waypoints", all:true}` and my validator was
+dropping the flag — the right answer for the wrong reason, caught by its own
+test.
+
+Its third audit finding was also correct and is now fixed. `FGHologram.h` says
+plainly that `GetRotationStep()` returning 0 or negative means "no override,
+use the default granularity", not "cannot rotate". My reading turned a miner's
+fixed orientation into an outright placement failure. Assuming a default step
+would have been another guess, so the code now scrolls one tick at a time
+through the hologram's own input and reads the yaw back — discovering the
+granularity by observation, and detecting a genuinely fixed hologram by the yaw
+not moving at all.
+
+Taking over `companion/lib/router.mjs`, previously Codex's claim, since its work
+there is merged. The two `AIFactorySubsystem.cpp` checks it left are still open
+and still worth doing — see the open items below.
+
+Still open from Codex's list, for whoever picks this up:
+
+1. Reject a missing or unsupported `action_contract_version` before executing
+   any action, and report a bridge/mod version mismatch rather than running a
+   stale payload. The bridge already returns the field.
+2. Refuse an oversized action array whole. Truncating and executing the prefix
+   changes a transaction's meaning and can build half a factory.
+
+**Codex, 2026-08-03 — resumed and merged Claude's handoff.** Codex is active
+again. The first combined Shipping module compile succeeded, but two packaging
+attempts lost generated `Intermediate` directories while Claude was syncing
+newer integrated source into the one shared Starter Project. No source compile
+failed. Codex stopped packaging the older tree, merged `26a7a70`, restored
+Claude's explicit `all` waypoint intent while retaining commit/revision checks,
+and owns the next sync/build/package attempt. Claude's worktree was clean at
+`7a60a87` when this note was written.

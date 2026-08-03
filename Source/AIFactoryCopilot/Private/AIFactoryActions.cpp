@@ -331,6 +331,24 @@ namespace
                     }
                 }
             }
+            // Items handed over are taken back, capped at what is still held
+            // so undo can never confiscate a stack the player earned.
+            for (const TPair<TSubclassOf<UFGItemDescriptor>, int32>& Granted : Step.GrantedItems)
+            {
+                if (!Granted.Key || Granted.Value <= 0 || !Step.Player.IsValid())
+                {
+                    continue;
+                }
+                if (UFGInventoryComponent* Inventory = Step.Player->GetInventory(); IsValid(Inventory))
+                {
+                    const int32 ToRemove = FMath::Min(Granted.Value, Inventory->GetNumItems(Granted.Key));
+                    if (ToRemove > 0)
+                    {
+                        Inventory->Remove(Granted.Key, ToRemove);
+                        ++Reversed;
+                    }
+                }
+            }
             if (Step.bHadPlayerTransform && Step.Player.IsValid())
             {
                 Step.Player->TeleportTo(
@@ -366,6 +384,7 @@ namespace
             const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
             Batch.DismantleActors.Append(Step.DismantleActors);
             Batch.SpawnedBuildables.Append(Step.SpawnedBuildables);
+            Batch.GrantedItems.Append(Step.GrantedItems);
             if (!Batch.Player.IsValid() && Step.Player.IsValid())
             {
                 Batch.Player = Step.Player;
@@ -518,48 +537,61 @@ namespace
         }
         Hologram->UpdateHologramPlacement(Hit);
 
-        // Rotate only through the hologram's public scroll interface. The final
-        // actor transform is read back, so a recipe with a different rotation
-        // granularity is refused instead of silently placed at another yaw.
+        // Rotate through the hologram's own scroll input, measuring the result
+        // after each step rather than predicting it.
+        //
+        // The obvious implementation — read GetRotationStep(), divide, scroll
+        // that many ticks — was wrong twice. The header is explicit that the
+        // return is "the overridden rotation step size to use when rotating. 0
+        // or negative means no override", so a zero step means *use the default
+        // granularity*, not "this building cannot rotate". Treating zero as
+        // "cannot rotate" is what made "place a miner on this node facing
+        // north" fail outright with hologram_has_no_rotation_step. Assuming a
+        // default granularity instead would just be a different guess.
+        //
+        // So this scrolls one tick at a time and reads the actual yaw back. It
+        // discovers the granularity by observation, stops as soon as the
+        // requested yaw is reached, and detects a genuinely unrotatable
+        // hologram by the yaw not moving at all. Bounded by a full revolution
+        // so a hologram with a tiny step cannot spin here forever.
+        //
+        // Caught by Codex against the official 491125 headers; see
+        // docs/ai-collaboration.md.
         const double RequestedYaw = Requested.Rotator().Yaw;
-        double YawError = FRotator::NormalizeAxis(
-            RequestedYaw - Hologram->GetActorRotation().Yaw);
         constexpr double YawToleranceDegrees = 0.5;
-        bool bRotationUnavailable = false;
-        if (FMath::Abs(YawError) > YawToleranceDegrees)
+        constexpr int32 MaximumRotationScrolls = 360;
+
+        const auto CurrentYawError = [&]()
         {
-            const int32 RotationStep = Hologram->GetRotationStep();
-            if (RotationStep <= 0)
-            {
-                // The building has no rotation freedom at all — a miner snaps to
-                // its node, a wall to its frame. The player asked for the
-                // building, and the yaw was never theirs to choose, so placing
-                // it and saying the rotation was ignored is the honest outcome.
-                // Refusing meant "place a miner on this node facing north"
-                // failed outright over a detail the game does not offer.
-                bRotationUnavailable = true;
-                Predicted->SetBoolField(TEXT("rotation_ignored"), true);
-                Predicted->SetStringField(
-                    TEXT("rotation_ignored_reason"),
-                    FString::Printf(
-                        TEXT("This building has no rotation step: the game fixes its orientation. "
-                             "Requested yaw %.1f, placed at %.1f."),
-                        RequestedYaw,
-                        Hologram->GetActorRotation().Yaw));
-            }
-            else
-            {
-            const int32 ScrollTicks =
-                FMath::RoundToInt(YawError / static_cast<double>(RotationStep));
-            if (ScrollTicks == 0)
-            {
-                OutFailure = TEXT("requested_yaw_is_not_representable_by_hologram");
-                return false;
-            }
-            Hologram->ScrollRotate(ScrollTicks, RotationStep);
+            return FRotator::NormalizeAxis(RequestedYaw - Hologram->GetActorRotation().Yaw);
+        };
+
+        double YawError = CurrentYawError();
+        double BestYawError = YawError;
+        int32 ScrollsApplied = 0;
+        bool bRotationUnavailable = false;
+
+        while (FMath::Abs(YawError) > YawToleranceDegrees && ScrollsApplied < MaximumRotationScrolls)
+        {
+            const double YawBeforeScroll = Hologram->GetActorRotation().Yaw;
+            Hologram->Scroll(1);
             Hologram->UpdateHologramPlacement(Hit);
-            YawError = FRotator::NormalizeAxis(
-                RequestedYaw - Hologram->GetActorRotation().Yaw);
+            ++ScrollsApplied;
+
+            const double YawAfterScroll = Hologram->GetActorRotation().Yaw;
+            if (FMath::IsNearlyEqual(YawBeforeScroll, YawAfterScroll, 1.e-3))
+            {
+                // Scrolling moved nothing, so this hologram really is fixed —
+                // a miner snaps to its node, a wall to its frame. The player
+                // asked for the building; the yaw was never theirs to choose.
+                bRotationUnavailable = true;
+                break;
+            }
+
+            YawError = CurrentYawError();
+            if (FMath::Abs(YawError) < FMath::Abs(BestYawError))
+            {
+                BestYawError = YawError;
             }
         }
 
@@ -567,13 +599,33 @@ namespace
             TEXT("hologram_transform"),
             ActionTransformJson(Hologram->GetActorTransform()));
         Predicted->SetNumberField(TEXT("hologram_yaw_error_degrees"), YawError);
-        if (!bRotationUnavailable && FMath::Abs(YawError) > YawToleranceDegrees)
+        Predicted->SetNumberField(TEXT("hologram_rotation_scrolls"), ScrollsApplied);
+
+        if (bRotationUnavailable)
         {
-            OutFailure = FString::Printf(
-                TEXT("requested_yaw_is_not_representable:requested=%.3f,actual=%.3f"),
-                RequestedYaw,
-                Hologram->GetActorRotation().Yaw);
-            return false;
+            Predicted->SetBoolField(TEXT("rotation_ignored"), true);
+            Predicted->SetStringField(
+                TEXT("rotation_ignored_reason"),
+                FString::Printf(
+                    TEXT("This building's orientation is fixed by what it snaps to, so scrolling "
+                         "does not turn it. Requested yaw %.1f, placed at %.1f."),
+                    RequestedYaw,
+                    Hologram->GetActorRotation().Yaw));
+        }
+        else if (FMath::Abs(YawError) > YawToleranceDegrees)
+        {
+            // It rotates, but not onto the requested angle. Report the closest
+            // it can reach instead of refusing: the player asked for a building
+            // and the exact facing is a preference the game does not offer.
+            Predicted->SetBoolField(TEXT("rotation_approximated"), true);
+            Predicted->SetStringField(
+                TEXT("rotation_approximated_reason"),
+                FString::Printf(
+                    TEXT("The nearest angle this building can hold is %.1f, %.1f off the "
+                         "requested %.1f."),
+                    Hologram->GetActorRotation().Yaw,
+                    FMath::Abs(YawError),
+                    RequestedYaw));
         }
 
         Hologram->ValidatePlacementAndCost(Inventory);
@@ -1613,6 +1665,107 @@ FAIFactoryActionResult PlaceBlueprint(
     return Result;
 }
 
+FAIFactoryActionResult GiveItem(
+    const FAIFactoryActionContext& Context,
+    const FString& ItemClassPath,
+    const int32 Count)
+{
+    const FString Action = TEXT("give_item");
+    const FString Blocked = CheckActionPreconditions(Context);
+    if (!Blocked.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, Blocked);
+    }
+    if (Count <= 0)
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("count_must_be_positive"));
+    }
+
+    UClass* ItemClass = FindActionClassByPath(ItemClassPath);
+    if (!ItemClass || !ItemClass->IsChildOf(UFGItemDescriptor::StaticClass()))
+    {
+        // Naming an item that does not exist must fail loudly. Adding nothing
+        // and reporting success is the failure mode that wastes the most time.
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("item_class_did_not_resolve_to_an_item_descriptor"));
+    }
+    const TSubclassOf<UFGItemDescriptor> Descriptor{ ItemClass };
+
+    UFGInventoryComponent* Inventory = Context.Player->GetInventory();
+    if (!IsValid(Inventory))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("player_has_no_inventory"));
+    }
+
+    const FString DisplayName = UFGItemDescriptor::GetItemName(Descriptor).ToString();
+    const int32 HeldBefore = Inventory->GetNumItems(Descriptor);
+
+    FAIFactoryActionResult Result;
+    Result.Action = Action;
+
+    const TSharedRef<FJsonObject> Predicted = MakeShared<FJsonObject>();
+    Predicted->SetStringField(TEXT("item_class"), ItemClass->GetPathName());
+    Predicted->SetStringField(TEXT("item_name"), DisplayName);
+    Predicted->SetNumberField(TEXT("requested"), Count);
+    Predicted->SetNumberField(TEXT("held_before"), HeldBefore);
+    Result.Predicted = Predicted;
+
+    if (Context.bDryRun)
+    {
+        Result.bAccepted = true;
+        Result.bDryRun = true;
+        Result.Status = TEXT("dry_run");
+        return Result;
+    }
+
+    // Partial adds are allowed: a nearly full inventory is an ordinary
+    // situation, and the count that actually landed is read back rather than
+    // assumed, so undo can take back exactly that many and no more.
+    const FInventoryStack Stack(Count, Descriptor);
+    const int32 Added = Inventory->AddStack(Stack, /*allowPartialAdd*/ true);
+
+    const int32 HeldAfter = Inventory->GetNumItems(Descriptor);
+    const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetStringField(TEXT("item_class"), ItemClass->GetPathName());
+    Observed->SetStringField(TEXT("item_name"), DisplayName);
+    Observed->SetNumberField(TEXT("requested"), Count);
+    Observed->SetNumberField(TEXT("added"), Added);
+    Observed->SetNumberField(TEXT("held_before"), HeldBefore);
+    Observed->SetNumberField(TEXT("held_after"), HeldAfter);
+    Result.Observed = Observed;
+
+    if (Added <= 0)
+    {
+        Result.bAccepted = true;
+        Result.Status = TEXT("no_space_in_inventory");
+        Result.Reason = TEXT("inventory_is_full");
+        return Result;
+    }
+    if (Added < Count)
+    {
+        Result.Warnings.Add(FString::Printf(
+            TEXT("Only %d of the %d requested fitted; the inventory filled up."),
+            Added,
+            Count));
+    }
+
+    FAIFactoryUndoStep Step;
+    Step.Action = Action;
+    Step.Player = Context.Player;
+    Step.GrantedItems.Add(TPair<TSubclassOf<UFGItemDescriptor>, int32>(Descriptor, Added));
+    Step.Description = FString::Printf(TEXT("Take back %d %s."), Added, *DisplayName);
+
+    Result.bAccepted = true;
+    Result.bCommitted = true;
+    Result.Status = TEXT("committed");
+    Result.bUndoable = true;
+    Result.UndoDescription = Step.Description;
+    RecordActionUndo(MoveTemp(Step));
+
+    return Result;
+}
+
 FAIFactoryActionResult DismantleActor(const FAIFactoryActionContext& Context, const FString& ActorId)
 {
     const FString Action = TEXT("dismantle");
@@ -1766,6 +1919,26 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     }
     Removed = LiveBuildables.Num();
 
+    // Items granted by the step are handed back, capped at what is still held
+    // so undo can never confiscate a stack the player earned separately.
+    int32 ItemsReclaimed = 0;
+    for (const TPair<TSubclassOf<UFGItemDescriptor>, int32>& Granted : Step.GrantedItems)
+    {
+        if (!Granted.Key || Granted.Value <= 0 || !Step.Player.IsValid())
+        {
+            continue;
+        }
+        if (UFGInventoryComponent* Inventory = Step.Player->GetInventory(); IsValid(Inventory))
+        {
+            const int32 ToRemove = FMath::Min(Granted.Value, Inventory->GetNumItems(Granted.Key));
+            if (ToRemove > 0)
+            {
+                Inventory->Remove(Granted.Key, ToRemove);
+                ItemsReclaimed += ToRemove;
+            }
+        }
+    }
+
     bool bPlayerMoved = false;
     if (Step.bHadPlayerTransform && Step.Player.IsValid())
     {
@@ -1776,6 +1949,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetNumberField(TEXT("buildings_removed"), Removed);
+    Observed->SetNumberField(TEXT("items_taken_back"), ItemsReclaimed);
     Observed->SetNumberField(TEXT("dismantle_targets"), DismantleTargets);
     Observed->SetNumberField(TEXT("already_gone"), AlreadyGone);
     Observed->SetBoolField(TEXT("player_restored"), bPlayerMoved);
@@ -1810,6 +1984,7 @@ namespace
             Kind == TEXT("teleport_player") ||
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
+            Kind == TEXT("give_item") ||
             Kind == TEXT("dismantle") ||
             Kind == TEXT("undo_last");
     }
@@ -1909,6 +2084,17 @@ namespace
                 Context,
                 Name,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location));
+        }
+        if (Kind == TEXT("give_item"))
+        {
+            FString ItemClass;
+            if (!Spec->TryGetStringField(TEXT("item_class"), ItemClass) || ItemClass.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("item_class_is_required"));
+            }
+            double Count = 1.0;
+            Spec->TryGetNumberField(TEXT("count"), Count);
+            return GiveItem(Context, ItemClass, FMath::RoundToInt(Count));
         }
         if (Kind == TEXT("dismantle"))
         {
