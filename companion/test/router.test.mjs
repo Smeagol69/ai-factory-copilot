@@ -113,6 +113,26 @@ test("a show request emits the overlay action without any model call", () => {
   assert.equal(services.emitted[0].commit, true);
 });
 
+test("a locally routed placement is normalized and revision-stamped", () => {
+  const services = sink();
+  const answer = answerLocally("place a smelter here facing north", graphOf(), services);
+
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "place_building");
+  assert.deepEqual(services.emitted, [{
+    action: "place_building",
+    recipe_class: "Recipe_SmelterMk1",
+    location: { x: 0, y: 0, z: 0 },
+    yaw: 0,
+    check_clearance: true,
+    commit: true,
+    expect_world_revision: "41",
+    require_unchanged_world: false,
+  }]);
+  assert.equal("target" in services.emitted[0], false);
+  assert.equal("rotation" in services.emitted[0], false);
+});
+
 test("a local answer is marked as free and refuses to guess a count", () => {
   const answer = answerLocally("show me every paleberry", graphOf(), sink());
   // The cost footer is appended by the server so every answer carries the same

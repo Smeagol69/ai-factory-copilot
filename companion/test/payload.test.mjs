@@ -10,7 +10,7 @@ const snapshot = buildFactorySnapshot();
 
 function makeContext(overrides = {}) {
   return {
-    question: "why is the smelter stopped",
+    question: "Give me a concise status acknowledgement.",
     snapshot,
     serializedSnapshot: "{}",
     serializedDerivedFacts: "{}",
@@ -207,14 +207,21 @@ test("local provider runs solver tool calls and feeds results back", async () =>
   }
 });
 
-test("a local model without tool support is flagged, not trusted", async () => {
+test("a local model without tool support cannot return live-game numbers", async () => {
   const stub = stubFetch([
     { json: { choices: [{ message: { role: "assistant", content: "Roughly 30 per minute." } }] } },
   ]);
   try {
-    const answer = await askLocal(makeContext(), { LOCAL_AI_MODEL: "tiny", LOCAL_AI_TOOLS: "false" });
+    await assert.rejects(
+      () =>
+        askLocal(
+          makeContext({ question: "What is my current output per minute?" }),
+          { LOCAL_AI_MODEL: "tiny", LOCAL_AI_TOOLS: "false" },
+        ),
+      /required solver tool/,
+    );
     assert.equal(stub.calls[0].body.tools, undefined);
-    assert.match(answer.reply, /solver tools are disabled/);
+    assert.match(stub.calls[0].body.messages[0].content, /Solver tools are unavailable/);
   } finally {
     stub.restore();
   }

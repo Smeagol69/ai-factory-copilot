@@ -22,7 +22,7 @@ const snapshot = buildFactorySnapshot();
 
 function makeContext(overrides = {}) {
   return {
-    question: "whats the best alt recipe for rods",
+    question: "Search the official documentation and summarize the relevant guidance.",
     snapshot,
     serializedSnapshot: JSON.stringify(snapshot),
     serializedDerivedFacts: "{}",
@@ -118,11 +118,16 @@ test("dropping the restriction leaves the domain filter off the tool", () => {
   assert.equal(tool.allowed_domains, undefined);
 });
 
-test("responses API domain filtering is opt-in", () => {
+test("responses API domain filtering is enforced by default", () => {
   const policy = resolveSourcePolicy({});
-  assert.equal(openAIWebSearchTool(policy, {}).filters, undefined);
-  const filtered = openAIWebSearchTool(policy, { OPENAI_WEB_SEARCH_DOMAIN_FILTER: "true" });
-  assert.deepEqual(filtered.filters.allowed_domains, OFFICIAL_SOURCE_DOMAINS);
+  assert.deepEqual(
+    openAIWebSearchTool(policy, {}).filters.allowed_domains,
+    OFFICIAL_SOURCE_DOMAINS,
+  );
+  assert.equal(
+    openAIWebSearchTool(policy, { OPENAI_WEB_SEARCH_DOMAIN_FILTER: "false" }).filters,
+    undefined,
+  );
 });
 
 /* ---------------- system prompt ---------------- */
@@ -216,13 +221,13 @@ test("the search tool is offered alongside the solvers", async () => {
   }
 });
 
-test("openai advertises the search tool without an unverified filter shape", async () => {
+test("openai advertises search with the enforced domain filter", async () => {
   const stub = stubFetch([{ json: { id: "r", output_text: "ok", output: [] } }]);
   try {
     await askOpenAI(makeContext(), { OPENAI_API_KEY: "test" });
     const search = stub.calls[0].body.tools.find((tool) => tool.type === "web_search");
     assert.equal(search.search_context_size, "low");
-    assert.equal(search.filters, undefined);
+    assert.deepEqual(search.filters.allowed_domains, OFFICIAL_SOURCE_DOMAINS);
     assert.match(stub.calls[0].body.instructions, /docs\.ficsit\.app/);
   } finally {
     stub.restore();

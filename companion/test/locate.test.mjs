@@ -17,6 +17,7 @@ import {
   answerLocally,
   explainRoutingMiss,
   isUnactionableInput,
+  parseClearWaypointRequest,
   parseLocateRequest,
   parsePlaceRequest,
   parseTeleportRequest,
@@ -25,6 +26,7 @@ import {
 } from "../lib/router.mjs";
 
 const snapshot = {
+  world_revision: 73,
   world: { scan_center: { x: 0, y: 0, z: 0 } },
   interaction_context: { player: { pawn_available: true, pawn_location: { x: 0, y: 0, z: 0 } } },
   actors: [
@@ -161,7 +163,10 @@ test("teleporting to a named thing is a lookup plus a move, so it costs nothing"
     action: "teleport_player",
     target: { x: 10_000, y: 0, z: 0 },
     snap_to_ground: true,
+    snap_clearance_cm: 200,
     commit: true,
+    expect_world_revision: "73",
+    require_unchanged_world: false,
   });
 });
 
@@ -185,7 +190,12 @@ test("undo is answered locally and emits the reversal", () => {
   const answer = answerLocally("undo that", graph, services);
 
   assert.equal(answer.local.solver, "undo_last");
-  assert.deepEqual(emitted, [{ action: "undo_last", commit: true }]);
+  assert.deepEqual(emitted, [{
+    action: "undo_last",
+    commit: true,
+    expect_world_revision: "73",
+    require_unchanged_world: false,
+  }]);
 
   // Anything else attached to it is a different request.
   assert.equal(parseUndoRequest("undo and then place a smelter"), false);
@@ -233,6 +243,19 @@ test("a waypoint uses the game's own marker system", () => {
   assert.equal(emitted[0].name, "BP_ResourceNode12_91");
   // The distance readout is the reason for using the game's markers at all.
   assert.match(answer.reply, /compass/);
+});
+
+test("clear waypoints uses the dedicated map-marker action", () => {
+  const emitted = [];
+  const services = { actions: { emit: (actions) => emitted.push(...actions) } };
+
+  assert.equal(parseClearWaypointRequest("clear all waypoints"), true);
+  const answer = answerLocally("clear all waypoints", graph, services);
+
+  assert.equal(answer.local.solver, "clear_waypoints");
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].action, "clear_waypoints");
+  assert.equal(emitted[0].all, true);
 });
 
 test("waypointing the best site asks the site solver, not the model", () => {

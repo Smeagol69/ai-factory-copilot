@@ -8,7 +8,7 @@ const snapshot = buildFactorySnapshot();
 
 function makeContext(overrides = {}) {
   return {
-    question: "Why is the smelter stopped?",
+    question: "Give me a concise status acknowledgement.",
     snapshot,
     serializedSnapshot: JSON.stringify(snapshot),
     serializedDerivedFacts: "{}",
@@ -86,7 +86,10 @@ test("openai runs a requested solver and feeds the result back", async () => {
   ]);
 
   try {
-    const answer = await askOpenAI(makeContext(), { OPENAI_API_KEY: "test", OPENAI_WEB_SEARCH: "false" });
+    const answer = await askOpenAI(
+      makeContext({ question: "What is power circuit 1 doing?" }),
+      { OPENAI_API_KEY: "test", OPENAI_WEB_SEARCH: "false" },
+    );
 
     assert.equal(stub.calls.length, 2);
     assert.equal(answer.reply, "Circuit 1 is 25 MW short.");
@@ -198,10 +201,13 @@ test("anthropic runs a requested solver and returns a tool_result turn", async (
   ]);
 
   try {
-    const answer = await askAnthropic(makeContext(), {
-      ANTHROPIC_API_KEY: "test",
-      ANTHROPIC_MODEL: "claude-test",
-    });
+    const answer = await askAnthropic(
+      makeContext({ question: "What is my crude oil balance per minute?" }),
+      {
+        ANTHROPIC_API_KEY: "test",
+        ANTHROPIC_MODEL: "claude-test",
+      },
+    );
 
     assert.equal(stub.calls.length, 2);
     assert.equal(answer.reply, "Crude oil is 30 m3/min short.");
@@ -237,6 +243,64 @@ test("anthropic honours a configured max token budget", async () => {
       ANTHROPIC_MAX_TOKENS: "4096",
     });
     assert.equal(stub.calls[0].body.max_tokens, 4096);
+  } finally {
+    stub.restore();
+  }
+});
+
+test("a live-game answer is withheld when the required solver was skipped", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "ungrounded",
+        output_text: "Your grid has 400 MW of capacity.",
+        output: [],
+      },
+    },
+  ]);
+  try {
+    await assert.rejects(
+      () =>
+        askOpenAI(
+          makeContext({ question: "What is my current power capacity?" }),
+          { OPENAI_API_KEY: "test", OPENAI_WEB_SEARCH: "false" },
+        ),
+      /required solver tool\(s\): get_power_circuits/,
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
+test("power capacity does not accidentally require the transport solver", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "power-call",
+        output: [
+          {
+            type: "function_call",
+            name: "get_power_circuits",
+            call_id: "power-1",
+            arguments: "{}",
+          },
+        ],
+      },
+    },
+    {
+      json: {
+        id: "power-answer",
+        output_text: "The power solver reports the current capacity.",
+        output: [],
+      },
+    },
+  ]);
+  try {
+    const answer = await askOpenAI(
+      makeContext({ question: "What is my current power capacity?" }),
+      { OPENAI_API_KEY: "test", OPENAI_WEB_SEARCH: "false" },
+    );
+    assert.equal(answer.solver_calls[0].tool, "get_power_circuits");
   } finally {
     stub.restore();
   }

@@ -35,6 +35,26 @@ import {
   solveUnlockStatus,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
+import { validatePlan } from "./actions.mjs";
+
+/**
+ * Run locally routed actions through the same validator used for model tools.
+ *
+ * Local routing used to write directly to the response action sink. That
+ * bypassed revision stamping and contract normalization, so every committed
+ * local write was refused by the game; place_building also used field names
+ * the C++ executor does not understand. One path now owns every emitted shape.
+ */
+function emitValidatedPlan(graph, services, proposals) {
+  const emit = services?.actions?.emit;
+  if (typeof emit !== "function") return null;
+
+  const plan = validatePlan(graph, proposals);
+  if (!plan.valid) return null;
+
+  emit(plan.actions);
+  return plan;
+}
 
 /** Words that carry no question meaning, so leftover ones do not block a route. */
 const FILLER = new Set([
@@ -339,6 +359,11 @@ export function parseShowRequest(question) {
 
 /** "clear waypoints" removes map markers; "clear overlays" removes drawings. */
 const CLEAR_WAYPOINTS = /\bclear\s+(?:my\s+|the\s+|all\s+)?way\s?points?\b|\bremove\s+(?:my\s+|the\s+|all\s+)?way\s?points?\b/i;
+
+export function parseClearWaypointRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return CLEAR_WAYPOINTS.test(text);
+}
 
 const CLEAR_PATTERNS = [
   /^(?:can you |could you |please )?(?:clear|remove|hide|delete|turn off|get rid of)\s+(?:the\s+)?(?:all\s+)?(?:overlays?|highlights?|markers?|tracers?|lines?)\b/i,
@@ -761,12 +786,23 @@ export function answerLocally(question, graph, services) {
     );
   }
 
-  // Overlays are pure action: no solver, no model, just a parsed filter the mod
-  // resolves live. Handled before routing because they never need either.
+  // Display actions need no model: the game resolves their exact targets and
+  // the shared validator applies the same write/dry-run policy as every tool.
+  if (parseClearWaypointRequest(question)) {
+    const action = { action: "clear_waypoints", all: true, commit: true };
+    if (!emitValidatedPlan(graph, services, [action])) return null;
+    return localAnswer(
+      "Clearing the map waypoints created by AI Factory Copilot.",
+      "clear_waypoints",
+      Date.now(),
+      "The command targets only the copilot's own waypoint category.",
+    );
+  }
+
   const clear = parseClearRequest(question);
   if (clear) {
     const action = { action: "clear_highlight", all: true, commit: true };
-    services?.actions?.emit?.([action]);
+    if (!emitValidatedPlan(graph, services, [action])) return null;
     return localAnswer(
       "Clearing every overlay.",
       "clear_highlight",
@@ -779,7 +815,7 @@ export function answerLocally(question, graph, services) {
   // meaning is fixed. Paying a model to forward it was pure waste.
   if (parseUndoRequest(question)) {
     const action = { action: "undo_last", commit: true };
-    services?.actions?.emit?.([action]);
+    if (!emitValidatedPlan(graph, services, [action])) return null;
     return localAnswer(
       "Undoing the last thing I did. The mod reports what it actually reversed.",
       "undo_last",
@@ -813,9 +849,13 @@ export function answerLocally(question, graph, services) {
     }
 
     if (location) {
-      services?.actions?.emit?.([
-        { action: "waypoint", name: label, location, commit: true },
-      ]);
+      if (
+        !emitValidatedPlan(graph, services, [
+          { action: "waypoint", name: label, location, commit: true },
+        ])
+      ) {
+        return null;
+      }
       return localAnswer(
         `Waypoint **${label}** set at \`x=${round(location.x)}, y=${round(location.y)}, ` +
           `z=${round(location.z)}\`. It uses the game's own map markers, so it shows on your map ` +
@@ -838,22 +878,37 @@ export function answerLocally(question, graph, services) {
     const target = recipe.resolved ? solvePlacementTarget(graph, place.target) : null;
 
     if (recipe.resolved && target?.resolved) {
+      if (target.node_type === "Deposit") {
+        return localAnswer(
+          `I did not place **${recipe.name}**: ${target.on} is a hand-mined deposit, not a ` +
+            "resource node that can host a miner. Aim at a full resource node and ask again.",
+          "place_building",
+          started,
+          "The live target is known to reject a miner, so no action was emitted.",
+        );
+      }
+      if (target.occupied) {
+        return localAnswer(
+          `I did not place **${recipe.name}**: ${target.on} is already occupied. Aim at an ` +
+            "unused resource node or ask me to inspect what is using this one.",
+          "place_building",
+          started,
+          "The live target is already occupied, so no action was emitted.",
+        );
+      }
+
       const yaw = place.facing?.yaw ?? 0;
       const action = {
         action: "place_building",
         recipe_class: recipe.recipe_class,
-        target: target.location,
-        rotation: { pitch: 0, yaw, roll: 0 },
+        location: target.location,
+        yaw,
         commit: true,
       };
-      services?.actions?.emit?.([action]);
+      if (!emitValidatedPlan(graph, services, [action])) return null;
 
       const notes = [];
       if (place.facing) notes.push(`facing ${place.facing.described} (yaw ${yaw}°)`);
-      if (target.node_type === "Deposit") {
-        notes.push("note: that is a hand-mined deposit, which cannot host a miner");
-      }
-      if (target.occupied) notes.push("note: something is already built there");
       return localAnswer(
         `Placing a **${recipe.name}** on ${target.on}` +
           `${notes.length > 0 ? ` — ${notes.join("; ")}` : ""}. ` +
@@ -883,7 +938,7 @@ export function answerLocally(question, graph, services) {
         snap_to_ground: true,
         commit: true,
       };
-      services?.actions?.emit?.([action]);
+      if (!emitValidatedPlan(graph, services, [action])) return null;
       return localAnswer(
         `Teleporting you to **${match.name ?? match.actor_id}** at \`x=${round(match.location_cm.x)}, ` +
           `y=${round(match.location_cm.y)}, z=${round(match.location_cm.z)}\`` +
@@ -908,7 +963,7 @@ export function answerLocally(question, graph, services) {
       radius_m: show.radius ?? 150,
       commit: true,
     };
-    services?.actions?.emit?.([action]);
+    if (!emitValidatedPlan(graph, services, [action])) return null;
     return localAnswer(
       `Marking every **${show.target}** within ${show.radius ?? 150} m (overlay "${overlayName}"). ` +
         "The mod resolves it live against the world, so check in-game for what it actually finds — " +
