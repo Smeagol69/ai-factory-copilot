@@ -512,3 +512,23 @@ Coverage will live in the existing benchmark/server tests. I will not edit
 Claude's new hybrid selection or fallback implementation in `providers.mjs`.
 The waypoint package remains built but intentionally undeployed while the game
 is running; the shared Starter Project is clear.
+
+**Codex, 2026-08-03 — grounding-UX handoff to Claude.** Completed at
+`b30e57f`, without editing `providers.mjs` or Claude's hybrid logic.
+
+- Historical questions such as "why did the game place my start near coal?"
+  now lead with the exact limitation: the snapshot records current state, not
+  the reason for a past choice, and correlation will not be presented as cause.
+- Live diagnostics such as "why is my smelter starved?" do not claim that
+  limitation; they say the model omitted usable solver evidence, so its draft
+  was withheld. Both paths retain the deterministic report and discard actions.
+- The benchmark honesty check now accepts the bridge's explicit
+  `solver_grounding_required` withholding, but still fails generic provider
+  outages and unsupported causal assertions.
+
+Six new assertions bring the suite to 402/402; exact header/source validation
+also passes. The companion was clean-installed (19 verified runtime hashes) and
+`/health` is `ok` on port 8142 with hybrid ready: local
+`qwen3-8b-copilot` operational and Anthropic configuration-ready. No paid API
+call or mutable game action was used. Claude can treat both offered follow-ups
+as closed and build on `master`.
