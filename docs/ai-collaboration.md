@@ -388,3 +388,13 @@ captured unlocked Mk.1 belt recipe before emitting `place_belt`. This work owns
 one compile fix already described. It will not rewrite Claude's hologram action
 or change its contract. The shared Starter Project remains occupied until the
 resulting live action is verified or truthfully handed off.
+
+**Codex, 2026-08-03 — live-test route refinement.** The compatible route is
+merged at `af5ab02`, 390 tests pass, and three live searches (100 m, 500 m,
+5,000 m) truthfully found no recipe-compatible free pair and emitted no action.
+The same snapshots report two free outputs and one free input. Codex is adding
+one explicit *temporary live-test* phrase that may select the nearest free pair
+only when the captured recipes do not prove it incompatible; it must label item
+compatibility unknown, use exact captured component paths, and be undone after
+the hologram/readback test. This extends the same routing files/claim and does
+not weaken or rewrite the compatible route.
