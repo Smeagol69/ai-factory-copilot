@@ -189,3 +189,100 @@ test("a broken leg does not discard the legs that did route", () => {
   assert.equal(chain.legs[0].routed, true, "the miner->smelter leg still routes");
   assert.deepEqual(chain.failed_legs, [{ leg: 2, reason: chain.legs[1].reason }]);
 });
+
+/* ---------------- learning connector positions, and planning a module ---------------- */
+
+import { measureConnectors, planBeltedModule } from "../lib/routing.mjs";
+
+test("learns a building's connector offsets from the player's own machines", () => {
+  // The smelter sits at x=3000 with no rotation, its input at x=3000 and its
+  // output at x=3600 — so the local offsets are 0 and +600 along X.
+  const measured = measureConnectors(graph, undefined);
+  assert.equal(measured, null, "an unknown class has no example to learn from");
+
+  const withClass = buildGraph({
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    actors: [
+      {
+        actor_id: "Build_SmelterMk1_C_9",
+        name: "Build_SmelterMk1_C_9",
+        kind: "buildable",
+        class_path: "/Game/Build_SmelterMk1.Build_SmelterMk1_C",
+        location: { x: 1_000, y: 500, z: 0 },
+        rotation: { pitch: 0, yaw: 0, roll: 0 },
+        connections: [
+          connection({
+            component: "In",
+            direction: "FCD_INPUT",
+            location: { x: 1_000, y: 500, z: 100 },
+            normal: { x: -1, y: 0, z: 0 },
+          }),
+          connection({
+            component: "Out",
+            direction: "FCD_OUTPUT",
+            location: { x: 1_600, y: 500, z: 100 },
+            normal: { x: 1, y: 0, z: 0 },
+          }),
+        ],
+      },
+    ],
+  });
+
+  const offsets = measureConnectors(withClass, "/Game/Build_SmelterMk1.Build_SmelterMk1_C");
+  assert.equal(offsets.measured_from, 1);
+  assert.deepEqual(offsets.inputs, [{ x: 0, y: 0, z: 100 }]);
+  assert.deepEqual(offsets.outputs, [{ x: 600, y: 0, z: 100 }]);
+  // Same rule as footprints: it is measured, not tabulated.
+  assert.match(offsets.source, /measured_from_your_own_buildings/);
+});
+
+test("a module plan is two-phase, and says why", () => {
+  const plan = planBeltedModule(graph, {
+    anchor_actor_id: "Build_MinerMk1_C_1",
+    chain: ["/Game/Build_MinerMk1.Build_MinerMk1_C", "/Game/Build_SmelterMk1.Build_SmelterMk1_C"],
+  });
+
+  assert.equal(plan.planned, true);
+  assert.equal(plan.steps.length, 2);
+  // The first machine sits on the node itself; a miner has to.
+  assert.equal(plan.steps[0].on_the_node, true);
+  assert.equal(plan.belt_legs.length, 1);
+  assert.equal(plan.belt_legs[0].route_after_placement, true);
+  assert.match(plan.how_to_build, /connector only exists once its machine does/);
+});
+
+test("a module plan names the buildings it has never seen rather than guessing their spacing", () => {
+  const plan = planBeltedModule(graph, {
+    anchor_actor_id: "Build_MinerMk1_C_1",
+    chain: ["/Game/Never_Seen.Never_Seen_C"],
+  });
+  assert.deepEqual(plan.unmeasured_buildings, ["/Game/Never_Seen.Never_Seen_C"]);
+  assert.match(plan.unverified, /connector positions are unknown/);
+  assert.equal(plan.steps[0].connectors_known, false);
+});
+
+test("a module refuses a hand-mined deposit, which cannot host a miner", () => {
+  const depositGraph = buildGraph({
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    actors: [
+      {
+        actor_id: "BP_ResourceDeposit9",
+        name: "BP_ResourceDeposit9",
+        kind: "resource_node",
+        node_type: "Deposit",
+        location: { x: 0, y: 0, z: 0 },
+      },
+    ],
+  });
+  const plan = planBeltedModule(depositGraph, {
+    anchor_actor_id: "BP_ResourceDeposit9",
+    chain: ["/Game/Build_MinerMk1.Build_MinerMk1_C"],
+  });
+  assert.equal(plan.planned, false);
+  assert.match(plan.reason, /hand-mined deposit/);
+});
+
+test("a module needs an anchor and a chain, and says which is missing", () => {
+  assert.match(planBeltedModule(graph, { chain: ["x"] }).reason, /anchor_actor_id/);
+  assert.match(planBeltedModule(graph, { anchor_actor_id: "Build_MinerMk1_C_1" }).reason, /chain of buildings/);
+});
