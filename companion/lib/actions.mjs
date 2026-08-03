@@ -380,7 +380,7 @@ export function validateAction(graph, proposal) {
         graph,
         {
           action: kind,
-          ...(nameFilter ? { name_contains: nameFilter } : {}),
+          ...(nameFilter ? { name_contains: nameFilter } : { all: true }),
           commit: proposal.commit === true,
         },
         proposal,
