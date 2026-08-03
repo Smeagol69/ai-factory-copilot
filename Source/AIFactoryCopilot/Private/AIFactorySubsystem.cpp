@@ -2,6 +2,7 @@
 
 #include "AIFactoryActions.h"
 #include "AIFactoryCopilotModule.h"
+#include "AIFactoryWaypointDisplay.h"
 #include "Command/ChatCommandLibrary.h"
 #include "Command/CommandSender.h"
 #include "Dom/JsonObject.h"
@@ -231,6 +232,11 @@ void AAIFactorySubsystem::ObserveWorld()
         WorldFingerprint = NewFingerprint;
         MarkWorldDirty();
     }
+
+    // Native FMapMarker only controls whether the compass icon is in range; it
+    // does not provide the resource scanner's dynamic text. Keep the Copilot's
+    // own marker names synchronized to the exact live player distance instead.
+    AIFactoryWaypointDisplay::Refresh(GetWorld(), FindLocalPlayerCharacter());
 }
 
 void AAIFactorySubsystem::RunStartupSelfTest()

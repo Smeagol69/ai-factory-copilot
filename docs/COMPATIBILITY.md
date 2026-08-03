@@ -69,7 +69,7 @@ packaged mod in the game. As of 2026-08-03:
 | whole-world capture, Insert panel, bridge round trip | exercised in a live save |
 | teleport, highlight, single-building commit | committed and read back in a live save |
 | Windows Shipping compile, cook, archive, deploy | passed against the official local Starter Project |
-| waypoint and rotation-ignore behavior | compiled and packaged; live observation still required |
+| waypoint placement/readback | committed in a live save; the new dynamic distance label compiles but still needs visual observation |
 | `give_item` commit and undo | synthetic/compile coverage only |
 | direct belt-route and compact belted-module planning | deterministic tests only; no conveyor write action exists yet |
 | blocked and unaffordable placement | live observation required |

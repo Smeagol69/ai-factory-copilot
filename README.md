@@ -112,7 +112,7 @@ draws overlays. Every action runs through the same contract:
 | `dismantle` | Removes a building. The one action with no undo, and it says so everywhere |
 | `undo_last` | Reverses the previous action |
 | `give_item` | Adds a validated catalog item to the player's inventory; creative, write-gated, and reversible |
-| `waypoint` / `clear_waypoints` | Adds or removes only the copilot's persistent map markers |
+| `waypoint` / `clear_waypoints` | Adds or removes only the copilot's persistent map markers; each marker label tracks the live player distance |
 | `highlight` / `clear_highlight` | Tracer lines and bounding boxes drawn in-world, visible through terrain |
 
 Six gates stand between a model deciding something and the world changing: an
