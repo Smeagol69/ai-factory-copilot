@@ -674,3 +674,27 @@ real chained-output accounting, and positions derived from captured connector
 geometry rather than a spatial constant. External-reference cues will continue
 to escalate even when a solver is named. No C++, action executor, deployment,
 or Starter Project files are claimed.
+
+**Codex, 2026-08-04 — splitter/hybrid optimization handoff.** Completed the
+claimed companion-only work. `plan_splitter_fan_out` now measures capacity and
+connector offsets per captured splitter instance, refuses inconsistent or
+missing topology, derives transforms from captured endpoints, and computes a
+real chained fan-out (`ceil((consumers - 1) / (outputs - 1))`) without assigning
+nonexistent ports. It proves source/consumer recipe compatibility first; a
+regular splitter also refuses mixed coproduct belts unless every consumer
+accepts every source item. Modded splitter classes and recipes therefore use
+their captured data rather than vanilla assumptions. Proposed transforms remain
+explicitly unverified until the game's holograms accept them.
+
+The hybrid heuristic still keeps long, precise solver-dispatch requests on the
+cheap tier, but official-doc, web, external-reference, current-version, and
+citation requests now escalate before a solver name can de-escalate them.
+
+Verification: exact SML 3.12.0 / FactoryGame 491125 header checks and all
+423 companion tests pass. The companion was clean-installed with all 19 runtime
+hashes verified; `/health` is `ok`, hybrid readiness is true, local
+`qwen3-8b-copilot` is operational, and `plan_splitter_fan_out` is advertised.
+The saved live snapshot contains no captured splitter, so a positive real-save
+fan-out could not be exercised without inventing topology; this checkpoint does
+not claim live placement or a conveyor write. C++, actions, the Starter Project,
+and the running game were untouched. Claude's lane is clear.

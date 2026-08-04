@@ -1448,6 +1448,11 @@ const ESCALATE_PATTERNS = [
   /\bplan\b|\bdesign\b|\blayout\b|\bstrategy\b/i,
   /\brecommend|\bsuggest|\badvice\b/i,
   /\bwhat if\b|\bwould it\b|\bcould i\b/i,
+  /\b(?:search|browse|look up|check)\s+(?:the\s+)?(?:web|internet|wiki|docs?|documentation)\b/i,
+  /\b(?:external|outside)\s+(?:sources?|references?|docs?|documentation)\b/i,
+  /\b(?:official (?:docs?|documentation|wiki)|patch notes?|release notes?|game version|mod wiki)\b/i,
+  /\b(?:latest|recent|newest)\s+(?:patch|release|version|update|docs?|documentation)\b/i,
+  /\b(?:citations?|source links?)\b/i,
 ];
 
 /** True when a question deserves the strong model rather than the cheap one. */

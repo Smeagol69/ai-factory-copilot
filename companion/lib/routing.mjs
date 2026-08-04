@@ -779,6 +779,168 @@ const DEFAULT_MODULE_SPACING_CM = 1_200;
  * count is unverified rather than inventing a number — the same rule that keeps
  * belt length in the game's hands.
  */
+function rotateYaw(vector, yawDegrees) {
+  const radians = (yawDegrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: vector.x * cos - vector.y * sin,
+    y: vector.x * sin + vector.y * cos,
+    z: vector.z,
+  };
+}
+
+function add(a, b) {
+  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+}
+
+function interpolate(a, b, amount) {
+  return {
+    x: a.x + (b.x - a.x) * amount,
+    y: a.y + (b.y - a.y) * amount,
+    z: a.z + (b.z - a.z) * amount,
+  };
+}
+
+function connectorName(component) {
+  return String(component ?? "").split(".").pop() || null;
+}
+
+/**
+ * Connector topology belongs to one splitter instance, not to the whole class.
+ * `measureConnectors` intentionally pools offsets from every instance for
+ * layout sampling; counting that pooled array made two three-output splitters
+ * look like one six-output splitter. This keeps instances separate and accepts
+ * the capacity only when every captured example agrees.
+ */
+function measureSplitterTopology(graph, classPath) {
+  if (!classPath) {
+    return {
+      resolved: false,
+      reason: "give splitter_class_path so its connector topology can be measured",
+      missing: ["splitter_class_path"],
+    };
+  }
+
+  const instances = [];
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    if (node.class_path !== classPath) continue;
+    const origin = vectorOf(node.raw?.location);
+    if (!origin) continue;
+    const yaw = Number(node.raw?.rotation?.yaw ?? 0);
+    if (!Number.isFinite(yaw)) continue;
+
+    const inputs = [];
+    const outputs = [];
+    for (const connection of node.raw?.connections ?? []) {
+      if (!isFactoryConnection(connection)) continue;
+      const world = vectorOf(connection.location);
+      if (!world) continue;
+      const local = rotateYaw(subtract(world, origin), -yaw);
+      const measured = {
+        component_name: connectorName(connection.component),
+        offset_cm: {
+          x: round(local.x),
+          y: round(local.y),
+          z: round(local.z),
+        },
+      };
+      const direction = normalizeDirection(connection.direction);
+      if (direction === "FCD_OUTPUT" || direction === "OUTPUT") outputs.push(measured);
+      else if (direction === "FCD_INPUT" || direction === "INPUT") inputs.push(measured);
+    }
+    if (inputs.length > 0 || outputs.length > 0) {
+      inputs.sort((a, b) => String(a.component_name).localeCompare(String(b.component_name)));
+      outputs.sort((a, b) => String(a.component_name).localeCompare(String(b.component_name)));
+      instances.push({ actor_id: node.actor_id, inputs, outputs });
+    }
+  }
+
+  if (instances.length === 0) {
+    return {
+      resolved: false,
+      reason: "no captured splitter of that class exists, so its connectors are unknown",
+      missing: ["captured_splitter_connector_topology"],
+      class_path: classPath,
+    };
+  }
+
+  const inputCounts = [...new Set(instances.map((instance) => instance.inputs.length))];
+  const outputCounts = [...new Set(instances.map((instance) => instance.outputs.length))];
+  if (inputCounts.length !== 1 || outputCounts.length !== 1) {
+    return {
+      resolved: false,
+      reason: "captured splitters of that class disagree on connector counts",
+      observed_input_counts: inputCounts,
+      observed_output_counts: outputCounts,
+      measured_from: instances.length,
+      class_path: classPath,
+    };
+  }
+  if (inputCounts[0] !== 1 || outputCounts[0] < 2) {
+    return {
+      resolved: false,
+      reason:
+        "this planner requires a measured one-input splitter with at least two outputs; " +
+        `captured topology was ${inputCounts[0]} input(s), ${outputCounts[0]} output(s)`,
+      measured_from: instances.length,
+      class_path: classPath,
+    };
+  }
+
+  const topology = instances[0];
+  const outputCentroid = topology.outputs.reduce(
+    (sum, output) => add(sum, output.offset_cm),
+    { x: 0, y: 0, z: 0 },
+  );
+  outputCentroid.x /= topology.outputs.length;
+  outputCentroid.y /= topology.outputs.length;
+  outputCentroid.z /= topology.outputs.length;
+  const localForward = normalize({
+    x: outputCentroid.x - topology.inputs[0].offset_cm.x,
+    y: outputCentroid.y - topology.inputs[0].offset_cm.y,
+    z: 0,
+  });
+  if (!localForward) {
+    return {
+      resolved: false,
+      reason: "captured splitter geometry does not establish an input-to-output facing direction",
+      measured_from: instances.length,
+      class_path: classPath,
+    };
+  }
+
+  return {
+    resolved: true,
+    class_path: classPath,
+    input: topology.inputs[0],
+    outputs: topology.outputs,
+    output_capacity: outputCounts[0],
+    local_forward: localForward,
+    measured_from: instances.length,
+    source: "per_instance_captured_connector_topology",
+    certainty: "authoritative_for_captured_splitter_class",
+  };
+}
+
+function assignOutputs(outputs, targets) {
+  const available = [...outputs];
+  const assignments = [];
+  for (const target of targets) {
+    let bestIndex = 0;
+    for (let index = 1; index < available.length; index += 1) {
+      if (
+        length(subtract(target.connector.location, available[index].world_location)) <
+        length(subtract(target.connector.location, available[bestIndex].world_location))
+      ) {
+        bestIndex = index;
+      }
+    }
+    assignments.push({ target, output: available.splice(bestIndex, 1)[0] });
+  }
+  return assignments;
+}
+
 export function planSplitterFanOut(graph, args = {}) {
   const {
     from_actor_id: fromId,
@@ -797,6 +959,11 @@ export function planSplitterFanOut(graph, args = {}) {
     };
   }
 
+  const topology = measureSplitterTopology(graph, splitterClass);
+  if (!topology.resolved) {
+    return { solver: "splitter_fan_out", planned: false, ...topology };
+  }
+
   const from = findNode(graph, fromId);
   if (!from) return { solver: "splitter_fan_out", planned: false, reason: `no actor matches "${fromId}"` };
 
@@ -812,17 +979,33 @@ export function planSplitterFanOut(graph, args = {}) {
     };
   }
 
-  // Resolve the consumers first: a target that cannot take a belt changes how
-  // many outputs are actually needed, and that decides whether one splitter is
-  // enough.
+  const produces = producedItemClasses(graph, from);
+  if (produces.size === 0) {
+    return {
+      solver: "splitter_fan_out",
+      planned: false,
+      reason: `${describeActor(from)} has no captured current recipe or extracted resource`,
+      missing: ["source_current_recipe_or_resource"],
+    };
+  }
+
+  // Resolve consumers and prove item compatibility before doing geometry. A
+  // free input carrying the wrong item is not a usable fan-out target.
   const targets = [];
   const unusable = [];
+  const seenTargets = new Set();
   for (const id of toIds) {
     const node = findNode(graph, id);
     if (!node) {
       unusable.push({ actor_id: id, reason: "no actor in the snapshot matches it" });
       continue;
     }
+    if (node.actor_id === from.actor_id || seenTargets.has(node.actor_id)) {
+      unusable.push({ actor_id: id, name: describeActor(node), reason: "duplicate or source actor is not a consumer" });
+      continue;
+    }
+    seenTargets.add(node.actor_id);
+
     const inputs = connectorsOf(node, "input");
     if (inputs.free.length === 0) {
       unusable.push({
@@ -835,99 +1018,198 @@ export function planSplitterFanOut(graph, args = {}) {
       });
       continue;
     }
-    targets.push({ node, connector: inputs.free[0] });
+
+    const consumes = consumedItemClasses(graph, node);
+    if (consumes.size === 0) {
+      unusable.push({
+        actor_id: id,
+        name: describeActor(node),
+        reason: "no captured current recipe proves what this consumer accepts",
+        missing: ["target_current_recipe"],
+      });
+      continue;
+    }
+    // A normal splitter cannot filter a mixed belt. Every item the source can
+    // put on that belt therefore has to be accepted by every consumer; a
+    // one-item intersection would still send the other coproducts there and
+    // eventually clog it. Smart/programmable routing needs its own planner.
+    const incompatible = [...produces].filter((itemClass) => !consumes.has(itemClass));
+    if (incompatible.length > 0) {
+      unusable.push({
+        actor_id: id,
+        name: describeActor(node),
+        reason: "captured recipes prove this input cannot accept every item on the source belt",
+        source_item_classes: [...produces],
+        target_item_classes: [...consumes],
+        incompatible_source_item_classes: incompatible,
+      });
+      continue;
+    }
+    targets.push({ node, connector: inputs.free[0], compatible: [...produces] });
   }
 
   if (targets.length < 2) {
     return {
       solver: "splitter_fan_out",
       planned: false,
-      reason: "fewer than two consumers can actually take a belt",
+      reason: "fewer than two recipe-compatible consumers can take a belt",
       unusable,
     };
   }
 
-  // Measured from a splitter the player owns, when there is one.
-  const measured = splitterClass ? measureConnectors(graph, splitterClass) : null;
-  const measuredOutputs = measured?.outputs?.length ?? null;
-  const outputCapacity = measuredOutputs ?? 3;
-
-  const output = source.free[0];
-  const centroid = targets.reduce(
-    (sum, target) => ({
-      x: sum.x + target.connector.location.x / targets.length,
-      y: sum.y + target.connector.location.y / targets.length,
-      z: sum.z + target.connector.location.z / targets.length,
-    }),
+  const targetCentroid = targets.reduce(
+    (sum, target) => add(sum, target.connector.location),
     { x: 0, y: 0, z: 0 },
   );
+  targetCentroid.x /= targets.length;
+  targetCentroid.y /= targets.length;
+  targetCentroid.z /= targets.length;
 
-  // The splitter sits on the line from the source output toward the middle of
-  // the consumers, one belt-width out. Anywhere further just lengthens every
-  // leg; anywhere closer risks overlapping the source machine's own footprint.
-  const heading = normalize(subtract(centroid, output.location)) ?? { x: 1, y: 0, z: 0 };
-  const standoffCm = 400;
-  const splitterLocation = {
-    x: round(output.location.x + heading.x * standoffCm),
-    y: round(output.location.y + heading.y * standoffCm),
-    z: round(output.location.z),
-  };
-  // Face the splitter back along the incoming belt, so its input meets it square.
-  const splitterYaw = round((Math.atan2(heading.y, heading.x) * 180) / Math.PI);
+  // Use the source port nearest the consumers rather than whichever component
+  // happened to be emitted first.
+  const output = source.free.reduce((best, candidate) =>
+    length(subtract(candidate.location, targetCentroid)) < length(subtract(best.location, targetCentroid))
+      ? candidate
+      : best,
+  );
+  const horizontalHeading = normalize({
+    x: targetCentroid.x - output.location.x,
+    y: targetCentroid.y - output.location.y,
+    z: 0,
+  });
+  if (!horizontalHeading) {
+    return {
+      solver: "splitter_fan_out",
+      planned: false,
+      reason: "source output and consumer centroid do not establish a horizontal placement direction",
+      missing: ["nonzero_horizontal_span"],
+      unusable,
+    };
+  }
 
-  const legs = targets.map((target, index) => ({
-    leg: index + 1,
-    to_actor_id: target.node.actor_id,
-    to_name: describeActor(target.node),
-    to_connector: target.connector.component,
-    from_splitter_output: index + 1,
-    length_meters: round(
-      length(subtract(target.connector.location, splitterLocation)) / 100,
-    ),
-  }));
+  const outputCapacity = topology.output_capacity;
+  const splittersNeeded = Math.ceil((targets.length - 1) / (outputCapacity - 1));
+  const desiredYaw = (Math.atan2(horizontalHeading.y, horizontalHeading.x) * 180) / Math.PI;
+  const localYaw = (Math.atan2(topology.local_forward.y, topology.local_forward.x) * 180) / Math.PI;
+  const splitterYaw = round(((desiredYaw - localYaw) % 360 + 360) % 360);
+  const rotatedInputOffset = rotateYaw(topology.input.offset_cm, splitterYaw);
+
+  // Every position is interpolated from captured endpoints. There is no
+  // "standard" standoff: the input connector measurement translates each
+  // desired path point into the actor origin the hologram should try.
+  const splitters = Array.from({ length: splittersNeeded }, (_, index) => {
+    const inputWorld = interpolate(output.location, targetCentroid, (index + 1) / (splittersNeeded + 1));
+    const location = subtract(inputWorld, rotatedInputOffset);
+    const outputs = topology.outputs.map((measured, outputIndex) => ({
+      index: outputIndex + 1,
+      component_name_sample: measured.component_name,
+      world_location: add(location, rotateYaw(measured.offset_cm, splitterYaw)),
+    }));
+    return {
+      splitter: index + 1,
+      class_path: splitterClass,
+      location_cm: { x: round(location.x), y: round(location.y), z: round(location.z) },
+      yaw_degrees: splitterYaw,
+      input_world_cm: { x: round(inputWorld.x), y: round(inputWorld.y), z: round(inputWorld.z) },
+      outputs,
+    };
+  });
+
+  targets.sort(
+    (a, b) =>
+      dot(subtract(a.connector.location, output.location), horizontalHeading) -
+        dot(subtract(b.connector.location, output.location), horizontalHeading) ||
+      String(a.node.actor_id).localeCompare(String(b.node.actor_id)),
+  );
+
+  const legs = [];
+  const chainLegs = [];
+  let targetIndex = 0;
+  for (let index = 0; index < splitters.length; index += 1) {
+    const splitter = splitters[index];
+    const hasNext = index < splitters.length - 1;
+    let continuation = null;
+    let consumerOutputs = [...splitter.outputs];
+    if (hasNext) {
+      continuation = consumerOutputs.reduce((best, candidate) =>
+        dot(subtract(candidate.world_location, splitter.input_world_cm), horizontalHeading) >
+        dot(subtract(best.world_location, splitter.input_world_cm), horizontalHeading)
+          ? candidate
+          : best,
+      );
+      consumerOutputs = consumerOutputs.filter((candidate) => candidate.index !== continuation.index);
+      chainLegs.push({
+        from_splitter: index + 1,
+        from_output: continuation.index,
+        from_component_name_sample: continuation.component_name_sample,
+        to_splitter: index + 2,
+        length_meters: round(
+          length(subtract(splitters[index + 1].input_world_cm, continuation.world_location)) / 100,
+        ),
+      });
+    }
+
+    const count = hasNext
+      ? Math.min(outputCapacity - 1, targets.length - targetIndex)
+      : targets.length - targetIndex;
+    const group = targets.slice(targetIndex, targetIndex + count);
+    targetIndex += count;
+    const assignments = assignOutputs(consumerOutputs, group);
+    for (const { target, output: assigned } of assignments) {
+      legs.push({
+        leg: legs.length + 1,
+        from_splitter: index + 1,
+        from_splitter_output: assigned.index,
+        from_component_name_sample: assigned.component_name_sample,
+        to_actor_id: target.node.actor_id,
+        to_name: describeActor(target.node),
+        to_connector: target.connector.component,
+        compatible_item_classes: target.compatible,
+        compatible_items: target.compatible.map((itemClass) => displayItem(graph, itemClass)),
+        length_meters: round(length(subtract(target.connector.location, assigned.world_location)) / 100),
+      });
+    }
+  }
 
   const notes = [];
-  if (measuredOutputs === null) {
+  if (splittersNeeded > 1) {
     notes.push(
-      "You do not own a splitter yet, so its output count could not be measured. " +
-        "Planned against the standard three; the game refuses anything it cannot " +
-        "actually connect, so a wrong assumption fails visibly rather than silently.",
-    );
-  }
-  if (targets.length > outputCapacity) {
-    notes.push(
-      `${targets.length} consumers exceed the ${outputCapacity} outputs ` +
-        `${measuredOutputs === null ? "assumed" : "measured"} for one splitter. ` +
-        "They need chaining — a second splitter fed from the first.",
+      `${targets.length} consumers need ${splittersNeeded} chained splitters at the measured ` +
+        `${outputCapacity}-output capacity. Each non-final splitter reserves one output for the next.`,
     );
   }
   if (unusable.length > 0) {
-    notes.push(`${unusable.length} named machine(s) could not take a belt; see unusable.`);
+    notes.push(`${unusable.length} named machine(s) could not take this item; see unusable.`);
   }
 
+  const first = splitters[0];
   return {
     solver: "splitter_fan_out",
     planned: true,
-    // Enough for a plan the caller can execute, and nothing it cannot verify.
     splitter: {
-      location_cm: splitterLocation,
-      yaw_degrees: splitterYaw,
+      ...first,
       outputs_available: outputCapacity,
-      outputs_source: measuredOutputs === null ? "assumed_standard_three" : "measured_from_your_own_splitter",
-      class_path: splitterClass,
+      outputs_source: "measured_per_instance_from_your_own_splitter",
+      measured_from: topology.measured_from,
     },
+    splitters,
+    splitters_needed: splittersNeeded,
     feed: {
       from_actor_id: from.actor_id,
       from_name: describeActor(from),
       from_connector: output.component,
-      length_meters: round(length(subtract(splitterLocation, output.location)) / 100),
+      to_splitter: 1,
+      length_meters: round(length(subtract(first.input_world_cm, output.location)) / 100),
     },
+    chain_legs: chainLegs,
     legs,
-    splitters_needed: Math.max(1, Math.ceil(targets.length / Math.max(1, outputCapacity))),
     unusable,
     notes,
+    source: "authoritative_snapshot_and_per_instance_connector_measurement",
+    certainty: "calculated_from_captured_geometry_and_recipe_compatibility",
     unverified:
-      "Positions are a proposal. Clearance, belt length and whether the splitter " +
-      "fits are decided by the game's holograms when the plan is built.",
+      "Positions are proposals derived from captured connector geometry. Clearance, maximum belt length, " +
+      "terrain fit and the final placed transforms are decided by the game's holograms. Route belts only " +
+      "after the splitters exist and their real connection components are captured.",
   };
 }

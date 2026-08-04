@@ -103,6 +103,20 @@ test("a reasoning question escalates even when it names a solver", () => {
   assert.equal(escalates("compare plan_production against my current setup", {}), true);
 });
 
+test("outside-reference work escalates even when it names a solver", () => {
+  const referenceRequest =
+    "Using locate first, search the official mod wiki and external documentation " +
+    "for the latest supported resource-node behavior, include citations and source " +
+    "links, then explain whether the actor in my live snapshot matches those current " +
+    "rules without changing anything in the world.";
+
+  assert.ok(
+    referenceRequest.split(/\s+/).length > 28,
+    "fixture must also prove a solver name cannot bypass the length rule",
+  );
+  assert.equal(escalates(referenceRequest, {}), true);
+});
+
 test("the de-escalation list matches the real solver tools", () => {
   // The list is duplicated to avoid a circular import, so it has to be checked
   // against the source of truth or a rename silently stops de-escalating.

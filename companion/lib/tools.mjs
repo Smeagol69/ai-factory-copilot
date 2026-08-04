@@ -289,7 +289,7 @@ export const SOLVER_TOOLS = [
   {
     name: "plan_splitter_fan_out",
     description:
-      "Plans a splitter and the belts around it when one machine has to feed several. Positions the splitter between the source output and its consumers, resolves a free input on each consumer, and reports the belt legs. How many outputs a splitter has is measured off one the player already owns; when they own none the result says the count is assumed rather than stating it as fact. Consumers that cannot take a belt are named with the reason rather than dropped. Use this for any 'split this between', 'feed both', or 'send some to' request. Positions are a proposal — clearance and fit are decided by the game.",
+      "Plans one or more chained splitters and their belt legs when a machine must feed several consumers. Splitter capacity, connector geometry, and placement orientation are measured per instance from a captured splitter of the requested class; without that evidence the solver refuses instead of assuming vanilla topology. It proves the source recipe produces an item every consumer recipe accepts, resolves only free ports, and names incompatible or unknown consumers rather than dropping them. Use this for any 'split this between', 'feed both', or 'send some to' request. Positions are proposals; clearance, belt routing, and fit remain the game's decision.",
     parameters: {
       type: "object",
       properties: {
@@ -301,10 +301,10 @@ export const SOLVER_TOOLS = [
         },
         splitter_class_path: {
           type: "string",
-          description: "Optional class_path of a splitter, so its real output count can be measured from one the player owns.",
+          description: "Exact class_path of the splitter topology to measure from captured in-world instances.",
         },
       },
-      required: ["from_actor_id", "to_actor_ids"],
+      required: ["from_actor_id", "to_actor_ids", "splitter_class_path"],
       additionalProperties: false,
     },
     run: (graph, args) => planSplitterFanOut(graph, args),
