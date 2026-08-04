@@ -5,6 +5,7 @@ import {
   analyzeSnapshot,
   solveBottlenecks,
   solveBuildCost,
+  solveFactorySummary,
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
@@ -469,6 +470,58 @@ test("reports objectives and authoritative recipe-manager availability", () => {
   assert.equal(unlocks.unavailable_recipe_count, 0);
 });
 
+test("summarizes only captured factory actors and preserves mod ownership", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.actors.push({
+    actor_id: "Modded.Build_Test_C_1",
+    name: "Build_Test_C_1",
+    class_path: "/ExampleMod/Build_Test.Build_Test_C",
+    owner_mod: "ExampleMod",
+    kind: "buildable",
+    connections: [],
+    inventories: [],
+  });
+  const summary = solveFactorySummary(buildGraph(snapshot));
+
+  assert.equal(summary.captured_actor_count, 11);
+  assert.equal(summary.buildable_count, 9);
+  assert.equal(summary.resource_node_count, 1);
+  assert.equal(summary.owner_mods.find((entry) => entry.owner_mod === "ExampleMod").count, 1);
+  assert.equal(
+    summary.buildable_types.find((entry) => entry.class_path === "/ExampleMod/Build_Test.Build_Test_C").count,
+    1,
+  );
+  assert.equal(summary.capture_scope.actor_limit_reached, false);
+  assert.match(summary.capture_scope.notes[0], /No radius or actor-limit truncation/);
+  assert.equal(summary.source, "counts_over_authoritative_captured_actors");
+  assert.equal(summary.certainty, "authoritative_for_capture_scope");
+});
+
+test("factory summary reports radius and actor-limit truncation instead of claiming completeness", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.world.scan_radius_meters = 250;
+  snapshot.completeness.actor_limit_reached = true;
+  snapshot.completeness.actor_limit = 10;
+  const summary = solveFactorySummary(buildGraph(snapshot));
+
+  assert.equal(summary.capture_scope.scan_radius_meters, 250);
+  assert.equal(summary.capture_scope.actor_limit, 10);
+  assert.equal(summary.capture_scope.actor_limit_reached, true);
+  assert.match(summary.capture_scope.notes.join(" "), /within 250 metres/);
+  assert.match(summary.capture_scope.notes.join(" "), /additional actors exist outside this census/);
+});
+
+test("factory summary counts but does not classify an actor missing its identity", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.actors.push({ kind: "buildable", owner_mod: "BrokenCapture" });
+  const summary = solveFactorySummary(buildGraph(snapshot));
+
+  assert.equal(summary.captured_actor_count, 11);
+  assert.equal(summary.indexed_actor_count, 10);
+  assert.equal(summary.buildable_count, 8);
+  assert.match(summary.capture_scope.notes.join(" "), /1 captured actor\(s\) lacked actor_id/);
+});
+
 test("labels a locked registered recipe unavailable instead of guessing", () => {
   const snapshot = buildFactorySnapshot();
   const locked = snapshot.content.recipes.find(
@@ -495,6 +548,7 @@ test("analyzeSnapshot runs every solver over one snapshot", () => {
 
   assert.equal(analysis.schema, "aifactory.analysis");
   assert.equal(analysis.world_revision, 41);
+  assert.equal(analysis.factory_summary.captured_actor_count, 10);
   assert.equal(analysis.machine_rates.machine_count, 4);
   assert.equal(analysis.power_circuits.circuit_count, 2);
   assert.equal(analysis.bottlenecks.reported_machine_count, 4);
@@ -511,6 +565,7 @@ test("every solver survives an empty snapshot", () => {
   assert.deepEqual(solveTransportCapacity(graph).conveyors, []);
   assert.equal(solveRecipeOptions(graph, { item_class: "Desc_Anything" }).catalog_recipe_count, 0);
   assert.equal(solveUnlockStatus(graph).purchased_schematic_count, 0);
+  assert.equal(solveFactorySummary(graph).captured_actor_count, 0);
 });
 
 test("a resource entry reports where the nearest node is, not just how far", () => {

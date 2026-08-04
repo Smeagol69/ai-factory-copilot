@@ -34,6 +34,7 @@ test("exposes the roadmap solver set to the model", () => {
     "find_best_site",
     "find_recipes",
     "get_build_cost",
+    "get_factory_summary",
     "get_item_balance",
     "get_machine_rates",
     "get_power_circuits",

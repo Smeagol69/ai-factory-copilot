@@ -50,6 +50,7 @@ absence in the model's view is never treated as an absence in the world.
 
 | Solver | Answers |
 |---|---|
+| `get_factory_summary` | captured actors, buildable types, machine states, transports, resources, and owner mods, with scan-scope caveats |
 | `get_machine_rates` | exact per-minute inputs and outputs per machine |
 | `get_item_balance` | production versus consumption per item, with surplus/deficit |
 | `find_recipes` | recipes producing or consuming an item, ranked by rate |

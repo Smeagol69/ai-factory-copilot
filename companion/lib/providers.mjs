@@ -58,6 +58,7 @@ include sources. Do not web-search to guess live game state.
 
 Call the deterministic solver tools for every quantitative claim. Do not do
 factory arithmetic yourself:
+- what actors, buildings, transports, resources, and mods are in the captured factory -> get_factory_summary;
 - rates, cycle times, or overclock effects -> get_machine_rates;
 - what the factory is short of or oversupplying -> get_item_balance;
 - alternate or candidate recipes -> find_recipes;
@@ -419,6 +420,11 @@ function envFlag(value, fallback) {
 
 const GROUNDING_REQUIREMENTS = [
   {
+    pattern:
+      /\b(factory (?:summary|overview|census)|what (?:is|s) in (?:this|my|our) factory|what have i built|what buildings do i have)\b/i,
+    tools: ["get_factory_summary"],
+  },
+  {
     pattern: /\b(power|megawatts?|mw|fuse|battery|batteries|circuit|grid capacity)\b/i,
     tools: ["get_power_circuits"],
   },
@@ -517,6 +523,13 @@ function parsedSolverResult(result) {
 
 function evidenceRows(tool, parsed) {
   switch (tool) {
+    case "get_factory_summary":
+      return typeof parsed.captured_actor_count === "number" &&
+        Number.isFinite(parsed.captured_actor_count) &&
+        parsed.source &&
+        parsed.certainty
+        ? [parsed]
+        : [];
     case "get_machine_rates":
       return Array.isArray(parsed.machines) ? parsed.machines : [];
     case "get_item_balance":
@@ -1516,6 +1529,7 @@ function mentionsSolverTool(text) {
  * `companion/test/hybrid-fallback.test.mjs`.
  */
 const SOLVER_TOOL_NAMES = [
+  "get_factory_summary",
   "get_machine_rates",
   "get_item_balance",
   "find_recipes",

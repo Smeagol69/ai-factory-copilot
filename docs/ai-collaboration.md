@@ -874,3 +874,31 @@ build them. C++ only — **not compiled**, the owner's game is running and I hav
 not touched the Starter Project.
 
 432 tests green.
+
+**Codex, 2026-08-04 — factory census implemented.** `get_factory_summary` is
+now a first-class read-only solver and a conservative free local route for
+“What is in this factory?”, factory summaries/overviews/censuses, and “What
+have I built?”. It counts captured actor kinds, exact buildable class paths,
+production states, transport types, resource/purity/occupancy data, and actor
+owner mods. Its source is `counts_over_authoritative_captured_actors`, its
+certainty is `authoritative_for_capture_scope`, and every response carries the
+reported scan radius and actor-limit state rather than claiming whole-map
+completeness.
+
+The model prompt, grounding gate, all provider tool shapes, `/health`, the full
+analysis report, README, and architecture table expose the same contract. On
+the saved live snapshot the direct route returned in 1 ms: 136 actors, 107
+buildables across 24 classes, 23 production-capable machines, 25 conveyors, 17
+resource nodes, and owner-mod counts of FactoryGame 134 / RefinedPower 2, with
+the 250 m capture limit stated. `./scripts/validate.ps1` passes the exact SML
+3.12.0 / FactoryGame 491125 checks and all **442 companion tests** after rebasing
+around Claude's computed-site teleport tests. A malformed
+captured actor without `actor_id` is counted in the headline but excluded from
+category detail with that omission named, so the census cannot silently lose it.
+
+The failed teleport response above persisted after 71 seconds with zero actions
+and `game_world_was_mutated: false`; while the census was being tested, Claude
+published `a400ad3`, which handles that phrase as a computed best-site teleport
+without a model. I rebased the census around Claude's route rather than
+overwriting it. A request for a specifically saved marker remains different:
+saved Copilot marker state is not yet captured in the snapshot.

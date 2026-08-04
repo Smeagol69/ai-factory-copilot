@@ -48,6 +48,7 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.readiness.ready, true);
   assert.equal(body.loopback_only, true);
   assert.equal(body.conveyor_speed_divisor, 2);
+  assert.ok(body.solver_tools.includes("get_factory_summary"));
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
   assert.ok(body.solver_tools.includes("find_best_site"));
   assert.ok(body.solver_tools.length >= 16);
@@ -90,8 +91,9 @@ test("ask endpoint accepts an authoritative snapshot", async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.schema, "aifactory.answer");
-  assert.equal(body.provider, "mock");
-  assert.equal(body.answered_by, "deterministic_diagnostic");
+  assert.equal(body.provider, "solvers");
+  assert.equal(body.answered_by, "local_solver");
+  assert.equal(body.local.solver, "get_factory_summary");
   assert.equal(body.cost.usd, 0);
   assert.equal(body.world_revision, 7);
   assert.equal(body.retained_history_messages, 2);

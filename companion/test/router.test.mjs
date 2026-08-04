@@ -29,6 +29,8 @@ test("siting questions are answered by the solver, not the model", () => {
 
 test("each single-solver question reaches its own solver", () => {
   const expected = {
+    "what is in this factory": "get_factory_summary",
+    "give me a factory overview": "get_factory_summary",
     "what's my power situation": "get_power_circuits",
     "anything stopped?": "diagnose_bottlenecks",
     "what am I short of": "get_item_balance",
@@ -38,6 +40,18 @@ test("each single-solver question reaches its own solver", () => {
   for (const [question, solver] of Object.entries(expected)) {
     assert.equal(routeQuestion(question)?.name, solver, question);
   }
+});
+
+test("factory census is exact, local, and explicit about capture scope", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.world.scan_radius_meters = 250;
+  const answer = answerLocally("what is in this factory", buildGraph(snapshot), sink());
+
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "get_factory_summary");
+  assert.match(answer.reply, /10 actors/);
+  assert.match(answer.reply, /8 buildables/);
+  assert.match(answer.reply, /within 250 metres/);
 });
 
 test("the observed tier-and-recipe-count phrase stays free without swallowing a recipe-list request", () => {
@@ -59,6 +73,7 @@ test("a compound question goes to the model rather than getting half an answer",
   // Answering only the siting half locally would be answering it wrong.
   assert.equal(routeQuestion("where should I build the hub and what should I make there"), null);
   assert.equal(routeQuestion("what's my power situation and what is stopped"), null);
+  assert.equal(routeQuestion("give me a factory overview and tell me what to fix first"), null);
 });
 
 test("anything needing judgement or outside knowledge goes to the model", () => {

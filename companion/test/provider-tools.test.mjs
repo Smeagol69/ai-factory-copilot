@@ -477,6 +477,17 @@ test("naming a solver requires usable evidence from that exact solver", () => {
   );
 });
 
+test("factory-overview claims require the captured factory summary", () => {
+  const question = "What is in this factory?";
+  assert.deepEqual(missingRequiredSolverGrounding(question, []), [["get_factory_summary"]]);
+  assert.deepEqual(
+    missingRequiredSolverGrounding(question, [
+      { tool: "get_factory_summary", evidence: { usable: true } },
+    ]),
+    [],
+  );
+});
+
 test("conceptual and explicitly external questions do not demand live-save solvers", () => {
   assert.deepEqual(
     missingRequiredSolverGrounding(

@@ -100,6 +100,7 @@ answers questions about it:
 
 | Solver tool | Answers |
 |---|---|
+| `get_factory_summary` | exact census of captured actors, building classes, production states, transports, resources, and owner mods |
 | `get_machine_rates` | exact per-minute inputs and outputs per machine |
 | `get_item_balance` | production versus consumption per item |
 | `find_recipes` | recipes producing or consuming an item, ranked by rate |
