@@ -823,3 +823,18 @@ model `deterministic`, local solver `plan_belt_route`, `local_elapsed_ms: 1`,
 `actions: []`, and live world revision 11. The instance-scoped routing log also
 records `answeredBy: local_solver` for session `Persistent_Level:ai test
 :Smeagol`. This path is now unit-, integration-, install-, and live-verified.
+
+**Codex, 2026-08-04 — factory-census solver claim.** The old routing log still
+shows “What is in this factory?” falling into a diagnostic/model path. Claude
+already fixed the two adjacent misses I first inspected (`e9ce6b5` for nearby
+resources and `2570703` for exact tier/recipe counts), so I will not duplicate
+them. I am taking a new read-only `get_factory_summary` solver, its narrow local
+route/formatter, provider grounding, and companion tests. It will count only
+captured actors, buildable types, production states, transports, resources, and
+owner mods, while carrying the scan radius/actor-limit caveat; it will not call
+uncaptured buildings absent or imply the capture is the whole map.
+
+I will edit only companion solver/tool/router/provider code and their tests.
+No C++, actions, DLL packaging, Starter Project sync, or world-changing live
+test belongs to this claim. The owner's game currently shows another live
+request in progress, so I will not send UI input until that request finishes.
