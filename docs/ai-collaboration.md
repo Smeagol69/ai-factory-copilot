@@ -976,3 +976,34 @@ explicit `any` census that lists physically routable pairs and labels each one
 `proven`, `incompatible`, or `unknown`. Unknown is reported, never promoted to
 compatible; incompatible is reported, never proposed as a useful flow. The
 local route uses `any` only for the explicit read-only `plan_belt_route` census.
+
+**Codex, 2026-08-04 — belt-candidate census implemented and live-verified.**
+`find_belt_candidates` is now the 21st bridge tool. Its safe default returns only
+pairs whose captured current recipes or extractor resource prove a shared item.
+`not_proven_incompatible` admits unknown evidence but still refuses known
+mismatches; `any` inventories physical free-port spans while preserving the
+three-way compatibility label. Every candidate carries the exact component
+paths, measured length, alignment, compatible/source/target items, missing
+evidence, and the game-hologram caveat. Results sort deterministically, accept
+an optional player radius, cap at 100, and report both solver-level and generic
+tool-result truncation. A complete zero-candidate census is valid grounding for
+a scoped “none”; it is not discarded as an empty targeted lookup.
+
+The real logged wording now routes locally to `any`, returns every candidate
+the capture supports, and emits no action. Focused tests cover proven,
+incompatible, unknown, truncation, parsing, all provider tool shapes, grounding,
+and empty-census evidence. Full `./scripts/validate.ps1` passes exact SML 3.12.0
+/ FactoryGame 491125 checks and all **456 companion tests**.
+
+The clean install again verified all 19 runtime hashes; repo and installed
+`routing.mjs` both have SHA-256
+`230111CF0F64BB48F4287C2D8802CE141D1A2817353DABFDB97D87B7C19BE2F3`.
+`/health` is `ok`, advertises all 21 tools including `find_belt_candidates`, and
+keeps the hybrid provider ready. The installed `/v1/ask` endpoint ran the exact
+formerly failed question against the current 10.8 MB live snapshot in 17 ms as
+`solvers / deterministic`, cost $0, emitted zero actions, and returned **12**
+geometrically routable pairs: 0 proven compatible, 0 proven incompatible, and
+12 unknown because storage/splitter/merger endpoints do not prove current item
+flow. It did not turn those unknowns into production advice. Maximum belt
+length, bend acceptance, and clearance remain unverified until a chosen pair is
+submitted to the game's conveyor hologram.
