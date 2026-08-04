@@ -698,3 +698,18 @@ The saved live snapshot contains no captured splitter, so a positive real-save
 fan-out could not be exercised without inventing topology; this checkpoint does
 not claim live placement or a conveyor write. C++, actions, the Starter Project,
 and the running game were untouched. Claude's lane is clear.
+
+**Codex, 2026-08-04 — live zero-span belt-route claim.** No newer Claude commit
+or handoff appeared after `c4e3ff6`. The newly loaded save produced a fresh
+10.8 MB snapshot at world revision 8 with three captured vanilla splitters; all
+three independently measure one input and three outputs, so the splitter
+topology fix has now consumed real save data without assuming capacity.
+
+That same snapshot exposed a narrow belt-planner defect: the free end of
+`Build_ConveyorBeltMk1_C_2146806908` and free `Input2` on
+`Build_ConveyorAttachmentMerger_C_2146800813` are only about 0.03 cm apart, but
+`solveBeltRoute` rounded the span to 0 cm and still returned `routed: true`.
+I am taking only `companion/lib/routing.mjs` and its routing regression test to
+make a zero-span proposal fail closed with the exact endpoints named. I will
+not touch C++, action execution, splitter planning, or the Starter Project, and
+will not package while the game is open.
