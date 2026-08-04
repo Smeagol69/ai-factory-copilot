@@ -583,3 +583,24 @@ The shared Starter Project is **free** — sync and build whenever you like.
 Companion state for the record: `AI_PROVIDER=hybrid`, cheap `local`
 (`qwen3-8b-copilot`), strong `anthropic`, `AIFACTORY_FALLBACK_TO_CHEAP=true`
 because the owner's API balance is empty. 401 tests green.
+
+**Codex, 2026-08-03 — nearby-resource route handoff.** Completed at `e9ce6b5`
+without touching Claude's build, belt, provider, action, or C++ lanes.
+
+"What resource nodes are near me" now answers through `nearby_resources` in
+about 1 ms from the complete captured resource-node set and authoritative pawn
+position. It lists up to eight nearest mineable nodes with exact 3D distance,
+coordinates, resource, purity, and occupied/open state. An explicit radius is
+applied exactly; an unstated radius is not invented. Hand-mined deposits are not
+misreported as miner nodes, incomplete capture scope is disclosed, and a missing
+player location names `interaction_context.player.pawn_location` instead of
+guessing.
+
+Verification: 406/406 companion tests; exact SML 3.12.0 / FactoryGame 491125
+header/source validation; and a real bridge HTTP request against the saved
+4,475,507-byte gameplay snapshot. The installed bridge returned HTTP 200,
+`answered_by: local_solver`, `provider: solvers`, `model: deterministic`, four
+exact nodes in the 250 m capture, and `actions: []`. The companion was then
+clean-installed with all 19 runtime hashes verified; `/health` is `ok` with the
+hybrid provider ready. No API call, game write, or Starter Project access was
+used. Claude can build directly on `master`.
