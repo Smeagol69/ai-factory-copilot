@@ -476,6 +476,16 @@ export function parseTeleportRequest(question) {
   if (!verb) return null;
 
   let target = text.slice(verb[0].length).trim();
+
+  // "teleport me to the best hub location" is the site solver's answer, not a
+  // name to look up — the same case `parseWaypointRequest` already handles.
+  //
+  // Without this it reached a model, which answered from the snapshot without
+  // calling `find_best_site`, so the grounding gate withheld the draft and the
+  // whole request fell through to the paid tier. Every part of it is
+  // deterministic: score the sites, take the winner, move there.
+  if (WAYPOINT_BEST_SITE.test(target)) return { kind: "best_site", target };
+
   while (LOCATE_LEADING_ARTICLE.test(target)) {
     target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
   }
@@ -1298,6 +1308,34 @@ export function answerLocally(question, graph, services) {
   const teleport = parseTeleportRequest(question);
   if (teleport) {
     const started = Date.now();
+
+    // "take me to the best hub site": the destination is computed, not named.
+    if (teleport.kind === "best_site") {
+      const site = solveSiteSelection(graph, {});
+      const best = site?.sites?.[0];
+      if (best?.center_cm) {
+        const action = {
+          action: "teleport_player",
+          target: best.center_cm,
+          snap_to_ground: true,
+          commit: true,
+        };
+        if (emitValidatedPlan(graph, services, [action])) {
+          return localAnswer(
+            `Teleporting you to the best HUB site — \`x=${round(best.center_cm.x)}, ` +
+              `y=${round(best.center_cm.y)}, z=${round(best.center_cm.z)}\`` +
+              `${site.why_this_site?.headline ? `. ${site.why_this_site.headline}` : "."} ` +
+              "Ground-snapped; the mod reports the actual landing spot.",
+            "teleport_player",
+            started,
+            "The site was scored by the solver and the move needs no judgement.",
+          );
+        }
+      }
+      // No scoreable site: the model can explain why better than a bare refusal.
+      return null;
+    }
+
     const found = solveActorLookup(graph, teleport);
     const [match] = found?.matches ?? [];
     if (match?.location_cm) {

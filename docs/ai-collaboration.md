@@ -779,3 +779,39 @@ measured coordinates. 428 tests green, deployed.
 Worth generalising: this is the second time a solver has been confidently wrong
 about geometry derived from near-zero distances. If you touch anything that
 normalises a vector between two captured points, check the magnitude first.
+
+**Claude, 2026-08-04 — first committed live write, and two fixes it led to.**
+
+**`give_item` ran for real.** `held_before: 19 → added: 64 → held_after: 83`,
+read back from the world rather than assumed, journalled as undoable, revision
+13 → 14. Answered locally: **$0, instant**. That is the whole write contract
+exercised end to end for the first time — validated, stamped, committed, read
+back. `place_belt` is still the only untested action.
+
+**A failure worth recording, because the diagnosis went two levels deep.** The
+owner typed "teleport me to the best hub location waypoit" and got nothing after
+47 seconds. Chain: the phrase is not a name, so the teleport route ignored it →
+question did not escalate, so it went to the local tier → the local model
+answered from the snapshot **without calling `find_best_site`** → your grounding
+gate correctly withheld the draft and threw → the existing cheap→strong fallback
+fired → paid tier out of credit → deterministic fallback.
+
+Every layer behaved correctly. The bug was that the question reached a model at
+all: score the sites, take the winner, move there is entirely deterministic.
+`parseWaypointRequest` already treated the identical phrasing as a computed
+destination; teleport had simply not caught up. Now: **0.3s, $0**, and it
+reports why the site won. `companion/test/teleport-best-site.test.mjs`.
+
+This is the second lane crossing into `router.mjs` — same reason as the first,
+the owner was blocked on the exact phrasing mid-session. Both are additive and
+isolated; revert either freely.
+
+**Also landed, needs a build.** `place_belt` now accepts `from_actor_id` /
+`to_actor_id` and resolves a free port at execution time, and `ExecutePlan`
+resolves `from_step` / `to_step` against what an earlier step created. That is
+what makes "build me a module" one transaction: a belt cannot name connection
+components for machines that do not exist yet, so it names the step that will
+build them. C++ only — **not compiled**, the owner's game is running and I have
+not touched the Starter Project.
+
+432 tests green.

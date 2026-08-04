@@ -1826,11 +1826,49 @@ FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
     return Hit;
 }
 
+/**
+ * The first free conveyor port of the wanted direction on a named actor.
+ *
+ * Used when a belt addresses machines rather than components, which is the only
+ * way to plan a belt for a machine that does not exist yet. "First free" is
+ * deliberate and reported: a machine with several free inputs has no preference
+ * this layer can know, and picking one is better than refusing a whole module
+ * over an ambiguity the player does not care about.
+ */
+UFGFactoryConnectionComponent* FindFreeActionConnection(
+    const FString& ActorId,
+    const EFactoryConnectionDirection Wanted)
+{
+    AActor* Actor = FindObject<AActor>(nullptr, *ActorId);
+    if (!IsValid(Actor))
+    {
+        return nullptr;
+    }
+
+    TInlineComponentArray<UFGFactoryConnectionComponent*> Connections;
+    Actor->GetComponents(Connections);
+    for (UFGFactoryConnectionComponent* Connection : Connections)
+    {
+        if (!IsValid(Connection) || Connection->IsConnected())
+        {
+            continue;
+        }
+        const EFactoryConnectionDirection Direction = Connection->GetDirection();
+        if (Direction == Wanted || Direction == EFactoryConnectionDirection::FCD_ANY)
+        {
+            return Connection;
+        }
+    }
+    return nullptr;
+}
+
 FAIFactoryActionResult PlaceBelt(
     const FAIFactoryActionContext& Context,
     const FString& RecipeClassPath,
     const FString& FromConnectionComponent,
-    const FString& ToConnectionComponent)
+    const FString& ToConnectionComponent,
+    const FString& FromActorId,
+    const FString& ToActorId)
 {
     const FString Action = TEXT("place_belt");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -1841,6 +1879,22 @@ FAIFactoryActionResult PlaceBelt(
 
     UFGFactoryConnectionComponent* From = FindActionFactoryConnection(FromConnectionComponent);
     UFGFactoryConnectionComponent* To = FindActionFactoryConnection(ToConnectionComponent);
+
+    // Fall back to picking a port off a named actor.
+    //
+    // A belt planned before its machines exist cannot name their connection
+    // components, because those components do not exist yet. Addressing the
+    // actor instead lets one transaction place a machine and belt it, with the
+    // executor choosing the free port at the moment it runs — which is also the
+    // only moment the answer is knowable.
+    if (!IsValid(From) && !FromActorId.IsEmpty())
+    {
+        From = FindFreeActionConnection(FromActorId, EFactoryConnectionDirection::FCD_OUTPUT);
+    }
+    if (!IsValid(To) && !ToActorId.IsEmpty())
+    {
+        To = FindFreeActionConnection(ToActorId, EFactoryConnectionDirection::FCD_INPUT);
+    }
     if (!IsValid(From))
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("from_connection_did_not_resolve"));
@@ -2322,6 +2376,70 @@ namespace
         return !Out.ContainsNaN();
     }
 
+    /**
+     * Rewrites `from_step` / `to_step` into the actor a previous step created.
+     *
+     * Steps are 1-based, matching how they are reported to the player. A
+     * reference to a step that built nothing — or has not run — is left
+     * unresolved on purpose: the action then refuses for a missing endpoint,
+     * which is a clearer failure than silently belting the wrong machine.
+     */
+    void ResolveActionStepReferences(
+        const TSharedPtr<FJsonObject>& Spec,
+        const TArray<TSharedPtr<FJsonValue>>& CompletedResults)
+    {
+        if (!Spec.IsValid())
+        {
+            return;
+        }
+
+        const auto ActorFromStep = [&CompletedResults](const int32 OneBasedStep, FString& OutActorId) -> bool
+        {
+            const int32 Index = OneBasedStep - 1;
+            if (Index < 0 || Index >= CompletedResults.Num())
+            {
+                return false;
+            }
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (!CompletedResults[Index].IsValid() ||
+                !CompletedResults[Index]->TryGetObject(Object) ||
+                !Object)
+            {
+                return false;
+            }
+            const TArray<TSharedPtr<FJsonValue>>* Created = nullptr;
+            if (!(*Object)->TryGetArrayField(TEXT("created_actor_ids"), Created) ||
+                !Created ||
+                Created->Num() == 0)
+            {
+                return false;
+            }
+            // The first created actor is the one the step was asked for; a
+            // blueprint's extra members come after it.
+            OutActorId = (*Created)[0]->AsString();
+            return !OutActorId.IsEmpty();
+        };
+
+        static const TCHAR* StepFields[][2] = {
+            { TEXT("from_step"), TEXT("from_actor_id") },
+            { TEXT("to_step"), TEXT("to_actor_id") },
+        };
+
+        for (const auto& Pair : StepFields)
+        {
+            double StepNumber = 0.0;
+            if (!Spec->TryGetNumberField(Pair[0], StepNumber))
+            {
+                continue;
+            }
+            FString ActorId;
+            if (ActorFromStep(FMath::RoundToInt(StepNumber), ActorId))
+            {
+                Spec->SetStringField(Pair[1], ActorId);
+            }
+        }
+    }
+
     FAIFactoryActionResult RunActionSpec(
         const FAIFactoryActionContext& Context,
         const TSharedPtr<FJsonObject>& Spec)
@@ -2398,17 +2516,22 @@ namespace
             Spec->TryGetStringField(TEXT("recipe_class"), RecipeClass);
             Spec->TryGetStringField(TEXT("from_component"), FromComponent);
             Spec->TryGetStringField(TEXT("to_component"), ToComponent);
+            FString FromActorId;
+            FString ToActorId;
+            Spec->TryGetStringField(TEXT("from_actor_id"), FromActorId);
+            Spec->TryGetStringField(TEXT("to_actor_id"), ToActorId);
             if (RecipeClass.IsEmpty())
             {
                 return FAIFactoryActionResult::Refuse(Kind, TEXT("recipe_class_is_required"));
             }
-            if (FromComponent.IsEmpty() || ToComponent.IsEmpty())
+            if ((FromComponent.IsEmpty() && FromActorId.IsEmpty()) ||
+                (ToComponent.IsEmpty() && ToActorId.IsEmpty()))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
-                    TEXT("from_component_and_to_component_are_required"));
+                    TEXT("each end needs a component path or an actor id"));
             }
-            return PlaceBelt(Context, RecipeClass, FromComponent, ToComponent);
+            return PlaceBelt(Context, RecipeClass, FromComponent, ToComponent, FromActorId, ToActorId);
         }
         if (Kind == TEXT("give_item"))
         {
@@ -2632,6 +2755,18 @@ FString ExecutePlan(
 
         // The reply may request a commit, but only the game side can grant one.
         Context.bDryRun = !(bAllowCommit && Item.bRequestedCommit);
+
+        // Resolve references to what earlier steps built.
+        //
+        // A belt cannot name its endpoints when the plan is written: the
+        // machines do not exist yet, so neither do their connection components.
+        // That made "build me a module" impossible as one transaction — the
+        // placements had to commit, a new snapshot had to be captured, and the
+        // belts came in a second request that could not be rolled back with the
+        // first. A step reference closes that: `from_step: 1` means "whatever
+        // step 1 created", and the executor knows because it just built it.
+        ResolveActionStepReferences(Item.Spec, OutResults);
+
         FAIFactoryActionResult Result = Context.bDryRun && ActionKindChangesWorld(Item.Kind)
             ? Item.Preflight
             : RunActionSpec(Context, Item.Spec);
