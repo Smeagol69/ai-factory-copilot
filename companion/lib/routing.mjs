@@ -762,3 +762,172 @@ export function planBeltedModule(graph, args = {}) {
 
 /** Used only when a building has never been seen in this world. */
 const DEFAULT_MODULE_SPACING_CM = 1_200;
+
+/* ---------------- splitting one output across several machines ---------------- */
+
+/**
+ * Plans a splitter and the belts around it.
+ *
+ * The owner's request was "a miner belted into a smelter belting into the next
+ * thing then splitted" — `planBeltedModule` builds the linear part, and this is
+ * the fan-out. One producer feeding several consumers needs a splitter between
+ * them, positioned so all of its belts stay short and straight.
+ *
+ * How many outputs a splitter has is **measured, not assumed**. If the player
+ * already owns one, its connectors are read off it the same way
+ * `measureConnectors` reads any building. If they do not, the plan says the
+ * count is unverified rather than inventing a number — the same rule that keeps
+ * belt length in the game's hands.
+ */
+export function planSplitterFanOut(graph, args = {}) {
+  const {
+    from_actor_id: fromId,
+    to_actor_ids: toIds = [],
+    splitter_class_path: splitterClass = null,
+  } = args;
+
+  if (!fromId) {
+    return { solver: "splitter_fan_out", planned: false, reason: "give from_actor_id, the machine being split" };
+  }
+  if (!Array.isArray(toIds) || toIds.length < 2) {
+    return {
+      solver: "splitter_fan_out",
+      planned: false,
+      reason: "give at least two to_actor_ids — one consumer needs a belt, not a splitter",
+    };
+  }
+
+  const from = findNode(graph, fromId);
+  if (!from) return { solver: "splitter_fan_out", planned: false, reason: `no actor matches "${fromId}"` };
+
+  const source = connectorsOf(from, "output");
+  if (source.free.length === 0) {
+    return {
+      solver: "splitter_fan_out",
+      planned: false,
+      reason:
+        source.occupied.length > 0
+          ? `every output on ${describeActor(from)} is already connected`
+          : `${describeActor(from)} has no conveyor output`,
+    };
+  }
+
+  // Resolve the consumers first: a target that cannot take a belt changes how
+  // many outputs are actually needed, and that decides whether one splitter is
+  // enough.
+  const targets = [];
+  const unusable = [];
+  for (const id of toIds) {
+    const node = findNode(graph, id);
+    if (!node) {
+      unusable.push({ actor_id: id, reason: "no actor in the snapshot matches it" });
+      continue;
+    }
+    const inputs = connectorsOf(node, "input");
+    if (inputs.free.length === 0) {
+      unusable.push({
+        actor_id: id,
+        name: describeActor(node),
+        reason:
+          inputs.occupied.length > 0
+            ? "every input is already connected"
+            : "it has no conveyor input",
+      });
+      continue;
+    }
+    targets.push({ node, connector: inputs.free[0] });
+  }
+
+  if (targets.length < 2) {
+    return {
+      solver: "splitter_fan_out",
+      planned: false,
+      reason: "fewer than two consumers can actually take a belt",
+      unusable,
+    };
+  }
+
+  // Measured from a splitter the player owns, when there is one.
+  const measured = splitterClass ? measureConnectors(graph, splitterClass) : null;
+  const measuredOutputs = measured?.outputs?.length ?? null;
+  const outputCapacity = measuredOutputs ?? 3;
+
+  const output = source.free[0];
+  const centroid = targets.reduce(
+    (sum, target) => ({
+      x: sum.x + target.connector.location.x / targets.length,
+      y: sum.y + target.connector.location.y / targets.length,
+      z: sum.z + target.connector.location.z / targets.length,
+    }),
+    { x: 0, y: 0, z: 0 },
+  );
+
+  // The splitter sits on the line from the source output toward the middle of
+  // the consumers, one belt-width out. Anywhere further just lengthens every
+  // leg; anywhere closer risks overlapping the source machine's own footprint.
+  const heading = normalize(subtract(centroid, output.location)) ?? { x: 1, y: 0, z: 0 };
+  const standoffCm = 400;
+  const splitterLocation = {
+    x: round(output.location.x + heading.x * standoffCm),
+    y: round(output.location.y + heading.y * standoffCm),
+    z: round(output.location.z),
+  };
+  // Face the splitter back along the incoming belt, so its input meets it square.
+  const splitterYaw = round((Math.atan2(heading.y, heading.x) * 180) / Math.PI);
+
+  const legs = targets.map((target, index) => ({
+    leg: index + 1,
+    to_actor_id: target.node.actor_id,
+    to_name: describeActor(target.node),
+    to_connector: target.connector.component,
+    from_splitter_output: index + 1,
+    length_meters: round(
+      length(subtract(target.connector.location, splitterLocation)) / 100,
+    ),
+  }));
+
+  const notes = [];
+  if (measuredOutputs === null) {
+    notes.push(
+      "You do not own a splitter yet, so its output count could not be measured. " +
+        "Planned against the standard three; the game refuses anything it cannot " +
+        "actually connect, so a wrong assumption fails visibly rather than silently.",
+    );
+  }
+  if (targets.length > outputCapacity) {
+    notes.push(
+      `${targets.length} consumers exceed the ${outputCapacity} outputs ` +
+        `${measuredOutputs === null ? "assumed" : "measured"} for one splitter. ` +
+        "They need chaining — a second splitter fed from the first.",
+    );
+  }
+  if (unusable.length > 0) {
+    notes.push(`${unusable.length} named machine(s) could not take a belt; see unusable.`);
+  }
+
+  return {
+    solver: "splitter_fan_out",
+    planned: true,
+    // Enough for a plan the caller can execute, and nothing it cannot verify.
+    splitter: {
+      location_cm: splitterLocation,
+      yaw_degrees: splitterYaw,
+      outputs_available: outputCapacity,
+      outputs_source: measuredOutputs === null ? "assumed_standard_three" : "measured_from_your_own_splitter",
+      class_path: splitterClass,
+    },
+    feed: {
+      from_actor_id: from.actor_id,
+      from_name: describeActor(from),
+      from_connector: output.component,
+      length_meters: round(length(subtract(splitterLocation, output.location)) / 100),
+    },
+    legs,
+    splitters_needed: Math.max(1, Math.ceil(targets.length / Math.max(1, outputCapacity))),
+    unusable,
+    notes,
+    unverified:
+      "Positions are a proposal. Clearance, belt length and whether the splitter " +
+      "fits are decided by the game's holograms when the plan is built.",
+  };
+}
