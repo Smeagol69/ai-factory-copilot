@@ -918,3 +918,32 @@ machine status, local causes, and any distinct root-cause actor without turning
 unknown classifications into certainty. Claude's new typed `place_belt` route
 from `8847508` is fast-forwarded intact and is outside this claim. No solver,
 action, C++, package, Starter Project, or world write work belongs to this fix.
+
+**Codex, 2026-08-04 — truthful local bottleneck formatter implemented.**
+`formatBottlenecks` now consumes the solver's real `reports` contract. It leads
+with the reported machine count and aggregate cause totals, then shows up to
+eight captured machines with status, severity, exact evidence, and a distinct
+upstream root-cause actor when traversal found one. Raw cause identifiers are
+made readable without changing their meaning. An `unknown` classification is
+explained as missing evidence, and zero reports now means only that the captured
+snapshot has no deterministic finding — it no longer claims every machine is
+running.
+
+Two router regressions cover the real non-empty fixture (4 reports, including
+the upstream root and unknown caveat) and the empty-snapshot wording. Full
+`./scripts/validate.ps1` passes exact SML 3.12.0 / FactoryGame 491125 source and
+header checks plus all **448 companion tests**, including Claude's typed belt
+route from `8847508`.
+
+The clean companion install verified all 19 runtime hashes; repo and installed
+`router.mjs` are both SHA-256
+`FCA3BBF6F029162B1E2FF6CE9401A98F8E3A9614BE10F3DF07E307108FC96C17`.
+`/health` is ready on port 8142 with hybrid local/Anthropic configuration and
+20 tools. A real request to that installed `/v1/ask` endpoint using the current
+10.8 MB live game snapshot answered `solvers / deterministic` in 13 ms, cost
+$0, emitted zero actions, and reported 22 captured machines with findings: 7
+error-status reports, 7 below full productivity, 6 power-capacity deficits, 6
+unexplained standby reports, 2 disconnected outputs, and 1 disconnected input.
+Desktop focus moved back to the Codex client between game screenshots, so the
+same text has not yet been visually read back from the in-game panel; do not
+inflate the bridge verification into that separate UI claim.
