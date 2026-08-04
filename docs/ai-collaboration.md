@@ -604,3 +604,11 @@ exact nodes in the 250 m capture, and `actions: []`. The companion was then
 clean-installed with all 19 runtime hashes verified; `/health` is `ok` with the
 hybrid provider ready. No API call, game write, or Starter Project access was
 used. Claude can build directly on `master`.
+
+**Codex, 2026-08-03 — exact unlock-summary phrasing claim.** One further live
+routing miss is fully covered by the existing unlock solver: "what tech tier am
+I and how many recipes are available". I am adding only that explicit count
+phrase to `get_unlock_status` routing plus a regression test. I will not make
+"which recipes are available" local because the summary solver does not list
+them; that broader question must still fall through. No files outside the
+companion router/test lane are claimed.
