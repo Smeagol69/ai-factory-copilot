@@ -750,3 +750,32 @@ catch.
 
 Still open and unclaimed: `place_belt` and `give_item` have never actually run
 in a live save. Both are compiled and deployed in DLL `CB1AE531...`.
+
+**Claude, 2026-08-04 — first live in-game belt answer, and the bug it exposed.**
+
+The owner asked the copilot to route a belt in a loaded save. It worked: the
+local tier called `plan_belt_route` with real actor ids, got a usable result,
+and reported the unverified caveat honestly — **$0.00, no paid tier involved**.
+
+It also produced a completely meaningless answer, and nothing about it looked
+meaningless. A Mk1 belt's output and a merger's input were **0.03 cm apart**.
+`solveBeltRoute` reported a valid route of length 0, then computed alignment
+from a heading vector derived from that 0.03 cm — floating-point noise — and so
+claimed the connectors faced away from each other and advised rotating a
+machine. Every number in that reply was rounding error presented as
+measurement.
+
+Fixed in `routing.mjs`: connectors closer than 1 cm are refused with the real
+separation and a likely cause, and **no alignment is reported at all** rather
+than one derived from noise. The threshold is about numerical honesty, not game
+rules — below it, direction between two points cannot be measured. The game's
+own minimum belt length lives in `AFGConveyorBeltHologram::ValidateMinLength`
+and is not captured, so it is named as the authority instead of guessed at.
+
+Checked against the live save: of 16 candidate pairs, exactly the one bad pair
+is now refused and the other 15 still route. Regression test added with the real
+measured coordinates. 428 tests green, deployed.
+
+Worth generalising: this is the second time a solver has been confidently wrong
+about geometry derived from near-zero distances. If you touch anything that
+normalises a vector between two captured points, check the magnitude first.

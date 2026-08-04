@@ -186,6 +186,40 @@ export function solveBeltRoute(graph, args = {}) {
     }
   }
 
+  // Two connectors already touching leave nowhere to put a belt.
+  //
+  // Found live: a Mk1 belt's output and a merger's input measured 0.03 cm
+  // apart, and this reported a valid zero-length route. Worse, the alignment
+  // was computed from a heading vector derived from that 0.03 cm — pure
+  // floating-point noise — so it also claimed the connectors pointed away from
+  // each other and advised rotating a machine. Every number in that answer was
+  // meaningless, and none of it looked meaningless.
+  //
+  // The threshold is about numerical honesty, not game rules: below it the
+  // direction between two points cannot be measured. The game's own minimum
+  // belt length lives in AFGConveyorBeltHologram::ValidateMinLength and is not
+  // captured, so it is named as the authority rather than guessed at.
+  const COINCIDENT_CONNECTOR_CM = 1;
+  if (best.distance_cm !== null && best.distance_cm < COINCIDENT_CONNECTOR_CM) {
+    return {
+      solver: "belt_route",
+      routed: false,
+      reason:
+        `those two connectors are ${best.distance_cm} cm apart — they are already ` +
+        "touching, so there is no gap for a belt",
+      from: { actor_id: from.actor_id, name: describeActor(from), connector: best.output.component },
+      to: { actor_id: to.actor_id, name: describeActor(to), connector: best.input.component },
+      length_cm: best.distance_cm,
+      likely_cause:
+        "These machines are probably meant to be joined directly, or something " +
+        "already connects them and the snapshot has not caught up. Move one of " +
+        "them apart if you want a belt between them.",
+      alignment_not_reported:
+        "Direction cannot be measured between points this close, so no alignment " +
+        "is given rather than a number derived from rounding error.",
+    };
+  }
+
   const straight =
     (best.output_alignment ?? 0) > 0.95 && (best.input_alignment ?? 0) > 0.95;
   const facingAway = (best.output_alignment ?? 0) < 0;

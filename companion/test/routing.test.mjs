@@ -286,3 +286,71 @@ test("a module needs an anchor and a chain, and says which is missing", () => {
   assert.match(planBeltedModule(graph, { chain: ["x"] }).reason, /anchor_actor_id/);
   assert.match(planBeltedModule(graph, { anchor_actor_id: "Build_MinerMk1_C_1" }).reason, /chain of buildings/);
 });
+
+/* ---------------- connectors that are already touching ---------------- */
+
+test("refuses a zero-length route instead of inventing an alignment for it", () => {
+  // Found in a live save: a Mk1 belt's output and a merger's input measured
+  // 0.03 cm apart. This reported a valid route of length 0, and computed an
+  // alignment from a heading vector derived from that 0.03 cm — floating-point
+  // noise — which then claimed the connectors faced away from each other and
+  // advised rotating a machine. Every number was meaningless and none of it
+  // looked it.
+  const touching = buildGraph({
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    actors: [
+      {
+        actor_id: "Build_ConveyorBeltMk1_C_1",
+        name: "Build_ConveyorBeltMk1_C_1",
+        kind: "buildable",
+        location: { x: 0, y: 0, z: 0 },
+        connections: [
+          connection({
+            component: "Belt.ConveyorAny1",
+            direction: "FCD_OUTPUT",
+            location: { x: 347_557.295, y: -163_019.415, z: 4_298.651 },
+            normal: { x: 1, y: 0, z: 0 },
+          }),
+        ],
+      },
+      {
+        actor_id: "Build_Merger_C_1",
+        name: "Build_Merger_C_1",
+        kind: "buildable",
+        location: { x: 100, y: 0, z: 0 },
+        connections: [
+          connection({
+            component: "Merger.Input2",
+            direction: "FCD_INPUT",
+            // 0.03 cm away — the real measured separation.
+            location: { x: 347_557.266, y: -163_019.406, z: 4_298.651 },
+            normal: { x: -1, y: 0, z: 0 },
+          }),
+        ],
+      },
+    ],
+  });
+
+  const route = solveBeltRoute(touching, {
+    from_actor_id: "Build_ConveyorBeltMk1_C_1",
+    to_actor_id: "Build_Merger_C_1",
+  });
+
+  assert.equal(route.routed, false);
+  assert.match(route.reason, /already touching/);
+  // The point of the fix: no alignment number is offered at all, rather than
+  // one computed from rounding error.
+  assert.equal(route.alignment, undefined);
+  assert.match(route.alignment_not_reported, /cannot be measured/);
+  assert.ok(route.likely_cause, "a refusal should say what to do about it");
+});
+
+test("a normal short run is still routed", () => {
+  // The coincidence guard must not swallow legitimately close machines.
+  const route = solveBeltRoute(graph, {
+    from_actor_id: "Build_MinerMk1_C_1",
+    to_actor_id: "Build_SmelterMk1_C_1",
+  });
+  assert.equal(route.routed, true);
+  assert.equal(route.length_meters, 20);
+});
