@@ -214,15 +214,50 @@ function formatPower(result) {
 }
 
 function formatBottlenecks(result) {
-  const stopped = (result.machines ?? []).filter((machine) => machine.problem);
-  if (stopped.length === 0) return "Nothing is reporting a stall — every captured machine is running.";
-  return stopped
-    .slice(0, 8)
-    .map((machine) => {
-      const cause = machine.root_cause ? ` Root cause: ${machine.root_cause}.` : "";
-      return `**${machine.display_name ?? machine.actor_id}** — ${machine.problem}.${cause}`;
-    })
-    .join("\n\n");
+  const reports = result.reports ?? [];
+  if (reports.length === 0) {
+    return "No captured production machine has a deterministic bottleneck finding in this snapshot.";
+  }
+
+  const causeLabel = (cause) => String(cause ?? "unknown cause").replaceAll("_", " ");
+  const formatCause = (entry) => {
+    const severity = entry?.severity ? ` [${entry.severity}]` : "";
+    const evidence = entry?.evidence ? ` — ${entry.evidence}` : "";
+    return `${causeLabel(entry?.cause)}${severity}${evidence}`;
+  };
+
+  const reportedCount = Number.isInteger(result.reported_machine_count)
+    ? result.reported_machine_count
+    : reports.length;
+  const lines = [
+    `**${reportedCount} captured production machine${reportedCount === 1 ? " has" : "s have"} findings.**`,
+  ];
+
+  const causeTotals = Object.entries(result.cause_counts ?? {})
+    .sort(([aName, aCount], [bName, bCount]) => bCount - aCount || aName.localeCompare(bName))
+    .map(([cause, count]) => `${causeLabel(cause)} ${count}`);
+  if (causeTotals.length > 0) lines.push(`Cause totals: ${causeTotals.join(", ")}.`);
+
+  lines.push(
+    ...reports.slice(0, 8).map((report) => {
+      const status = report.production_status ? ` (status: ${report.production_status})` : "";
+      const local = (report.local_causes ?? []).map(formatCause).join("; ") || "no local cause captured";
+      const rootIsDifferent = report.root_cause_actor_id && report.root_cause_actor_id !== report.actor_id;
+      const root = rootIsDifferent
+        ? ` Root cause actor: **${report.root_cause_actor_id}** — ` +
+          `${(report.root_causes ?? []).map(formatCause).join("; ") || "cause not captured"}.`
+        : "";
+      return `- **${report.name ?? report.actor_id}**${status} — ${local}.${root}`;
+    }),
+  );
+
+  if (reports.length > 8) lines.push(`${reports.length - 8} more captured machine finding(s) are not shown here.`);
+  if (reports.some((report) => (report.local_causes ?? []).some((cause) => cause.severity === "unknown"))) {
+    lines.push(
+      "An [unknown] cause means the snapshot did not contain enough evidence to identify why that machine is stalled.",
+    );
+  }
+  return lines.join("\n\n");
 }
 
 function formatBalance(result) {

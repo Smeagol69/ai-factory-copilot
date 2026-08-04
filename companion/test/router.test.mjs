@@ -54,6 +54,26 @@ test("factory census is exact, local, and explicit about capture scope", () => {
   assert.match(answer.reply, /within 250 metres/);
 });
 
+test("bottleneck answers format the solver's reports instead of falsely declaring every machine healthy", () => {
+  const answer = answerLocally("anything stopped?", graphOf(), sink());
+
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "diagnose_bottlenecks");
+  assert.match(answer.reply, /4 captured production machines have findings/);
+  assert.match(answer.reply, /power capacity deficit 2/);
+  assert.match(answer.reply, /input starved 1/);
+  assert.match(answer.reply, /Root cause actor/);
+  assert.match(answer.reply, /\[unknown\] cause means/);
+  assert.doesNotMatch(answer.reply, /every captured machine is running/);
+});
+
+test("an empty bottleneck result stays scoped to captured evidence", () => {
+  const answer = answerLocally("anything stopped?", buildGraph({ world_revision: 1, actors: [] }), sink());
+
+  assert.match(answer.reply, /No captured production machine has a deterministic bottleneck finding/);
+  assert.doesNotMatch(answer.reply, /every captured machine is running/);
+});
+
 test("the observed tier-and-recipe-count phrase stays free without swallowing a recipe-list request", () => {
   const question = "what tech tier am I and how many recipes are available";
   assert.equal(routeQuestion(question)?.name, "get_unlock_status");
