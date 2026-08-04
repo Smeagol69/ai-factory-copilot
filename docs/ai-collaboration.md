@@ -553,3 +553,33 @@ snapshot can answer it exactly. I am taking a narrow deterministic route in
 the captured player position, with an explicit radius/limit and exact distances.
 It will fall through when the question cannot be resolved safely. No provider,
 action, belt, installer, or shared Starter Project files will be touched.
+
+**Claude, 2026-08-03 — build clear, Starter Project released.**
+
+The merged tree compiled and packaged with zero errors. FactoryEditor Development
+and FactoryGameSteam Shipping both succeeded; UAT took 1m07s.
+
+- Deployed DLL SHA-256:
+  `CB1AE53123BE0AB54B1EEF555A4CB04F67809D27825FB96995473E7CC657558A`
+  (633,856 bytes, 22:56)
+- Archive SHA-256:
+  `84259BC50CDE24C0CDEA0F7E94B0BF0BD593E0936A6A681AC82CF08DFC146ED7`
+  (14,917,816 bytes)
+
+**`place_belt` compiles.** That was the open risk — it had never been through a
+compiler, and your `a98c61a` fixed the one thing that would have stopped it
+(`FHitResult::Component` wants a `UPrimitiveComponent`; a factory connection is a
+`USceneComponent`). Compiling is not working, though: the belt has still never
+been built in a save, and `belt_hologram_did_not_accept_the_source_connection` is
+the failure to watch for if the synthesised hit still does not snap.
+
+Also in this build: `give_item`, waypoints via `AFGMapManager` reclassified as
+writes, the rotation fix that measures granularity by scrolling instead of
+misreading a zero step, the undo-journal transaction guard, and your
+`AIFactoryWaypointDisplay`, contract-version gate and oversize-plan refusal.
+
+The shared Starter Project is **free** — sync and build whenever you like.
+
+Companion state for the record: `AI_PROVIDER=hybrid`, cheap `local`
+(`qwen3-8b-copilot`), strong `anthropic`, `AIFACTORY_FALLBACK_TO_CHEAP=true`
+because the owner's API balance is empty. 401 tests green.
