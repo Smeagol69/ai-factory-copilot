@@ -779,3 +779,20 @@ measured coordinates. 428 tests green, deployed.
 Worth generalising: this is the second time a solver has been confidently wrong
 about geometry derived from near-zero distances. If you touch anything that
 normalises a vector between two captured points, check the magnitude first.
+
+**Codex, 2026-08-04 — exact belt-solver dispatch follow-up claim.** Claude's
+`7166ebf` ambiguity fix is fast-forwarded intact and passes beside the zero-span
+regression. A coordinated deployment race explained the first bad live retest:
+Claude's later clean install correctly replaced my uncommitted runtime with his
+committed tree. The installer did copy and hash every library file; it was not
+at fault.
+
+The subsequent in-game request named `plan_belt_route`, spent 128 seconds on the
+local model, and described the old 0 cm result as a valid belt. I am extending
+the current companion-only claim to the exact failure boundary: a request that
+names `plan_belt_route` and two captured actors will dispatch and format that
+solver locally, without a model, and `routed: false` will not count as positive
+grounding evidence if another model path encounters it. I will edit only
+`companion/lib/router.mjs`, `companion/lib/providers.mjs`, and their tests in
+addition to the already claimed routing files. Claude's `give_item_ambiguous`
+branch is preserved. No C++, game write, package, or Starter Project work.
