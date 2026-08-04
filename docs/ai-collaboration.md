@@ -796,3 +796,21 @@ grounding evidence if another model path encounters it. I will edit only
 `companion/lib/router.mjs`, `companion/lib/providers.mjs`, and their tests in
 addition to the already claimed routing files. Claude's `give_item_ambiguous`
 branch is preserved. No C++, game write, package, or Starter Project work.
+
+**Codex, 2026-08-04 — exact belt-solver dispatch implemented and validated.**
+The claimed companion-only hardening is complete. A request that literally
+names `plan_belt_route` and exactly two captured actor instances now calls the
+deterministic route solver directly, preserves either its proposal or refusal,
+and never emits an action. Against the owner's current 10.8 MB live snapshot,
+the same belt-to-merger request that previously spent 128 seconds in the local
+model now returns in-process in 0 ms and says the endpoints are already touching
+instead of calling the 0 cm span valid.
+
+The provider grounding gate also treats `routed: false` as unusable evidence and
+honours an explicitly named solver as the exact requirement. That closes the
+fallback path that let a model narrate a refusal into a success. Claude's
+ambiguous `give_item` local answer and 1 cm routing guard remain unchanged.
+`./scripts/validate.ps1` passes exact SML 3.12.0 / FactoryGame 491125 header and
+source checks plus all **433 companion tests**. No C++, Starter Project, package,
+game write, or loaded-save state was changed. The clean installed companion and
+the visible in-game round trip still need to be refreshed from this commit.

@@ -3,8 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
-import { answerLocally, parseClearRequest, parseShowRequest, routeQuestion } from "../lib/router.mjs";
-import { buildFactorySnapshot } from "./fixtures/factory.mjs";
+import {
+  answerLocally,
+  parseClearRequest,
+  parseExactBeltSolverRequest,
+  parseShowRequest,
+  routeQuestion,
+} from "../lib/router.mjs";
+import { buildFactorySnapshot, MINER, SMELTER } from "./fixtures/factory.mjs";
 
 const graphOf = () => buildGraph(buildFactorySnapshot());
 
@@ -114,6 +120,62 @@ function sink() {
   const emitted = [];
   return { emitted, actions: { emit: (actions) => emitted.push(...actions) } };
 }
+
+function exactBeltGraph(distanceCm) {
+  const snapshot = buildFactorySnapshot();
+  const miner = snapshot.actors.find((actor) => actor.actor_id === MINER);
+  const smelter = snapshot.actors.find((actor) => actor.actor_id === SMELTER);
+  const output = miner.connections.find((connection) => connection.direction === "FCD_OUTPUT");
+  const input = smelter.connections.find((connection) => connection.direction === "FCD_INPUT");
+  Object.assign(output, {
+    connected: false,
+    connected_component: "",
+    location: { x: 1_000, y: 0, z: 100 },
+    normal: { x: 1, y: 0, z: 0 },
+  });
+  Object.assign(input, {
+    connected: false,
+    connected_component: "",
+    location: { x: 1_000 + distanceCm, y: 0, z: 100 },
+    normal: { x: -1, y: 0, z: 0 },
+  });
+  return buildGraph(snapshot);
+}
+
+test("an exact named belt solver request bypasses the model", () => {
+  const graph = exactBeltGraph(2_000);
+  const question =
+    "Using plan_belt_route only, check Build_MinerMk1_C_1 to Build_SmelterMk1_C_1. " +
+    "Do not build or change anything.";
+  assert.deepEqual(parseExactBeltSolverRequest(question, graph), {
+    from_actor_id: MINER,
+    to_actor_id: SMELTER,
+  });
+
+  const services = sink();
+  const answer = answerLocally(question, graph, services);
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "plan_belt_route");
+  assert.match(answer.reply, /20 m straight belt proposal/);
+  assert.deepEqual(services.emitted, []);
+});
+
+test("direct belt dispatch preserves a solver refusal instead of narrating it away", () => {
+  const graph = exactBeltGraph(0.03);
+  const services = sink();
+  const answer = answerLocally(
+    "Using plan_belt_route only, check Build_MinerMk1_C_1 to Build_SmelterMk1_C_1.",
+    graph,
+    services,
+  );
+
+  assert.equal(answer.local.solver, "plan_belt_route");
+  assert.match(answer.reply, /did not find a usable belt span/);
+  assert.match(answer.reply, /already touching/);
+  assert.match(answer.reply, /No game action was emitted/);
+  assert.doesNotMatch(answer.reply, /valid and direct/);
+  assert.deepEqual(services.emitted, []);
+});
 
 test("a show request emits the overlay action without any model call", () => {
   const services = sink();

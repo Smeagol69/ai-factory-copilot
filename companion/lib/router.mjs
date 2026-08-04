@@ -37,6 +37,7 @@ import {
 } from "./solvers.mjs";
 import { validatePlan } from "./actions.mjs";
 import {
+  solveBeltRoute,
   solveNearestCompatibleBeltRoute,
   solveTemporaryFreeBeltRoute,
 } from "./routing.mjs";
@@ -601,6 +602,50 @@ export function parseTemporaryFreeBeltTestRequest(question) {
   return { radius_m: Number.parseInt(match[1], 10) };
 }
 
+/**
+ * Resolve the two explicitly named live actors in a plan_belt_route request.
+ *
+ * This is intentionally stricter than natural-language target resolution: the
+ * player named the deterministic tool, so two captured instance names are the
+ * complete contract. Anything ambiguous or compound still falls through.
+ */
+export function parseExactBeltSolverRequest(question, graph) {
+  const text = String(question ?? "");
+  const lowered = text.toLowerCase();
+  if (!lowered.includes("plan_belt_route")) return null;
+
+  const mentioned = [];
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    const aliases = new Set([
+      String(node?.raw?.name ?? "").trim(),
+      String(node?.actor_id ?? "").split(/[.:]/).pop().trim(),
+    ]);
+    let first = -1;
+    for (const alias of aliases) {
+      if (!alias) continue;
+      const candidate = alias.toLowerCase();
+      let offset = lowered.indexOf(candidate);
+      while (offset >= 0) {
+        const before = lowered[offset - 1] ?? " ";
+        const after = lowered[offset + candidate.length] ?? " ";
+        if (!/[a-z0-9_]/.test(before) && !/[a-z0-9_]/.test(after)) {
+          first = first < 0 ? offset : Math.min(first, offset);
+          break;
+        }
+        offset = lowered.indexOf(candidate, offset + 1);
+      }
+    }
+    if (first >= 0) mentioned.push({ actor_id: node.actor_id, index: first });
+  }
+
+  if (mentioned.length !== 2) return null;
+  mentioned.sort((a, b) => a.index - b.index || String(a.actor_id).localeCompare(String(b.actor_id)));
+  return {
+    from_actor_id: mentioned[0].actor_id,
+    to_actor_id: mentioned[1].actor_id,
+  };
+}
+
 function capturedUnlockedMk1BeltRecipe(graph) {
   if (graph?.snapshot?.content?.availability_known !== true) {
     return {
@@ -987,6 +1032,42 @@ export function answerLocally(question, graph, services) {
       "clarify",
       Date.now(),
       "The input carried no actionable content, so no model was consulted.",
+    );
+  }
+
+  // A named deterministic tool plus two exact captured instances needs no
+  // language model. The live local model took 128 seconds to narrate this call
+  // and turned a zero-length refusal into "valid and direct". Dispatching the
+  // solver here is both faster and the only way to preserve its polarity.
+  const exactBelt = parseExactBeltSolverRequest(question, graph);
+  if (exactBelt) {
+    const started = Date.now();
+    const route = solveBeltRoute(graph, exactBelt);
+    const fromName = route.from?.name ?? exactBelt.from_actor_id;
+    const toName = route.to?.name ?? exactBelt.to_actor_id;
+    const endpoints =
+      route.from?.connector && route.to?.connector
+        ? ` Exact endpoints: \`${route.from.connector}\` → \`${route.to.connector}\`.`
+        : "";
+
+    if (!route.routed) {
+      return localAnswer(
+        `I did not find a usable belt span from **${fromName}** to **${toName}**: ` +
+          `${route.reason}.${endpoints} No game action was emitted.`,
+        "plan_belt_route",
+        started,
+        "The requested deterministic solver ran directly; its refusal was preserved without model interpretation.",
+      );
+    }
+
+    const shape = route.straight ? "straight" : "bent";
+    const notes = route.notes?.length ? ` ${route.notes.join(" ")}` : "";
+    return localAnswer(
+      `The captured free connectors give a **${route.length_meters} m ${shape} belt proposal** ` +
+        `from **${fromName}** to **${toName}**.${endpoints}${notes} ${route.unverified}`,
+      "plan_belt_route",
+      started,
+      "The two exact captured actors uniquely selected one deterministic belt-route solver call.",
     );
   }
 

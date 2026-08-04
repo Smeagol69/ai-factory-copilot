@@ -437,6 +437,46 @@ test("failed, unknown, empty, and wrong-target tool results are not grounding ev
   }
 });
 
+test("a refused route cannot ground a model claim that the route is valid", () => {
+  const context = makeContext({
+    question: "Using plan_belt_route only, check this belt to this merger.",
+  });
+  const evidence = solverEvidenceMetadata(
+    context,
+    "plan_belt_route",
+    { from_actor_id: "belt", to_actor_id: "merger" },
+    {
+      serialized: JSON.stringify({
+        solver: "belt_route",
+        routed: false,
+        reason: "the connectors are already touching",
+      }),
+      truncated: false,
+    },
+  );
+
+  assert.equal(evidence.usable, false);
+  assert.equal(evidence.reason, "unknown_result");
+  assert.deepEqual(
+    missingRequiredSolverGrounding(context.question, [
+      { tool: "plan_belt_route", evidence },
+    ]),
+    [["plan_belt_route"]],
+  );
+});
+
+test("naming a solver requires usable evidence from that exact solver", () => {
+  const question =
+    "Using plan_belt_route only, check these two captured actors without changing anything.";
+  assert.deepEqual(missingRequiredSolverGrounding(question, []), [["plan_belt_route"]]);
+  assert.deepEqual(
+    missingRequiredSolverGrounding(question, [
+      { tool: "plan_belt_route", evidence: { usable: true } },
+    ]),
+    [],
+  );
+});
+
 test("conceptual and explicitly external questions do not demand live-save solvers", () => {
   assert.deepEqual(
     missingRequiredSolverGrounding(
