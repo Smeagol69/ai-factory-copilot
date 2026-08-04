@@ -234,7 +234,9 @@ function formatBalance(result) {
 
 function formatUnlocks(result) {
   const parts = [];
-  if (result.highest_tech_tier != null) parts.push(`Tech tier **${result.highest_tech_tier}**`);
+  if (result.highest_available_tech_tier != null) {
+    parts.push(`Tech tier **${result.highest_available_tech_tier}**`);
+  }
   if (result.purchased_schematic_count != null) {
     parts.push(`${result.purchased_schematic_count} schematics purchased`);
   }
@@ -883,7 +885,7 @@ const ROUTES = [
     name: "get_unlock_status",
     patterns: [
       "what tier am i", "what tech tier", "my tech tier", "what have i unlocked",
-      "unlock status", "how many recipes", "what tier", "my progress",
+      "unlock status", "how many recipes are available", "how many recipes", "what tier", "my progress",
       "what phase am i", "my milestone", "current objective",
     ],
     extraFiller: ["tier", "tech", "unlocked", "unlock", "status", "recipes", "schematics", "many"],

@@ -34,6 +34,19 @@ test("each single-solver question reaches its own solver", () => {
   }
 });
 
+test("the observed tier-and-recipe-count phrase stays free without swallowing a recipe-list request", () => {
+  const question = "what tech tier am I and how many recipes are available";
+  assert.equal(routeQuestion(question)?.name, "get_unlock_status");
+
+  const answer = answerLocally(question, graphOf(), sink());
+  assert.equal(answer.local.solver, "get_unlock_status");
+  assert.match(answer.reply, /Tech tier \*\*5\*\*/);
+  assert.match(answer.reply, /5 recipes available/);
+
+  // The summary solver knows the count, not a complete recipe listing.
+  assert.equal(routeQuestion("which recipes are available"), null);
+});
+
 /* ---------------- what must not ---------------- */
 
 test("a compound question goes to the model rather than getting half an answer", () => {
