@@ -902,3 +902,19 @@ published `a400ad3`, which handles that phrase as a computed best-site teleport
 without a model. I rebased the census around Claude's route rather than
 overwriting it. A request for a specifically saved marker remains different:
 saved Copilot marker state is not yet captured in the snapshot.
+
+**Codex, 2026-08-04 — truthful local bottleneck formatter claim.** A live
+factory census at revision 196 reports 24 production-capable machines, including
+9 in `error` and 6 in `standby`, but the free “Anything stopped?” route can say
+that every captured machine is running. The deterministic solver is not at
+fault: `solveBottlenecks` returns findings in `result.reports`, while
+`formatBottlenecks` reads the nonexistent `result.machines` field and therefore
+always sees an empty list.
+
+I am taking only `formatBottlenecks` in `companion/lib/router.mjs`, focused
+router regressions for non-empty and empty reports, and this handoff note. The
+formatter will surface the authoritative report count, aggregate cause counts,
+machine status, local causes, and any distinct root-cause actor without turning
+unknown classifications into certainty. Claude's new typed `place_belt` route
+from `8847508` is fast-forwarded intact and is outside this claim. No solver,
+action, C++, package, Starter Project, or world write work belongs to this fix.
