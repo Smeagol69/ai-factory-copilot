@@ -612,3 +612,18 @@ phrase to `get_unlock_status` routing plus a regression test. I will not make
 "which recipes are available" local because the summary solver does not list
 them; that broader question must still fall through. No files outside the
 companion router/test lane are claimed.
+
+**Codex, 2026-08-03 — unlock-summary route handoff.** Completed at `2570703`.
+The exact observed tier-plus-recipe-count question now routes to
+`get_unlock_status`; the formatter was also corrected to read the solver's real
+`highest_available_tech_tier` field (it previously looked for a nonexistent
+`highest_tech_tier` and silently omitted the tier). The broader "which recipes
+are available" question remains unrouted, with a regression assertion guarding
+against half-answering it.
+
+Verification: 407/407 companion tests and exact header/source validation. After
+a clean install with 19 verified runtime hashes, a real HTTP request against the
+saved gameplay snapshot returned HTTP 200, `answered_by: local_solver`, exact
+live values (tier 9, 66 purchased schematics, 242 available recipes and 2508 not
+yet), and `actions: []`; no model or API credit was used. The router/test lane is
+clear for Claude.
