@@ -14,7 +14,12 @@
 
 import { summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
-import { planBeltedModule, solveBeltChain, solveBeltRoute } from "./routing.mjs";
+import {
+  planBeltedModule,
+  solveBeltChain,
+  solveBeltRoute,
+  solveCompatibleBeltCandidates,
+} from "./routing.mjs";
 import {
   solveBottlenecks,
   solveBuildCost,
@@ -252,6 +257,33 @@ export const SOLVER_TOOLS = [
     run: (graph, args) => solveActorLookup(graph, args),
   },
 
+  {
+    name: "find_belt_candidates",
+    description:
+      "Lists captured source/target machine pairs whose free conveyor output and input ports are proven compatible by the current recipe or extractor resource. Returns exact component paths, measured spans, alignment, compatible items, deterministic ordering, and explicit truncation. Use this to find or compare possible belt connections before choosing one. Unknown item compatibility is omitted rather than guessed. Maximum length, bend acceptance and clearance remain the game's hologram checks.",
+    parameters: {
+      type: "object",
+      properties: {
+        radius_m: {
+          type: "number",
+          description:
+            "Optional radius around the captured player position, from above 0 through 5000 metres. Omit to inspect every captured buildable.",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum candidates to return, from 1 through 100. Defaults to 25.",
+        },
+        compatibility: {
+          type: "string",
+          enum: ["proven", "not_proven_incompatible", "any"],
+          description:
+            "Defaults to proven. not_proven_incompatible also includes unknown pairs but refuses proven mismatches. any is for a read-only physical-port census and labels proven, incompatible, and unknown separately.",
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) => solveCompatibleBeltCandidates(graph, args),
+  },
   {
     name: "plan_belt_route",
     description:

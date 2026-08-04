@@ -112,6 +112,9 @@ answers questions about it:
 | `list_blueprints` | saved blueprints: dimensions, cost, contents, and whether you can afford them |
 | `find_best_site` | ranked build locations scored by surrounding resource access |
 | `get_unlock_status` | purchased schematics and tech tier |
+| `find_belt_candidates` | every captured recipe-compatible free conveyor pair, with measured span and component paths |
+| `plan_belt_route` | a measured conveyor proposal between explicit captured actors or a flow-ordered chain |
+| `plan_belted_module` | a compact two-phase module using measured footprints and post-placement connector routing |
 
 Three rules keep the layer honest:
 

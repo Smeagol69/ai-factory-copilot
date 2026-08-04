@@ -337,109 +337,168 @@ function displayItem(graph, itemClass) {
  * Find the nearest free output/input pair whose live recipes prove item
  * compatibility.
  *
- * This is intentionally narrower than "connect anything nearby". A short belt
- * between incompatible machines is still the wrong belt. Modded machines and
- * recipes work without a table because the comparison is over the captured
- * item class paths. Anything without enough recipe/resource evidence is left
- * out and reported, never inferred from its name.
+ * Compatibility defaults to proven because a short belt between incompatible
+ * machines is still the wrong production connection. A read-only caller may
+ * request `any` to inventory physical free-port spans; those results retain a
+ * three-way proven/incompatible/unknown label and never promote missing recipe
+ * evidence to compatibility. Modded machines and recipes work without a table
+ * because the comparison is over captured item class paths.
  */
-export function solveNearestCompatibleBeltRoute(graph, args = {}) {
-  const radius = Number(args.radius_m ?? 100);
-  if (!Number.isFinite(radius) || radius <= 0 || radius > 5_000) {
+export function solveCompatibleBeltCandidates(graph, args = {}) {
+  const radius = args.radius_m === undefined || args.radius_m === null
+    ? null
+    : Number(args.radius_m);
+  if (radius !== null && (!Number.isFinite(radius) || radius <= 0 || radius > 5_000)) {
     return {
-      solver: "nearest_compatible_belt_route",
-      routed: false,
-      reason: "radius_m must be between 0 and 5000",
-      source: "authoritative_snapshot",
-      certainty: "exact_for_captured_data",
-    };
-  }
-
-  const player = capturedPlayerPosition(graph);
-  if (!player) {
-    return {
-      solver: "nearest_compatible_belt_route",
-      routed: false,
-      reason: "the snapshot did not contain the player's position",
-      missing: ["interaction_context.player.pawn_location"],
+      solver: "belt_candidates",
+      reason: "radius_m must be between 0 and 5000 when supplied",
+      candidates: [],
       source: "authoritative_snapshot",
       certainty: "unknown",
     };
   }
 
-  const nearby = [];
-  let omittedWithoutProductionEvidence = 0;
+  const requestedLimit = Number(args.limit ?? 25);
+  if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100) {
+    return {
+      solver: "belt_candidates",
+      reason: "limit must be an integer between 1 and 100",
+      candidates: [],
+      source: "authoritative_snapshot",
+      certainty: "unknown",
+    };
+  }
+
+  const compatibilityMode = String(args.compatibility ?? "proven");
+  if (!new Set(["proven", "not_proven_incompatible", "any"]).has(compatibilityMode)) {
+    return {
+      solver: "belt_candidates",
+      reason: "compatibility must be proven, not_proven_incompatible, or any",
+      candidates: [],
+      source: "authoritative_snapshot",
+      certainty: "unknown",
+    };
+  }
+
+  const player = capturedPlayerPosition(graph);
+  if (radius !== null && !player) {
+    return {
+      solver: "belt_candidates",
+      reason: "the snapshot did not contain the player's position required by radius_m",
+      missing: ["interaction_context.player.pawn_location"],
+      candidates: [],
+      source: "authoritative_snapshot",
+      certainty: "unknown",
+    };
+  }
+
+  const endpointActors = [];
+  let actorsWithoutProductionEvidence = 0;
   for (const node of graph?.nodes?.values?.() ?? []) {
     const location = vectorOf(node?.raw?.location);
     if (!location || node?.kind !== "buildable") continue;
-    const distanceFromPlayer = distanceMeters(player, location);
-    if (distanceFromPlayer === null || distanceFromPlayer > radius) continue;
+    if (node?.role === "conveyor" || node?.role === "pipeline") continue;
+    const distanceFromPlayer = player ? distanceMeters(player, location) : null;
+    if (radius !== null && (distanceFromPlayer === null || distanceFromPlayer > radius)) continue;
 
     const produces = producedItemClasses(graph, node);
     const consumes = consumedItemClasses(graph, node);
-    if (produces.size === 0 && consumes.size === 0) {
-      omittedWithoutProductionEvidence += 1;
-      continue;
-    }
-    nearby.push({ node, produces, consumes, distance_from_player_m: distanceFromPlayer });
+    if (produces.size === 0 && consumes.size === 0) actorsWithoutProductionEvidence += 1;
+    endpointActors.push({ node, produces, consumes, distance_from_player_m: distanceFromPlayer });
   }
 
-  const candidates = [];
-  for (const source of nearby) {
-    if (source.produces.size === 0) continue;
-    for (const target of nearby) {
-      if (source.node.actor_id === target.node.actor_id || target.consumes.size === 0) continue;
+  const routedCandidates = [];
+  for (const source of endpointActors) {
+    for (const target of endpointActors) {
+      if (source.node.actor_id === target.node.actor_id) continue;
       const compatible = [...source.produces].filter((itemClass) => target.consumes.has(itemClass));
-      if (compatible.length === 0) continue;
+      const bothKnown = source.produces.size > 0 && target.consumes.size > 0;
+      const compatibility = compatible.length > 0 ? "proven" : bothKnown ? "incompatible" : "unknown";
+      if (compatibilityMode === "proven" && compatibility !== "proven") continue;
+      if (compatibilityMode === "not_proven_incompatible" && compatibility === "incompatible") continue;
 
       const route = solveBeltRoute(graph, {
         from_actor_id: source.node.actor_id,
         to_actor_id: target.node.actor_id,
       });
       if (!route.routed) continue;
-      candidates.push({
-        route,
-        compatible,
-        furthest_from_player_m: Math.max(
-          source.distance_from_player_m,
-          target.distance_from_player_m,
-        ),
+      const missing = [];
+      if (source.produces.size === 0) missing.push("source_current_recipe_or_resource");
+      if (target.consumes.size === 0) missing.push("target_current_recipe");
+      routedCandidates.push({
+        ...route,
+        compatibility,
+        compatible_item_classes: compatible,
+        compatible_items: compatible.map((itemClass) => displayItem(graph, itemClass)),
+        source_output_items: [...source.produces].map((itemClass) => displayItem(graph, itemClass)),
+        target_input_items: [...target.consumes].map((itemClass) => displayItem(graph, itemClass)),
+        missing_compatibility_evidence: missing,
+        furthest_endpoint_from_player_m:
+          source.distance_from_player_m === null || target.distance_from_player_m === null
+            ? null
+            : round(Math.max(source.distance_from_player_m, target.distance_from_player_m)),
       });
     }
   }
 
-  candidates.sort(
+  routedCandidates.sort(
     (a, b) =>
-      (a.route.length_cm ?? Number.POSITIVE_INFINITY) -
-        (b.route.length_cm ?? Number.POSITIVE_INFINITY) ||
-      a.furthest_from_player_m - b.furthest_from_player_m ||
-      String(a.route.from.actor_id).localeCompare(String(b.route.from.actor_id)) ||
-      String(a.route.to.actor_id).localeCompare(String(b.route.to.actor_id)),
+      (a.length_cm ?? Number.POSITIVE_INFINITY) - (b.length_cm ?? Number.POSITIVE_INFINITY) ||
+      (a.furthest_endpoint_from_player_m ?? Number.POSITIVE_INFINITY) -
+        (b.furthest_endpoint_from_player_m ?? Number.POSITIVE_INFINITY) ||
+      String(a.from.actor_id).localeCompare(String(b.from.actor_id)) ||
+      String(a.to.actor_id).localeCompare(String(b.to.actor_id)),
   );
 
-  if (candidates.length === 0) {
+  const compatibilityCounts = { proven: 0, incompatible: 0, unknown: 0 };
+  for (const candidate of routedCandidates) compatibilityCounts[candidate.compatibility] += 1;
+
+  return {
+    solver: "belt_candidates",
+    world_revision: graph?.world_revision ?? null,
+    radius_m: radius === null ? null : round(radius),
+    compatibility_filter: compatibilityMode,
+    examined_endpoint_actors: endpointActors.length,
+    actors_without_recipe_or_resource_evidence: actorsWithoutProductionEvidence,
+    compatibility_counts: compatibilityCounts,
+    candidate_count: routedCandidates.length,
+    returned_candidate_count: Math.min(routedCandidates.length, requestedLimit),
+    truncated: routedCandidates.length > requestedLimit,
+    candidates: routedCandidates.slice(0, requestedLimit),
+    unverified:
+      "Maximum belt length, bend acceptance and path clearance are decided by the game's conveyor hologram. " +
+      "These are measured free-port proposals, not promises that construction will succeed.",
+    source: "authoritative_snapshot_recipe_compatibility_and_connector_geometry",
+    certainty: "exact_for_captured_data_except_game_owned_hologram_checks",
+  };
+}
+
+export function solveNearestCompatibleBeltRoute(graph, args = {}) {
+  const radius = args.radius_m ?? 100;
+  const census = solveCompatibleBeltCandidates(graph, {
+    radius_m: radius,
+    limit: 1,
+    compatibility: "proven",
+  });
+  const best = census.candidates?.[0];
+  if (!best) {
+    const reason = census.reason ??
+      `no recipe-compatible pair of free factory output/input ports was captured within ${round(Number(radius))} m`;
     return {
+      ...census,
       solver: "nearest_compatible_belt_route",
       routed: false,
-      reason:
-        `no recipe-compatible pair of free factory output/input ports was captured within ${round(radius)} m`,
-      radius_m: round(radius),
-      examined_production_actors: nearby.length,
-      omitted_without_recipe_or_resource_evidence: omittedWithoutProductionEvidence,
-      source: "authoritative_snapshot",
-      certainty: "exact_for_captured_data",
+      reason,
     };
   }
 
-  const best = candidates[0];
   return {
-    ...best.route,
+    ...best,
     solver: "nearest_compatible_belt_route",
-    radius_m: round(radius),
-    compatible_item_classes: best.compatible,
-    compatible_items: best.compatible.map((itemClass) => displayItem(graph, itemClass)),
-    candidate_count: candidates.length,
-    furthest_endpoint_from_player_m: round(best.furthest_from_player_m),
+    radius_m: census.radius_m,
+    candidate_count: census.candidate_count,
+    examined_production_actors: census.examined_endpoint_actors,
+    omitted_without_recipe_or_resource_evidence: census.actors_without_recipe_or_resource_evidence,
     source: "authoritative_snapshot",
     certainty: "exact_for_captured_data_except_game_owned_hologram_checks",
   };

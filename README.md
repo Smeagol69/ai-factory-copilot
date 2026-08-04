@@ -63,6 +63,7 @@ absence in the model's view is never treated as an absence in the world.
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | rendered HUD, objective, active milestone, game phase, recipe availability, schematics, and tech tier |
 | `design_factory_layout` | a placeable layout fitted to this base, with exact coordinates |
+| `find_belt_candidates` | recipe-compatible pairs of captured free conveyor ports, shortest first, with exact component paths |
 | `plan_belt_route` | a direct conveyor route between two captured connection components |
 | `plan_belted_module` | a compact two-phase miner-to-machine module using measured footprints |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |

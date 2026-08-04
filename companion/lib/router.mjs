@@ -39,6 +39,7 @@ import {
 import { validatePlan } from "./actions.mjs";
 import {
   solveBeltRoute,
+  solveCompatibleBeltCandidates,
   solveNearestCompatibleBeltRoute,
   solveTemporaryFreeBeltRoute,
 } from "./routing.mjs";
@@ -797,6 +798,90 @@ export function parseExactBeltSolverRequest(question, graph) {
   };
 }
 
+/**
+ * A read-only request for the complete set of captured, compatible free pairs.
+ *
+ * Requiring all four ideas keeps this away from write requests: list/find/show,
+ * every/all, pair(s), and free/unconnected conveyor/belt endpoints.
+ */
+export function parseBeltCandidateListRequest(question) {
+  const text = String(question ?? "").trim();
+  if (!/\b(?:list|show|find)\b/i.test(text)) return null;
+  if (!/\b(?:every|all)\b/i.test(text)) return null;
+  if (!/\bpairs?\b/i.test(text)) return null;
+  if (!/\b(?:free|unconnected)\b/i.test(text)) return null;
+  if (!/\b(?:belt|belted|conveyor)\b/i.test(text)) return null;
+
+  const radius = /\bwithin\s+(\d+)\s*(?:m|meters|metres)\b/i.exec(text);
+  const compatibility = /\b(?:recipe[- ]compatible|compatible)\b/i.test(text) ? "proven" : "any";
+  return {
+    radius_m: radius ? Number.parseInt(radius[1], 10) : null,
+    limit: 100,
+    compatibility,
+  };
+}
+
+function formatBeltCandidates(result) {
+  if (result.reason) {
+    return `I could not inspect compatible free belt pairs: ${result.reason}.`;
+  }
+
+  const candidates = result.candidates ?? [];
+  const scope = result.radius_m === null
+    ? "across captured buildable endpoints"
+    : `within ${result.radius_m} m of the captured player position`;
+  if (candidates.length === 0) {
+    const kind = result.compatibility_filter === "proven"
+      ? "recipe-compatible pair"
+      : "geometrically routable pair";
+    return (
+      `No ${kind} of free conveyor ports was found ${scope}. ` +
+      `${result.examined_endpoint_actors ?? 0} captured endpoint actor(s) were checked.`
+    );
+  }
+
+  const resultKind = result.compatibility_filter === "proven"
+    ? "recipe-compatible free belt pair(s)"
+    : "geometrically routable free belt pair(s)";
+  const lines = [
+    `**${result.candidate_count} ${resultKind}** found ${scope}, shortest first:`,
+    ...candidates.map((candidate, index) => {
+      const shape = candidate.straight ? "straight" : "requires a bend";
+      const compatibility = candidate.compatibility === "proven"
+        ? `compatibility **proven** for ${(candidate.compatible_items ?? []).join(" / ")}`
+        : candidate.compatibility === "incompatible"
+          ? `compatibility **incompatible**: source outputs ${(candidate.source_output_items ?? []).join(" / ")}; ` +
+            `target accepts ${(candidate.target_input_items ?? []).join(" / ")}`
+          : `compatibility **unknown** (${(candidate.missing_compatibility_evidence ?? []).join(", ")})`;
+      return (
+        `${index + 1}. **${candidate.from.name}** → **${candidate.to.name}** — ` +
+        `${candidate.length_meters} m, ${shape}; ${compatibility}. ` +
+        `Endpoints: \`${candidate.from.connector}\` → \`${candidate.to.connector}\`.`
+      );
+    }),
+  ];
+  if (result.compatibility_filter !== "proven") {
+    const counts = result.compatibility_counts ?? {};
+    lines.splice(
+      1,
+      0,
+      `Compatibility evidence: proven ${counts.proven ?? 0}, incompatible ${counts.incompatible ?? 0}, unknown ${counts.unknown ?? 0}.`,
+    );
+  }
+  if (result.truncated) {
+    lines.push(
+      `Only ${result.returned_candidate_count} of ${result.candidate_count} candidates are shown; the rest remain unlisted.`,
+    );
+  }
+  if ((result.actors_without_recipe_or_resource_evidence ?? 0) > 0) {
+    lines.push(
+      `${result.actors_without_recipe_or_resource_evidence} captured endpoint actor(s) lack current recipe or extractor-resource evidence; any candidate involving them is labeled unknown rather than guessed compatible.`,
+    );
+  }
+  lines.push(result.unverified);
+  return lines.join("\n\n");
+}
+
 function capturedUnlockedMk1BeltRecipe(graph) {
   if (graph?.snapshot?.content?.availability_known !== true) {
     return {
@@ -1195,6 +1280,21 @@ export function answerLocally(question, graph, services) {
       "clarify",
       Date.now(),
       "The input carried no actionable content, so no model was consulted.",
+    );
+  }
+
+  // "List every pair with free conveyor ports" is a read-only census. The
+  // routing solver already has the complete captured graph, so a model adds no
+  // information and must not be allowed to infer item compatibility from names.
+  const beltCandidateRequest = parseBeltCandidateListRequest(question);
+  if (beltCandidateRequest && graph) {
+    const started = Date.now();
+    const candidates = solveCompatibleBeltCandidates(graph, beltCandidateRequest);
+    return localAnswer(
+      formatBeltCandidates(candidates),
+      "find_belt_candidates",
+      started,
+      "Free ports, current recipes, extractor resources and connector spans were read from the captured graph; no action was emitted.",
     );
   }
 

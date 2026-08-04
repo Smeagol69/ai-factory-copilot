@@ -31,6 +31,7 @@ test("exposes the roadmap solver set to the model", () => {
     "clear_highlight",
     "design_factory_layout",
     "diagnose_bottlenecks",
+    "find_belt_candidates",
     "find_best_site",
     "find_recipes",
     "get_build_cost",
@@ -82,6 +83,17 @@ test("dispatches a tool call to its solver", () => {
   assert.equal(parsed.solver, "machine_rates");
   assert.equal(parsed.machines.length, 1);
   assert.equal(parsed.machines[0].actor_id, SMELTER);
+});
+
+test("dispatches the belt candidate census as a bounded read-only solver", () => {
+  const result = runSolverTool(graph, "find_belt_candidates", { limit: 3 });
+  const parsed = JSON.parse(result.serialized);
+
+  assert.equal(result.name, "find_belt_candidates");
+  assert.equal(parsed.solver, "belt_candidates");
+  assert.ok(Array.isArray(parsed.candidates));
+  assert.ok(parsed.candidates.length <= 3);
+  assert.equal(parsed.returned_candidate_count, parsed.candidates.length);
 });
 
 test("treats missing arguments as an empty query", () => {

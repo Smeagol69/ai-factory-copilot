@@ -57,6 +57,7 @@ function stubFetch(responses) {
 test("system instructions require solver tools for quantitative claims", () => {
   assert.match(SYSTEM_INSTRUCTIONS, /Call the deterministic solver tools/);
   assert.match(SYSTEM_INSTRUCTIONS, /diagnose_bottlenecks/);
+  assert.match(SYSTEM_INSTRUCTIONS, /find_belt_candidates/);
   assert.match(SYSTEM_INSTRUCTIONS, /the solver\s*\n?is correct/);
 });
 
@@ -472,6 +473,54 @@ test("naming a solver requires usable evidence from that exact solver", () => {
   assert.deepEqual(
     missingRequiredSolverGrounding(question, [
       { tool: "plan_belt_route", evidence: { usable: true } },
+    ]),
+    [],
+  );
+});
+
+test("free belt-pair claims require the candidate solver, not the transport-capacity solver", () => {
+  const question = "List every recipe-compatible pair with free conveyor ports in my factory.";
+  assert.deepEqual(missingRequiredSolverGrounding(question, []), [["find_belt_candidates"]]);
+
+  const context = makeContext({ question });
+  const result = {
+    serialized: JSON.stringify({
+      solver: "belt_candidates",
+      candidate_count: 1,
+      candidates: [{ from: { actor_id: "Source" }, to: { actor_id: "Target" } }],
+      source: "authoritative_snapshot_recipe_compatibility_and_connector_geometry",
+      certainty: "exact_for_captured_data_except_game_owned_hologram_checks",
+    }),
+    truncated: false,
+  };
+  const evidence = solverEvidenceMetadata(context, "find_belt_candidates", { limit: 25 }, result);
+  assert.equal(evidence.usable, true);
+  assert.deepEqual(
+    missingRequiredSolverGrounding(question, [
+      { tool: "find_belt_candidates", evidence },
+    ]),
+    [],
+  );
+});
+
+test("a complete zero-candidate census can ground a truthful absence", () => {
+  const question = "Are there any free conveyor pairs in my factory?";
+  const context = makeContext({ question });
+  const result = {
+    serialized: JSON.stringify({
+      solver: "belt_candidates",
+      candidate_count: 0,
+      candidates: [],
+      source: "authoritative_snapshot_recipe_compatibility_and_connector_geometry",
+      certainty: "exact_for_captured_data_except_game_owned_hologram_checks",
+    }),
+    truncated: false,
+  };
+  const evidence = solverEvidenceMetadata(context, "find_belt_candidates", {}, result);
+  assert.equal(evidence.usable, true);
+  assert.deepEqual(
+    missingRequiredSolverGrounding(question, [
+      { tool: "find_belt_candidates", evidence },
     ]),
     [],
   );

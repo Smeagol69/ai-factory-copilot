@@ -63,6 +63,7 @@ factory arithmetic yourself:
 - what the factory is short of or oversupplying -> get_item_balance;
 - alternate or candidate recipes -> find_recipes;
 - belt or pipe throughput and saturation -> get_transport_capacity;
+- possible recipe-compatible connections between free conveyor ports -> find_belt_candidates;
 - power capacity, fuse, or battery questions -> get_power_circuits;
 - any "why is this stopped/slow" question -> diagnose_bottlenecks;
 - what a build costs and whether the player can afford it -> get_build_cost;
@@ -418,6 +419,9 @@ function envFlag(value, fallback) {
   return !["0", "false", "off", "no"].includes(String(value).toLowerCase());
 }
 
+const BELT_CANDIDATE_GROUNDING_PATTERN =
+  /\b(?:free|unconnected)\b.{0,80}\b(?:belt|conveyor)\b|\b(?:belt|conveyor)\b.{0,80}\b(?:free|unconnected)\b/i;
+
 const GROUNDING_REQUIREMENTS = [
   {
     pattern:
@@ -458,8 +462,12 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern:
-      /\b(?:(?:belt|pipe|pipeline)(?: (?:speed|rate|throughput|capacity|saturation))?|saturated (?:belt|pipe|pipeline))\b/i,
+      /\b(?:(?:belt|pipe|pipeline) (?:speed|rate|throughput|capacity|saturation)|saturated (?:belt|pipe|pipeline))\b/i,
     tools: ["get_transport_capacity"],
+  },
+  {
+    pattern: BELT_CANDIDATE_GROUNDING_PATTERN,
+    tools: ["find_belt_candidates"],
   },
   {
     pattern: /\b(cost|afford|materials? needed|build cost)\b/i,
@@ -548,6 +556,14 @@ function evidenceRows(tool, parsed) {
       return Array.isArray(parsed.circuits) ? parsed.circuits : [];
     case "diagnose_bottlenecks":
       return Array.isArray(parsed.reports) ? parsed.reports : [];
+    case "find_belt_candidates":
+      // This is a census: a proven zero is useful evidence for "there are no
+      // such pairs", unlike an empty targeted lookup that may have missed its
+      // target. Return the envelope as the evidence row when its count and
+      // provenance are intact.
+      return Number.isInteger(parsed.candidate_count) && parsed.source && parsed.certainty
+        ? [parsed]
+        : [];
     case "get_build_cost":
       return parsed.resolved === true ? [parsed] : [];
     case "find_best_site":
@@ -797,6 +813,14 @@ export function missingRequiredSolverGrounding(question, solverCalls = []) {
   // rest of the sentence (or inside the tool name itself). Requiring a second,
   // unrelated solver would defeat explicit deterministic dispatch.
   if (namedTools.length > 0) return missing;
+  // The candidate solver consumes the current recipes internally. A phrase
+  // such as "recipe-compatible free conveyor pairs" must not additionally
+  // require the general recipe and transport tools just because those words
+  // appear in its precise request.
+  if (BELT_CANDIDATE_GROUNDING_PATTERN.test(String(question ?? ""))) {
+    if (!called.has("find_belt_candidates")) addMissing(["find_belt_candidates"]);
+    return missing;
+  }
   for (const requirement of GROUNDING_REQUIREMENTS) {
     const tools =
       typeof requirement.tools === "function"
@@ -1542,6 +1566,7 @@ const SOLVER_TOOL_NAMES = [
   "list_blueprints",
   "get_unlock_status",
   "locate",
+  "find_belt_candidates",
   "plan_belt_route",
   "plan_belted_module",
   "plan_splitter_fan_out",

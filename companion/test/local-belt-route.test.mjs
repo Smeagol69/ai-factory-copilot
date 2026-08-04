@@ -4,10 +4,12 @@ import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   answerLocally,
+  parseBeltCandidateListRequest,
   parseNearestCompatibleBeltRequest,
   parseTemporaryFreeBeltTestRequest,
 } from "../lib/router.mjs";
 import {
+  solveCompatibleBeltCandidates,
   solveNearestCompatibleBeltRoute,
   solveTemporaryFreeBeltRoute,
 } from "../lib/routing.mjs";
@@ -117,6 +119,78 @@ test("the nearest belt route requires recipe compatibility, not merely adjacent 
   assert.deepEqual(route.compatible_items, ["Iron Ingot"]);
   assert.equal(route.from.connector, "Source.Output0");
   assert.equal(route.to.connector, "RightTarget.Input0");
+});
+
+test("lists every proven compatible free pair without including a closer incompatible target", () => {
+  const result = solveCompatibleBeltCandidates(graphOf(), { limit: 100 });
+
+  assert.equal(result.candidate_count, 1);
+  assert.equal(result.returned_candidate_count, 1);
+  assert.equal(result.truncated, false);
+  assert.equal(result.candidates[0].from.actor_id, "Source");
+  assert.equal(result.candidates[0].to.actor_id, "RightTarget");
+  assert.deepEqual(result.candidates[0].compatible_items, ["Iron Ingot"]);
+  assert.match(result.unverified, /game's conveyor hologram/);
+});
+
+test("the observed candidate-list request is answered locally and never emits an action", () => {
+  const question =
+    "Using plan_belt_route and the live snapshot only, list every pair of my existing machines whose conveyor connectors are free and could be belted together. Do not build or change anything.";
+  assert.deepEqual(parseBeltCandidateListRequest(question), {
+    radius_m: null,
+    limit: 100,
+    compatibility: "any",
+  });
+
+  const emitted = [];
+  const answer = answerLocally(question, graphOf(), {
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "find_belt_candidates");
+  assert.match(answer.reply, /2 geometrically routable free belt pair/);
+  assert.match(answer.reply, /proven 1, incompatible 1, unknown 0/);
+  assert.match(answer.reply, /compatibility \*\*proven\*\*/);
+  assert.match(answer.reply, /compatibility \*\*incompatible\*\*/);
+  assert.match(answer.reply, /Source\.Output0/);
+  assert.match(answer.reply, /RightTarget\.Input0/);
+  assert.deepEqual(emitted, []);
+});
+
+test("a compatible-pair census keeps the safe proven-only default", () => {
+  assert.deepEqual(
+    parseBeltCandidateListRequest("list all recipe-compatible pairs with free conveyor ports"),
+    { radius_m: null, limit: 100, compatibility: "proven" },
+  );
+  const result = solveCompatibleBeltCandidates(graphOf(), { compatibility: "proven" });
+  assert.deepEqual(result.candidates.map((candidate) => candidate.compatibility), ["proven"]);
+});
+
+test("the physical census labels missing recipe evidence unknown instead of compatible", () => {
+  const graph = graphOf();
+  graph.nodes.get("RightTarget").recipe_class = null;
+  graph.nodes.get("RightTarget").raw.manufacturer.recipe_class = "";
+
+  const result = solveCompatibleBeltCandidates(graph, { compatibility: "any" });
+  const unknown = result.candidates.find((candidate) => candidate.to.actor_id === "RightTarget");
+  assert.equal(unknown.compatibility, "unknown");
+  assert.deepEqual(unknown.missing_compatibility_evidence, ["target_current_recipe"]);
+});
+
+test("candidate listing reports limit truncation instead of hiding omitted pairs", () => {
+  const graph = graphOf();
+  const secondTarget = structuredClone(graph.nodes.get("RightTarget").raw);
+  secondTarget.actor_id = "SecondTarget";
+  secondTarget.name = "Second Iron Target";
+  secondTarget.location = { x: 3_000, y: 0, z: 0 };
+  secondTarget.connections[0].component = "SecondTarget.Input0";
+  secondTarget.connections[0].location = { x: 2_900, y: 0, z: 100 };
+  graph.nodes.set("SecondTarget", buildGraph({ actors: [secondTarget] }).nodes.get("SecondTarget"));
+
+  const result = solveCompatibleBeltCandidates(graph, { limit: 1 });
+  assert.equal(result.candidate_count, 2);
+  assert.equal(result.returned_candidate_count, 1);
+  assert.equal(result.truncated, true);
 });
 
 test("the local phrase is strict about compatibility and the requested belt tier", () => {
