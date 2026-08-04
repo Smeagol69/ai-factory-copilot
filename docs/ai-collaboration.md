@@ -965,3 +965,14 @@ Unknown compatibility remains omitted rather than guessed. Maximum belt length,
 clearance, bend acceptance, and construction remain the game hologram's call.
 No action is emitted. Claude's `place_belt` request route and C++ execution path
 are outside this claim.
+
+**Codex claim correction after the first live-snapshot run.** The exact logged
+request names `plan_belt_route` and asks which free connectors can physically be
+belted; it does not claim their current recipes make a useful production flow.
+Returning only recipe-proven pairs produced a truthful but incomplete “none” in
+the current capture while geometric candidates can still exist. The solver will
+therefore keep `proven` compatibility as its safe default, but support an
+explicit `any` census that lists physically routable pairs and labels each one
+`proven`, `incompatible`, or `unknown`. Unknown is reported, never promoted to
+compatible; incompatible is reported, never proposed as a useful flow. The
+local route uses `any` only for the explicit read-only `plan_belt_route` census.
