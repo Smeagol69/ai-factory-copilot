@@ -780,6 +780,65 @@ Worth generalising: this is the second time a solver has been confidently wrong
 about geometry derived from near-zero distances. If you touch anything that
 normalises a vector between two captured points, check the magnitude first.
 
+**Codex, 2026-08-04 — exact belt-solver dispatch follow-up claim.** Claude's
+`7166ebf` ambiguity fix is fast-forwarded intact and passes beside the zero-span
+regression. A coordinated deployment race explained the first bad live retest:
+Claude's later clean install correctly replaced my uncommitted runtime with his
+committed tree. The installer did copy and hash every library file; it was not
+at fault.
+
+The subsequent in-game request named `plan_belt_route`, spent 128 seconds on the
+local model, and described the old 0 cm result as a valid belt. I am extending
+the current companion-only claim to the exact failure boundary: a request that
+names `plan_belt_route` and two captured actors will dispatch and format that
+solver locally, without a model, and `routed: false` will not count as positive
+grounding evidence if another model path encounters it. I will edit only
+`companion/lib/router.mjs`, `companion/lib/providers.mjs`, and their tests in
+addition to the already claimed routing files. Claude's `give_item_ambiguous`
+branch is preserved. No C++, game write, package, or Starter Project work.
+
+**Codex, 2026-08-04 — exact belt-solver dispatch implemented and validated.**
+The claimed companion-only hardening is complete. A request that literally
+names `plan_belt_route` and exactly two captured actor instances now calls the
+deterministic route solver directly, preserves either its proposal or refusal,
+and never emits an action. Against the owner's current 10.8 MB live snapshot,
+the same belt-to-merger request that previously spent 128 seconds in the local
+model now returns in-process in 0 ms and says the endpoints are already touching
+instead of calling the 0 cm span valid.
+
+The provider grounding gate also treats `routed: false` as unusable evidence and
+honours an explicitly named solver as the exact requirement. That closes the
+fallback path that let a model narrate a refusal into a success. Claude's
+ambiguous `give_item` local answer and 1 cm routing guard remain unchanged.
+`./scripts/validate.ps1` passes exact SML 3.12.0 / FactoryGame 491125 header and
+source checks plus all **433 companion tests**. No C++, Starter Project, package,
+game write, or loaded-save state was changed.
+
+Commit `c07042b` was clean-installed while the save stayed open; all 19 runtime
+hashes matched and `/health` was ready on port 8142. The visible in-game retest
+then completed as `solvers / deterministic`: the refusal named the two exact
+captured connector paths, reported the 0 cm already-touching span, cost $0, and
+emitted zero actions. `latest-bridge-response.json` records provider `solvers`,
+model `deterministic`, local solver `plan_belt_route`, `local_elapsed_ms: 1`,
+`actions: []`, and live world revision 11. The instance-scoped routing log also
+records `answeredBy: local_solver` for session `Persistent_Level:ai test
+:Smeagol`. This path is now unit-, integration-, install-, and live-verified.
+
+**Codex, 2026-08-04 — factory-census solver claim.** The old routing log still
+shows “What is in this factory?” falling into a diagnostic/model path. Claude
+already fixed the two adjacent misses I first inspected (`e9ce6b5` for nearby
+resources and `2570703` for exact tier/recipe counts), so I will not duplicate
+them. I am taking a new read-only `get_factory_summary` solver, its narrow local
+route/formatter, provider grounding, and companion tests. It will count only
+captured actors, buildable types, production states, transports, resources, and
+owner mods, while carrying the scan radius/actor-limit caveat; it will not call
+uncaptured buildings absent or imply the capture is the whole map.
+
+I will edit only companion solver/tool/router/provider code and their tests.
+No C++, actions, DLL packaging, Starter Project sync, or world-changing live
+test belongs to this claim. The owner's game currently shows another live
+request in progress, so I will not send UI input until that request finishes.
+
 **Claude, 2026-08-04 — first committed live write, and two fixes it led to.**
 
 **`give_item` ran for real.** `held_before: 19 → added: 64 → held_after: 83`,

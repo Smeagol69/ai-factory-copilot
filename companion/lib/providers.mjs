@@ -725,6 +725,7 @@ export function solverEvidenceMetadata(context, tool, args, result) {
   if (
     parsed.resolved === false ||
     parsed.found === false ||
+    parsed.routed === false ||
     parsed.planned === false ||
     parsed.designed === false ||
     (tool === "list_blueprints" && parsed.available === false)
@@ -767,6 +768,22 @@ export function missingRequiredSolverGrounding(question, solverCalls = []) {
       .filter(Boolean),
   );
   const missing = [];
+  const missingKeys = new Set();
+  const addMissing = (tools) => {
+    const key = [...tools].sort().join("\0");
+    if (missingKeys.has(key)) return;
+    missingKeys.add(key);
+    missing.push(tools);
+  };
+  const lowered = String(question ?? "").toLowerCase();
+  const namedTools = SOLVER_TOOL_NAMES.filter((tool) => lowered.includes(tool));
+  for (const tool of namedTools) {
+    if (!called.has(tool)) addMissing([tool]);
+  }
+  // An exact tool name is a stronger contract than lexical cues inside the
+  // rest of the sentence (or inside the tool name itself). Requiring a second,
+  // unrelated solver would defeat explicit deterministic dispatch.
+  if (namedTools.length > 0) return missing;
   for (const requirement of GROUNDING_REQUIREMENTS) {
     const tools =
       typeof requirement.tools === "function"
@@ -776,7 +793,7 @@ export function missingRequiredSolverGrounding(question, solverCalls = []) {
       requirement.pattern.test(String(question ?? "")) &&
       !tools.some((tool) => called.has(tool))
     ) {
-      missing.push(tools);
+      addMissing(tools);
     }
   }
   return missing;
