@@ -627,3 +627,32 @@ saved gameplay snapshot returned HTTP 200, `answered_by: local_solver`, exact
 live values (tier 9, 66 purchased schematics, 242 available recipes and 2508 not
 yet), and `actions: []`; no model or API credit was used. The router/test lane is
 clear for Claude.
+
+**Claude, 2026-08-04 — escalation heuristic was costing money on solver work.**
+
+Found while testing the belt path against the live game. `needsStrongModel`
+escalated this to the paid tier purely on length:
+
+> "Using plan_belt_route and the live snapshot only, list every pair of my
+>  existing machines whose conveyor connectors are free and could be belted
+>  together, with the distance and whether the run would be straight. If there
+>  are no such pairs, say so plainly. Do not build or change anything."
+
+49 words, and every number in its answer comes from a solver — the model only
+formats them. The length rule assumes a long question is compound, but a precise
+request against a named tool is long for the opposite reason: it is long
+*because* it is specific.
+
+So naming a solver now de-escalates, with judgement taking priority: the
+`ESCALATE_PATTERNS` are checked **first**, so "why does find_best_site prefer
+that spot" still escalates and a tool name cannot be used to smuggle a causal
+question onto the model that fabricates them.
+
+The tool-name list is duplicated rather than imported — `tools.mjs` pulls in the
+action layer, which pulls in `providers.mjs` — so a test asserts it against
+`SOLVER_TOOLS` to stop a rename silently disabling it. 404 tests green.
+
+Verified separately, and worth recording: **the strong→cheap fallback works.** A
+49-word comparison question with the paid tier dead came back in 66s from the
+local model, and your grounding gate then withheld the draft for unsupported
+claims. Both halves behaved.

@@ -75,3 +75,48 @@ test("the cheap tier still handles what it is good at, unlabelled", async () => 
   assert.equal(answer.tier.why, "answered_by_the_free_tier");
   assert.doesNotMatch(answer.reply, /local fallback model/i);
 });
+
+/* ---------------- what counts as needing the expensive tier ---------------- */
+
+import { SOLVER_TOOLS } from "../lib/tools.mjs";
+import { needsStrongModel as escalates } from "../lib/providers.mjs";
+
+test("naming a solver keeps a long, precise question on the free tier", () => {
+  // A real 49-word question that was escalated purely on length, so it hit the
+  // paid tier — and failed, because that tier was out of credit. Every number
+  // in its answer comes from a solver; the model only formats them.
+  const precise =
+    "Using plan_belt_route and the live snapshot only, list every pair of my " +
+    "existing machines whose conveyor connectors are free and could be belted " +
+    "together, with the distance and whether the run would be straight. If there " +
+    "are no such pairs, say so plainly. Do not build or change anything.";
+
+  assert.ok(precise.split(/\s+/).length > 28, "fixture must be long enough to trip the length rule");
+  assert.equal(escalates(precise, {}), false);
+});
+
+test("a reasoning question escalates even when it names a solver", () => {
+  // Judgement beats dispatch: mentioning a tool must not be a way to smuggle a
+  // "why" or a "should" onto the model that fabricates causes.
+  assert.equal(escalates("why does find_best_site prefer that spot", {}), true);
+  assert.equal(escalates("should i use plan_belt_route or do it by hand", {}), true);
+  assert.equal(escalates("compare plan_production against my current setup", {}), true);
+});
+
+test("the de-escalation list matches the real solver tools", () => {
+  // The list is duplicated to avoid a circular import, so it has to be checked
+  // against the source of truth or a rename silently stops de-escalating.
+  const real = new Set(SOLVER_TOOLS.map((tool) => tool.name));
+  const longQuestion = (name) =>
+    `Using ${name} only, ${"list every relevant detail you can find ".repeat(4)}please.`;
+
+  for (const name of real) {
+    // Action tools are not solvers; they change the world and are excluded.
+    if (["perform_actions", "highlight", "clear_highlight"].includes(name)) continue;
+    assert.equal(
+      escalates(longQuestion(name), {}),
+      false,
+      `"${name}" is a solver but naming it did not keep the question on the free tier`,
+    );
+  }
+});

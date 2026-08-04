@@ -1455,10 +1455,61 @@ export function needsStrongModel(question, env = process.env) {
   const text = String(question ?? "");
   if (env.AIFACTORY_ESCALATE === "always") return true;
   if (env.AIFACTORY_ESCALATE === "never") return false;
+
+  // A question that reasons is one to escalate however it is phrased, so the
+  // patterns are checked before anything can excuse a question from them.
+  if (ESCALATE_PATTERNS.some((pattern) => pattern.test(text))) return true;
+
+  // Naming a solver is a strong signal the work is dispatch, not judgement.
+  //
+  // The length rule below exists because a long question is usually compound.
+  // But a precise request against a named tool is long for the opposite
+  // reason — it is long *because* it is specific. A real one, 49 words, was
+  // escalated to the paid tier purely on length: "Using plan_belt_route and
+  // the live snapshot only, list every pair of my machines whose conveyor
+  // connectors are free... Do not build or change anything." Every number in
+  // that answer comes from a solver; the model only formats them.
+  //
+  // Escalating it wasted the expensive tier on typing, and when that tier was
+  // out of credit it turned a free answer into a failed one.
+  if (mentionsSolverTool(text)) return false;
+
   // A long question is usually a compound or nuanced one.
   if (text.split(/\s+/).length > 28) return true;
-  return ESCALATE_PATTERNS.some((pattern) => pattern.test(text));
+  return false;
 }
+
+/** True when the question names one of the solver tools by its exact name. */
+function mentionsSolverTool(text) {
+  const lowered = text.toLowerCase();
+  return SOLVER_TOOL_NAMES.some((name) => lowered.includes(name));
+}
+
+/**
+ * Solver names, listed rather than imported from `tools.mjs`.
+ *
+ * The import would be circular — `tools.mjs` pulls in the action layer, which
+ * pulls in this module. The cost of the duplication is that a renamed tool
+ * silently stops de-escalating, so the list is asserted against the real one in
+ * `companion/test/hybrid-fallback.test.mjs`.
+ */
+const SOLVER_TOOL_NAMES = [
+  "get_machine_rates",
+  "get_item_balance",
+  "find_recipes",
+  "get_transport_capacity",
+  "get_power_circuits",
+  "diagnose_bottlenecks",
+  "get_build_cost",
+  "find_best_site",
+  "plan_production",
+  "list_blueprints",
+  "get_unlock_status",
+  "locate",
+  "plan_belt_route",
+  "plan_belted_module",
+  "design_factory_layout",
+];
 
 /**
  * Free tier first, paid tier when the question earns it.
