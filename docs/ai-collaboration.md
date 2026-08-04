@@ -947,3 +947,21 @@ unexplained standby reports, 2 disconnected outputs, and 1 disconnected input.
 Desktop focus moved back to the Codex client between game screenshots, so the
 same text has not yet been visually read back from the in-game panel; do not
 inflate the bridge verification into that separate UI claim.
+
+**Codex, 2026-08-04 — compatible belt-candidate census claim.** The scoped
+routing log contains a real read-only request to list every pair of existing
+machines whose free conveyor connectors could be belted together. It fell
+through to a model even though `solveNearestCompatibleBeltRoute` already builds
+the exact recipe-compatible candidate set internally and then discards all but
+the nearest result.
+
+I am taking a read-only `find_belt_candidates` solver that exposes that captured
+candidate set, an exact local route/formatter for list/show/find-all-compatible-
+pair wording, provider grounding/tool registration, and companion tests/docs.
+Candidates will require proven current-recipe or extractor-resource item
+compatibility, carry exact component paths and measured spans, sort
+deterministically, and report truncation and missing recipe/resource evidence.
+Unknown compatibility remains omitted rather than guessed. Maximum belt length,
+clearance, bend acceptance, and construction remain the game hologram's call.
+No action is emitted. Claude's `place_belt` request route and C++ execution path
+are outside this claim.
