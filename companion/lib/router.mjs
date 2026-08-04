@@ -420,6 +420,58 @@ const WAYPOINT_ALT =
 /** Phrasings that name the siting solver's answer rather than a known place. */
 const WAYPOINT_BEST_SITE = /\b(?:best|ideal|optimal|recommended)\b.*\b(?:hub|site|spot|location|place|base)\b/i;
 
+/**
+ * "belt the smelter to the constructor", "connect A to B with a mk2 belt".
+ *
+ * The planner and the write action both existed, and nothing connected them:
+ * the only way to actually build a belt was to ask a model, which is the least
+ * reliable path in the system. Every part of this is deterministic — resolve
+ * two machines, let `solveBeltRoute` choose the connector pair, resolve the
+ * belt recipe from the game's own catalog, emit the action.
+ */
+const BELT_VERB =
+  /^(?:can you |could you |please )?(?:belt|connect|link|hook|run a belt from|run belt from)\s+/i;
+const BELT_SEPARATOR = /\s+(?:to|into|with|and)\s+/i;
+/** "with a mk2 belt" / "using a conveyor belt mk3" trailing the request. */
+const BELT_TIER = /\s+(?:with|using)\s+(?:a\s+|an\s+|the\s+)?(.*?belt.*)$/i;
+
+export function parseBeltRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || !BELT_VERB.test(text)) return null;
+
+  let body = text.replace(BELT_VERB, "").trim();
+
+  // An explicit tier is stripped first so it cannot be mistaken for a machine.
+  let beltName = "conveyor belt mk1";
+  const tier = body.match(BELT_TIER);
+  if (tier) {
+    beltName = tier[1].trim();
+    body = body.slice(0, tier.index).trim();
+  }
+
+  const parts = body.split(BELT_SEPARATOR).map((part) => part.trim()).filter(Boolean);
+  // Exactly two endpoints. Three or more is a chain, which is a different
+  // request with different failure modes, and guessing at it would build the
+  // wrong thing in the player's world.
+  if (parts.length !== 2) return null;
+
+  const asTarget = (raw) => {
+    let value = raw;
+    while (LOCATE_LEADING_ARTICLE.test(value)) {
+      value = value.replace(LOCATE_LEADING_ARTICLE, "").trim();
+    }
+    if (value.length < 2) return null;
+    return /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(value)
+      ? { actor_id: value, target: value, limit: 1 }
+      : { name_contains: value, target: value, limit: 1 };
+  };
+
+  const from = asTarget(parts[0]);
+  const to = asTarget(parts[1]);
+  if (!from || !to) return null;
+  return { from, to, belt_name: beltName };
+}
+
 export function parseWaypointRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
@@ -1386,6 +1438,61 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "belt the smelter to the constructor" — plan the run and build it, locally.
+  const belt = parseBeltRequest(question);
+  if (belt && graph) {
+    const started = Date.now();
+    const [fromMatch] = solveActorLookup(graph, belt.from)?.matches ?? [];
+    const [toMatch] = solveActorLookup(graph, belt.to)?.matches ?? [];
+
+    if (fromMatch && toMatch) {
+      const route = solveBeltRoute(graph, {
+        from_actor_id: fromMatch.actor_id,
+        to_actor_id: toMatch.actor_id,
+      });
+
+      // A refusal here is the useful answer: an occupied port, a machine with
+      // no output, or connectors already touching are all things the player can
+      // act on, and all of them are cheaper to say than to discover.
+      if (!route.routed) {
+        return localAnswer(
+          `I cannot run that belt: ${route.reason}.` +
+            (route.likely_cause ? `\n\n${route.likely_cause}` : ""),
+          "place_belt_refused",
+          started,
+          "The route was checked against captured connectors before proposing a build.",
+        );
+      }
+
+      const recipe = solveBuildRecipeLookup(graph, { building: belt.belt_name });
+      if (recipe.resolved) {
+        const emitted = emitValidatedPlan(graph, services, [
+          {
+            action: "place_belt",
+            recipe_class: recipe.recipe_class,
+            from_component: route.from.connector,
+            to_component: route.to.connector,
+            commit: true,
+          },
+        ]);
+        if (emitted) {
+          return localAnswer(
+            `Running a **${recipe.name}** from **${route.from.name}** ` +
+              `(${route.from.connector.split(".").pop()}) to **${route.to.name}** ` +
+              `(${route.to.connector.split(".").pop()}) — ${route.length_meters} m` +
+              `${route.straight ? ", straight" : ", with a bend"}. ` +
+              "The game's hologram decides length, bend radius and clearance; " +
+              'the mod reports what it actually built. Say "undo" to remove it.',
+            "place_belt",
+            started,
+            "Both endpoints and the recipe came from captured data.",
+          );
+        }
+      }
+    }
+    // Unresolved machine or recipe: the model can ask which one was meant.
+  }
+
   const teleport = parseTeleportRequest(question);
   if (teleport) {
     const started = Date.now();
