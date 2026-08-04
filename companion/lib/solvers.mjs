@@ -997,6 +997,157 @@ export function solveUnlockStatus(graph) {
   };
 }
 
+/**
+ * Exact census of the actors present in this capture.
+ *
+ * This deliberately says "captured" everywhere. A radius-limited scan is not
+ * the whole map, and an actor-limit hit is not proof that the omitted actors do
+ * not exist. The rows retain class paths and owner mods so modded buildings are
+ * counted from their live data instead of folded into vanilla assumptions.
+ */
+export function solveFactorySummary(graph) {
+  const snapshot = graph?.snapshot ?? {};
+  const snapshotActorCount = Array.isArray(snapshot.actors)
+    ? snapshot.actors.length
+    : (graph?.nodes?.size ?? 0);
+  const indexedActorCount = graph?.nodes?.size ?? 0;
+  const increment = (map, key, amount = 1) => {
+    const normalized = String(key ?? "unknown").trim() || "unknown";
+    map.set(normalized, (map.get(normalized) ?? 0) + amount);
+  };
+  const ranked = (map, valueKey = "name") =>
+    [...map.entries()]
+      .map(([name, count]) => ({ [valueKey]: name, count }))
+      .sort((a, b) => b.count - a.count || String(a[valueKey]).localeCompare(String(b[valueKey])));
+
+  const actorKinds = new Map();
+  const roles = new Map();
+  const ownerMods = new Map();
+  const buildableTypes = new Map();
+  const buildableMetadata = new Map();
+  const productionStatuses = new Map();
+  const transports = new Map();
+  const resources = new Map();
+  let productionMachineCount = 0;
+  let productionMachinesWithRecipe = 0;
+
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    const raw = node.raw ?? {};
+    increment(actorKinds, raw.kind ?? node.kind);
+    increment(roles, node.role);
+    increment(ownerMods, raw.owner_mod ?? node.owner_mod);
+
+    if (raw.kind === "buildable") {
+      const classPath = String(node.class_path ?? raw.class_path ?? "unknown");
+      increment(buildableTypes, classPath);
+      if (!buildableMetadata.has(classPath)) {
+        buildableMetadata.set(classPath, {
+          class_path: classPath,
+          class_name: classPath.split(".").pop() || classPath,
+          owner_mod: raw.owner_mod ?? node.owner_mod ?? "unknown",
+        });
+      }
+    }
+
+    if (raw.factory) {
+      productionMachineCount += 1;
+      if (raw.manufacturer?.recipe_class) productionMachinesWithRecipe += 1;
+      increment(productionStatuses, normalizeProductionStatus(raw.factory.production_status));
+    }
+
+    if (raw.transport?.kind) increment(transports, raw.transport.kind);
+
+    if (raw.kind === "resource_node") {
+      const resourceName = String(raw.resource_name ?? raw.resource_class ?? "unknown");
+      if (!resources.has(resourceName)) {
+        resources.set(resourceName, {
+          resource_name: resourceName,
+          count: 0,
+          occupied_count: 0,
+          open_for_miner_count: 0,
+          deposits_count: 0,
+          purity_counts: new Map(),
+        });
+      }
+      const resource = resources.get(resourceName);
+      resource.count += 1;
+      if (raw.occupied === true) resource.occupied_count += 1;
+      const nodeType = String(raw.node_type ?? "");
+      if (nodeType === "Deposit") resource.deposits_count += 1;
+      if ((nodeType === "Node" || nodeType === "FrackingCore") && raw.occupied !== true) {
+        resource.open_for_miner_count += 1;
+      }
+      increment(resource.purity_counts, normalizeResourcePurity(raw.purity));
+    }
+  }
+
+  const buildables = ranked(buildableTypes, "class_path").map((entry) => ({
+    ...buildableMetadata.get(entry.class_path),
+    count: entry.count,
+  }));
+  const resourceRows = [...resources.values()]
+    .map((entry) => ({
+      resource_name: entry.resource_name,
+      count: entry.count,
+      occupied_count: entry.occupied_count,
+      open_for_miner_count: entry.open_for_miner_count,
+      deposits_count: entry.deposits_count,
+      purity_counts: Object.fromEntries(ranked(entry.purity_counts).map(({ name, count }) => [name, count])),
+    }))
+    .sort((a, b) => b.count - a.count || a.resource_name.localeCompare(b.resource_name));
+
+  const scanRadius = finiteNumber(snapshot?.world?.scan_radius_meters);
+  const actorLimitReached = snapshot?.completeness?.actor_limit_reached === true;
+  const scopeNotes = [];
+  if (scanRadius !== null && scanRadius >= 0) {
+    scopeNotes.push(`The scanner captured actors within ${scanRadius} metres of its scan centre.`);
+  }
+  if (actorLimitReached) {
+    scopeNotes.push("The capture hit its actor limit, so additional actors exist outside this census.");
+  }
+  if (snapshotActorCount > indexedActorCount) {
+    scopeNotes.push(
+      `${snapshotActorCount - indexedActorCount} captured actor(s) lacked actor_id and are excluded from category details.`,
+    );
+  }
+  if (scopeNotes.length === 0) {
+    scopeNotes.push("No radius or actor-limit truncation was reported by this snapshot.");
+  }
+
+  return {
+    solver: "factory_summary",
+    world_revision: graph?.world_revision ?? null,
+    generated_at_utc: snapshot?.generated_at_utc ?? null,
+    captured_actor_count: snapshotActorCount,
+    indexed_actor_count: indexedActorCount,
+    actor_kinds: ranked(actorKinds, "kind"),
+    roles: ranked(roles, "role"),
+    owner_mods: ranked(ownerMods, "owner_mod"),
+    buildable_count: actorKinds.get("buildable") ?? 0,
+    buildable_type_count: buildables.length,
+    buildable_types: buildables,
+    production: {
+      machine_count: productionMachineCount,
+      with_recipe_count: productionMachinesWithRecipe,
+      without_recipe_count: productionMachineCount - productionMachinesWithRecipe,
+      status_counts: Object.fromEntries(
+        ranked(productionStatuses).map(({ name, count }) => [name, count]),
+      ),
+    },
+    transports: ranked(transports, "kind"),
+    resource_node_count: actorKinds.get("resource_node") ?? 0,
+    resources: resourceRows,
+    capture_scope: {
+      scan_radius_meters: scanRadius,
+      actor_limit: finiteNumber(snapshot?.completeness?.actor_limit),
+      actor_limit_reached: actorLimitReached,
+      notes: scopeNotes,
+    },
+    source: "counts_over_authoritative_captured_actors",
+    certainty: "authoritative_for_capture_scope",
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * 8. Site selection
  * ------------------------------------------------------------------ */
@@ -1947,6 +2098,7 @@ export function analyzeSnapshot(snapshot, options = {}) {
     schema: "aifactory.analysis",
     schema_version: 1,
     world_revision: graph.world_revision,
+    factory_summary: solveFactorySummary(graph),
     machine_rates: solveMachineRates(graph),
     item_balance: solveItemBalance(graph),
     transport_capacity: solveTransportCapacity(graph, { only_problems: true }),

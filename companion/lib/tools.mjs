@@ -18,6 +18,7 @@ import { planBeltedModule, solveBeltChain, solveBeltRoute } from "./routing.mjs"
 import {
   solveBottlenecks,
   solveBuildCost,
+  solveFactorySummary,
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
@@ -40,6 +41,13 @@ const actorIdsSchema = {
 };
 
 export const SOLVER_TOOLS = [
+  {
+    name: "get_factory_summary",
+    description:
+      "Exact census of the actors in the current capture: counts by actor kind, buildable class, production status, transport kind, resource and owner mod, plus the scan radius and actor-limit caveat. Use this for 'what is in my factory', 'what have I built', or a factory overview. Counts are authoritative for the capture, never claimed as the whole map when scanning was limited.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    run: (graph) => solveFactorySummary(graph),
+  },
   {
     name: "get_machine_rates",
     description:

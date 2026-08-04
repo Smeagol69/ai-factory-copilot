@@ -26,6 +26,7 @@
 
 import {
   solveBottlenecks,
+  solveFactorySummary,
   solveItemBalance,
   solvePowerCircuits,
   solveActorLookup,
@@ -612,6 +613,59 @@ export function parseTemporaryFreeBeltTestRequest(question) {
   return { radius_m: Number.parseInt(match[1], 10) };
 }
 
+function formatFactorySummary(result) {
+  const kindCounts = new Map((result.actor_kinds ?? []).map((entry) => [entry.kind, entry.count]));
+  const playerCount = kindCounts.get("player") ?? 0;
+  const parts = [
+    `Captured factory census at world revision **${result.world_revision ?? "unknown"}**: ` +
+      `**${result.captured_actor_count ?? 0} actors** — ` +
+      `${kindCounts.get("buildable") ?? 0} buildables, ` +
+      `${kindCounts.get("resource_node") ?? 0} resource nodes, ` +
+      `${kindCounts.get("item_pickup") ?? 0} item pickups, and ` +
+      `${playerCount} ${playerCount === 1 ? "player" : "players"}.`,
+  ];
+
+  const statuses = Object.entries(result.production?.status_counts ?? {});
+  if ((result.production?.machine_count ?? 0) > 0) {
+    parts.push(
+      `Production-capable machines: **${result.production.machine_count}** ` +
+        `(${result.production.with_recipe_count} with a captured recipe). ` +
+        `States: ${statuses.map(([status, count]) => `${status} ${count}`).join(", ") || "unknown"}.`,
+    );
+  }
+
+  if ((result.buildable_types ?? []).length > 0) {
+    parts.push(
+      `Most common captured buildables:\n${result.buildable_types
+        .slice(0, 12)
+        .map((entry) => `- **${entry.class_name}**: ${entry.count} (${entry.owner_mod})`)
+        .join("\n")}`,
+    );
+  }
+
+  if ((result.transports ?? []).length > 0) {
+    parts.push(
+      `Transport actors: ${result.transports.map((entry) => `${entry.kind} ${entry.count}`).join(", ")}.`,
+    );
+  }
+  if ((result.resources ?? []).length > 0) {
+    parts.push(
+      `Captured resources: ${result.resources
+        .map((entry) => `${entry.resource_name} ${entry.count} (${entry.open_for_miner_count} open)`)
+        .join(", ")}.`,
+    );
+  }
+  if ((result.owner_mods ?? []).length > 0) {
+    parts.push(
+      `Actor ownership: ${result.owner_mods
+        .map((entry) => `${entry.owner_mod} ${entry.count}`)
+        .join(", ")}.`,
+    );
+  }
+  parts.push(...(result.capture_scope?.notes ?? []));
+  return parts.join("\n\n");
+}
+
 /**
  * Resolve the two explicitly named live actors in a plan_belt_route request.
  *
@@ -870,6 +924,18 @@ function formatNearbyResources(graph, request) {
 }
 
 const ROUTES = [
+  {
+    name: "get_factory_summary",
+    patterns: [
+      "what is in this factory", "what s in this factory", "what is in my factory",
+      "what s in my factory", "factory summary", "factory overview", "factory census",
+      "summarize my factory", "summarise my factory", "what have i built",
+      "what buildings do i have",
+    ],
+    extraFiller: ["current", "captured", "base", "buildings", "overview", "summary", "census"],
+    run: (graph) => solveFactorySummary(graph),
+    format: formatFactorySummary,
+  },
   {
     name: "find_best_site",
     patterns: [
