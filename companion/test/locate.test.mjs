@@ -19,6 +19,7 @@ import {
   isUnactionableInput,
   parseClearWaypointRequest,
   parseLocateRequest,
+  parseNearbyResourceRequest,
   parsePlaceRequest,
   parseTeleportRequest,
   parseWaypointRequest,
@@ -135,6 +136,60 @@ test("an unmatched lookup falls through to the model rather than denying it", ()
   // wrong. Answering "it does not exist" locally would be answering it wrong.
   const answer = answerLocally("where is the thing i built yesterday", graph, {});
   assert.notEqual(answer?.local?.solver, "locate");
+});
+
+test("parses nearby resource queries without inventing a radius", () => {
+  assert.deepEqual(parseNearbyResourceRequest("what resource nodes are near me?"), {
+    radius_m: null,
+    limit: 8,
+  });
+  assert.deepEqual(parseNearbyResourceRequest("which resources are within 150 m of me"), {
+    radius_m: 150,
+    limit: 8,
+  });
+  assert.deepEqual(parseNearbyResourceRequest("list resource nodes around my position within 250m"), {
+    radius_m: 250,
+    limit: 8,
+  });
+
+  assert.equal(parseNearbyResourceRequest("what resource nodes are near me and which is best"), null);
+  assert.equal(parseNearbyResourceRequest("why are resource nodes near me"), null);
+});
+
+test("nearby resources are answered exactly from the captured player position", () => {
+  const answer = answerLocally("what resource nodes are near me", graph, {});
+
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "nearby_resources");
+  assert.match(answer.reply, /Iron Ore.*100 m/);
+  assert.match(answer.reply, /Coal.*200 m/);
+  assert.doesNotMatch(answer.reply, /BP_ResourceDeposit521/);
+  assert.doesNotMatch(answer.reply, /within \d+ m/i);
+});
+
+test("an explicit nearby-resource radius is applied exactly", () => {
+  const answer = answerLocally("which resource nodes are within 150m of me", graph, {});
+
+  assert.equal(answer.local.solver, "nearby_resources");
+  assert.match(answer.reply, /within \*\*150 m\*\*/);
+  assert.match(answer.reply, /Iron Ore.*100 m/);
+  assert.doesNotMatch(answer.reply, /Coal/);
+});
+
+test("nearby-resource routing names the missing player-position field", () => {
+  const withoutPosition = structuredClone(snapshot);
+  delete withoutPosition.interaction_context.player.pawn_location;
+  for (const actor of withoutPosition.actors) {
+    if (actor.kind === "player") delete actor.location;
+  }
+
+  const answer = answerLocally(
+    "what resource nodes are near me",
+    buildGraph(withoutPosition),
+    {},
+  );
+  assert.equal(answer.local.solver, "nearby_resources");
+  assert.match(answer.reply, /interaction_context\.player\.pawn_location/);
 });
 
 test("input that cannot mean anything never reaches a model", () => {

@@ -719,6 +719,99 @@ function formatLocate(result, target) {
   return lines.join("\n");
 }
 
+/* ---------------- nearby resource nodes ---------------- */
+
+/**
+ * "What resource nodes are near me?"
+ *
+ * This is intentionally separate from `parseLocateRequest`: the target is not
+ * one named actor, it is an ordered slice of every captured resource node.
+ * With no stated radius we report the nearest eight instead of inventing what
+ * "near" means. With a radius we apply exactly the distance the player gave.
+ */
+const NEARBY_RESOURCE_PREFIX =
+  /^(?:can you |could you |please )?(?:(?:what|which)\s+(?:resource\s+nodes?|resources?)(?:\s+are)?|list(?:\s+me)?(?:\s+the)?\s+(?:resource\s+nodes?|resources?))\s+/i;
+const NEARBY_RESOURCE_POSITION = /^(?:near(?:by)?|around|close\s+to)\s+(?:me|my\s+(?:position|location))(?:\s+(?:with)?in\s+(\d+)\s*(?:m|meters|metres))?$/i;
+const NEARBY_RESOURCE_RADIUS = /^(?:with)?in\s+(\d+)\s*(?:m|meters|metres)\s+(?:of\s+)?(?:me|my\s+(?:position|location))$/i;
+
+export function parseNearbyResourceRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || MULTI_CLAUSE.test(text)) return null;
+
+  const prefix = text.match(NEARBY_RESOURCE_PREFIX);
+  if (!prefix) return null;
+
+  const position = text.slice(prefix[0].length).trim().match(NEARBY_RESOURCE_POSITION);
+  const radius = position ?? text.slice(prefix[0].length).trim().match(NEARBY_RESOURCE_RADIUS);
+  if (!radius) return null;
+
+  return {
+    radius_m: radius[1] ? Number.parseInt(radius[1], 10) : null,
+    limit: 8,
+  };
+}
+
+function formatNearbyResources(graph, request) {
+  // Actor lookup already computes exact 3D distance from the captured pawn and
+  // sorts by it. Ask for the full resource slice so hand-mined deposits can be
+  // excluded without hiding a real node that happens to be just behind one.
+  const result = solveActorLookup(graph, {
+    kind: "resource_node",
+    limit: Math.max(1, graph?.nodes?.size ?? 1),
+  });
+  const resourceNodes = (result?.matches ?? []).filter((match) => match.node_type !== "Deposit");
+  const ranked = resourceNodes.filter((match) => Number.isFinite(match.distance_meters));
+
+  if (resourceNodes.length > 0 && ranked.length === 0) {
+    return (
+      "I cannot rank nearby resource nodes because the snapshot is missing " +
+      "`interaction_context.player.pawn_location` (and no captured player actor supplied a location)."
+    );
+  }
+
+  const inScope = request.radius_m == null
+    ? ranked
+    : ranked.filter((match) => match.distance_meters <= request.radius_m);
+  const shown = inScope.slice(0, request.limit);
+
+  const scope = [];
+  const rawScanRadius = graph?.snapshot?.world?.scan_radius_meters;
+  const scanRadius = Number(rawScanRadius);
+  if (rawScanRadius != null && Number.isFinite(scanRadius) && scanRadius >= 0) {
+    scope.push(`The snapshot itself was limited to ${round(scanRadius)} m around its scan centre.`);
+  }
+  if (graph?.snapshot?.completeness?.actor_limit_reached === true) {
+    scope.push("The capture hit its actor limit, so nodes beyond the captured set may be missing.");
+  }
+
+  if (shown.length === 0) {
+    const headline = request.radius_m == null
+      ? "No mineable resource nodes were present in the captured snapshot."
+      : `No captured mineable resource node is within **${request.radius_m} m** of your exact position.`;
+    return [headline, ...scope].join(" ");
+  }
+
+  const headline = request.radius_m == null
+    ? `Nearest captured resource nodes to your exact position (showing ${shown.length} of ${inScope.length}):`
+    : `Captured resource nodes within **${request.radius_m} m** of your exact position (showing ${shown.length} of ${inScope.length}):`;
+  const lines = shown.map((match) => {
+    const location = match.location_cm ?? {};
+    const availability = match.can_host_a_miner === true
+      ? "open for a miner"
+      : match.occupied === true
+        ? "occupied"
+        : "miner eligibility unknown";
+    return (
+      `- **${match.resource_name ?? "Unknown resource"}** — ${round(match.distance_meters)} m · ` +
+      `${match.purity ?? "unknown purity"} · ${availability} · ` +
+      `\`${match.name ?? match.actor_id}\` at ` +
+      `\`x=${round(location.x)}, y=${round(location.y)}, z=${round(location.z)}\``
+    );
+  });
+
+  return [headline, ...lines, ...scope].join("\n");
+}
+
 const ROUTES = [
   {
     name: "find_best_site",
@@ -1204,6 +1297,17 @@ export function answerLocally(question, graph, services) {
     }
     // The name did not resolve, so the model gets it — it may know a synonym,
     // or need to ask. Guessing a coordinate here would drop the player in rock.
+  }
+
+  const nearbyResources = parseNearbyResourceRequest(question);
+  if (nearbyResources && graph) {
+    const started = Date.now();
+    return localAnswer(
+      formatNearbyResources(graph, nearbyResources),
+      "nearby_resources",
+      started,
+      "The complete captured resource-node set was sorted by exact distance from the captured player position.",
+    );
   }
 
   const show = parseShowRequest(question);
