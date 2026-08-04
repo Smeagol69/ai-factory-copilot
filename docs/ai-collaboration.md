@@ -812,5 +812,14 @@ fallback path that let a model narrate a refusal into a success. Claude's
 ambiguous `give_item` local answer and 1 cm routing guard remain unchanged.
 `./scripts/validate.ps1` passes exact SML 3.12.0 / FactoryGame 491125 header and
 source checks plus all **433 companion tests**. No C++, Starter Project, package,
-game write, or loaded-save state was changed. The clean installed companion and
-the visible in-game round trip still need to be refreshed from this commit.
+game write, or loaded-save state was changed.
+
+Commit `c07042b` was clean-installed while the save stayed open; all 19 runtime
+hashes matched and `/health` was ready on port 8142. The visible in-game retest
+then completed as `solvers / deterministic`: the refusal named the two exact
+captured connector paths, reported the 0 cm already-touching span, cost $0, and
+emitted zero actions. `latest-bridge-response.json` records provider `solvers`,
+model `deterministic`, local solver `plan_belt_route`, `local_elapsed_ms: 1`,
+`actions: []`, and live world revision 11. The instance-scoped routing log also
+records `answeredBy: local_solver` for session `Persistent_Level:ai test
+:Smeagol`. This path is now unit-, integration-, install-, and live-verified.
