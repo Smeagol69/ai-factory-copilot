@@ -1011,7 +1011,28 @@ export function answerLocally(question, graph, services) {
         "The item was resolved from the game's own catalog; the count was stated.",
       );
     }
-    // Unresolved item or a refused count: the model can ask, or spell it right.
+    // The item did not resolve. Ambiguity is the common case and the validator
+    // already knows the candidates, so ask here rather than falling through:
+    // "give me 64 biofuel" matches five items in a modded save, and handing
+    // that to a model cost 33 seconds and returned nothing. Naming the
+    // candidates instantly is both cheaper and more useful, and picking one
+    // would be a guess about which fuel the player meant.
+    const rejection = validatePlan(graph, [
+      { action: "give_item", item_name: give.item, count: give.count, commit: true },
+    ]).rejected?.[0];
+    const candidates = rejection?.closest ?? [];
+    if (rejection?.reason === "no_such_item" && candidates.length > 0) {
+      return localAnswer(
+        `**"${give.item}"** matches ${candidates.length} items, so I have not guessed:\n\n` +
+          candidates.map((name) => `- ${name}`).join("\n") +
+          `\n\nSay the full name — for example "give me ${give.count} ${candidates[0]}".`,
+        "give_item_ambiguous",
+        started,
+        "The catalog had several matches; choosing one would be a guess.",
+      );
+    }
+    // Anything else — a refused count, an item that genuinely does not exist —
+    // still goes to the model, which can ask or correct a spelling.
   }
 
   // "Connect the nearest compatible machines with a Mk.1 belt" is fully
