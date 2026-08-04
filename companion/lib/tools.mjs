@@ -286,6 +286,30 @@ export const SOLVER_TOOLS = [
     run: (graph, args) => planBeltedModule(graph, args),
   },
 
+  {
+    name: "plan_splitter_fan_out",
+    description:
+      "Plans a splitter and the belts around it when one machine has to feed several. Positions the splitter between the source output and its consumers, resolves a free input on each consumer, and reports the belt legs. How many outputs a splitter has is measured off one the player already owns; when they own none the result says the count is assumed rather than stating it as fact. Consumers that cannot take a belt are named with the reason rather than dropped. Use this for any 'split this between', 'feed both', or 'send some to' request. Positions are a proposal — clearance and fit are decided by the game.",
+    parameters: {
+      type: "object",
+      properties: {
+        from_actor_id: { type: "string", description: "The machine whose output is being split." },
+        to_actor_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Two or more consumers to feed. One consumer needs a plain belt, not a splitter.",
+        },
+        splitter_class_path: {
+          type: "string",
+          description: "Optional class_path of a splitter, so its real output count can be measured from one the player owns.",
+        },
+      },
+      required: ["from_actor_id", "to_actor_ids"],
+      additionalProperties: false,
+    },
+    run: (graph, args) => planSplitterFanOut(graph, args),
+  },
+
   /* ---------------- world-changing tools ---------------- */
 
   {

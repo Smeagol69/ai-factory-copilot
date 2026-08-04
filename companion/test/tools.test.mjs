@@ -46,6 +46,7 @@ test("exposes the roadmap solver set to the model", () => {
     "plan_belt_route",
     "plan_belted_module",
     "plan_production",
+    "plan_splitter_fan_out",
   ]);
 });
 

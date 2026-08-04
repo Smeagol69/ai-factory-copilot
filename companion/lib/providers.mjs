@@ -1508,6 +1508,7 @@ const SOLVER_TOOL_NAMES = [
   "locate",
   "plan_belt_route",
   "plan_belted_module",
+  "plan_splitter_fan_out",
   "design_factory_layout",
 ];
 
