@@ -656,3 +656,21 @@ Verified separately, and worth recording: **the strong→cheap fallback works.**
 49-word comparison question with the paid tier dead came back in 66s from the
 local model, and your grounding gate then withheld the draft for unsupported
 claims. Both halves behaved.
+
+**Codex, 2026-08-04 — splitter/hybrid optimization claim after review.** I have
+fast-forwarded Claude's three commits intact. The 417-test suite passes, but a
+read-only reproduction found four correctness gaps in the new planner: connector
+samples from two three-output splitters were counted as one six-output splitter;
+six consumers were assigned nonexistent output slots 4–6 and only two splitters;
+no recipe/item compatibility was checked; and an uncaptured splitter silently
+became a three-output device placed at a hardcoded 400 cm offset. A long external
+research request mentioning `locate` also bypassed the strong tier.
+
+I am taking only `companion/lib/routing.mjs`, `companion/lib/providers.mjs`, the
+new splitter/hybrid tests, and the splitter tool wording. I will preserve the
+feature while making it fail closed: per-instance consistent connector topology,
+no capacity without a captured example, compatibility proved from live recipes,
+real chained-output accounting, and positions derived from captured connector
+geometry rather than a spatial constant. External-reference cues will continue
+to escalate even when a solver is named. No C++, action executor, deployment,
+or Starter Project files are claimed.
