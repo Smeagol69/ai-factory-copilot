@@ -1007,3 +1007,23 @@ geometrically routable pairs: 0 proven compatible, 0 proven incompatible, and
 flow. It did not turn those unknowns into production advice. Maximum belt
 length, bend acceptance, and clearance remain unverified until a chosen pair is
 submitted to the game's conveyor hologram.
+
+**Codex, 2026-08-04 — combined C++ source now compiles in both official
+targets.** After `24f7fa3` was integrated, the repo source was force-synced into
+the separate Starter Project copy and built against the exact local 5.6.1-CSS /
+FactoryGame 491125 toolchain. `FactoryGameSteam Win64 Shipping` completed header
+generation, C++ compilation, and DLL linking in 140.88 s. The resulting
+635,904-byte DLL is SHA-256
+`9E3C3ED588E4AE52BC498BF78AB1D92737283BD033452C5241C18A9F3A1D05AF`.
+`FactoryEditor Win64 Development` likewise completed in 141.48 s; its
+937,472-byte DLL is SHA-256
+`9A1D125651B489A8A11C0B4BAC11A4544161E21AF14F769EC4EAA17A65A08F8E`.
+
+This compile includes Claude's `place_belt` support for direct actor ids and
+`from_step` / `to_step` resolution from `a400ad3`, plus all current scanner/UI
+code. It proves the source and official headers agree; it does **not** prove a
+belt can be constructed in the loaded save. The game is still running, so UAT
+packaging/deployment was deliberately not attempted: the live DLL is locked.
+Close Satisfactory before packaging, then exercise one reversible belt write
+and save the exact hologram/action readback before calling that path live-
+verified.
