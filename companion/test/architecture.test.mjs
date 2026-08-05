@@ -24,6 +24,7 @@ import {
   structureActions,
   surveyStructuralPieces,
 } from "../lib/architecture.mjs";
+import { runSolverTool } from "../lib/tools.mjs";
 
 const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
 const piece = (recipeName, descriptor, name, available = true) => ({
@@ -149,6 +150,31 @@ test("refuses when no foundation exists at all", () => {
   assert.deepEqual(structureActions(plan), []);
 });
 
+test("refuses unbounded or non-grid dimensions before allocating parts", () => {
+  for (const args of [
+    { width_cells: Infinity, depth_cells: 4 },
+    { width_cells: 4.5, depth_cells: 4 },
+    { width_cells: 33, depth_cells: 4 },
+    { width_cells: 4, depth_cells: 0 },
+    { width_cells: 4, depth_cells: 4, height_cm: -1 },
+    { width_cells: 4, depth_cells: 4, height_cm: Infinity },
+  ]) {
+    const plan = planStructure(graph, args);
+    assert.equal(plan.planned, false, JSON.stringify(args));
+    assert.deepEqual(structureActions(plan), []);
+  }
+});
+
+test("requires complete finite XYZ instead of emitting NaN transforms", () => {
+  const plan = planStructure(graph, {
+    origin_cm: { x: 1000, y: 2000 },
+    width_cells: 2,
+    depth_cells: 2,
+  });
+  assert.equal(plan.planned, false);
+  assert.match(plan.reason, /no origin/i);
+});
+
 test("orders actions so a partial build still stands", () => {
   const plan = planStructure(graph, { width_cells: 3, depth_cells: 2, height_cm: 800 });
   const actions = structureActions(plan, { commit: true });
@@ -165,4 +191,26 @@ test("orders actions so a partial build still stands", () => {
 test("never claims the structure will stand", () => {
   const plan = planStructure(graph, { width_cells: 2, depth_cells: 2 });
   assert.match(plan.unverified, /hologram/);
+});
+
+test("model tool exposes a dry-run preview and names the transaction limit", () => {
+  const result = runSolverTool(graph, "plan_structure", {
+    width_cells: 6,
+    depth_cells: 4,
+    height_cm: 800,
+    walls: true,
+    roof: true,
+  });
+  const plan = JSON.parse(result.serialized);
+
+  assert.equal(plan.planned, true);
+  assert.equal(plan.source, "captured_available_build_gun_recipes_and_descriptor_dimensions");
+  assert.ok(plan.actions_preview.length > 64);
+  assert.equal(plan.actions_preview.every((action) => action.commit === false), true);
+  assert.deepEqual(plan.transaction_limit, {
+    maximum_actions: 64,
+    proposed_actions: plan.actions_preview.length,
+    requires_chunking: true,
+    effect: "This preview cannot be submitted as one action plan; bounded reversible chunking is required.",
+  });
 });

@@ -163,20 +163,48 @@ export function planStructure(graph, args = {}) {
 
   const origin =
     originArg ?? graph?.snapshot?.interaction_context?.player?.pawn_location ?? null;
-  if (!origin || !Number.isFinite(Number(origin.x))) {
+  if (
+    !origin ||
+    ![origin.x, origin.y, origin.z].every((value) => Number.isFinite(Number(value)))
+  ) {
     return { solver: "structure", planned: false, reason: "no origin given and no captured player position" };
   }
 
+  const widthNumber = Number(widthCells);
+  const depthNumber = Number(depthCells);
+  const heightNumber = Number(heightCm);
+  if (
+    !Number.isInteger(widthNumber) ||
+    !Number.isInteger(depthNumber) ||
+    widthNumber < 1 ||
+    depthNumber < 1 ||
+    widthNumber > 32 ||
+    depthNumber > 32
+  ) {
+    return {
+      solver: "structure",
+      planned: false,
+      reason: "width_cells and depth_cells must be whole numbers from 1 through 32",
+    };
+  }
+  if (!Number.isFinite(heightNumber) || heightNumber < 0 || heightNumber > 100_000) {
+    return {
+      solver: "structure",
+      planned: false,
+      reason: "height_cm must be a finite non-negative value no greater than 100000",
+    };
+  }
+
   const cell = pieces.cell_size_cm;
-  const width = Math.max(1, Math.round(widthCells));
-  const depth = Math.max(1, Math.round(depthCells));
+  const width = widthNumber;
+  const depth = depthNumber;
 
   // The floor slab: thin when on the ground, thicker when raised, because a
   // raised platform reads as a deck rather than a sheet.
-  const floorPiece = pieceForHeight(pieces.foundations, heightCm > 0 ? 200 : 100);
+  const floorPiece = pieceForHeight(pieces.foundations, heightNumber > 0 ? 200 : 100);
   const baseX = snapToGrid(Number(origin.x), cell);
   const baseY = snapToGrid(Number(origin.y), cell);
-  const baseZ = Number(origin.z) + heightCm;
+  const baseZ = Number(origin.z) + heightNumber;
 
   const parts = [];
   const add = (kind, piece, x, y, z, yaw = 0) => {
@@ -202,7 +230,7 @@ export function planStructure(graph, args = {}) {
   // filling the underside with a forest.
   const pillarPiece = pieces.pillars[0] ?? null;
   const pillars = [];
-  if (heightCm > 0 && pillarPiece) {
+  if (heightNumber > 0 && pillarPiece) {
     const edgeCells = [];
     for (let column = 0; column < width; column += 2) {
       edgeCells.push([column, 0], [column, depth - 1]);
@@ -254,7 +282,7 @@ export function planStructure(graph, args = {}) {
   if (wantGlassRoof && !pieces.glass.length) {
     notes.push("No glass piece is unlocked; a solid roof was used instead.");
   }
-  if (heightCm > 0 && !pillarPiece) {
+  if (heightNumber > 0 && !pillarPiece) {
     notes.push("No pillar is unlocked, so the raised platform has no visible supports.");
   }
 
@@ -283,7 +311,7 @@ export function planStructure(graph, args = {}) {
       max_y_cm: baseY + (depth - 1) * cell,
       usable_cells: width * depth,
     },
-    raised_cm: heightCm,
+    raised_cm: heightNumber,
     pillars: pillars.length,
     parts,
     piece_counts: parts.reduce((counts, part) => {

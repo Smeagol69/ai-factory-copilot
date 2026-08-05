@@ -14,6 +14,8 @@
 
 import { distanceMeters } from "./graph.mjs";
 
+export const DEFAULT_MAX_ACTIONS = 64;
+
 /** Actions that change the world. Kept in sync with AIFactoryActions.cpp. */
 export const WRITE_ACTION_KINDS = [
   "teleport_player",
@@ -601,7 +603,7 @@ export function validateAction(graph, proposal) {
  * refused as a whole rather than half-emitted, because a partial layout is worse
  * than none. The mod applies the same rule at execution time.
  */
-export function validatePlan(graph, proposals, { maxActions = 64 } = {}) {
+export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTIONS } = {}) {
   const list = Array.isArray(proposals) ? proposals : [];
   if (list.length === 0) {
     return { valid: false, reason: "no_actions_given", actions: [] };

@@ -621,6 +621,120 @@ test("local megabase dispatch uses the compact core schema", async () => {
   }
 });
 
+test("local structure dispatch replaces an invented origin with captured player XYZ", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "structure-call",
+        choices: [{ message: {
+          role: "assistant",
+          content: "",
+          tool_calls: [{
+            id: "structure-1",
+            type: "function",
+            function: {
+              name: "plan_structure",
+              arguments: JSON.stringify({
+                origin_cm: { x: 0, y: 0, z: 0 },
+                width_cells: 2,
+                depth_cells: 2,
+                height_cm: 400,
+              }),
+            },
+          }],
+        } }],
+      },
+    },
+    {
+      json: {
+        id: "structure-final",
+        choices: [{ message: { role: "assistant", content: "The structure preview was refused." } }],
+      },
+    },
+  ]);
+  try {
+    const capturedPosition = { x: 12345, y: -6789, z: 4321 };
+    let caught;
+    try {
+      await askLocal(
+        makeContext({
+          question: "Using plan_structure only, preview a shell at my captured position.",
+          snapshot: {
+            ...snapshot,
+            interaction_context: {
+              ...snapshot.interaction_context,
+              player: {
+                ...snapshot.interaction_context.player,
+                pawn_location: capturedPosition,
+              },
+            },
+          },
+        }),
+        { LOCAL_AI_MODEL: "local-test" },
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    assert.ok(caught instanceof SolverGroundingError);
+    assert.deepEqual(caught.solver_calls[0].arguments.origin_cm, capturedPosition);
+    assert.notDeepEqual(caught.solver_calls[0].arguments.origin_cm, { x: 0, y: 0, z: 0 });
+  } finally {
+    stub.restore();
+  }
+});
+
+test("local architecture dispatch parses labeled XYZ instead of trusting model coordinates", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "structure-explicit-call",
+        choices: [{ message: {
+          role: "assistant",
+          content: "",
+          tool_calls: [{
+            id: "structure-explicit-1",
+            type: "function",
+            function: {
+              name: "plan_structure",
+              arguments: JSON.stringify({
+                origin_cm: { x: 9, y: 9, z: 9 },
+                width_cells: 2,
+                depth_cells: 2,
+              }),
+            },
+          }],
+        } }],
+      },
+    },
+    {
+      json: {
+        id: "structure-explicit-final",
+        choices: [{ message: { role: "assistant", content: "The structure preview was refused." } }],
+      },
+    },
+  ]);
+  try {
+    let caught;
+    try {
+      await askLocal(
+        makeContext({ question: "Using plan_structure only at x=1234.5, y=-20, z=987." }),
+        { LOCAL_AI_MODEL: "local-test" },
+      );
+    } catch (error) {
+      caught = error;
+    }
+    assert.ok(caught instanceof SolverGroundingError);
+    assert.deepEqual(caught.solver_calls[0].arguments.origin_cm, {
+      x: 1234.5,
+      y: -20,
+      z: 987,
+    });
+  } finally {
+    stub.restore();
+  }
+});
+
 test("free belt-pair claims require the candidate solver, not the transport-capacity solver", () => {
   const question = "List every recipe-compatible pair with free conveyor ports in my factory.";
   assert.deepEqual(missingRequiredSolverGrounding(question, []), [["find_belt_candidates"]]);

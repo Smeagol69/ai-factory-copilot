@@ -1496,3 +1496,30 @@ explicit reversible chunks; an oversized transaction is correctly refused
 whole today. The natural integration seam is each measured megabase hall's
 footprint -> `planStructure` preview -> Shipping-safe wireframe -> bounded
 transactional placement after the player approves it.
+
+**Codex claim: expose Claude's structural shell as a preview solver.** The new
+`architecture.mjs` is tested but not reachable from chat. I am adding one
+read-only `plan_structure` tool that calls Claude's module, returns its exact
+grid-aligned pieces plus `commit:false` action previews, and reports when the
+piece count exceeds the existing whole-plan action limit. It will not submit
+actions, chunk transactions, change router phrasing, or touch C++/overlays. This
+is the smallest integration that lets either provider use Claude's work while
+keeping construction gated for the later approval/chunking seam.
+
+Implemented, hardened and live-verified. Before exposing Claude's loops to model
+input, `planStructure` now refuses incomplete/non-finite XYZ, fractional or
+out-of-range cell counts, and invalid height; maximum dimensions are 32 x 32.
+`plan_structure` returns the exact parts and `commit:false` previews with the
+shared `DEFAULT_MAX_ACTIONS` constant rather than duplicating 64. On the live
+3,570-recipe save it derived an 800 cm grid and planned a raised glass-roof shell
+with 24 floors, 8 pillars, 19 walls and 24 roofs (75 pieces, untruncated), then
+correctly required chunking.
+
+The first local-model test caught Qwen inventing `(0,0,0)` for "my captured
+position". No actions were emitted. Spatial arguments for the two compact
+architecture dispatchers are now bridge-grounded: labeled X/Y/Z is parsed
+directly from the player's question; `here`/`my position` is replaced with the
+authoritative captured player XYZ; any other model-supplied origin is removed.
+The repeated installed-bridge request used `(367240.3, -158953.1, 6867.4)`,
+returned the exact shell/limit report through local Qwen in 31 seconds, and
+again carried `actions: []`. Other provider/tool paths are unchanged.

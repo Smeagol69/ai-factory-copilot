@@ -12,9 +12,10 @@
  * the world has the last word.
  */
 
-import { summarizePlan, validatePlan } from "./actions.mjs";
+import { DEFAULT_MAX_ACTIONS, summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
+import { planStructure, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import {
   planBeltedModule,
@@ -488,6 +489,55 @@ export const SOLVER_TOOLS = [
       return {
         ...manifest,
         vertical_module: vertical,
+      };
+    },
+  },
+
+  {
+    name: "plan_structure",
+    description:
+      "Previews Claude's grid-derived structural shell: foundations, optional raised supports, perimeter walls with an entrance, and a roof using only available Build Gun recipes captured from this save. Use for a concrete platform/building shell measured in foundation cells. Returns exact piece transforms and commit:false action previews, but never submits them or claims hologram validity. For a complete production campus use design_megabase_concept instead.",
+    parameters: {
+      type: "object",
+      properties: {
+        origin_cm: {
+          type: "object",
+          description: "Optional exact world origin in centimetres. Defaults to the captured player position.",
+          properties: {
+            x: { type: "number" },
+            y: { type: "number" },
+            z: { type: "number" },
+          },
+          required: ["x", "y", "z"],
+          additionalProperties: false,
+        },
+        width_cells: { type: "integer", minimum: 1, maximum: 32 },
+        depth_cells: { type: "integer", minimum: 1, maximum: 32 },
+        height_cm: { type: "number", minimum: 0, maximum: 100000 },
+        walls: { type: "boolean" },
+        roof: { type: "boolean" },
+        glass_roof: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args) => {
+      const plan = planStructure(graph, args);
+      if (!plan.planned) return plan;
+      const actionsPreview = structureActions(plan, { commit: false });
+      return {
+        ...plan,
+        source: "captured_available_build_gun_recipes_and_descriptor_dimensions",
+        certainty: "exact_grid_plan_pending_game_hologram_validation",
+        actions_preview: actionsPreview,
+        transaction_limit: {
+          maximum_actions: DEFAULT_MAX_ACTIONS,
+          proposed_actions: actionsPreview.length,
+          requires_chunking: actionsPreview.length > DEFAULT_MAX_ACTIONS,
+          effect:
+            actionsPreview.length > DEFAULT_MAX_ACTIONS
+              ? "This preview cannot be submitted as one action plan; bounded reversible chunking is required."
+              : "The preview fits the bridge action-count limit but remains unsubmitted.",
+        },
       };
     },
   },

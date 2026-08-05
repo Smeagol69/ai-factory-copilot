@@ -74,6 +74,7 @@ factory arithmetic yourself:
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - a creative elevated, terraced, or campus megabase preview -> design_megabase_concept;
+- a foundation-grid platform, raised deck, walls, supports, or roof shell -> plan_structure;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight;
 - the coordinates of a named thing, or whether a node can host a miner -> locate.
@@ -486,6 +487,10 @@ const GROUNDING_REQUIREMENTS = [
     pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
     tools: ["list_blueprints", "design_factory_layout", "design_megabase_concept", "plan_production"],
   },
+  {
+    pattern: /\b(platform|raised deck|building shell|structural shell|walls? and (?:a )?roof)\b/i,
+    tools: ["plan_structure"],
+  },
 ];
 
 const LIVE_SCOPE_PATTERN =
@@ -581,6 +586,8 @@ function evidenceRows(tool, parsed) {
       return parsed.designed === true ? [parsed] : [];
     case "design_megabase_concept":
       return parsed.compiled === true && parsed.validation?.valid === true ? [parsed] : [];
+    case "plan_structure":
+      return parsed.planned === true && parsed.source && parsed.certainty ? [parsed] : [];
     default:
       return null;
   }
@@ -1336,7 +1343,7 @@ export async function askLocal(context, env = process.env) {
     (/^http:\/\/(?:127\.0\.0\.1|localhost):11434(?:\/|$)/i.test(baseUrl) ? "none" : "");
   const explicitlyNamedSolver = uniquelyNamedSolverTool(context.question);
   const useCompactLocalDispatch =
-    explicitlyNamedSolver === "design_megabase_concept" && toolsEnabled;
+    ["design_megabase_concept", "plan_structure"].includes(explicitlyNamedSolver) && toolsEnabled;
 
   const messages = useCompactLocalDispatch
     ? [
@@ -1347,7 +1354,8 @@ export async function askLocal(context, env = process.env) {
             `Call that tool using only arguments stated in the current request. The tool reads ` +
             `the complete authoritative live snapshot on the bridge; you do not need raw game ` +
             `data in this prompt. After its result arrives, answer only from that result, preserve ` +
-            `unknowns and caveats exactly, and never claim a preview action was executed.`,
+            `unknowns and caveats exactly, and never claim a preview action was executed. ` +
+            `The bridge, not you, resolves spatial language and verifies any coordinates.`,
         },
         { role: "user", content: String(context.question ?? "") },
       ]
@@ -1443,6 +1451,11 @@ export async function askLocal(context, env = process.env) {
       } catch {
         parsedArguments = {};
       }
+      parsedArguments = groundLocalSpatialArguments(
+        call.function?.name,
+        parsedArguments,
+        context,
+      );
       const result = runSolverTool(context.graph, call.function?.name, parsedArguments, { services: context.services });
       solverCalls.push(
         solverCallRecord(context, call.function?.name, parsedArguments, result),
@@ -1582,6 +1595,46 @@ function mentionsSolverTool(text) {
   return namedSolverTools(text).length > 0;
 }
 
+function groundLocalSpatialArguments(toolName, args, context) {
+  if (!["design_megabase_concept", "plan_structure"].includes(toolName)) return args;
+
+  const grounded = { ...(args ?? {}) };
+  const originKey = toolName === "design_megabase_concept" ? "origin" : "origin_cm";
+  const question = String(context?.question ?? "");
+  const explicit = explicitXyzFromQuestion(question);
+  if (explicit) {
+    grounded[originKey] = explicit;
+    return grounded;
+  }
+
+  if (/\b(?:here|my (?:captured )?(?:position|location)|player(?:'s)? (?:captured )?(?:position|location))\b/i.test(question)) {
+    const player = context?.snapshot?.interaction_context?.player?.pawn_location;
+    if (player && [player.x, player.y, player.z].every(Number.isFinite)) {
+      grounded[originKey] = { x: player.x, y: player.y, z: player.z };
+      return grounded;
+    }
+  }
+
+  // The model may not create a site merely because the schema has an origin
+  // field. Without labeled XYZ or a captured-position reference, let the
+  // solver use its documented default or refuse the required field.
+  delete grounded[originKey];
+  return grounded;
+}
+
+function explicitXyzFromQuestion(question) {
+  const read = (axis) => {
+    const match = String(question).match(
+      new RegExp(`\\b${axis}\\s*[:=]\\s*(-?\\d+(?:\\.\\d+)?)`, "i"),
+    );
+    return match ? Number(match[1]) : null;
+  };
+  const x = read("x");
+  const y = read("y");
+  const z = read("z");
+  return [x, y, z].every(Number.isFinite) ? { x, y, z } : null;
+}
+
 /** Returns one forced tool only when the player named exactly one solver. */
 function uniquelyNamedSolverTool(text) {
   const matches = namedSolverTools(text);
@@ -1658,6 +1711,7 @@ const SOLVER_TOOL_NAMES = [
   "plan_belted_module",
   "plan_production",
   "plan_splitter_fan_out",
+  "plan_structure",
 ];
 
 /**
