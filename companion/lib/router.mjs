@@ -222,7 +222,12 @@ function formatBottlenecks(result) {
 
   const causeLabel = (cause) => String(cause ?? "unknown cause").replaceAll("_", " ");
   const formatCause = (entry) => {
-    const severity = entry?.severity ? ` [${entry.severity}]` : "";
+    const severityLabel = {
+      invalid: "fault",
+      inefficient: "inefficient",
+      unknown: "unknown",
+    }[entry?.severity] ?? entry?.severity;
+    const severity = severityLabel ? ` [${severityLabel}]` : "";
     const evidence = entry?.evidence ? ` — ${entry.evidence}` : "";
     return `${causeLabel(entry?.cause)}${severity}${evidence}`;
   };

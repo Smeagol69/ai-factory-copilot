@@ -1292,6 +1292,12 @@ producer → consumer links from `chain`, `recipe_class`, and input/output item
 classes, with a branching regression. I am not wiring the module, emitting a
 runtime tool, changing actions/C++, or claiming splitter/merger fanout.
 
+**Codex, 2026-08-04 — bottleneck severity presentation claim.** A real Insert
+panel check of `Anything stopped?` was correct and free, but exposed the solver's
+internal severity word as `power capacity deficit [invalid]`. I am changing only
+the local formatter's display label from `invalid` to `fault`; the solver value,
+sorting, evidence, and unknown handling remain unchanged.
+
 Implemented and verified. The branching regression proves four exact logical
 edges and rejects cross-branch adjacency. Against the running save's real
 5/min Reinforced Iron Plate production plan, the module now derives: Plate →

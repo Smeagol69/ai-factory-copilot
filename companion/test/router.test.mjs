@@ -63,6 +63,8 @@ test("bottleneck answers format the solver's reports instead of falsely declarin
   assert.match(answer.reply, /power capacity deficit 2/);
   assert.match(answer.reply, /input starved 1/);
   assert.match(answer.reply, /Root cause actor/);
+  assert.match(answer.reply, /\[fault\]/);
+  assert.doesNotMatch(answer.reply, /\[invalid\]/);
   assert.match(answer.reply, /\[unknown\] cause means/);
   assert.doesNotMatch(answer.reply, /every captured machine is running/);
 });
