@@ -38,7 +38,14 @@ import {
   solveBlueprintLibrary,
 } from "./solvers.mjs";
 import { validatePlan } from "./actions.mjs";
-import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
+import {
+  baseBuildActions,
+  enclosedFactoryActions,
+  planBaseBuild,
+  planEnclosedFactory,
+} from "./base-build.mjs";
+import { planStructure, structureActions } from "./architecture.mjs";
+import { measureBuilding } from "./designer.mjs";
 import {
   measureConnectors,
   solveBeltRoute,
@@ -630,7 +637,9 @@ export function parseBaseDesignRequest(question) {
     .trim();
   if (item.length < 2) return null;
 
-  return { item, per_minute: perMinute, commit };
+  // Housed by default; these phrasings ask for the bare machines instead.
+  const bare = /\b(?:no|without|skip)\s+(?:the\s+)?(?:building|shell|walls|roof)\b|\bjust\s+the\s+machines\b|\bmachines\s+only\b/i.test(text);
+  return { item, per_minute: perMinute, commit, bare };
 }
 
 export function parseWaypointRequest(question) {
@@ -1774,12 +1783,33 @@ export function answerLocally(question, graph, services) {
         target_rate_per_minute: design.per_minute,
       });
       if (production?.planned) {
-        const plan = planBaseBuild(graph, {
-          production_plan: production,
-          measure_connectors: measureConnectors,
-        });
+        // Housed by default. The owner's goal is a factory that looks like a
+        // building — raised decks, walls, glass roofs, machinery inside — so
+        // bare machines on open ground is the special case, not the norm.
+        // "just the machines" or "no building" asks for the bare version.
+        const housed = !design.bare;
+        const enclosed = housed
+          ? planEnclosedFactory(graph, {
+              production_plan: production,
+              measure_building: measureBuilding,
+              measure_connectors: measureConnectors,
+              plan_structure: planStructure,
+            })
+          : null;
+        const plan = enclosed?.planned
+          ? enclosed.machines
+          : planBaseBuild(graph, {
+              production_plan: production,
+              measure_connectors: measureConnectors,
+            });
+
         if (plan.planned) {
-          const actions = baseBuildActions(plan, { commit: design.commit });
+          const actions = enclosed?.planned
+            ? enclosedFactoryActions(enclosed, {
+                commit: design.commit,
+                structure_actions: structureActions,
+              })
+            : baseBuildActions(plan, { commit: design.commit });
           const emitted = design.commit
             ? emitValidatedPlan(graph, services, actions)
             : true;
@@ -1803,10 +1833,29 @@ export function answerLocally(question, graph, services) {
                 "Power is not wired by this plan."
               : "";
 
+            // The building is the headline when there is one: it is the part
+            // the owner can picture, and the part that makes this different
+            // from machines standing in a field.
+            const shell = enclosed?.planned
+              ? (() => {
+                  const structure = enclosed.structure;
+                  const counts = structure.piece_counts ?? {};
+                  return (
+                    `\n\n**Housed in a ${structure.footprint.width_cm / 100} × ` +
+                    `${structure.footprint.depth_cm / 100} m building**` +
+                    (structure.raised_cm > 0
+                      ? `, raised ${structure.raised_cm / 100} m on ${structure.pillars} pillars`
+                      : "") +
+                    ` — ${counts.floor ?? 0} floor, ${counts.wall ?? 0} wall and ` +
+                    `${counts.roof ?? 0} roof pieces. The machines sit on the deck inside.`
+                  );
+                })()
+              : "";
+
             return localAnswer(
               `**${design.commit ? "Building" : "Design for"} ${design.per_minute}/min ${item.name}** ` +
                 `— ${plan.machines_total} machine(s) across ${plan.rows} row(s), ` +
-                `${plan.belts_planned} belt leg(s).\n\n${rows}${skipped}${power}\n\n` +
+                `${plan.belts_planned} belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
                 (design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +
                     'the whole transaction rolls back if one fails. Say "undo" to reverse it.'
