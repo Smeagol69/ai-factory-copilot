@@ -1450,3 +1450,36 @@ The measured 857.5 cm tallest machine now produces a 1600 cm industrial floor
 using a 400 cm half-grid service/design module; this is an architectural spacing
 choice, not a claim about a wall recipe. Exact header validation and **492/492**
 companion tests pass.
+
+**Codex hybrid-provider failure-chain claim (2026-08-04).** A live conversational
+megabase request proved the read-only solver itself works but the model path fell
+back after about 60 seconds. The surfaced error was only Anthropic's empty credit
+balance; `askHybrid` had already discarded the earlier local-tier error while
+trying the strong tier. I am limiting this lane to provider diagnostics and the
+local tool loop: preserve both failures without exposing secrets, record safe
+failure provenance in routing diagnostics, isolate the local error, and make a
+named `design_megabase_concept` request complete through the installed bridge.
+No router, action, C++, overlay, belt, blueprint-write or game mutation code is
+claimed. Claude's construction lane remains untouched.
+
+Resolved and live-verified from the clean installed companion. The failure had
+three layers: the local Qwen tier omitted the named tool, Anthropic then masked
+that error with an empty-credit 400, and Ollama/Qwen returned an empty stop turn
+when the deeply nested 3 KB megabase schema was combined with the redundant live
+payload. Hybrid failures now retain both provider attempts and compact solver
+attempt provenance in `routing.jsonl`. On Ollama's default endpoint the local
+provider uses the officially supported `reasoning_effort: none`; a uniquely
+named solver is the only advertised tool; and `design_megabase_concept` gets a
+compact dispatcher turn with its four lossless core inputs. Strong providers
+still get the full advanced schema, and all other local tools retain the full
+grounded prompt.
+
+The installed hybrid bridge then completed the exact live request through
+`qwen3-8b-copilot` in 29 seconds with one usable
+`design_megabase_concept` call. The model passed exact Iron Plate, 5/min, style
+and XYZ, received the untruncated 39,469-character deterministic result, reported
+the 144 x 208 x 176 m footprint, 18 captured overlaps, insufficient terrain
+probe coverage, measured Constructor/Smelter dimensions and every remaining
+construction gate, and returned `actions: []`. Anthropic was not called. This is
+the first verified conversational end-to-end megabase preview on the live save;
+it remains intentionally preview-only.

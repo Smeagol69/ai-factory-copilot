@@ -5,6 +5,7 @@ import {
   SYSTEM_INSTRUCTIONS,
   SolverGroundingError,
   askAnthropic,
+  askLocal,
   askMock,
   askOpenAI,
   missingRequiredSolverGrounding,
@@ -476,6 +477,148 @@ test("naming a solver requires usable evidence from that exact solver", () => {
     ]),
     [],
   );
+});
+
+test("local provider forces one explicitly named solver on its first round", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "local-tool-call",
+        usage: { prompt_tokens: 20, completion_tokens: 4 },
+        choices: [{
+          message: {
+            role: "assistant",
+            content: "",
+            tool_calls: [{
+              id: "local-call-1",
+              type: "function",
+              function: { name: "get_factory_summary", arguments: "{}" },
+            }],
+          },
+        }],
+      },
+    },
+    {
+      json: {
+        id: "local-final",
+        usage: { prompt_tokens: 30, completion_tokens: 8 },
+        choices: [{ message: { role: "assistant", content: "The solver returned the factory summary." } }],
+      },
+    },
+  ]);
+  try {
+    const answer = await askLocal(
+      makeContext({ question: "Using get_factory_summary only, report the captured factory." }),
+      { LOCAL_AI_MODEL: "local-test" },
+    );
+
+    assert.deepEqual(stub.calls[0].body.tool_choice, {
+      type: "function",
+      function: { name: "get_factory_summary" },
+    });
+    assert.deepEqual(
+      stub.calls[0].body.tools.map((tool) => tool.function.name),
+      ["get_factory_summary"],
+    );
+    assert.equal(stub.calls[0].body.reasoning_effort, "none");
+    assert.match(
+      stub.calls[0].body.messages.map((message) => message.content).join("\n"),
+      /CURRENT-TURN AUTHORITATIVE WORLD SNAPSHOT/,
+    );
+    assert.equal(stub.calls[1].body.tool_choice, "auto");
+    assert.equal(answer.solver_calls[0].tool, "get_factory_summary");
+  } finally {
+    stub.restore();
+  }
+});
+
+test("local provider leaves tool selection automatic when multiple solvers are named", async () => {
+  const stub = stubFetch([
+    {
+      json: {
+        id: "local-multi",
+        choices: [{ message: { role: "assistant", content: "Which comparison do you want?" } }],
+      },
+    },
+  ]);
+  try {
+    await askLocal(
+      makeContext({ question: "Should I use plan_production or design_factory_layout?" }),
+      { LOCAL_AI_MODEL: "local-test", LOCAL_AI_BASE_URL: "http://lmstudio:1234/v1" },
+    );
+    assert.equal(stub.calls[0].body.tool_choice, "auto");
+    assert.equal(stub.calls[0].body.reasoning_effort, undefined);
+  } finally {
+    stub.restore();
+  }
+});
+
+test("local megabase dispatch uses the compact core schema", async () => {
+  const argumentsJson = JSON.stringify({
+    item_name: "Iron Plate",
+    target_rate_per_minute: 5,
+    origin: { x: 1000, y: 2000, z: 3000 },
+    style: "elevated_industrial_campus",
+  });
+  const stub = stubFetch([
+    {
+      json: {
+        id: "megabase-call",
+        choices: [{ message: {
+          role: "assistant",
+          content: "",
+          tool_calls: [{
+            id: "megabase-1",
+            type: "function",
+            function: { name: "design_megabase_concept", arguments: argumentsJson },
+          }],
+        } }],
+      },
+    },
+    {
+      json: {
+        id: "megabase-final",
+        choices: [{ message: {
+          role: "assistant",
+          content: "The preview remains concept-only and is not construction-ready.",
+        } }],
+      },
+    },
+  ]);
+  try {
+    let caught;
+    try {
+      await askLocal(
+        makeContext({ question: "Using design_megabase_concept only, preview 5 Iron Plate per minute." }),
+        { LOCAL_AI_MODEL: "local-test" },
+      );
+    } catch (error) {
+      caught = error;
+    }
+    const definition = stub.calls[0].body.tools[0].function;
+    assert.deepEqual(Object.keys(definition.parameters.properties), [
+      "item_name",
+      "target_rate_per_minute",
+      "origin",
+      "style",
+    ]);
+    assert.equal(definition.parameters.properties.creative_parameters, undefined);
+    assert.equal(
+      stub.calls[0].body.messages.at(-1).content,
+      "Using design_megabase_concept only, preview 5 Iron Plate per minute.",
+    );
+    assert.doesNotMatch(
+      stub.calls[0].body.messages.map((message) => message.content).join("\n"),
+      /CURRENT-TURN AUTHORITATIVE WORLD SNAPSHOT/,
+    );
+    // This fixture lacks the measured height/footprint data the real save has,
+    // so grounding correctly rejects its result; the provider must still have
+    // dispatched the exact named tool with the compact schema.
+    assert.ok(caught instanceof SolverGroundingError);
+    assert.equal(caught.solver_calls[0].tool, "design_megabase_concept");
+  } finally {
+    stub.restore();
+  }
 });
 
 test("free belt-pair claims require the candidate solver, not the transport-capacity solver", () => {

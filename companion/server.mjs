@@ -70,6 +70,16 @@ function providerFailureDetails(error, selectedProvider) {
     response_id: error?.response_id ?? null,
     usage: error?.usage ?? null,
     cache,
+    attempts: Array.isArray(error?.attempts)
+      ? error.attempts.map((attempt) => ({
+          kind: attempt?.kind ?? "provider_error",
+          provider: attempt?.provider ?? null,
+          model: attempt?.model ?? null,
+          response_id: attempt?.response_id ?? null,
+          message: attempt?.message ?? "unknown provider failure",
+          solver_calls: Array.isArray(attempt?.solver_calls) ? attempt.solver_calls : [],
+        }))
+      : [],
     billing_state: preflight
       ? "not_started"
       : hasTokenUsage(cache)
@@ -794,6 +804,25 @@ export function createBridgeServer({ env = process.env } = {}) {
         bridge_received_at_utc: bridgeReceivedAtUtc,
         bridge_elapsed_ms: bridgeElapsedMs,
         route_elapsed_ms: answer.local?.elapsed_ms ?? null,
+        provider_failure:
+          answeredBy === "deterministic_fallback"
+            ? {
+                kind: answer.provider_failure?.kind ?? "provider_error",
+                provider: answer.provider_failure?.provider ?? null,
+                model: answer.provider_failure?.model ?? null,
+                billing_state: answer.provider_failure?.billing_state ?? "unknown",
+                attempts: (answer.provider_failure?.attempts ?? []).map((attempt) => ({
+                  kind: attempt.kind,
+                  provider: attempt.provider,
+                  model: attempt.model,
+                  response_id: attempt.response_id,
+                  solver_calls: (attempt.solver_calls ?? []).map((call) => ({
+                    tool: call.tool,
+                    evidence: call.evidence,
+                  })),
+                })),
+              }
+            : null,
       });
       const intrinsicallyFreeAnswer =
         answeredBy === "local_solver" ||

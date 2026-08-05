@@ -76,6 +76,33 @@ test("the cheap tier still handles what it is good at, unlabelled", async () => 
   assert.doesNotMatch(answer.reply, /local fallback model/i);
 });
 
+test("when both tiers fail the error preserves both provider attempts", async () => {
+  let caught;
+  try {
+    await askHybrid(
+      { ...context, question: "what tier am i" },
+      {
+        AIFACTORY_CHEAP_PROVIDER: "local",
+        AIFACTORY_STRONG_PROVIDER: "anthropic",
+        // Both fail before network access: neither required credential/model is set.
+      },
+    );
+  } catch (error) {
+    caught = error;
+  }
+
+  assert.match(caught?.message ?? "", /ANTHROPIC_API_KEY/);
+  assert.deepEqual(
+    caught?.attempts?.map(({ provider, kind }) => ({ provider, kind })),
+    [
+      { provider: "local", kind: "provider_error" },
+      { provider: "anthropic", kind: "provider_error" },
+    ],
+  );
+  assert.match(caught.attempts[0].message, /LOCAL_AI_MODEL/);
+  assert.match(caught.attempts[1].message, /ANTHROPIC_API_KEY/);
+});
+
 /* ---------------- what counts as needing the expensive tier ---------------- */
 
 import { SOLVER_TOOLS } from "../lib/tools.mjs";

@@ -544,8 +544,13 @@ test("a withheld live diagnostic asks for solver evidence instead of denying cap
   assert.match(reply, /Current factory diagnostic\.$/);
 });
 
-test("a broken provider falls back to deterministic live analysis", async () => {
-  const fallbackServer = createBridgeServer({ env: { AI_PROVIDER: "openai" } });
+test("a broken provider falls back to deterministic live analysis", async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "aifactory-provider-failure-"));
+  context.after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
+  const routingLog = path.join(temporaryDirectory, "routing.jsonl");
+  const fallbackServer = createBridgeServer({
+    env: { AI_PROVIDER: "openai", AIFACTORY_ROUTING_LOG: routingLog },
+  });
   await new Promise((resolve) => fallbackServer.listen(0, "127.0.0.1", resolve));
   const address = fallbackServer.address();
   const fallbackUrl = `http://127.0.0.1:${address.port}`;
@@ -568,6 +573,15 @@ test("a broken provider falls back to deterministic live analysis", async () => 
     assert.equal(body.provider_failure.billing_state, "not_started");
     assert.equal(body.cost.usd, 0);
     assert.match(body.reply, /verified diagnostic below may not answer the original question/i);
+
+    const routingEntry = JSON.parse(fs.readFileSync(routingLog, "utf8").trim());
+    assert.deepEqual(routingEntry.provider_failure, {
+      kind: "provider_error",
+      provider: "openai",
+      model: null,
+      billing_state: "not_started",
+      attempts: [],
+    });
   } finally {
     await new Promise((resolve, reject) =>
       fallbackServer.close((error) => (error ? reject(error) : resolve())),

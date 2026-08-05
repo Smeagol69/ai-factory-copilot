@@ -1027,6 +1027,7 @@ export async function askOpenAI(context, env = process.env) {
     `OpenAI kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
   );
   } catch (error) {
+    if (error && error.solver_calls === undefined) error.solver_calls = solverCalls;
     throw annotateProviderError(
       error,
       providerFailureMetadata("openai", model, usage, lastResponseId),
@@ -1330,19 +1331,38 @@ export async function askLocal(context, env = process.env) {
   const maximumSolverRounds =
     Number.parseInt(env.AIFACTORY_MAX_SOLVER_ROUNDS ?? "", 10) || DEFAULT_MAXIMUM_SOLVER_ROUNDS;
   const toolsEnabled = Boolean(context.graph) && envFlag(env.LOCAL_AI_TOOLS, true);
+  const configuredReasoningEffort = String(env.LOCAL_AI_REASONING_EFFORT ?? "").trim();
+  const localReasoningEffort = configuredReasoningEffort ||
+    (/^http:\/\/(?:127\.0\.0\.1|localhost):11434(?:\/|$)/i.test(baseUrl) ? "none" : "");
+  const explicitlyNamedSolver = uniquelyNamedSolverTool(context.question);
+  const useCompactLocalDispatch =
+    explicitlyNamedSolver === "design_megabase_concept" && toolsEnabled;
 
-  const messages = [
-    {
-      role: "system",
-      content:
-        buildSystemInstructions({ ...env, AIFACTORY_WEB_SEARCH: "false" }) +
-        LOCAL_MODEL_HONESTY_RULE +
-        (toolsEnabled
-          ? ""
-          : "\n\nSolver tools are unavailable for this local model. Do not state live-game numbers, causes, coordinates, or actions."),
-    },
-    ...providerMessages(context),
-  ];
+  const messages = useCompactLocalDispatch
+    ? [
+        {
+          role: "system",
+          content:
+            `The player explicitly requested the deterministic ${explicitlyNamedSolver} tool. ` +
+            `Call that tool using only arguments stated in the current request. The tool reads ` +
+            `the complete authoritative live snapshot on the bridge; you do not need raw game ` +
+            `data in this prompt. After its result arrives, answer only from that result, preserve ` +
+            `unknowns and caveats exactly, and never claim a preview action was executed.`,
+        },
+        { role: "user", content: String(context.question ?? "") },
+      ]
+    : [
+        {
+          role: "system",
+          content:
+            buildSystemInstructions({ ...env, AIFACTORY_WEB_SEARCH: "false" }) +
+            LOCAL_MODEL_HONESTY_RULE +
+            (toolsEnabled
+              ? ""
+              : "\n\nSolver tools are unavailable for this local model. Do not state live-game numbers, causes, coordinates, or actions."),
+        },
+        ...providerMessages(context),
+      ];
   const solverCalls = [];
   const usage = emptyCacheUsage();
   let lastResponseId = null;
@@ -1350,9 +1370,23 @@ export async function askLocal(context, env = process.env) {
   try {
   for (let round = 0; round <= maximumSolverRounds; round += 1) {
     const body = { model, messages, stream: false };
+    // Ollama enables Qwen thinking by default. On this machine it consumed the
+    // whole completion budget before emitting a named tool call. Ollama's
+    // OpenAI-compatible API officially supports reasoning_effort="none"; do
+    // not assume the same of arbitrary compatible gateways unless configured.
+    if (localReasoningEffort && localReasoningEffort !== "omit") {
+      body.reasoning_effort = localReasoningEffort;
+    }
     if (toolsEnabled) {
-      body.tools = chatCompletionsToolDefinitions();
-      body.tool_choice = "auto";
+      body.tools = localSolverToolDefinitions(explicitlyNamedSolver);
+      // A small local model can describe a named solver instead of calling it,
+      // even when the player's request is an exact dispatch instruction. Force
+      // that one tool on the first round only. The model still receives the
+      // authoritative result and writes the natural-language answer itself.
+      body.tool_choice =
+        round === 0 && explicitlyNamedSolver
+          ? { type: "function", function: { name: explicitlyNamedSolver } }
+          : "auto";
     }
     if (env.LOCAL_AI_MAX_TOKENS) {
       body.max_tokens = Number.parseInt(env.LOCAL_AI_MAX_TOKENS, 10);
@@ -1425,6 +1459,7 @@ export async function askLocal(context, env = process.env) {
     `Local AI model kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
   );
   } catch (error) {
+    if (error && error.solver_calls === undefined) error.solver_calls = solverCalls;
     throw annotateProviderError(
       error,
       providerFailureMetadata("local", model, usage, lastResponseId),
@@ -1544,8 +1579,54 @@ export function needsStrongModel(question, env = process.env) {
 
 /** True when the question names one of the solver tools by its exact name. */
 function mentionsSolverTool(text) {
-  const lowered = text.toLowerCase();
-  return SOLVER_TOOL_NAMES.some((name) => lowered.includes(name));
+  return namedSolverTools(text).length > 0;
+}
+
+/** Returns one forced tool only when the player named exactly one solver. */
+function uniquelyNamedSolverTool(text) {
+  const matches = namedSolverTools(text);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function namedSolverTools(text) {
+  const lowered = String(text ?? "").toLowerCase();
+  return SOLVER_TOOL_NAMES.filter((name) => lowered.includes(name));
+}
+
+/**
+ * Qwen 3 through Ollama emits an empty stop turn for the megabase tool's full
+ * deeply nested schema, even with an explicit tool_choice. Its four core inputs
+ * are sufficient for the deterministic compiler; advanced optional selections
+ * retain their safe defaults. Strong providers still receive the full schema.
+ */
+function localSolverToolDefinitions(explicitlyNamedSolver) {
+  const definitions = chatCompletionsToolDefinitions();
+  const selected = explicitlyNamedSolver
+    ? definitions.filter((tool) => tool.function?.name === explicitlyNamedSolver)
+    : definitions;
+  if (explicitlyNamedSolver !== "design_megabase_concept") return selected;
+
+  return selected.map((tool) => {
+    const parameters = tool.function.parameters;
+    const coreNames = ["item_name", "target_rate_per_minute", "origin", "style"];
+    return {
+      ...tool,
+      function: {
+        ...tool.function,
+        description:
+          "Preview an architectural megabase from live measured factory data. " +
+          "Returns exact transforms, footprint, blockers and mod-aware part candidates; never emits actions.",
+        parameters: {
+          type: "object",
+          properties: Object.fromEntries(
+            coreNames.map((name) => [name, parameters.properties[name]]),
+          ),
+          required: coreNames,
+          additionalProperties: false,
+        },
+      },
+    };
+  });
 }
 
 /**
@@ -1636,19 +1717,44 @@ export async function askHybrid(context, env = process.env) {
   try {
     const answer = await askProvider(cheap, context, env);
     return { ...answer, tier: { used: "cheap", provider: cheap, why: "answered_by_the_free_tier" } };
-  } catch (error) {
+  } catch (cheapError) {
     // A dead or misconfigured free tier must not cost the player their answer.
-    const answer = await askProvider(strong, context, env);
-    return {
-      ...answer,
-      tier: {
-        used: "strong",
-        provider: strong,
-        why: "cheap_tier_failed",
-        cheap_error: error instanceof Error ? error.message : String(error),
-      },
-    };
+    try {
+      const answer = await askProvider(strong, context, env);
+      return {
+        ...answer,
+        tier: {
+          used: "strong",
+          provider: strong,
+          why: "cheap_tier_failed",
+          cheap_error: cheapError instanceof Error ? cheapError.message : String(cheapError),
+        },
+      };
+    } catch (strongError) {
+      // Preserve both attempts. Without this, a depleted paid account masks a
+      // correctable local grounding/tool error and the operator sees only the
+      // second failure.
+      const annotated = strongError instanceof Error
+        ? strongError
+        : new Error(String(strongError));
+      annotated.attempts = [
+        providerAttemptFailure(cheapError, cheap),
+        providerAttemptFailure(strongError, strong),
+      ];
+      throw annotated;
+    }
   }
+}
+
+function providerAttemptFailure(error, fallbackProvider) {
+  return {
+    kind: error?.code ?? "provider_error",
+    provider: error?.provider ?? fallbackProvider,
+    model: error?.model ?? null,
+    response_id: error?.response_id ?? null,
+    message: String(error?.message ?? error ?? "unknown provider failure"),
+    solver_calls: Array.isArray(error?.solver_calls) ? error.solver_calls : [],
+  };
 }
 
 export async function askProvider(provider, context, env = process.env) {

@@ -216,7 +216,10 @@ node server.mjs
 `LOCAL_AI_BASE_URL` defaults to Ollama's `http://127.0.0.1:11434/v1`. Pick a model
 that supports tool calling, since the solvers are tools; with one that does not,
 set `LOCAL_AI_TOOLS=false` and the bridge will label its numbers unverified rather
-than passing them off as computed.
+than passing them off as computed. Ollama's default endpoint also disables Qwen's
+hidden reasoning for these dispatch turns so it cannot consume the completion
+budget before emitting a tool call. Set `LOCAL_AI_REASONING_EFFORT=omit` for a
+different OpenAI-compatible gateway that rejects that field.
 
 OpenAI:
 
