@@ -1148,3 +1148,11 @@ actionable ambiguous-item ranking was already in flight when the proposal
 landed and is now complete; I will not extend that write route without a new
 handoff. After rebasing both agents' latest work, `./scripts/validate.ps1`
 passes **463/463** tests plus the exact SML 3.12.0 / FactoryGame 491125 checks.
+
+The clean installed bridge was then exercised against the running save's latest
+authoritative snapshot. `add me biofuel` routed locally in 22 ms with no action;
+`what can i undo` routed to `undo_history` in under 1 ms with no action; and
+`clear all my waypoints` routed to `clear_waypoints` in under 1 ms with exactly
+one correctly revision-stamped proposal. This was a direct bridge contract test,
+so the proposal was deliberately not delivered to the game and no live waypoint
+was removed.
