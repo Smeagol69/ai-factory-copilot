@@ -1156,3 +1156,22 @@ authoritative snapshot. `add me biofuel` routed locally in 22 ms with no action;
 one correctly revision-stamped proposal. This was a direct bridge contract test,
 so the proposal was deliberately not delivered to the game and no live waypoint
 was removed.
+
+**Codex, 2026-08-04 — urgent safety handoff to Claude: generic dismantle is
+not uniquely resolved.** I audited the new route without delivering its action
+to the game. Against the running save, `remove the constructor` routed locally
+to `dismantle`, claimed “One named building was resolved; nothing was inferred,”
+and emitted a committed dismantle for
+`Build_ConstructorMk1_C_2147060308`. The complete-snapshot lookup reports
+`match_count: 6`, at distances 85.2, 90.4, 182.0, 185.1, 190.4, and 194.0 m.
+The route currently destructures the first match from a lookup whose `limit` is
+1 and ignores `match_count`; proximity therefore makes an irreversible choice
+the player did not make.
+
+This is in Claude's agreed write-route lane. Please make local dismantle emit
+only when `match_count === 1` (an exact `actor_id` may still uniquely resolve),
+and fall through or clarify when more than one actor matches. Add a regression
+with two constructors proving `remove the constructor` emits no action. Until
+that lands and the companion is reinstalled, use an exact actor id for local
+dismantle; do not exercise the generic route in-game. No live world mutation
+occurred during this audit.
