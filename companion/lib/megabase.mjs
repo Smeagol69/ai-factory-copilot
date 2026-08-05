@@ -215,8 +215,8 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
 /**
  * Chooses a safe concept floor height from measured machines.
  *
- * One full grid unit of service clearance is added above the tallest captured
- * machine, then the result is rounded upward to the same grid. This is an
+ * One half-grid unit of service clearance is added above the tallest captured
+ * machine, then the result is rounded upward to that half-grid. This is an
  * explicit architectural choice grounded by captured height, not a claim about
  * a wall part's dimensions or a hologram's clearance rules.
  */
@@ -238,12 +238,16 @@ export function deriveMegabaseFloorHeight(factoryLayout, { grid_unit_cm = FOUNDA
     };
   }
   const tallestMachineCm = Math.max(...heights);
+  const verticalDesignModuleCm = unit / 2;
   return {
     derived: true,
-    floor_height_cm: Math.ceil((tallestMachineCm + unit) / unit) * unit,
+    floor_height_cm:
+      Math.ceil((tallestMachineCm + verticalDesignModuleCm) / verticalDesignModuleCm) *
+      verticalDesignModuleCm,
     tallest_machine_cm: tallestMachineCm,
-    service_clearance_cm: unit,
-    source: "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid",
+    service_clearance_cm: verticalDesignModuleCm,
+    vertical_design_module_cm: verticalDesignModuleCm,
+    source: "tallest_measured_machine_plus_one_half_grid_unit_rounded_up_to_the_half_grid",
   };
 }
 
@@ -372,6 +376,174 @@ export function findMegabasePartCandidates(graph, { limit_per_role = 5 } = {}) {
     note:
       "Candidates are suggestions grounded by captured names and availability. " +
       "Select an exact recipe deliberately; opaque mod behavior remains unknown until adapted or game-validated.",
+  };
+}
+
+/** Exact union bounds of every declarative element in design and world space. */
+export function megabaseFootprint(manifest) {
+  const elements = manifest?.elements ?? [];
+  if (elements.length === 0) return null;
+  const min = { x: Infinity, y: Infinity, z: Infinity };
+  const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const element of elements) {
+    for (const axis of ["x", "y", "z"]) {
+      min[axis] = Math.min(min[axis], element.local[axis]);
+      max[axis] = Math.max(max[axis], element.local[axis] + element.size_cells[axis]);
+    }
+  }
+
+  const corners = [
+    { x: min.x, y: min.y, z: min.z },
+    { x: min.x, y: max.y, z: min.z },
+    { x: max.x, y: min.y, z: min.z },
+    { x: max.x, y: max.y, z: min.z },
+  ].map((point) => gridPointToWorld(point, manifest.grid, manifest.anchor_cm));
+  const worldMin = {
+    x: Math.min(...corners.map((point) => point.x)),
+    y: Math.min(...corners.map((point) => point.y)),
+    z: manifest.anchor_cm.z + min.z * manifest.grid.floor_height_cm,
+  };
+  const worldMax = {
+    x: Math.max(...corners.map((point) => point.x)),
+    y: Math.max(...corners.map((point) => point.y)),
+    z: manifest.anchor_cm.z + max.z * manifest.grid.floor_height_cm,
+  };
+  const sizeCells = { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z };
+  return {
+    local_min_cells: min,
+    local_max_cells: max,
+    size_cells: sizeCells,
+    size_meters: {
+      x: round((sizeCells.x * manifest.grid.unit_cm) / 100, 2),
+      y: round((sizeCells.y * manifest.grid.unit_cm) / 100, 2),
+      z: round((sizeCells.z * manifest.grid.floor_height_cm) / 100, 2),
+    },
+    world_aabb_cm: { min: worldMin, max: worldMax },
+    note:
+      "The world AABB encloses the rotated design. It is conservative for non-axis-aligned grids and is used only for captured-obstruction screening.",
+  };
+}
+
+function boxesOverlap(left, right) {
+  return (
+    left.min.x < right.max.x && left.max.x > right.min.x &&
+    left.min.y < right.max.y && left.max.y > right.min.y &&
+    left.min.z < right.max.z && left.max.z > right.min.z
+  );
+}
+
+/**
+ * Screens a concept against captured bounds and terrain coverage.
+ *
+ * This cannot replace hologram checks: uncaptured actors and streamed-out
+ * terrain remain unknown. Its value is that a known collision is found early,
+ * and a 24 m terrain probe cannot be mistaken for evidence about a 120 m campus.
+ */
+export function assessMegabaseSite(graph, manifest) {
+  const footprint = megabaseFootprint(manifest);
+  if (!footprint) {
+    return { assessed: false, reason: "manifest_has_no_elements", game_validation_pending: true };
+  }
+  const designBox = footprint.world_aabb_cm;
+  const overlaps = [];
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    if (node.kind !== "buildable") continue;
+    const bounds = node.raw?.bounds;
+    const origin = bounds?.origin;
+    const extent = bounds?.extent;
+    if (!origin || !extent) continue;
+    if (![origin.x, origin.y, origin.z, extent.x, extent.y, extent.z].every(Number.isFinite)) continue;
+    if (extent.x <= 0 || extent.y <= 0 || extent.z <= 0) continue;
+    const actorBox = {
+      min: { x: origin.x - Math.abs(extent.x), y: origin.y - Math.abs(extent.y), z: origin.z - Math.abs(extent.z) },
+      max: { x: origin.x + Math.abs(extent.x), y: origin.y + Math.abs(extent.y), z: origin.z + Math.abs(extent.z) },
+    };
+    if (boxesOverlap(designBox, actorBox)) {
+      overlaps.push({ actor_id: node.actor_id, name: node.name, class_path: node.class_path });
+    }
+  }
+
+  const samples = [];
+  const atScanCenter = graph?.snapshot?.terrain?.at_scan_center;
+  const scanCenter = graph?.snapshot?.world?.scan_center ??
+    graph?.snapshot?.interaction_context?.player?.pawn_location ?? null;
+  if (atScanCenter && scanCenter) {
+    samples.push({ terrain: atScanCenter, location: scanCenter, source_actor_id: null, source: "scan_center" });
+  }
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    if (node.raw?.terrain?.sampled && node.raw?.location) {
+      samples.push({
+        terrain: node.raw.terrain,
+        location: node.raw.location,
+        source_actor_id: node.actor_id,
+        source: "captured_actor_terrain_probe",
+      });
+    }
+  }
+  samples.sort((left, right) => {
+    const distance = (sample) => Math.hypot(
+      sample.location.x - manifest.anchor_cm.x,
+      sample.location.y - manifest.anchor_cm.y,
+      sample.location.z - manifest.anchor_cm.z,
+    );
+    return distance(left) - distance(right);
+  });
+  const nearest = samples[0] ?? null;
+  const anchorDistanceCm = nearest
+    ? Math.hypot(
+      nearest.location.x - manifest.anchor_cm.x,
+      nearest.location.y - manifest.anchor_cm.y,
+      nearest.location.z - manifest.anchor_cm.z,
+    )
+    : null;
+  const anchorMatched = anchorDistanceCm !== null && anchorDistanceCm <= manifest.grid.unit_cm / 2;
+  const measuredFootprintMeters = positive(nearest?.terrain?.footprint_meters) ??
+    positive(graph?.snapshot?.terrain?.probe_footprint_meters);
+  const requiredFootprintMeters = Math.max(footprint.size_meters.x, footprint.size_meters.y);
+  const terrainCoversWholeDesign = Boolean(
+    anchorMatched && nearest?.terrain?.sampled === true &&
+    measuredFootprintMeters !== null && measuredFootprintMeters >= requiredFootprintMeters,
+  );
+  const terrainVerdict = anchorMatched ? nearest?.terrain?.verdict ?? null : null;
+
+  let status = "unknown_terrain_coverage";
+  if (overlaps.length > 0) status = "blocked_by_captured_buildings";
+  else if (terrainCoversWholeDesign && ["over_water", "steep", "obstructed", "no_ground_found"].includes(terrainVerdict)) {
+    status = `blocked_by_measured_terrain:${terrainVerdict}`;
+  } else if (terrainCoversWholeDesign) {
+    status = "no_captured_site_blocker_found_game_validation_still_required";
+  }
+
+  return {
+    assessed: true,
+    status,
+    footprint,
+    captured_building_overlaps: {
+      count: overlaps.length,
+      examples: overlaps.slice(0, 12),
+      truncated: overlaps.length > 12,
+      source: "captured_buildable_bounds",
+    },
+    terrain: {
+      anchor_probe_found: anchorMatched,
+      anchor_distance_cm: anchorDistanceCm === null ? null : round(anchorDistanceCm, 1),
+      source: anchorMatched ? nearest.source : null,
+      source_actor_id: anchorMatched ? nearest.source_actor_id : null,
+      sampled: anchorMatched ? nearest.terrain?.sampled === true : false,
+      verdict: terrainVerdict,
+      measured_footprint_meters: measuredFootprintMeters,
+      required_footprint_meters: requiredFootprintMeters,
+      covers_whole_design: terrainCoversWholeDesign,
+      unknown_reason: terrainCoversWholeDesign
+        ? null
+        : !anchorMatched
+          ? "no_authoritative_terrain_probe_at_the_design_anchor"
+          : nearest?.terrain?.sampled !== true
+            ? "terrain_probe_at_anchor_was_not_sampled"
+            : "terrain_probe_footprint_is_smaller_than_the_complete_design",
+    },
+    certainty: "authoritative_for_captured_bounds_and_reported_probe_coverage_only",
+    game_validation_pending: true,
   };
 }
 
@@ -662,6 +834,8 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       part_recipes: "captured_game_catalog_only",
     },
   };
+  manifest.footprint = megabaseFootprint(manifest);
+  manifest.site_assessment = assessMegabaseSite(graph, manifest);
   const validation = validateMegabaseManifest(manifest);
   return { ...manifest, validation };
 }

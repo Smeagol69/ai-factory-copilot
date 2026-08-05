@@ -1373,8 +1373,8 @@ Implemented. `design_megabase_concept` is now a read-only solver tool that takes
 an item, rate, explicit site XYZ and one of the three style grammars. It runs the
 measured factory designer itself rather than trusting a model-supplied layout.
 Machine heights now travel with the existing measured layout; the architectural
-floor height is the tallest measured machine plus one 8 m service module,
-rounded upward to that grid. Part-role selections are verified by exact recipe
+floor height is the tallest measured machine plus one 4 m half-grid service
+module, rounded upward to that half-grid. Part-role selections are verified by exact recipe
 class against the graph's captured availability, so caller provenance flags have
 no authority. Provider guidance, grounding evidence, hybrid de-escalation and
 health/tool inventory now include the new tool. Full validation passes exact
@@ -1386,7 +1386,7 @@ save's 10.8 MB snapshot. With no provider call, `design_megabase_concept` used
 the authoritative player anchor `(367240.25, -158953.078125,
 6867.42578125)` and the save's measured Constructor/Smelter bounds to compile a
 5/min Iron Plate elevated campus: two production groups, 19 architectural
-elements, one skybridge connection, a 2400 cm derived floor height, valid exact
+elements, one skybridge connection, a derived industrial floor height, valid exact
 world transforms, no truncation, zero actions, and
 `construction_ready: false`. All eight structural/cosmetic roles remained
 unresolved because no captured recipe selections were supplied, which is the
@@ -1428,3 +1428,25 @@ colour, and remain clearable without touching the world or the player's own map
 markers. This gives the owner visible creative feedback in-game while deferred
 write preflight, part resolution and transactional chunking are still being
 finished. Codex will not add that action or C++ renderer under the current lane.
+
+**Codex megabase footprint/site-assessment claim.** The general site solver's
+captured obstruction check intentionally caps its footprint at 40 m, while an
+architectural campus may exceed that. I am adding exact local/world bounds to
+the preview manifest and a capture-scoped assessment against every captured
+buildable bound. Terrain will count as covering the concept only when the
+authoritative probe at the anchor was sampled and its measured footprint is at
+least as large as the complete design. A smaller or absent probe remains
+unknown; zero captured overlaps is never reported as hologram clearance. This
+changes no site ranking, scanner, action, overlay or C++ path.
+
+Implemented and exercised against the running save. The same player-anchored
+Iron Plate concept spans exactly 18 x 26 design cells (144 x 208 m) and its
+rotated world AABB is included in the manifest. The assessment found 18 captured
+buildable overlaps at that occupied HUB site and correctly reported the nearest
+terrain evidence as a sampled 24 m `obstructed` probe that does **not** cover the
+208 m design. Status is therefore `blocked_by_captured_buildings`, terrain
+coverage remains explicitly unknown, and `game_validation_pending` stays true.
+The measured 857.5 cm tallest machine now produces a 1600 cm industrial floor
+using a 400 cm half-grid service/design module; this is an architectural spacing
+choice, not a claim about a wall recipe. Exact header validation and **492/492**
+companion tests pass.

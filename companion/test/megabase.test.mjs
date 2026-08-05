@@ -5,10 +5,12 @@ import { buildGraph } from "../lib/graph.mjs";
 import {
   MEGABASE_SCHEMA,
   MEGABASE_STYLES,
+  assessMegabaseSite,
   compileMegabaseConcept,
   deriveMegabaseFloorHeight,
   findMegabasePartCandidates,
   gridPointToWorld,
+  megabaseFootprint,
   validateMegabaseManifest,
 } from "../lib/megabase.mjs";
 import { runSolverTool } from "../lib/tools.mjs";
@@ -191,10 +193,11 @@ test("refuses to guess the vertical module or authoritative anchor", () => {
 test("derives floor height from the tallest measured machine plus service clearance", () => {
   assert.deepEqual(deriveMegabaseFloorHeight(layout), {
     derived: true,
-    floor_height_cm: 2_400,
+    floor_height_cm: 1_600,
     tallest_machine_cm: 1_200,
-    service_clearance_cm: 800,
-    source: "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid",
+    service_clearance_cm: 400,
+    vertical_design_module_cm: 400,
+    source: "tallest_measured_machine_plus_one_half_grid_unit_rounded_up_to_the_half_grid",
   });
 
   const missing = structuredClone(layout);
@@ -217,7 +220,75 @@ test("all reference style grammars compile as valid preview-only manifests", () 
     assert.equal(concept.elements.filter((entry) => entry.kind === "production_zone").length, 3);
     assert.ok(concept.elements.some((entry) => entry.kind === "vertical_landmark"));
     assert.ok(concept.elements.some((entry) => entry.kind === "skybridge"));
+    assert.ok(concept.footprint.size_meters.x > 0);
+    assert.ok(concept.footprint.size_meters.y > 0);
+    assert.equal(concept.site_assessment.game_validation_pending, true);
   }
+});
+
+test("computes exact concept bounds and refuses to stretch a small terrain probe", () => {
+  const siteGraph = {
+    ...graph,
+    nodes: new Map(),
+    snapshot: {
+      ...graph.snapshot,
+      world: { scan_center: { ...layout.origin } },
+      terrain: {
+        probe_footprint_meters: 24,
+        at_scan_center: {
+          sampled: true,
+          verdict: "flat_and_clear",
+          footprint_meters: 24,
+        },
+      },
+    },
+  };
+  const concept = compileMegabaseConcept(siteGraph, layout, {
+    style: "elevated_industrial_campus",
+    floor_height_cm: 400,
+  });
+  const footprint = megabaseFootprint(concept);
+  assert.deepEqual(footprint, concept.footprint);
+  assert.ok(concept.site_assessment.terrain.required_footprint_meters > 24);
+  assert.equal(concept.site_assessment.terrain.covers_whole_design, false);
+  assert.equal(concept.site_assessment.status, "unknown_terrain_coverage");
+  assert.match(concept.site_assessment.terrain.unknown_reason, /smaller_than/);
+
+  const coveredGraph = structuredClone(siteGraph);
+  coveredGraph.nodes = new Map();
+  coveredGraph.snapshot.terrain.at_scan_center.footprint_meters = 1_000;
+  const covered = assessMegabaseSite(coveredGraph, concept);
+  assert.equal(covered.terrain.covers_whole_design, true);
+  assert.match(covered.status, /no_captured_site_blocker/);
+  assert.equal(covered.game_validation_pending, true);
+});
+
+test("reports captured building overlap across the complete megabase footprint", () => {
+  const collisionGraph = {
+    ...graph,
+    nodes: new Map([
+      ["existing", {
+        actor_id: "Build_Existing_C_1",
+        name: "Existing Building",
+        class_path: "/Game/Build_Existing.Build_Existing_C",
+        kind: "buildable",
+        raw: {
+          bounds: {
+            origin: { x: layout.origin.x, y: layout.origin.y, z: layout.origin.z + 200 },
+            extent: { x: 300, y: 300, z: 300 },
+          },
+        },
+      }],
+    ]),
+  };
+  const concept = compileMegabaseConcept(collisionGraph, layout, {
+    style: "elevated_industrial_campus",
+    floor_height_cm: 400,
+  });
+  assert.equal(concept.site_assessment.status, "blocked_by_captured_buildings");
+  assert.equal(concept.site_assessment.captured_building_overlaps.count, 1);
+  assert.equal(concept.site_assessment.captured_building_overlaps.examples[0].actor_id, "Build_Existing_C_1");
+  assert.equal(concept.site_assessment.game_validation_pending, true);
 });
 
 test("machine halls retain measured recipes and grow from measured footprints", () => {
@@ -356,7 +427,7 @@ test("the model-facing solver builds its inputs from the graph and cannot emit a
   assert.equal(parsed.compiled, true, parsed.reason);
   assert.equal(parsed.validation.valid, true);
   assert.equal(parsed.grid.yaw_degrees, 45);
-  assert.equal(parsed.vertical_module.source, "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid");
+  assert.equal(parsed.vertical_module.source, "tallest_measured_machine_plus_one_half_grid_unit_rounded_up_to_the_half_grid");
   assert.equal(parsed.program.groups.length, 2, "existing surplus must not erase a new megabase program by default");
   assert.equal(parsed.part_candidates.source, "captured_build_gun_recipe_catalog");
   assert.deepEqual(parsed.actions, []);
