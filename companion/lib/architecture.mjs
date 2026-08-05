@@ -367,10 +367,17 @@ export function planTower(graph, args = {}) {
     levels: levelsArg = 2,
     height_cm: baseHeightCm = 0,
     ramps: wantRamps = true,
+    // Cells taken off each side per tier. 0 stacks identical boxes; 1 gives
+    // the stepped silhouette of the reference builds.
+    inset_cells: insetArg = 1,
     ...structureArgs
   } = args;
 
   const levels = Number(levelsArg);
+  const insetCells = Number.isInteger(Number(insetArg)) && Number(insetArg) >= 0
+    ? Number(insetArg)
+    : 1;
+  let truncatedAt = null;
   if (!Number.isInteger(levels) || levels < 1 || levels > 12) {
     return {
       solver: "tower",
@@ -378,6 +385,9 @@ export function planTower(graph, args = {}) {
       reason: "levels must be a whole number from 1 through 12",
     };
   }
+
+  const baseWidthCells = Number(structureArgs.width_cells ?? 6);
+  const baseDepthCells = Number(structureArgs.depth_cells ?? 4);
 
   // The ground floor decides the grid, the piece choices and the footprint;
   // every storey above reuses them so the stack lines up exactly.
@@ -398,11 +408,31 @@ export function planTower(graph, args = {}) {
 
   const storeys = [ground];
   for (let level = 1; level < levels; level += 1) {
+    // Stepped massing: each tier is inset from the one below, so the building
+    // reads as a silhouette rather than a stack of identical boxes. Every
+    // reference image the owner sent is shaped this way, and the exposed ledge
+    // it leaves is what the terraces and walkways sit on.
+    //
+    // The inset stops once a tier would be too small to be a floor — a
+    // three-cell building cannot step in twice — and the tier count is capped
+    // rather than the plan failing, because a shorter tower is a better answer
+    // than no tower.
+    const inset = insetCells * level;
+    const tierWidth = baseWidthCells - inset * 2;
+    const tierDepth = baseDepthCells - inset * 2;
+    if (tierWidth < 1 || tierDepth < 1) {
+      truncatedAt = level;
+      break;
+    }
+
     const storey = planStructure(graph, {
       ...structureArgs,
+      width_cells: tierWidth,
+      depth_cells: tierDepth,
       origin_cm: {
-        x: ground.footprint.origin_cm.x,
-        y: ground.footprint.origin_cm.y,
+        // Keep each tier centred on the one below as it shrinks.
+        x: ground.footprint.origin_cm.x + inset * ground.grid.cell_size_cm,
+        y: ground.footprint.origin_cm.y + inset * ground.grid.cell_size_cm,
         z: ground.footprint.origin_cm.z - baseHeightCm,
       },
       height_cm: baseHeightCm + level * storeyCm,
@@ -442,6 +472,13 @@ export function planTower(graph, args = {}) {
 
   const parts = [...storeys.flatMap((storey) => storey.parts), ...ramps];
   const notes = [...ground.notes];
+  if (truncatedAt !== null) {
+    notes.push(
+      `Stepped in by ${insetCells} cell(s) a tier, the building runs out of ` +
+        `floor after ${truncatedAt} storey(s) rather than the ${levels} asked ` +
+        "for. Widen the base or set inset_cells to 0 for straight sides.",
+    );
+  }
   if (wantRamps && !rampPiece && levels > 1) {
     notes.push(
       "No ramp is unlocked, so the storeys have no way between them. They are " +
@@ -461,7 +498,9 @@ export function planTower(graph, args = {}) {
     planned: true,
     grid: ground.grid,
     footprint: ground.footprint,
-    levels,
+    levels: storeys.length,
+    levels_requested: levels,
+    inset_cells_per_tier: insetCells,
     storey_height_cm: storeyCm,
     storey_height_source: "floor slab plus wall, both measured from the pieces used",
     total_height_cm: baseHeightCm + levels * storeyCm,

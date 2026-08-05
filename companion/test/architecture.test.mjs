@@ -221,7 +221,7 @@ test("model tool exposes a dry-run preview and names the transaction limit", () 
 import { planTower } from "../lib/architecture.mjs";
 
 test("stacks storeys at a height measured from the pieces used", () => {
-  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800 });
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800, inset_cells: 0 });
 
   assert.equal(tower.planned, true, tower.reason);
   assert.equal(tower.levels, 3);
@@ -238,8 +238,8 @@ test("stacks storeys at a height measured from the pieces used", () => {
 test("pillars go under the building, never between its floors", () => {
   // The bug this protects against: every storey planning its own supports, so
   // a three-storey tower grew pillars starting at deck two, hanging in mid-air.
-  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800 });
-  const oneStorey = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3, height_cm: 800 });
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800, inset_cells: 0 });
+  const oneStorey = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3, height_cm: 800, inset_cells: 0 });
 
   assert.equal(
     tower.piece_counts.pillar,
@@ -255,21 +255,21 @@ test("pillars go under the building, never between its floors", () => {
 });
 
 test("only the top storey is roofed", () => {
-  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3 });
-  const oneStorey = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3 });
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, inset_cells: 0 });
+  const oneStorey = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3, inset_cells: 0 });
   // Intermediate roofs would be floors twice over, and would seal each deck.
   assert.equal(tower.piece_counts.roof, oneStorey.piece_counts.roof);
 });
 
 test("floors and walls scale with the storey count", () => {
-  const one = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3 });
-  const three = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3 });
+  const one = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3, inset_cells: 0 });
+  const three = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, inset_cells: 0 });
   assert.equal(three.piece_counts.floor, one.piece_counts.floor * 3);
   assert.equal(three.piece_counts.wall, one.piece_counts.wall * 3);
 });
 
 test("ramps join the storeys, and their absence is stated", () => {
-  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3 });
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, inset_cells: 0 });
   assert.equal(tower.ramps, 2, "one run per storey boundary");
 
   const noRamps = buildGraph(
@@ -286,4 +286,44 @@ test("refuses an implausible storey count instead of planning it", () => {
     assert.equal(plan.planned, false, `levels=${levels}`);
     assert.deepEqual(structureActions(plan), []);
   }
+});
+
+test("steps each tier in, so the building has a silhouette", () => {
+  // Every reference image the owner sent is a ziggurat: each floor smaller than
+  // the one below. Identical stacked boxes read as a warehouse, not a building.
+  const stepped = planTower(graph, { levels: 3, width_cells: 8, depth_cells: 6, inset_cells: 1 });
+  const areas = stepped.interiors.map((interior) => interior.usable_cells);
+
+  assert.equal(areas.length, 3);
+  assert.ok(areas[0] > areas[1] && areas[1] > areas[2], `expected shrinking tiers, got ${areas}`);
+  assert.equal(stepped.inset_cells_per_tier, 1);
+});
+
+test("inset 0 stacks straight sides, for when that is wanted", () => {
+  const straight = planTower(graph, { levels: 3, width_cells: 8, depth_cells: 6, inset_cells: 0 });
+  const areas = straight.interiors.map((interior) => interior.usable_cells);
+  assert.equal(new Set(areas).size, 1, "every tier should be identical");
+});
+
+test("tiers stay centred on the one below as they shrink", () => {
+  const stepped = planTower(graph, { levels: 3, width_cells: 8, depth_cells: 6, inset_cells: 1 });
+  const centreOf = (interior) => ({
+    x: (interior.min_x_cm + interior.max_x_cm) / 2,
+    y: (interior.min_y_cm + interior.max_y_cm) / 2,
+  });
+  const ground = centreOf(stepped.interiors[0]);
+  for (const interior of stepped.interiors.slice(1)) {
+    const centre = centreOf(interior);
+    assert.equal(centre.x, ground.x, "a tier drifting off-centre would overhang");
+    assert.equal(centre.y, ground.y);
+  }
+});
+
+test("a building too small to keep stepping is shortened, not failed", () => {
+  // A three-cell base cannot step in twice. A shorter tower is a better answer
+  // than no tower, so the tier count is capped and the reason is stated.
+  const squat = planTower(graph, { levels: 5, width_cells: 3, depth_cells: 3, inset_cells: 1 });
+  assert.equal(squat.planned, true);
+  assert.ok(squat.levels < squat.levels_requested, "should stop before running out of floor");
+  assert.ok(squat.notes.some((note) => /runs out of floor/.test(note)));
 });
