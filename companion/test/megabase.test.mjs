@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { buildGraph } from "../lib/graph.mjs";
 import {
   MEGABASE_SCHEMA,
   MEGABASE_STYLES,
   compileMegabaseConcept,
+  deriveMegabaseFloorHeight,
   gridPointToWorld,
   validateMegabaseManifest,
 } from "../lib/megabase.mjs";
+import { runSolverTool } from "../lib/tools.mjs";
+import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
 const layout = {
   designed: true,
@@ -21,7 +25,7 @@ const layout = {
         building_class: "/Game/Buildable/Build_Smelter.Build_Smelter_C",
         build_recipe_class: "/Game/Recipes/Recipe_Smelter.Recipe_Smelter_C",
         machines: 2,
-        machine_footprint_cm: { width: 600, depth: 900 },
+        machine_footprint_cm: { width: 600, depth: 900, height: 800 },
         footprint_measured_from: "2 of your own machines",
       },
       {
@@ -30,7 +34,7 @@ const layout = {
         building_class: "/Game/Buildable/Build_Constructor.Build_Constructor_C",
         build_recipe_class: "/Game/Recipes/Recipe_Constructor.Recipe_Constructor_C",
         machines: 4,
-        machine_footprint_cm: { width: 800, depth: 600 },
+        machine_footprint_cm: { width: 800, depth: 600, height: 800 },
         footprint_measured_from: "6 of your own machines",
       },
       {
@@ -39,14 +43,49 @@ const layout = {
         building_class: "/Game/Buildable/Build_Assembler.Build_Assembler_C",
         build_recipe_class: "/Game/Recipes/Recipe_Assembler.Recipe_Assembler_C",
         machines: 2,
-        machine_footprint_cm: { width: 1000, depth: 1500 },
+        machine_footprint_cm: { width: 1000, depth: 1500, height: 1200 },
         footprint_measured_from: "1 of your own machines",
       },
     ],
   },
 };
 
-const capturedParts = {
+const graph = {
+  snapshot: {
+    content: {
+      recipes: [
+        {
+          class_path: "/Game/FactoryGame/Recipes/Buildings/Recipe_Foundation.Recipe_Foundation_C",
+          name: "Foundation",
+          available: true,
+          products: [{ item_class: "/Game/FactoryGame/Buildable/Factory/Foundation/Desc_Foundation.Desc_Foundation_C" }],
+        },
+        {
+          class_path: "/ExampleMod/Recipe_GlassWall.Recipe_GlassWall_C",
+          name: "Modded Glass Wall",
+          available: true,
+          mod_reference: "ExampleMod",
+          products: [{ item_class: "/ExampleMod/Desc_GlassWall.Desc_GlassWall_C" }],
+        },
+        {
+          class_path: "/Game/FactoryGame/Recipes/Buildings/Recipe_Wall.Recipe_Wall_C",
+          name: "Wall",
+          available: false,
+          products: [{ item_class: "/Game/FactoryGame/Buildable/Factory/Wall/Desc_Wall.Desc_Wall_C" }],
+        },
+      ],
+    },
+  },
+};
+
+const partSelections = {
+  foundation: "/Game/FactoryGame/Recipes/Buildings/Recipe_Foundation.Recipe_Foundation_C",
+  window: "/ExampleMod/Recipe_GlassWall.Recipe_GlassWall_C",
+  wall: "/Game/FactoryGame/Recipes/Buildings/Recipe_Wall.Recipe_Wall_C",
+  rail: "/Untrusted/Recipe_Rail.Recipe_Rail_C",
+};
+
+const formerlyTrustedCallerData = {
   foundation: {
     recipe_class: "/Game/FactoryGame/Recipes/Buildings/Recipe_Foundation.Recipe_Foundation_C",
     available: true,
@@ -71,10 +110,10 @@ const capturedParts = {
 };
 
 function compile(style, extra = {}) {
-  return compileMegabaseConcept(layout, {
+  return compileMegabaseConcept(graph, layout, {
     style,
     floor_height_cm: 400,
-    part_catalog: capturedParts,
+    part_selections: partSelections,
     ...extra,
   });
 }
@@ -89,19 +128,35 @@ test("converts integer grid cells to exact rotated world coordinates", () => {
 });
 
 test("refuses to guess the vertical module or authoritative anchor", () => {
-  const noFloorHeight = compileMegabaseConcept(layout, {
+  const noFloorHeight = compileMegabaseConcept(graph, layout, {
     style: "elevated_industrial_campus",
   });
   assert.equal(noFloorHeight.compiled, false);
   assert.match(noFloorHeight.reason, /floor_height/);
   assert.deepEqual(noFloorHeight.actions, []);
 
-  const noAnchor = compileMegabaseConcept({ ...layout, origin: null }, {
+  const noAnchor = compileMegabaseConcept(graph, { ...layout, origin: null }, {
     style: "elevated_industrial_campus",
     floor_height_cm: 400,
   });
   assert.equal(noAnchor.compiled, false);
   assert.match(noAnchor.reason, /authoritative_x_y_and_z/);
+});
+
+test("derives floor height from the tallest measured machine plus service clearance", () => {
+  assert.deepEqual(deriveMegabaseFloorHeight(layout), {
+    derived: true,
+    floor_height_cm: 2_400,
+    tallest_machine_cm: 1_200,
+    service_clearance_cm: 800,
+    source: "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid",
+  });
+
+  const missing = structuredClone(layout);
+  missing.layout.rows[1].machine_footprint_cm.height = null;
+  const unknown = deriveMegabaseFloorHeight(missing);
+  assert.equal(unknown.derived, false);
+  assert.match(unknown.reason, /measured_height/);
 });
 
 test("all reference style grammars compile as valid preview-only manifests", () => {
@@ -125,7 +180,7 @@ test("machine halls retain measured recipes and grow from measured footprints", 
   const group = concept.program.groups[1];
   assert.equal(group.produces, "Iron Plate");
   assert.equal(group.build_recipe_class, layout.layout.rows[1].build_recipe_class);
-  assert.deepEqual(group.machine_footprint_cm, { width: 800, depth: 600 });
+  assert.deepEqual(group.machine_footprint_cm, { width: 800, depth: 600, height: 800 });
   assert.equal(group.hall_size_cells.x, 8);
   assert.match(group.measurement_source, /your own machines/);
 });
@@ -133,7 +188,7 @@ test("machine halls retain measured recipes and grow from measured footprints", 
 test("a missing measured footprint stays missing instead of becoming vanilla geometry", () => {
   const unmeasured = structuredClone(layout);
   unmeasured.layout.rows[0].footprint_measured_from = "";
-  const concept = compileMegabaseConcept(unmeasured, {
+  const concept = compileMegabaseConcept(graph, unmeasured, {
     style: "terraced_megafactory",
     floor_height_cm: 400,
   });
@@ -150,8 +205,18 @@ test("only available captured catalog entries resolve semantic parts", () => {
   assert.match(resolved.get("foundation").recipe_class, /Recipe_Foundation/);
   assert.equal(resolved.get("window").mod_reference, "ExampleMod");
   assert.match(unresolved.get("wall").reason, /not_available/);
-  assert.match(unresolved.get("rail").reason, /did_not_come_from/);
-  assert.match(unresolved.get("support_column").reason, /no_captured_part/);
+  assert.match(unresolved.get("rail").reason, /not_in_the_captured_game_catalog/);
+  assert.match(unresolved.get("support_column").reason, /no_part_selected/);
+});
+
+test("a caller cannot self-certify an invented recipe as captured", () => {
+  const concept = compile("elevated_industrial_campus", {
+    part_catalog: formerlyTrustedCallerData,
+    part_selections: { foundation: "/Invented/Recipe_Foundation.Recipe_Foundation_C" },
+  });
+  assert.equal(concept.part_resolution.resolved.length, 0);
+  const foundation = concept.part_resolution.unresolved.find((entry) => entry.role === "foundation");
+  assert.match(foundation.reason, /not_in_the_captured_game_catalog/);
 });
 
 test("curvilinear grammar creates a stepped campus spine without fuzzy coordinates", () => {
@@ -199,3 +264,30 @@ test("manifest validation catches actions, transform drift and missing endpoints
   assert.ok(result.issues.some((issue) => issue.startsWith("connection_endpoint_missing:")));
 });
 
+test("the model-facing solver builds its inputs from the graph and cannot emit actions", () => {
+  const snapshot = buildFactorySnapshot();
+  for (const actor of snapshot.actors) {
+    if (actor.kind !== "buildable") continue;
+    const isSmelter = actor.actor_id === SMELTER;
+    actor.bounds = {
+      origin: { ...actor.location },
+      extent: isSmelter ? { x: 300, y: 450, z: 400 } : { x: 400, y: 300, z: 400 },
+    };
+    actor.rotation = { pitch: 0, yaw: 45, roll: 0 };
+    if (actor.factory) actor.factory.production_cycle_seconds = 0;
+  }
+  const toolGraph = buildGraph(snapshot);
+  const result = runSolverTool(toolGraph, "design_megabase_concept", {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 60,
+    origin: { x: 100_000, y: 100_000, z: 500 },
+    style: "elevated_industrial_campus",
+  });
+  const parsed = JSON.parse(result.serialized);
+
+  assert.equal(parsed.compiled, true, parsed.reason);
+  assert.equal(parsed.validation.valid, true);
+  assert.equal(parsed.grid.yaw_degrees, 45);
+  assert.equal(parsed.vertical_module.source, "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid");
+  assert.deepEqual(parsed.actions, []);
+});

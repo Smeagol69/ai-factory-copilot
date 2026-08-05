@@ -73,6 +73,7 @@ factory arithmetic yourself:
 - current objective, active milestone, game phase, exact recipe availability,
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
+- a creative elevated, terraced, or campus megabase preview -> design_megabase_concept;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight;
 - the coordinates of a named thing, or whether a node can host a miner -> locate.
@@ -483,7 +484,7 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
-    tools: ["list_blueprints", "design_factory_layout", "plan_production"],
+    tools: ["list_blueprints", "design_factory_layout", "design_megabase_concept", "plan_production"],
   },
 ];
 
@@ -578,6 +579,8 @@ function evidenceRows(tool, parsed) {
       return Array.isArray(parsed.matches) ? parsed.matches : [];
     case "design_factory_layout":
       return parsed.designed === true ? [parsed] : [];
+    case "design_megabase_concept":
+      return parsed.compiled === true && parsed.validation?.valid === true ? [parsed] : [];
     default:
       return null;
   }
@@ -655,6 +658,7 @@ function solverTargetMatch(context, tool, args, parsed, rows) {
     "get_build_cost",
     "plan_production",
     "design_factory_layout",
+    "design_megabase_concept",
   ]);
 
   if (typeof args?.item_class === "string" && args.item_class) {
@@ -1555,6 +1559,7 @@ function mentionsSolverTool(text) {
 const SOLVER_TOOL_NAMES = [
   "design_base",
   "design_factory_layout",
+  "design_megabase_concept",
   "diagnose_bottlenecks",
   "find_belt_candidates",
   "find_best_site",

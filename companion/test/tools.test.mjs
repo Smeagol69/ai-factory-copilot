@@ -31,6 +31,7 @@ test("exposes the roadmap solver set to the model", () => {
     "clear_highlight",
     "design_base",
     "design_factory_layout",
+    "design_megabase_concept",
     "diagnose_bottlenecks",
     "find_belt_candidates",
     "find_best_site",

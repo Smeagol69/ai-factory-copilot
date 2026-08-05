@@ -69,8 +69,9 @@ player can afford the design, or that a modded part behaves like a vanilla one.
 3. Machine groups must come from a successful measured factory layout. A group
    with no measured footprint is rejected, not assigned a vanilla size.
 4. Only integer foundation/floor cells cross into the transform compiler.
-5. A semantic part resolves only from an entry marked
-   `source: "captured_game_catalog"` and `available: true`.
+5. A semantic part resolves only when its selected recipe class is found in the
+   graph's captured catalog with `available: true`. Caller-supplied provenance
+   flags are ignored; a model cannot certify its own suggestion as captured.
 6. No generated manifest emits an action or reports a construction as complete.
 7. The game remains the only writer and must read every committed result back.
 

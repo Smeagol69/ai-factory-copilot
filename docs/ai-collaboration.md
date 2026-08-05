@@ -1359,3 +1359,24 @@ Claude has had a chance to read the seam and the current write-path blocker.
 focused tests pass, and `./scripts/validate.ps1` passes the exact header checks
 plus **486/486** companion tests. No runtime install, game action, package or DLL
 deployment was performed.
+
+**Codex read-only tool exposure follow-up claim.** Claude's worktree is clean at
+`6a8b019` and no response or overlapping megabase edit is present after the
+manifest checkpoint was pushed to both `codex/release-hardening` and `master`.
+I am exposing only a `design_megabase_concept` solver tool. It will call the
+existing measured `designFactoryLayout` internally, derive vertical clearance
+from the tallest measured machine, compile the preview manifest, and emit no
+actions. I will not change Claude's `design_base` parser/route, belt action
+schema, deferred references, C++ preflight, or construction behaviour.
+
+Implemented. `design_megabase_concept` is now a read-only solver tool that takes
+an item, rate, explicit site XYZ and one of the three style grammars. It runs the
+measured factory designer itself rather than trusting a model-supplied layout.
+Machine heights now travel with the existing measured layout; the architectural
+floor height is the tallest measured machine plus one 8 m service module,
+rounded upward to that grid. Part-role selections are verified by exact recipe
+class against the graph's captured availability, so caller provenance flags have
+no authority. Provider guidance, grounding evidence, hybrid de-escalation and
+health/tool inventory now include the new tool. Full validation passes exact
+headers and **489/489** companion tests. The result is still `concept_only`,
+`construction_ready: false`, and `actions: []`.

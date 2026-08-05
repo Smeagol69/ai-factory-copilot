@@ -379,7 +379,11 @@ export function designFactoryLayout(graph, args = {}, services = {}) {
         machine_index: index + 1,
         location: { x: round(x), y: round(y), z: round(originZ) },
         yaw,
-        footprint_cm: { width: row.footprint.width_cm, depth: row.footprint.depth_cm },
+        footprint_cm: {
+          width: row.footprint.width_cm,
+          depth: row.footprint.depth_cm,
+          height: row.footprint.height_cm,
+        },
         footprint_source: row.footprint.source,
       };
 
@@ -433,6 +437,7 @@ export function designFactoryLayout(graph, args = {}, services = {}) {
         machine_footprint_cm: {
           width: row.footprint.width_cm,
           depth: row.footprint.depth_cm,
+          height: row.footprint.height_cm,
         },
         footprint_measured_from: `${row.footprint.measured_from} of your own machines`,
       })),

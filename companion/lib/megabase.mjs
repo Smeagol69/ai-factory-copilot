@@ -2,9 +2,10 @@
  * Preview-only megabase architecture compiler.
  *
  * A model may choose a style and proportions, but it never writes raw world
- * coordinates or engine class paths here. This module takes a factory layout
- * whose machine footprints were measured from the current save, expresses it
- * as integer grid cells, and compiles those cells into exact world transforms.
+ * coordinates or self-certify engine class paths here. This module takes a
+ * factory layout whose machine footprints were measured from the current save,
+ * expresses it as integer grid cells, and compiles those cells into exact world
+ * transforms. Selected parts resolve only by matching the captured graph.
  *
  * The result is deliberately not executable. It is the declarative seam for a
  * future game-authoritative construction pipeline.
@@ -158,9 +159,13 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
     const machines = whole(row?.machines);
     const widthCm = positive(row?.machine_footprint_cm?.width);
     const depthCm = positive(row?.machine_footprint_cm?.depth);
+    const heightCm = positive(row?.machine_footprint_cm?.height);
     const measured = String(row?.footprint_measured_from ?? "").trim();
     const buildRecipe = String(row?.build_recipe_class ?? "").trim();
-    if (machines === null || machines < 1 || widthCm === null || depthCm === null || !measured) {
+    if (
+      machines === null || machines < 1 || widthCm === null ||
+      depthCm === null || heightCm === null || !measured
+    ) {
       return {
         valid: false,
         reason: "every_machine_group_needs_a_measured_positive_footprint",
@@ -184,7 +189,7 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
       machines,
       building_class: row.building_class ?? null,
       build_recipe_class: buildRecipe,
-      machine_footprint_cm: { width: widthCm, depth: depthCm },
+      machine_footprint_cm: { width: widthCm, depth: depthCm, height: heightCm },
       machine_footprint_cells: { x: machineWidthCells, y: machineDepthCells },
       hall_size_cells: {
         x: Math.max(4, machineWidthCells * machines + marginCells * 2),
@@ -196,30 +201,70 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
   return { valid: true, groups };
 }
 
-function resolveSemanticRoles(partCatalog = {}) {
+/**
+ * Chooses a safe concept floor height from measured machines.
+ *
+ * One full grid unit of service clearance is added above the tallest captured
+ * machine, then the result is rounded upward to the same grid. This is an
+ * explicit architectural choice grounded by captured height, not a claim about
+ * a wall part's dimensions or a hologram's clearance rules.
+ */
+export function deriveMegabaseFloorHeight(factoryLayout, { grid_unit_cm = FOUNDATION_CM } = {}) {
+  const unit = positive(grid_unit_cm);
+  if (unit === null) {
+    return { derived: false, reason: "grid_unit_must_be_positive" };
+  }
+  const rows = factoryLayout?.layout?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { derived: false, reason: "factory_layout_has_no_machine_rows" };
+  }
+  const heights = rows.map((row) => positive(row?.machine_footprint_cm?.height));
+  if (heights.some((height) => height === null)) {
+    return {
+      derived: false,
+      reason: "every_machine_group_needs_a_measured_height",
+      effect: "No vertical architecture was produced; an unknown machine height was not guessed.",
+    };
+  }
+  const tallestMachineCm = Math.max(...heights);
+  return {
+    derived: true,
+    floor_height_cm: Math.ceil((tallestMachineCm + unit) / unit) * unit,
+    tallest_machine_cm: tallestMachineCm,
+    service_clearance_cm: unit,
+    source: "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid",
+  };
+}
+
+function resolveSemanticRoles(graph, selections = {}) {
+  const capturedRecipes = new Map(
+    (graph?.snapshot?.content?.recipes ?? [])
+      .filter((recipe) => typeof recipe?.class_path === "string" && recipe.class_path)
+      .map((recipe) => [recipe.class_path, recipe]),
+  );
   const resolved = [];
   const unresolved = [];
   for (const role of SEMANTIC_ROLES) {
-    const entry = partCatalog?.[role];
-    const recipeClass = String(entry?.recipe_class ?? "").trim();
-    if (entry?.source === "captured_game_catalog" && entry?.available === true && recipeClass) {
+    const selectedRecipeClass = String(selections?.[role] ?? "").trim();
+    const captured = capturedRecipes.get(selectedRecipeClass);
+    if (captured?.available === true) {
       resolved.push({
         role,
-        recipe_class: recipeClass,
-        item_class: entry.item_class ?? null,
-        mod_reference: entry.mod_reference ?? null,
-        source: entry.source,
+        recipe_class: captured.class_path,
+        recipe_name: captured.name ?? null,
+        item_class: captured.products?.[0]?.item_class ?? null,
+        mod_reference: captured.mod_reference ?? captured.mod_id ?? null,
+        source: "captured_game_catalog",
       });
     } else {
       unresolved.push({
         role,
-        reason: !entry
-          ? "no_captured_part_selected_for_role"
-          : entry.source !== "captured_game_catalog"
-            ? "part_did_not_come_from_the_captured_game_catalog"
-            : entry.available !== true
-              ? "captured_part_is_not_available_in_this_save"
-              : "captured_part_has_no_build_recipe",
+        selected_recipe_class: selectedRecipeClass || null,
+        reason: !selectedRecipeClass
+          ? "no_part_selected_for_role"
+          : !captured
+            ? "selected_recipe_is_not_in_the_captured_game_catalog"
+            : "captured_part_is_not_available_in_this_save",
       });
     }
   }
@@ -351,7 +396,7 @@ function bridgeSegments(from, to, index) {
  * use different vertical modules. It must come from the chosen captured parts;
  * silently assuming four metres would break the exact-coordinate contract.
  */
-export function compileMegabaseConcept(factoryLayout, options = {}) {
+export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
   const style = String(options.style ?? "").trim();
   if (!MEGABASE_STYLES.includes(style)) {
     return failed("style_must_be_one_of_the_supported_megabase_grammars", {
@@ -480,7 +525,7 @@ export function compileMegabaseConcept(factoryLayout, options = {}) {
     ...(element.produces ? { produces: element.produces } : {}),
   }));
 
-  const parts = resolveSemanticRoles(options.part_catalog);
+  const parts = resolveSemanticRoles(graph, options.part_selections);
   const manifest = {
     schema: MEGABASE_SCHEMA,
     compiled: true,
@@ -515,4 +560,3 @@ export function compileMegabaseConcept(factoryLayout, options = {}) {
   const validation = validateMegabaseManifest(manifest);
   return { ...manifest, validation };
 }
-

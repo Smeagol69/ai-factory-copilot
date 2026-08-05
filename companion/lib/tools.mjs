@@ -15,6 +15,7 @@
 import { summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
+import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import {
   planBeltedModule,
   solveBeltChain,
@@ -380,6 +381,110 @@ export const SOLVER_TOOLS = [
       return plan.planned
         ? { ...plan, actions_preview: baseBuildActions(plan, { commit: false }) }
         : plan;
+    },
+  },
+
+  {
+    name: "design_megabase_concept",
+    description:
+      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, or skybridges rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. It never emits actions and never claims construction will succeed. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_name: { type: "string", description: "Exact display name of the target item." },
+        target_rate_per_minute: { type: "number", description: "Desired output per minute." },
+        origin: {
+          type: "object",
+          description: "Authoritative site anchor in centimetres, including explicit Z.",
+          properties: {
+            x: { type: "number" },
+            y: { type: "number" },
+            z: { type: "number" },
+          },
+          required: ["x", "y", "z"],
+          additionalProperties: false,
+        },
+        style: {
+          type: "string",
+          enum: [
+            "elevated_industrial_campus",
+            "terraced_megafactory",
+            "curvilinear_future_campus",
+          ],
+          description: "Architectural grammar to compile. It changes massing, not game facts.",
+        },
+        recipe_class: { type: "string", description: "Optional captured production recipe for the target." },
+        use_existing_surplus: { type: "boolean", description: "Subtract existing surplus. Defaults to true." },
+        align_to_base: { type: "boolean", description: "Match the captured base grid. Defaults to true." },
+        creative_parameters: {
+          type: "object",
+          description: "Optional integer proportions. Unsupported fields are refused by the schema.",
+          properties: {
+            deck_floor: { type: "integer" },
+            hall_floors: { type: "integer" },
+            hall_gap_cells: { type: "integer" },
+            service_margin_cells: { type: "integer" },
+            terrace_step_cells: { type: "integer" },
+            terrace_level_floors: { type: "integer" },
+            curve_amplitude_cells: { type: "integer" },
+            tower_width_cells: { type: "integer" },
+            tower_depth_cells: { type: "integer" },
+            tower_floors: { type: "integer" },
+          },
+          additionalProperties: false,
+        },
+        part_selections: {
+          type: "object",
+          description:
+            "Optional recipe classes selected for semantic architecture roles. Each is independently checked against the captured available recipe catalog; a guessed class remains unresolved.",
+          properties: {
+            foundation: { type: "string" },
+            support_column: { type: "string" },
+            walkway: { type: "string" },
+            rail: { type: "string" },
+            wall: { type: "string" },
+            window: { type: "string" },
+            sloped_roof: { type: "string" },
+            lighting: { type: "string" },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ["item_name", "target_rate_per_minute", "origin", "style"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      const layout = designFactoryLayout(graph, {
+        item_name: args.item_name,
+        target_rate_per_minute: args.target_rate_per_minute,
+        origin: args.origin,
+        recipe_class: args.recipe_class,
+        use_existing_surplus: args.use_existing_surplus,
+        align_to_base: args.align_to_base,
+      }, services ?? {});
+      if (!layout.designed) return layout;
+
+      const vertical = deriveMegabaseFloorHeight(layout);
+      if (!vertical.derived) {
+        return {
+          schema: "megabase.design/v1",
+          compiled: false,
+          status: "concept_refused",
+          reason: vertical.reason,
+          effect: vertical.effect ?? null,
+          actions: [],
+        };
+      }
+      const manifest = compileMegabaseConcept(graph, layout, {
+        style: args.style,
+        floor_height_cm: vertical.floor_height_cm,
+        creative_parameters: args.creative_parameters,
+        part_selections: args.part_selections,
+      });
+      return {
+        ...manifest,
+        vertical_module: vertical,
+      };
     },
   },
 

@@ -249,6 +249,7 @@ test("reports its footprint in metres and foundations", () => {
   assert.ok(layout.layout.footprint_m.depth > 0);
   assert.ok(layout.layout.foundations_required > 0);
   assert.equal(layout.layout.aisle_cm, FOUNDATION_CM);
+  assert.equal(layout.layout.rows.every((row) => row.machine_footprint_cm.height === 800), true);
 });
 
 test("states that it places machines only, not belts", () => {
