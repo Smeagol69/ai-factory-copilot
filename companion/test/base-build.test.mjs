@@ -275,3 +275,112 @@ test("with no belt unlocked, machines are still placed and the gap is stated", (
   assert.equal(actions.filter((a) => a.action === "place_belt").length, 0);
   assert.equal(actions.filter((a) => a.action === "place_building").length, 3);
 });
+
+/* ---------------- the factory inside the building ---------------- */
+
+import { planStructure, structureActions } from "../lib/architecture.mjs";
+import { enclosedFactoryActions, planEnclosedFactory } from "../lib/base-build.mjs";
+
+const structuralKit = [
+  buildRecipe("Recipe_Foundation_8x1_01", "Desc_Foundation_8x1_01", "Foundation (1 m)"),
+  buildRecipe("Recipe_Foundation_8x2_01", "Desc_Foundation_8x2_01", "Foundation (2 m)"),
+  buildRecipe("Recipe_Wall_8x4_01", "Desc_Wall_8x4_01", "Basic Wall (4 m)"),
+  buildRecipe("Recipe_Roof_Orange_01", "Desc_Roof_Orange_01", "Flat Roof"),
+  buildRecipe("Recipe_PillarMiddle", "Desc_PillarMiddle", "Big Metal Pillar"),
+];
+
+const housedGraph = buildGraph({
+  world_revision: 8,
+  world: { scan_center: { x: 0, y: 0, z: 0 } },
+  interaction_context: { player: { pawn_available: true, pawn_location: { x: 0, y: 0, z: 500 } } },
+  actors: [],
+  content: {
+    items: [],
+    recipes: [
+      buildRecipe("Recipe_SmelterBasicMk1", "Desc_SmelterMk1", "Smelter"),
+      buildRecipe("Recipe_ConstructorMk1", "Desc_ConstructorMk1", "Constructor"),
+      buildRecipe("Recipe_ConveyorBeltMk1", "Desc_ConveyorBeltMk1", "Conveyor Belt Mk.1"),
+      ...structuralKit,
+    ],
+  },
+});
+
+/** A Constructor is 10.8 m wide in the real game — wider than one 8 m cell. */
+const measureBuildingStub = (_graph, [classPath]) =>
+  /Constructor/.test(classPath) ? { width_cm: 1_080, depth_cm: 965 } : null;
+
+test("houses the machines: shell sized from real footprints, machines on the deck", () => {
+  const plan = planEnclosedFactory(housedGraph, {
+    production_plan: productionPlan,
+    measure_building: measureBuildingStub,
+    plan_structure: planStructure,
+    raised_cm: 800,
+  });
+
+  assert.equal(plan.planned, true, plan.reason);
+  // A 10.8 m Constructor must be given two 8 m cells, not one.
+  const constructors = plan.machines.steps.find((step) => step.building_name === "Constructor");
+  assert.equal(constructors.cells_per_machine, 2);
+  // The Smelter had no measurement, so it falls back to one cell and says so.
+  assert.ok(plan.notes.some((note) => /could not be measured/.test(note)));
+
+  // Every machine sits on the deck surface, not at the platform's base.
+  const deckZ = plan.structure.interior.floor_z_cm;
+  for (const step of plan.machines.steps) {
+    for (const position of step.positions) {
+      assert.equal(position.location_cm.z, deckZ, "a machine must stand on the deck");
+    }
+  }
+});
+
+test("machines land inside the shell, not through its walls", () => {
+  const plan = planEnclosedFactory(housedGraph, {
+    production_plan: productionPlan,
+    measure_building: measureBuildingStub,
+    plan_structure: planStructure,
+    raised_cm: 800,
+  });
+
+  const { min_x_cm: minX, max_x_cm: maxX, min_y_cm: minY, max_y_cm: maxY } = plan.structure.interior;
+  for (const step of plan.machines.steps) {
+    for (const position of step.positions) {
+      const { x, y } = position.location_cm;
+      assert.ok(x >= minX && x <= maxX, `machine at x=${x} is outside ${minX}..${maxX}`);
+      assert.ok(y >= minY && y <= maxY, `machine at y=${y} is outside ${minY}..${maxY}`);
+    }
+  }
+});
+
+test("builds the shell before the machines that stand on it", () => {
+  const plan = planEnclosedFactory(housedGraph, {
+    production_plan: productionPlan,
+    measure_building: measureBuildingStub,
+    plan_structure: planStructure,
+    raised_cm: 800,
+  });
+  const actions = enclosedFactoryActions(plan, { commit: true, structure_actions: structureActions });
+
+  const shellCount = plan.structure.parts.length;
+  assert.ok(actions.length > shellCount, "machines must follow the shell");
+  // A machine placed before its deck exists has nothing to stand on.
+  const firstStructural = actions.findIndex((a) => /Foundation/.test(a.recipe_class));
+  const firstMachine = actions.findIndex((a) => /Constructor|Smelter/.test(a.recipe_class));
+  assert.ok(firstStructural < firstMachine, "the deck goes down first");
+});
+
+test("a raised factory gets pillars under it", () => {
+  const plan = planEnclosedFactory(housedGraph, {
+    production_plan: productionPlan,
+    measure_building: measureBuildingStub,
+    plan_structure: planStructure,
+    raised_cm: 800,
+  });
+  assert.ok(plan.structure.pillars > 0);
+  assert.equal(plan.structure.raised_cm, 800);
+});
+
+test("refuses cleanly when there is no structure planner or no production", () => {
+  assert.match(planEnclosedFactory(housedGraph, { production_plan: productionPlan }).reason, /structure planner/);
+  const noProduction = planEnclosedFactory(housedGraph, { plan_structure: planStructure });
+  assert.equal(noProduction.planned, false);
+});

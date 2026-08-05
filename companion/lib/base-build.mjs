@@ -377,3 +377,133 @@ export function baseBuildActions(plan, { commit = false } = {}) {
   }
   return actions;
 }
+
+/* ---------------- a factory inside a building ---------------- */
+
+/**
+ * Plans a production line and the structure that houses it.
+ *
+ * This is the composite the owner is actually asking for: not machines in a
+ * field and not an empty shed, but a raised, walled, roofed deck with the
+ * production sitting on it. The reference art is all elevated platforms with
+ * the machinery enclosed, and the original request weeks earlier was the same
+ * thing in plainer words — "so I can place buildings over them to hide it".
+ *
+ * The structure is sized from the machines rather than the other way round.
+ * Footprints are measured off the player's own buildings, so a Constructor at
+ * 10.8 m is correctly given two grid cells rather than one, and a save with
+ * none built yet falls back to a stated assumption instead of a silent guess.
+ */
+export function planEnclosedFactory(graph, args = {}) {
+  const {
+    production_plan: production = null,
+    measure_building: measureBuilding = null,
+    measure_connectors: measureConnectors = null,
+    plan_structure: planStructure = null,
+    raised_cm: raisedCm = 800,
+    glass_roof: glassRoof = true,
+    margin_cells: marginCells = 1,
+  } = args;
+
+  if (typeof planStructure !== "function") {
+    return { solver: "enclosed_factory", planned: false, reason: "no structure planner was provided" };
+  }
+
+  // The machines first: their count and footprint decide how big the shell is.
+  const machinePlan = planBaseBuild(graph, {
+    production_plan: production,
+    measure_connectors: measureConnectors,
+  });
+  if (!machinePlan.planned) return { ...machinePlan, solver: "enclosed_factory" };
+
+  // Probe the grid with a throwaway structure, so cell size comes from the
+  // same place the real one will use rather than a second opinion.
+  const probe = planStructure(graph, { width_cells: 1, depth_cells: 1, height_cm: 0 });
+  if (!probe.planned) return { ...probe, solver: "enclosed_factory" };
+  const cell = probe.grid.cell_size_cm;
+
+  const cellsFor = (lengthCm) => Math.max(1, Math.ceil(lengthCm / cell));
+  const assumedFootprints = [];
+
+  // How many cells each row needs, from real measurements where they exist.
+  let widestRowCells = 1;
+  const rows = machinePlan.steps.map((step) => {
+    const measured = typeof measureBuilding === "function"
+      ? measureBuilding(graph, [step.building_class])
+      : null;
+    if (!measured) assumedFootprints.push(step.building_name);
+
+    const widthCells = cellsFor(measured?.width_cm ?? cell);
+    const depthCells = cellsFor(measured?.depth_cm ?? cell);
+    const rowCells = widthCells * step.machines;
+    widestRowCells = Math.max(widestRowCells, rowCells);
+    return { ...step, cells_per_machine: widthCells, row_depth_cells: depthCells, row_width_cells: rowCells };
+  });
+
+  const interiorWidth = widestRowCells + marginCells * 2;
+  const interiorDepth =
+    rows.reduce((sum, row) => sum + row.row_depth_cells, 0) + marginCells * (rows.length + 1);
+
+  const structure = planStructure(graph, {
+    width_cells: interiorWidth,
+    depth_cells: interiorDepth,
+    height_cm: raisedCm,
+    glass_roof: glassRoof,
+  });
+  if (!structure.planned) return { ...structure, solver: "enclosed_factory" };
+
+  // Re-place every machine on the deck, inside the shell, on the grid.
+  const deckZ = structure.interior.floor_z_cm;
+  let rowCursor = marginCells;
+  const placed = rows.map((row) => {
+    const y = structure.interior.min_y_cm + rowCursor * cell;
+    rowCursor += row.row_depth_cells + marginCells;
+    return {
+      ...row,
+      positions: row.positions.map((position, index) => ({
+        ...position,
+        location_cm: {
+          x: structure.interior.min_x_cm + (marginCells + index * row.cells_per_machine) * cell,
+          y,
+          z: deckZ,
+        },
+      })),
+    };
+  });
+
+  const notes = [...structure.notes, ...machinePlan.notes];
+  if (assumedFootprints.length > 0) {
+    notes.push(
+      `Footprints for ${[...new Set(assumedFootprints)].join(", ")} could not be ` +
+        "measured from buildings you already own, so one grid cell was assumed. " +
+        "Build one of each and the layout tightens on its own.",
+    );
+  }
+
+  return {
+    solver: "enclosed_factory",
+    planned: true,
+    structure: { ...structure, parts: structure.parts },
+    machines: { ...machinePlan, steps: placed },
+    grid_cell_cm: cell,
+    interior_cells: { width: interiorWidth, depth: interiorDepth },
+    notes,
+    unverified: structure.unverified,
+  };
+}
+
+/**
+ * The whole thing as actions: shell first, then the machines on its deck, then
+ * the belts between them.
+ *
+ * Order matters for more than tidiness — a machine placed before the deck it
+ * stands on has nothing to stand on, and the game would refuse it.
+ */
+export function enclosedFactoryActions(plan, { commit = false, structure_actions: structureActions } = {}) {
+  if (!plan?.planned) return [];
+  const shell = typeof structureActions === "function"
+    ? structureActions(plan.structure, { commit })
+    : [];
+  const inside = baseBuildActions(plan.machines, { commit });
+  return [...shell, ...inside];
+}
