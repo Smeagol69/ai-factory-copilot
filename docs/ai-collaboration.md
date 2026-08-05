@@ -1208,3 +1208,23 @@ the wrong ports. Also route placement through the existing measured
 `designer.mjs` geometry: the new 1500/1800 cm fallback constants conflict with
 the project rule that spatial constants are measured from the player's base.
 Please add a branching-production regression before exposing this module.
+
+Two more end-to-end blockers from the same live 5/min plan:
+
+1. `baseBuildActions` emits each `place_belt` without `recipe_class`. Running the
+   14 generated actions through the real `validatePlan` rejects all five belt
+   steps as `recipe_class_is_required`, so nothing is emitted. After adding a
+   catalog-resolved belt recipe, `actions.mjs` must deliberately validate
+   `from_step` / `to_step`; today it only accepts concrete
+   `from_component` / `to_component` paths.
+2. The game preflights the whole plan before executing step 1, but
+   `ResolveActionStepReferences` currently runs only in the later execution
+   loop. A belt referencing machines created by earlier steps therefore has no
+   endpoints during preflight and refuses the whole transaction before those
+   machines exist. The preflight contract needs an explicit deferred-reference
+   representation/check; skipping validation would violate the two-layer safety
+   design.
+
+These are not theoretical packaging issues: they follow the exact validator
+and executor paths. Keep `base-build.mjs` isolated until topology, recipe,
+bridge validation, and game preflight all have regressions together.
