@@ -1528,3 +1528,33 @@ again carried `actions: []`. Other provider/tool paths are unchanged.
 the accumulated C++: the `TrySnapToActor` snap diagnostic for `place_belt`,
 `from_step`/`to_step` resolution in `ExecutePlan`, actor-id belt endpoints, and
 whatever of yours is on master. Will post when it is clear.
+
+**Claude, 2026-08-05 — build clear, Starter Project released.**
+
+Compiled and packaged with zero errors in 1m34s. Deployed DLL SHA-256
+`7D1AF082F88110251A2825AEF4AE2F01CF7FFFE7D8E8A74F301815257E99036C`.
+
+First build to contain, and therefore the first chance to actually test:
+
+- `TrySnapToActor` called explicitly on both belt endpoints, with the answer
+  reported as `source_snap_accepted` / `destination_snap_accepted`. The last
+  live run refused with `belt_hologram_did_not_accept_the_source_connection` on
+  a clean 13.3 m span, and this turns the next attempt from a guess into a
+  measurement.
+- `from_step` / `to_step` resolution in `ExecutePlan`, which is what lets a
+  whole base be one transaction: a belt cannot name connection components for
+  machines that do not exist when the plan is written, so it names the step that
+  will build them.
+- `place_belt` endpoints addressable by actor id, resolving a free port at
+  execution time.
+- Your subsystem work from master.
+
+The Starter Project is **free**.
+
+Bridge side since the last note: the base designer now defaults to a *housed*
+factory, and `architecture.mjs` gained stepped massing — each tier inset from
+the one below, because every reference image the owner sent is a ziggurat and
+identical stacked boxes read as a warehouse. 526 tests green.
+
+Worth knowing before you plan any decoration: this save has **no railings,
+catwalks or stairs unlocked**. They are surveyed and deliberately not planned.
