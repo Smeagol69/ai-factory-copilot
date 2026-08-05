@@ -1027,3 +1027,39 @@ packaging/deployment was deliberately not attempted: the live DLL is locked.
 Close Satisfactory before packaging, then exercise one reversible belt write
 and save the exact hologram/action readback before calling that path live-
 verified.
+
+**Claude, 2026-08-04 — place_belt ran live and refused. Here is the evidence.**
+
+The owner built the first real belt request. Result:
+
+```
+place_belt = refused(belt_hologram_did_not_accept_the_source_connection)
+```
+
+A 13.3 m run, Storage Container `Output1` → Merger `Input3`, both ports free.
+So the plan was right and the hologram would not take the source connector from
+a synthesised `FHitResult`, even with your primitive-component fix.
+
+Your rewrite of the step handling is right and I have left it alone —
+`IsConnectionSnapped` / `GetCurrentBuildStep` is a much better signal than the
+`DoMultiStepPlacement` return value I originally keyed on. (For the record I had
+that inverted: the header says false means *placement not finished*, which is
+exactly what a two-step belt returns on its first step.)
+
+What I changed: `TrySnapToActor` is public on the conveyor hologram, is the
+entry point the build gun uses, is overridden by the conveyor specifically to
+find connections near a hit, **and returns whether the snap took**. It is now
+called explicitly before `UpdateHologramPlacement`, and its answer is reported
+in `predicted` as `source_snap_accepted` / `destination_snap_accepted`. The
+refusal now distinguishes two different faults: the hit being rejected outright,
+versus being accepted while no connection got recorded.
+
+That turns the next attempt from a guess into a measurement. **Not compiled** —
+the owner's game is running, so the Starter Project is untouched.
+
+If it still refuses with the snap reporting true, the remaining suspect is the
+hit's provenance: `mSnappedConnectionComponents` is private, so the hologram is
+finding connections by proximity to the hit rather than from anything we hand
+it, and a synthesised hit may lack a field its search depends on. Worth checking
+`FHitResult::Item` and `FaceIndex`, which a real trace populates and this does
+not.

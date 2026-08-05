@@ -1990,14 +1990,34 @@ FAIFactoryActionResult PlaceBelt(
     // SetHologramLocationAndRotation directly skips AFGHologram's snap path:
     // the official header says it is called only after TrySnapToActor did not
     // snap. UpdateHologramPlacement owns that sequence and must receive the hit.
+    // Ask the hologram to snap, and use its own answer rather than inferring one.
+    //
+    // `UpdateHologramPlacement` alone was not snapping to the source connector
+    // in a live save — the belt refused with
+    // `belt_hologram_did_not_accept_the_source_connection` on a perfectly
+    // ordinary 13 m run. `TrySnapToActor` is the public entry point the build
+    // gun uses for exactly this, it returns whether the snap took, and it is
+    // overridden by the conveyor hologram specifically to find connections near
+    // the hit. Calling it directly turns a silent non-snap into a fact.
+    //
+    // Both are called: the snap establishes the connection, the placement
+    // update positions the spline from it.
     const FHitResult FromHit = MakeActionConnectionHit(From);
+    const bool bSnappedSource = Belt->TrySnapToActor(FromHit);
     Belt->UpdateHologramPlacement(FromHit);
+    Predicted->SetBoolField(TEXT("source_snap_accepted"), bSnappedSource);
+
     if (!Belt->IsConnectionSnapped(false))
     {
         Belt->Destroy();
         return FAIFactoryActionResult::Refuse(
             Action,
-            TEXT("belt_hologram_did_not_accept_the_source_connection"));
+            bSnappedSource
+                // The hologram accepted the hit but did not record a connection,
+                // which is a different fault from rejecting the hit outright and
+                // wants a different fix.
+                ? TEXT("belt_hologram_snapped_but_recorded_no_source_connection")
+                : TEXT("belt_hologram_did_not_accept_the_source_connection"));
     }
 
     const ESplineHologramBuildStep SourceStep = Belt->GetCurrentBuildStep();
@@ -2015,7 +2035,9 @@ FAIFactoryActionResult PlaceBelt(
     }
 
     const FHitResult ToHit = MakeActionConnectionHit(To);
+    const bool bSnappedDestination = Belt->TrySnapToActor(ToHit);
     Belt->UpdateHologramPlacement(ToHit);
+    Predicted->SetBoolField(TEXT("destination_snap_accepted"), bSnappedDestination);
     if (!Belt->IsConnectionSnapped(true))
     {
         Belt->Destroy();
