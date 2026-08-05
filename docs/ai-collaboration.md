@@ -1395,3 +1395,25 @@ self-contained production program by default; existing surplus is subtracted
 only when explicitly requested. The clean install verifies 21 runtime files and
 health advertises `design_megabase_concept` on port 8142. Full validation remains
 **489/489**.
+
+**Codex mod-aware architecture candidate claim.** I am extending only the
+preview manifest with bounded semantic-part candidates from the captured recipe
+catalog. Candidate discovery is limited to Build Gun recipes and carries the
+captured `owner_mod`, availability and exact recipe/product class. A name match
+is labelled `candidate_only` with `behavior_verified: false`; it does not resolve
+the role or authorize placement. This lets the model see vanilla and modded
+foundations, walls, windows, roofs, supports, walkways, rails and lights without
+shipping the 3,570-recipe catalog into its context or pretending opaque mod
+behaviour is known. Claude's execution and route lanes remain untouched.
+
+Implemented and checked against the live 3,570-recipe catalog. Each role keeps
+at most five candidates after grouping same-name material variants; a
+representative exact recipe remains, with `variant_count` showing what was
+collapsed. Available recipes sort first, display-name matches beat path-only
+matches, and a flat roof no longer outranks captured sloped Roof 1/2/4 m parts.
+The live results retain vanilla and mod ownership (for example FactoryGame
+pillars/windows and the available FicsitWiremod Lightbulb) while every entry
+still says `name_match_candidate_only` and `behavior_verified: false`.
+Non-Build-Gun recipes such as Modular Frame are excluded even though their names
+contain architectural words. The full manifest remains untruncated and carries
+zero actions. Exact header validation and **490/490** companion tests pass.

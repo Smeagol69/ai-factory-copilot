@@ -65,6 +65,17 @@ const SEMANTIC_ROLES = Object.freeze([
   "lighting",
 ]);
 
+const ROLE_NAME_PATTERNS = Object.freeze({
+  foundation: Object.freeze(["foundation"]),
+  support_column: Object.freeze(["pillar", "column", "support beam", "structural beam"]),
+  walkway: Object.freeze(["walkway", "catwalk"]),
+  rail: Object.freeze(["railing", "handrail"]),
+  wall: Object.freeze(["wall"]),
+  window: Object.freeze(["window", "glass wall", "glass frame"]),
+  sloped_roof: Object.freeze(["roof"]),
+  lighting: Object.freeze(["light", "lights", "lightbulb", "lamp", "floodlight"]),
+});
+
 function finite(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -269,6 +280,99 @@ function resolveSemanticRoles(graph, selections = {}) {
     }
   }
   return { resolved, unresolved };
+}
+
+function containsWholePhrase(text, phrase) {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, "i").test(text);
+}
+
+/**
+ * Finds bounded, name-evidenced candidates for each architectural role.
+ *
+ * This is discovery, not classification. A mod may call a control panel a
+ * "light" or a decorative prop a "support"; the captured name proves only why
+ * it was suggested. `behavior_verified` therefore stays false until a specific
+ * adapter or the game's hologram supplies stronger evidence.
+ */
+export function findMegabasePartCandidates(graph, { limit_per_role = 5 } = {}) {
+  const requestedLimit = whole(limit_per_role);
+  const limit = Math.min(10, Math.max(1, requestedLimit ?? 5));
+  const buildRecipes = (graph?.snapshot?.content?.recipes ?? []).filter((recipe) =>
+    (recipe.produced_in ?? []).some((producer) => /(?:BP_)?BuildGun|FGBuildGun/i.test(String(producer))),
+  );
+
+  const candidatesByRole = {};
+  const totalsByRole = {};
+  for (const role of SEMANTIC_ROLES) {
+    const phrases = ROLE_NAME_PATTERNS[role] ?? [];
+    const grouped = new Map();
+    for (const recipe of buildRecipes) {
+      const product = recipe.products?.[0] ?? null;
+      const displayText = `${recipe.name ?? ""} ${product?.item_name ?? ""}`;
+      const pathText = `${recipe.class_path ?? ""} ${product?.item_class ?? ""}`;
+      const displayMatches = phrases.filter((phrase) => containsWholePhrase(displayText, phrase));
+      const pathMatches = phrases.filter((phrase) => containsWholePhrase(pathText, phrase));
+      const matched = [...new Set([...displayMatches, ...pathMatches])];
+      if (matched.length === 0) continue;
+      const roleFitPenalty = role === "sloped_roof" && containsWholePhrase(displayText, "flat roof") ? 50 : 0;
+      const ownerMod = recipe.owner_mod ?? null;
+      const displayName = product?.item_name ?? recipe.name ?? recipe.class_path;
+      const groupKey = `${String(ownerMod ?? "").toLowerCase()}|${String(displayName).toLowerCase()}`;
+      const candidate = {
+        role,
+        recipe_class: recipe.class_path,
+        recipe_name: recipe.name ?? null,
+        product_item_class: product?.item_class ?? null,
+        product_name: product?.item_name ?? null,
+        owner_mod: ownerMod,
+        registrar_mod: recipe.registrar_mod ?? null,
+        available: recipe.available === true,
+        matched_name_terms: matched,
+        match_scope: displayMatches.length > 0 ? "display_name" : "class_path_only",
+        name_match_score: displayMatches.length * 100 + pathMatches.length * 10 - roleFitPenalty,
+        variant_count: 1,
+        evidence:
+          displayMatches.length > 0
+            ? "captured Build Gun recipe/product display name matched the semantic role terms"
+            : "captured Build Gun recipe/product class path matched the semantic role terms",
+        certainty: "name_match_candidate_only",
+        behavior_verified: false,
+      };
+      const existing = grouped.get(groupKey);
+      if (!existing) {
+        grouped.set(groupKey, candidate);
+      } else {
+        const variantCount = existing.variant_count + 1;
+        const candidateRanksHigher =
+          Number(candidate.available) > Number(existing.available) ||
+          (candidate.available === existing.available && candidate.name_match_score > existing.name_match_score);
+        grouped.set(groupKey, candidateRanksHigher
+          ? { ...candidate, variant_count: variantCount }
+          : { ...existing, variant_count: variantCount });
+      }
+    }
+    const matches = [...grouped.values()];
+    matches.sort((left, right) =>
+      Number(right.available) - Number(left.available) ||
+      right.name_match_score - left.name_match_score ||
+      String(left.owner_mod ?? "").localeCompare(String(right.owner_mod ?? "")) ||
+      String(left.recipe_name ?? "").localeCompare(String(right.recipe_name ?? "")),
+    );
+    totalsByRole[role] = matches.length;
+    candidatesByRole[role] = matches.slice(0, limit);
+  }
+
+  return {
+    source: "captured_build_gun_recipe_catalog",
+    certainty: "candidate_names_only_mod_behavior_not_inferred",
+    limit_per_role: limit,
+    totals_by_role: totalsByRole,
+    candidates_by_role: candidatesByRole,
+    note:
+      "Candidates are suggestions grounded by captured names and availability. " +
+      "Select an exact recipe deliberately; opaque mod behavior remains unknown until adapted or game-validated.",
+  };
 }
 
 function overlaps3d(left, right) {
@@ -541,6 +645,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     elements,
     connections,
     part_resolution: parts,
+    part_candidates: findMegabasePartCandidates(graph),
     actions: [],
     construction_ready: false,
     construction_blockers: [

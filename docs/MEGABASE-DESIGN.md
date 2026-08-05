@@ -55,6 +55,8 @@ and is available. Missing roles stay missing and are listed in the manifest.
 - integer grid-local origins and extents for every element;
 - deterministic world-space XYZ and yaw for every element;
 - captured part resolutions and unresolved semantic roles;
+- bounded captured Build Gun recipe candidates per role, including mod ownership,
+  availability and an explicit `behavior_verified: false` caveat;
 - validation issues, provenance and a permanent `actions: []` field.
 
 The manifest is not a list of build actions. `concept_only` means exactly that.

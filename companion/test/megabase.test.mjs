@@ -7,6 +7,7 @@ import {
   MEGABASE_STYLES,
   compileMegabaseConcept,
   deriveMegabaseFloorHeight,
+  findMegabasePartCandidates,
   gridPointToWorld,
   validateMegabaseManifest,
 } from "../lib/megabase.mjs";
@@ -59,19 +60,63 @@ const graph = {
           name: "Foundation",
           available: true,
           products: [{ item_class: "/Game/FactoryGame/Buildable/Factory/Foundation/Desc_Foundation.Desc_Foundation_C" }],
+          produced_in: ["/Script/FactoryGame.FGBuildGun"],
         },
         {
           class_path: "/ExampleMod/Recipe_GlassWall.Recipe_GlassWall_C",
           name: "Modded Glass Wall",
           available: true,
           mod_reference: "ExampleMod",
+          owner_mod: "ExampleMod",
           products: [{ item_class: "/ExampleMod/Desc_GlassWall.Desc_GlassWall_C" }],
+          produced_in: ["/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C"],
+        },
+        {
+          class_path: "/ExampleMod/Recipe_GlassWallSteel.Recipe_GlassWallSteel_C",
+          name: "Modded Glass Wall",
+          available: true,
+          owner_mod: "ExampleMod",
+          products: [{ item_class: "/ExampleMod/Desc_GlassWallSteel.Desc_GlassWallSteel_C", item_name: "Modded Glass Wall" }],
+          produced_in: ["/Script/FactoryGame.FGBuildGun"],
         },
         {
           class_path: "/Game/FactoryGame/Recipes/Buildings/Recipe_Wall.Recipe_Wall_C",
           name: "Wall",
           available: false,
           products: [{ item_class: "/Game/FactoryGame/Buildable/Factory/Wall/Desc_Wall.Desc_Wall_C" }],
+          produced_in: ["/Script/FactoryGame.FGBuildGun"],
+        },
+        {
+          class_path: "/Game/Recipes/Recipe_ModularFrame.Recipe_ModularFrame_C",
+          name: "Modular Frame",
+          owner_mod: "FactoryGame",
+          available: true,
+          products: [{ item_class: "/Game/Desc_ModularFrame.Desc_ModularFrame_C", item_name: "Modular Frame" }],
+          produced_in: ["/Game/FactoryGame/Buildable/Factory/AssemblerMk1/Build_AssemblerMk1.Build_AssemblerMk1_C"],
+        },
+        {
+          class_path: "/Game/Recipes/Recipe_FlatRoof.Recipe_FlatRoof_C",
+          name: "Flat Roof",
+          owner_mod: "FactoryGame",
+          available: true,
+          products: [{ item_class: "/Game/Desc_FlatRoof.Desc_FlatRoof_C", item_name: "Flat Roof" }],
+          produced_in: ["/Script/FactoryGame.FGBuildGun"],
+        },
+        {
+          class_path: "/Game/Recipes/Recipe_Roof2m.Recipe_Roof2m_C",
+          name: "Roof (2 m)",
+          owner_mod: "FactoryGame",
+          available: true,
+          products: [{ item_class: "/Game/Desc_Roof2m.Desc_Roof2m_C", item_name: "Roof (2 m)" }],
+          produced_in: ["/Script/FactoryGame.FGBuildGun"],
+        },
+        {
+          class_path: "/FicsitWiremod/Recipe_Lightbulb.Recipe_Lightbulb_C",
+          name: "Lightbulb",
+          owner_mod: "FicsitWiremod",
+          available: true,
+          products: [{ item_class: "/FicsitWiremod/Desc_Lightbulb.Desc_Lightbulb_C", item_name: "Lightbulb" }],
+          produced_in: ["/Script/FactoryGame.FGBuildGun"],
         },
       ],
     },
@@ -209,6 +254,29 @@ test("only available captured catalog entries resolve semantic parts", () => {
   assert.match(unresolved.get("support_column").reason, /no_part_selected/);
 });
 
+test("surfaces bounded vanilla and mod candidates without asserting their behavior", () => {
+  const candidates = findMegabasePartCandidates(graph, { limit_per_role: 2 });
+  assert.equal(candidates.source, "captured_build_gun_recipe_catalog");
+  assert.equal(candidates.limit_per_role, 2);
+
+  const foundation = candidates.candidates_by_role.foundation[0];
+  assert.match(foundation.recipe_class, /Recipe_Foundation/);
+  assert.equal(foundation.available, true);
+  assert.equal(foundation.behavior_verified, false);
+  assert.equal(foundation.certainty, "name_match_candidate_only");
+  assert.equal(foundation.match_scope, "display_name");
+
+  const window = candidates.candidates_by_role.window[0];
+  assert.equal(window.owner_mod, "ExampleMod");
+  assert.match(window.recipe_class, /Recipe_GlassWall/);
+  assert.equal(window.variant_count, 2);
+
+  const everyCandidate = Object.values(candidates.candidates_by_role).flat();
+  assert.equal(everyCandidate.some((entry) => /ModularFrame/.test(entry.recipe_class)), false);
+  assert.equal(candidates.candidates_by_role.sloped_roof[0].product_name, "Roof (2 m)");
+  assert.equal(candidates.candidates_by_role.lighting[0].owner_mod, "FicsitWiremod");
+});
+
 test("a caller cannot self-certify an invented recipe as captured", () => {
   const concept = compile("elevated_industrial_campus", {
     part_catalog: formerlyTrustedCallerData,
@@ -290,5 +358,6 @@ test("the model-facing solver builds its inputs from the graph and cannot emit a
   assert.equal(parsed.grid.yaw_degrees, 45);
   assert.equal(parsed.vertical_module.source, "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid");
   assert.equal(parsed.program.groups.length, 2, "existing surplus must not erase a new megabase program by default");
+  assert.equal(parsed.part_candidates.source, "captured_build_gun_recipe_catalog");
   assert.deepEqual(parsed.actions, []);
 });
