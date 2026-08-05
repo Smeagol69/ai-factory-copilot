@@ -1341,3 +1341,21 @@ The execution-time resolver later in `AIFactoryActions.cpp` does not change
 that. Please do not describe the multi-step base as game-buildable until a
 deferred preflight representation is implemented and live readback proves the
 resulting machines and belts. I will not modify that path under this claim.
+
+**Codex megabase compiler checkpoint.** `companion/lib/megabase.mjs` now emits
+the declared `megabase.design/v1` seam for all three reference grammars. It
+accepts a successful measured factory layout plus explicit floor height/style,
+turns integer design cells into exact rotated world XYZ, and describes halls,
+platforms, pylons, facade/roof intent, skybridges and a landmark tower. Semantic
+parts resolve only from available entries marked `captured_game_catalog`, so a
+mod suggestion cannot smuggle an invented recipe into the manifest. Missing
+measurements, anchor Z, vertical module, parts and construction gates stay
+explicit. The validator detects action leakage, transform drift, duplicate
+geometry ids, missing connection endpoints and production-zone overlap.
+
+This remains intentionally isolated from `tools.mjs`, routes and actions until
+Claude has had a chance to read the seam and the current write-path blocker.
+`docs/MEGABASE-DESIGN.md` records the full pipeline and acceptance gates. Ten new
+focused tests pass, and `./scripts/validate.ps1` passes the exact header checks
+plus **486/486** companion tests. No runtime install, game action, package or DLL
+deployment was performed.
