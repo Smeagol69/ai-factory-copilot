@@ -51,6 +51,7 @@ const fullKit = [
   piece("Recipe_Roof_Orange_01", "Desc_Roof_Orange_01", "Flat Roof"),
   piece("Recipe_PillarMiddle", "Desc_PillarMiddle", "Big Metal Pillar"),
   piece("Recipe_FoundationGlass_01", "Desc_FoundationGlass_01", "Glass Frame Foundation"),
+  piece("Recipe_Ramp_8x4_01", "Desc_Ramp_8x4_01", "Ramp (4 m)"),
 ];
 
 const graph = buildGraph(snapshot(fullKit));
@@ -213,4 +214,76 @@ test("model tool exposes a dry-run preview and names the transaction limit", () 
     requires_chunking: true,
     effect: "This preview cannot be submitted as one action plan; bounded reversible chunking is required.",
   });
+});
+
+/* ---------------- stacked storeys ---------------- */
+
+import { planTower } from "../lib/architecture.mjs";
+
+test("stacks storeys at a height measured from the pieces used", () => {
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800 });
+
+  assert.equal(tower.planned, true, tower.reason);
+  assert.equal(tower.levels, 3);
+  // 2 m floor slab (raised) + 4 m wall = 6 m, both read from the catalog.
+  assert.equal(tower.storey_height_cm, 600);
+  assert.equal(tower.interiors.length, 3);
+
+  // Each deck sits exactly one storey above the last.
+  const spacing = tower.interiors[1].floor_z_cm - tower.interiors[0].floor_z_cm;
+  assert.equal(spacing, tower.storey_height_cm);
+  assert.equal(tower.interiors[2].floor_z_cm - tower.interiors[1].floor_z_cm, spacing);
+});
+
+test("pillars go under the building, never between its floors", () => {
+  // The bug this protects against: every storey planning its own supports, so
+  // a three-storey tower grew pillars starting at deck two, hanging in mid-air.
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800 });
+  const oneStorey = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3, height_cm: 800 });
+
+  assert.equal(
+    tower.piece_counts.pillar,
+    oneStorey.piece_counts.pillar,
+    "a taller building must not multiply its supports",
+  );
+
+  // Every pillar starts at ground level, not part-way up.
+  const groundZ = tower.footprint.origin_cm.z - tower.raised_cm;
+  for (const part of tower.parts.filter((entry) => entry.kind === "pillar")) {
+    assert.equal(part.location_cm.z, groundZ, "a pillar must start at the ground");
+  }
+});
+
+test("only the top storey is roofed", () => {
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3 });
+  const oneStorey = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3 });
+  // Intermediate roofs would be floors twice over, and would seal each deck.
+  assert.equal(tower.piece_counts.roof, oneStorey.piece_counts.roof);
+});
+
+test("floors and walls scale with the storey count", () => {
+  const one = planTower(graph, { levels: 1, width_cells: 4, depth_cells: 3 });
+  const three = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3 });
+  assert.equal(three.piece_counts.floor, one.piece_counts.floor * 3);
+  assert.equal(three.piece_counts.wall, one.piece_counts.wall * 3);
+});
+
+test("ramps join the storeys, and their absence is stated", () => {
+  const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3 });
+  assert.equal(tower.ramps, 2, "one run per storey boundary");
+
+  const noRamps = buildGraph(
+    snapshot(fullKit.filter((recipe) => !/Ramp/.test(recipe.class_path))),
+  );
+  const plan = planTower(noRamps, { levels: 3, width_cells: 4, depth_cells: 3 });
+  assert.equal(plan.ramps, 0);
+  assert.ok(plan.notes.some((note) => /no way between them/i.test(note)));
+});
+
+test("refuses an implausible storey count instead of planning it", () => {
+  for (const levels of [0, -1, 2.5, 99, Infinity]) {
+    const plan = planTower(graph, { levels, width_cells: 3, depth_cells: 3 });
+    assert.equal(plan.planned, false, `levels=${levels}`);
+    assert.deepEqual(structureActions(plan), []);
+  }
 });

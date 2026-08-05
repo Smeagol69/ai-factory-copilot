@@ -150,6 +150,9 @@ export function planStructure(graph, args = {}) {
     walls: wantWalls = true,
     roof: wantRoof = true,
     glass_roof: wantGlassRoof = false,
+    // Upper storeys of a tower sit on the floor below, so they must be able
+    // to opt out of supports that would otherwise hang in mid-air.
+    pillars: wantPillars = true,
   } = args;
 
   const pieces = surveyStructuralPieces(graph);
@@ -230,7 +233,7 @@ export function planStructure(graph, args = {}) {
   // filling the underside with a forest.
   const pillarPiece = pieces.pillars[0] ?? null;
   const pillars = [];
-  if (heightNumber > 0 && pillarPiece) {
+  if (heightNumber > 0 && pillarPiece && wantPillars) {
     const edgeCells = [];
     for (let column = 0; column < width; column += 2) {
       edgeCells.push([column, 0], [column, depth - 1]);
@@ -282,7 +285,7 @@ export function planStructure(graph, args = {}) {
   if (wantGlassRoof && !pieces.glass.length) {
     notes.push("No glass piece is unlocked; a solid roof was used instead.");
   }
-  if (heightNumber > 0 && !pillarPiece) {
+  if (heightNumber > 0 && !pillarPiece && wantPillars) {
     notes.push("No pillar is unlocked, so the raised platform has no visible supports.");
   }
 
@@ -341,4 +344,138 @@ export function structureActions(plan, { commit = false } = {}) {
       yaw: part.yaw ?? 0,
       commit,
     }));
+}
+
+/**
+ * A multi-storey structure: stacked decks joined by ramps.
+ *
+ * `planStructure` builds one deck. The reference art the owner sent is all
+ * stacked floors — two or three production levels under one roof, with ramps
+ * between them — and that is also the efficient shape: it triples the machines
+ * a footprint holds instead of sprawling sideways.
+ *
+ * Storey height is the floor slab plus the wall, both read from the pieces
+ * actually being used rather than assumed, so a save whose only wall is 1 m
+ * gets 1 m storeys and the ramps still land on the decks.
+ *
+ * Ramps are placed along one edge and are the reason this is not just
+ * `planStructure` called N times: a stack of decks with no way between them is
+ * a set of shelves, not a building.
+ */
+export function planTower(graph, args = {}) {
+  const {
+    levels: levelsArg = 2,
+    height_cm: baseHeightCm = 0,
+    ramps: wantRamps = true,
+    ...structureArgs
+  } = args;
+
+  const levels = Number(levelsArg);
+  if (!Number.isInteger(levels) || levels < 1 || levels > 12) {
+    return {
+      solver: "tower",
+      planned: false,
+      reason: "levels must be a whole number from 1 through 12",
+    };
+  }
+
+  // The ground floor decides the grid, the piece choices and the footprint;
+  // every storey above reuses them so the stack lines up exactly.
+  const ground = planStructure(graph, {
+    ...structureArgs,
+    height_cm: baseHeightCm,
+    // The roof belongs on the top storey, not on every floor.
+    roof: levels === 1 ? structureArgs.roof !== false : false,
+  });
+  if (!ground.planned) return { ...ground, solver: "tower" };
+
+  const pieces = surveyStructuralPieces(graph);
+  const floorHeight = ground.parts.find((part) => part.kind === "floor")
+    ? pieceForHeight(pieces.foundations, baseHeightCm > 0 ? 200 : 100)?.height_cm ?? 100
+    : 100;
+  const wallHeight = pieceForHeight(pieces.walls, 400)?.height_cm ?? 400;
+  const storeyCm = floorHeight + wallHeight;
+
+  const storeys = [ground];
+  for (let level = 1; level < levels; level += 1) {
+    const storey = planStructure(graph, {
+      ...structureArgs,
+      origin_cm: {
+        x: ground.footprint.origin_cm.x,
+        y: ground.footprint.origin_cm.y,
+        z: ground.footprint.origin_cm.z - baseHeightCm,
+      },
+      height_cm: baseHeightCm + level * storeyCm,
+      // Only the top storey is roofed; the others are floors for the one above.
+      roof: level === levels - 1 ? structureArgs.roof !== false : false,
+      // Pillars belong under the building, not between its floors: a support
+      // starting at storey three would hang in mid-air under the deck above.
+      pillars: false,
+    });
+    if (!storey.planned) return { ...storey, solver: "tower" };
+    storeys.push(storey);
+  }
+
+  // Ramps up the near edge, one run per storey boundary.
+  const rampPiece = wantRamps
+    ? pieceForHeight(pieces.ramps, storeyCm) ?? pieces.ramps[0] ?? null
+    : null;
+  const ramps = [];
+  if (rampPiece && levels > 1) {
+    const cell = ground.grid.cell_size_cm;
+    for (let level = 0; level < levels - 1; level += 1) {
+      ramps.push({
+        kind: "ramp",
+        recipe_class: rampPiece.recipe_class,
+        name: rampPiece.name,
+        location_cm: {
+          // Just outside the near edge, so the run does not eat interior floor.
+          x: ground.interior.min_x_cm,
+          y: ground.interior.min_y_cm - cell,
+          z: ground.footprint.origin_cm.z + level * storeyCm,
+        },
+        yaw: 0,
+        connects_levels: [level + 1, level + 2],
+      });
+    }
+  }
+
+  const parts = [...storeys.flatMap((storey) => storey.parts), ...ramps];
+  const notes = [...ground.notes];
+  if (wantRamps && !rampPiece && levels > 1) {
+    notes.push(
+      "No ramp is unlocked, so the storeys have no way between them. They are " +
+        "reachable by hypertube, lift or jetpack, but nothing walks up.",
+    );
+  }
+  if (rampPiece && rampPiece.height_cm && rampPiece.height_cm !== storeyCm) {
+    notes.push(
+      `The tallest unlocked ramp rises ${rampPiece.height_cm / 100} m and a storey ` +
+        `is ${storeyCm / 100} m, so the runs will not meet each deck exactly. ` +
+        "The game will refuse any that do not fit, and the rest still stand.",
+    );
+  }
+
+  return {
+    solver: "tower",
+    planned: true,
+    grid: ground.grid,
+    footprint: ground.footprint,
+    levels,
+    storey_height_cm: storeyCm,
+    storey_height_source: "floor slab plus wall, both measured from the pieces used",
+    total_height_cm: baseHeightCm + levels * storeyCm,
+    raised_cm: baseHeightCm,
+    pillars: ground.pillars,
+    // Every deck's interior, so machines can be spread across floors.
+    interiors: storeys.map((storey, index) => ({ level: index + 1, ...storey.interior })),
+    ramps: ramps.length,
+    parts,
+    piece_counts: parts.reduce((counts, part) => {
+      counts[part.kind] = (counts[part.kind] ?? 0) + 1;
+      return counts;
+    }, {}),
+    notes,
+    unverified: ground.unverified,
+  };
 }
