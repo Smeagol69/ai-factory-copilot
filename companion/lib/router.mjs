@@ -225,7 +225,12 @@ function formatBottlenecks(result) {
 
   const causeLabel = (cause) => String(cause ?? "unknown cause").replaceAll("_", " ");
   const formatCause = (entry) => {
-    const severity = entry?.severity ? ` [${entry.severity}]` : "";
+    const severityLabel = {
+      invalid: "fault",
+      inefficient: "inefficient",
+      unknown: "unknown",
+    }[entry?.severity] ?? entry?.severity;
+    const severity = severityLabel ? ` [${severityLabel}]` : "";
     const evidence = entry?.evidence ? ` — ${entry.evidence}` : "";
     return `${causeLabel(entry?.cause)}${severity}${evidence}`;
   };
@@ -1822,8 +1827,16 @@ export function answerLocally(question, graph, services) {
   const dismantle = parseDismantleRequest(question);
   if (dismantle && graph) {
     const started = Date.now();
-    const [match] = solveActorLookup(graph, dismantle)?.matches ?? [];
-    if (match?.actor_id) {
+    // Keep enough matches to explain an ambiguity; the parser's limit of one
+    // is sufficient for execution but would hide every candidate after the
+    // nearest from the clarification.
+    const lookup = solveActorLookup(graph, { ...dismantle, limit: 6 });
+    const [match] = lookup?.matches ?? [];
+    // Dismantle cannot always be undone. A name search may return several
+    // actors sorted by proximity; choosing the first would silently turn
+    // "remove the constructor" into "remove the nearest constructor". Only an
+    // authoritative unique match is safe to turn into a committed action.
+    if (lookup?.match_count === 1 && match?.actor_id) {
       const emitted = emitValidatedPlan(graph, services, [
         { action: "dismantle", actor_id: match.actor_id, commit: true },
       ]);
@@ -1838,6 +1851,25 @@ export function answerLocally(question, graph, services) {
           "One named building was resolved from the snapshot; nothing was inferred.",
         );
       }
+    }
+    if (lookup?.match_count > 1) {
+      const candidates = (lookup.matches ?? [])
+        .slice(0, 6)
+        .map((candidate) => {
+          const id = candidate.name ?? candidate.actor_id;
+          const distance = candidate.distance_meters;
+          return `- ${id}${distance !== null && distance !== undefined ? ` (${round(distance, 1)} m)` : ""}`;
+        })
+        .join("\n");
+      const firstId = lookup.matches?.[0]?.name ?? lookup.matches?.[0]?.actor_id;
+      return localAnswer(
+        `I found **${lookup.match_count}** buildings matching **${dismantle.target}** and will not guess which one to dismantle:\n\n` +
+          `${candidates}\n\n` +
+          `Name one exact actor id${firstId ? ` — for example **"dismantle ${firstId}"**` : ""}. No action was emitted.`,
+        "dismantle_ambiguous",
+        started,
+        "More than one captured actor matched; an irreversible choice requires an exact target.",
+      );
     }
     // Unresolved name: the model can ask which building was meant.
   }

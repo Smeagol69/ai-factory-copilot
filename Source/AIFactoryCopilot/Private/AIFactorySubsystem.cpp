@@ -53,6 +53,46 @@ namespace
             Action != TEXT("clear_highlight");
     }
 
+    bool IsRefusedActionResult(const TSharedPtr<FJsonValue>& Value)
+    {
+        const TSharedPtr<FJsonObject>* Object = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Object) || !Object)
+        {
+            return true;
+        }
+
+        bool bAccepted = false;
+        return !(*Object)->TryGetBoolField(TEXT("accepted"), bAccepted) || !bAccepted;
+    }
+
+    FString FirstActionRefusalReason(const TArray<TSharedPtr<FJsonValue>>& Results)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : Results)
+        {
+            if (!IsRefusedActionResult(Value))
+            {
+                continue;
+            }
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            if (!Value.IsValid() || !Value->TryGetObject(Object) || !Object)
+            {
+                return TEXT("invalid_action_result");
+            }
+            FString Reason;
+            if ((*Object)->TryGetStringField(TEXT("reason"), Reason) && !Reason.IsEmpty())
+            {
+                return Reason;
+            }
+            FString Status;
+            if ((*Object)->TryGetStringField(TEXT("status"), Status) && !Status.IsEmpty())
+            {
+                return Status;
+            }
+            return TEXT("action_was_not_accepted");
+        }
+        return FString();
+    }
+
     FString DescribeActionResults(const TArray<TSharedPtr<FJsonValue>>& Results)
     {
         FString Description;
@@ -579,6 +619,13 @@ void AAIFactorySubsystem::AskBridge(
 
                 const bool bCommittedWorldWrite =
                     ActionResults.ContainsByPredicate(IsCommittedWorldWriteResult);
+                const bool bActionResultRefused =
+                    ActionResults.ContainsByPredicate(IsRefusedActionResult);
+                const bool bActionsRefused =
+                    !RefusalReason.IsEmpty() || bActionResultRefused;
+                const FString ActionsRefusalReason = !RefusalReason.IsEmpty()
+                    ? RefusalReason
+                    : FirstActionRefusalReason(ActionResults);
                 if (bCommittedWorldWrite)
                 {
                     // Teleports do not spawn or destroy an actor, so they need
@@ -597,10 +644,10 @@ void AAIFactorySubsystem::AskBridge(
                     bCommittedWorldWrite);
                 ResponseJson->SetBoolField(
                     TEXT("game_actions_refused"),
-                    !RefusalReason.IsEmpty());
+                    bActionsRefused);
                 ResponseJson->SetStringField(
                     TEXT("game_actions_refusal_reason"),
-                    RefusalReason);
+                    ActionsRefusalReason);
                 ResponseJson->SetNumberField(
                     TEXT("game_actions_requested_count"),
                     Actions->Num());

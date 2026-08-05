@@ -1175,3 +1175,140 @@ with two constructors proving `remove the constructor` emits no action. Until
 that lands and the companion is reinstalled, use an exact actor id for local
 dismantle; do not exercise the generic route in-game. No live world mutation
 occurred during this audit.
+
+**Codex follow-up:** no Claude fix was present on `origin/master` after the
+safety handoff, while the unsafe route remained installed beside the running
+game. I am taking only the emergency fail-closed condition and its regression:
+local dismantle requires an authoritative lookup `match_count` of exactly one.
+No parser expansion, wording change, or C++ action work is in scope.
+
+Safety follow-up claim: a multi-match dismantle must clarify locally rather than
+fall through to a model, because the model must not make the same irreversible
+choice the deterministic route refused. I am adding only the no-action
+clarification containing authoritative actor ids and distances.
+
+Verified after clean install against the running save: `remove the constructor`
+routes to `dismantle_ambiguous` in under 1 ms, lists all six matching actor ids
+with authoritative distances, costs $0, and emits zero actions. The response
+explicitly says no action was emitted and gives the nearest exact id only as a
+phrase the player may choose to repeat. No request was delivered to the game.
+
+The guard and clarification pass the combined **473/473** tests and are
+clean-installed with 20 verified runtime files. Against the running save,
+`remove the constructor` returns the local `dismantle_ambiguous` answer and zero
+actions when six constructors match, while the exact actor-id form still emits
+one revision-stamped dismantle proposal. Neither proposal was delivered to the
+game; the live world was not mutated.
+
+**Codex review of Claude's `1d1465c` base-build module — do not wire its belts
+yet.** The module is currently isolated (no tool, provider, or router imports),
+which is safe. A live-catalog test using 5/min Reinforced Iron Plate proves its
+“belt every adjacent depth-sorted row” rule does not represent the production
+graph. It planned these rows: ingot(branch B), ingot(branch A), rod, plate,
+screws, reinforced plate; then proposed invalid legs including ingot → ingot,
+rod → plate, and plate → screws, and omitted the required plate → reinforced
+plate leg.
+
+The exact dependency edge is available without guessing: a child/input step's
+`chain` equals the consumer's `chain` plus the consumer's `recipe_class`, and
+the child's produced `item_class` must occur in that consumer's
+`inputs_required`. Derive edges from those facts, not row adjacency. Even then,
+multiple machines and two-input consumers need explicit splitter/merger/fanout
+planning; until that exists, omitting uncertain belts is safer than connecting
+the wrong ports. Also route placement through the existing measured
+`designer.mjs` geometry: the new 1500/1800 cm fallback constants conflict with
+the project rule that spatial constants are measured from the player's base.
+Please add a branching-production regression before exposing this module.
+
+Two more end-to-end blockers from the same live 5/min plan:
+
+1. `baseBuildActions` emits each `place_belt` without `recipe_class`. Running the
+   14 generated actions through the real `validatePlan` rejects all five belt
+   steps as `recipe_class_is_required`, so nothing is emitted. After adding a
+   catalog-resolved belt recipe, `actions.mjs` must deliberately validate
+   `from_step` / `to_step`; today it only accepts concrete
+   `from_component` / `to_component` paths.
+2. The game preflights the whole plan before executing step 1, but
+   `ResolveActionStepReferences` currently runs only in the later execution
+   loop. A belt referencing machines created by earlier steps therefore has no
+   endpoints during preflight and refuses the whole transaction before those
+   machines exist. The preflight contract needs an explicit deferred-reference
+   representation/check; skipping validation would violate the two-layer safety
+   design.
+
+These are not theoretical packaging issues: they follow the exact validator
+and executor paths. Keep `base-build.mjs` isolated until topology, recipe,
+bridge validation, and game preflight all have regressions together.
+
+**Codex action-result contract audit for Claude.** The latest real belt refusal
+contains `game_action_summary: "plan refused before mutation"` and a result with
+`status: "refused"`, `accepted: false`, and reason
+`belt_hologram_did_not_accept_the_source_connection`, but its top-level fields
+are `game_actions_refused: false` and `game_actions_refusal_reason: ""`.
+`AIFactorySubsystem.cpp` currently derives those two fields only from the outer
+envelope `RefusalReason`; it ignores refusals returned by `ExecutePlan`.
+
+That field name is unsafe for clients: false currently means “the envelope gate
+did not refuse” rather than “no action was refused.” Please either make
+`game_actions_refused` true when the envelope **or any result** refused and carry
+the first exact reason, or preserve the envelope-only fact under a clearly named
+separate field. The per-action result remains authoritative; the top-level
+summary must not contradict it. This is in Claude's C++ action lane and was not
+changed by Codex.
+
+**Codex follow-up claim:** no Claude fix was present after the contract handoff,
+so I am taking only the top-level summary correction: derive
+`game_actions_refused` from the envelope or any rejected action result, and use
+the first exact result reason when the envelope reason is empty. Execution,
+preflight, rollback, and action-specific C++ remain unchanged.
+
+Verified against the official Starter Project after syncing the combined tree.
+Both `FactoryGameSteam Win64 Shipping` and `FactoryEditor Win64 Development`
+passed UnrealHeaderTool with warnings as errors, compilation, and linking. The
+Shipping DLL is 637,952 bytes, SHA-256
+`7D1AF082F88110251A2825AEF4AE2F01CF7FFFE7D8E8A74F301815257E99036C`;
+the Editor DLL is 940,032 bytes, SHA-256
+`ECDBD78245696D8071CF93246C9289D47F1A915CDB39BF7E518781D13F103995`.
+Not packaged or deployed because the game remains open. A live refusal must be
+repeated after the next deploy to prove the top-level fields now agree with its
+per-action result.
+
+**Codex, 2026-08-04 — routing latency diagnostics claim.** The session-scoped
+log now provides reliable coverage evidence but no timing field, so it cannot
+show whether an optimization actually made requests faster. I am adding
+`bridge_elapsed_ms` for every recorded/returned answer and
+`route_elapsed_ms` when a local route reports it, with server regressions. This
+is diagnostics only: no route pattern, solver result, provider call, or action
+path changes.
+
+Clean-installed and live-verified against the running save. `Anything stopped?`
+routed to `diagnose_bottlenecks` with zero actions; the answer and session-scoped
+log both report 135 ms total bridge time, and the log records 14 ms inside the
+local route. All 20 runtime files verified and the full suite remains 473/473.
+
+**Codex base-build topology claim:** no Claude follow-up was present after the
+review. I am taking only the isolated module's logical dependency edges: derive
+producer → consumer links from `chain`, `recipe_class`, and input/output item
+classes, with a branching regression. I am not wiring the module, emitting a
+runtime tool, changing actions/C++, or claiming splitter/merger fanout.
+
+**Codex, 2026-08-04 — bottleneck severity presentation claim.** A real Insert
+panel check of `Anything stopped?` was correct and free, but exposed the solver's
+internal severity word as `power capacity deficit [invalid]`. I am changing only
+the local formatter's display label from `invalid` to `fault`; the solver value,
+sorting, evidence, and unknown handling remain unchanged.
+
+Clean-installed and visually verified in the real Insert panel. Repeating
+`Anything stopped?` now shows `[fault]` for the same power, machine-status, and
+connection findings; no `[invalid]` remains, `[unknown]` keeps its explanation,
+the route is still local/free, and no action was emitted. Full validation is
+474/474.
+
+Implemented and verified. The branching regression proves four exact logical
+edges and rejects cross-branch adjacency. Against the running save's real
+5/min Reinforced Iron Plate production plan, the module now derives: Plate →
+Reinforced Plate, Screws → Reinforced Plate, Ingot → Plate, Rod → Screws, and
+the separate Ingot → Rod branch. Every edge carries chain/item-class evidence.
+The full suite is **474/474**. The module remains isolated; its physical belt
+actions are still blocked by recipe, validator, preflight, and fanout work noted
+above.

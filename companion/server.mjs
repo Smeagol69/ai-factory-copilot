@@ -654,7 +654,8 @@ export function createBridgeServer({ env = process.env } = {}) {
         return jsonResponse(response, 404, { error: "Not found." });
       }
 
-      const bridgeReceivedAtUtc = new Date().toISOString();
+      const bridgeReceivedAtMs = Date.now();
+      const bridgeReceivedAtUtc = new Date(bridgeReceivedAtMs).toISOString();
       const body = await readJsonBody(request, maximumBodyBytes);
       if (body?.schema !== "aifactory.ask" || body?.schema_version !== 1) {
         return jsonResponse(response, 400, {
@@ -773,6 +774,7 @@ export function createBridgeServer({ env = process.env } = {}) {
             : answer.provider === "mock"
               ? "deterministic_diagnostic"
             : "model";
+      const bridgeElapsedMs = Math.max(0, Date.now() - bridgeReceivedAtMs);
 
       // Every question is recorded with why it did or did not route. Routing was
       // tuned against invented phrasings, and a whole play session went by with
@@ -790,6 +792,8 @@ export function createBridgeServer({ env = process.env } = {}) {
         snapshot_generated_at_utc: body.world_snapshot.generated_at_utc ?? null,
         question_received_at_game_utc: body.question_received_at_game_utc ?? null,
         bridge_received_at_utc: bridgeReceivedAtUtc,
+        bridge_elapsed_ms: bridgeElapsedMs,
+        route_elapsed_ms: answer.local?.elapsed_ms ?? null,
       });
       const intrinsicallyFreeAnswer =
         answeredBy === "local_solver" ||
@@ -855,6 +859,7 @@ export function createBridgeServer({ env = process.env } = {}) {
           body.world_snapshot.interaction_context?.captured_at_utc ?? null,
         game_question_received_at_utc: body.question_received_at_game_utc ?? null,
         bridge_received_at_utc: bridgeReceivedAtUtc,
+        bridge_elapsed_ms: bridgeElapsedMs,
         bridge_answered_at_utc: new Date().toISOString(),
         retained_history_messages: sessions.get(sessionId)?.length ?? 0,
         omissions: view.omissions,
