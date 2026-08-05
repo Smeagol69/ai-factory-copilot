@@ -1380,3 +1380,18 @@ no authority. Provider guidance, grounding evidence, hybrid de-escalation and
 health/tool inventory now include the new tool. Full validation passes exact
 headers and **489/489** companion tests. The result is still `concept_only`,
 `construction_ready: false`, and `actions: []`.
+
+Clean-installed and live-verified from the installed copy against the running
+save's 10.8 MB snapshot. With no provider call, `design_megabase_concept` used
+the authoritative player anchor `(367240.25, -158953.078125,
+6867.42578125)` and the save's measured Constructor/Smelter bounds to compile a
+5/min Iron Plate elevated campus: two production groups, 19 architectural
+elements, one skybridge connection, a 2400 cm derived floor height, valid exact
+world transforms, no truncation, zero actions, and
+`construction_ready: false`. All eight structural/cosmetic roles remained
+unresolved because no captured recipe selections were supplied, which is the
+correct fail-closed result. The tool now treats a megabase as a new
+self-contained production program by default; existing surplus is subtracted
+only when explicitly requested. The clean install verifies 21 runtime files and
+health advertises `design_megabase_concept` on port 8142. Full validation remains
+**489/489**.

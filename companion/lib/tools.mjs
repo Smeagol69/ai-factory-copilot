@@ -414,7 +414,11 @@ export const SOLVER_TOOLS = [
           description: "Architectural grammar to compile. It changes massing, not game facts.",
         },
         recipe_class: { type: "string", description: "Optional captured production recipe for the target." },
-        use_existing_surplus: { type: "boolean", description: "Subtract existing surplus. Defaults to true." },
+        use_existing_surplus: {
+          type: "boolean",
+          description:
+            "Subtract existing surplus only when true. Defaults to false because a megabase request normally asks for a new self-contained production program.",
+        },
         align_to_base: { type: "boolean", description: "Match the captured base grid. Defaults to true." },
         creative_parameters: {
           type: "object",
@@ -459,7 +463,7 @@ export const SOLVER_TOOLS = [
         target_rate_per_minute: args.target_rate_per_minute,
         origin: args.origin,
         recipe_class: args.recipe_class,
-        use_existing_surplus: args.use_existing_surplus,
+        use_existing_surplus: args.use_existing_surplus === true,
         align_to_base: args.align_to_base,
       }, services ?? {});
       if (!layout.designed) return layout;

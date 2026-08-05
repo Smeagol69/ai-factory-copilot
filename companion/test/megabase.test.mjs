@@ -289,5 +289,6 @@ test("the model-facing solver builds its inputs from the graph and cannot emit a
   assert.equal(parsed.validation.valid, true);
   assert.equal(parsed.grid.yaw_degrees, 45);
   assert.equal(parsed.vertical_module.source, "tallest_measured_machine_plus_one_grid_unit_rounded_up_to_the_grid");
+  assert.equal(parsed.program.groups.length, 2, "existing surplus must not erase a new megabase program by default");
   assert.deepEqual(parsed.actions, []);
 });
