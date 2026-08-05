@@ -50,6 +50,35 @@ test("dismantles one named building locally", () => {
   assert.equal(emitted[0].expect_world_revision, "44");
 });
 
+test("a generic name matching more than one building emits no dismantle", () => {
+  const ambiguousGraph = buildGraph({
+    world_revision: 45,
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    interaction_context: { player: { pawn_available: true, pawn_location: { x: 0, y: 0, z: 0 } } },
+    actors: [
+      {
+        actor_id: "Build_ConstructorMk1_C_1",
+        name: "Build_ConstructorMk1_C_1",
+        kind: "buildable",
+        location: { x: 100, y: 0, z: 0 },
+      },
+      {
+        actor_id: "Build_ConstructorMk1_C_2",
+        name: "Build_ConstructorMk1_C_2",
+        kind: "buildable",
+        location: { x: 200, y: 0, z: 0 },
+      },
+    ],
+  });
+  const emitted = [];
+  const answer = answerLocally("remove the constructor", ambiguousGraph, {
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.equal(answer, null);
+  assert.deepEqual(emitted, []);
+});
+
 test("anything that reads as more than one building is refused", () => {
   // This is the case worth being slow about. A misparse here is irreversible.
   for (const phrase of [

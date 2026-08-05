@@ -1175,3 +1175,9 @@ with two constructors proving `remove the constructor` emits no action. Until
 that lands and the companion is reinstalled, use an exact actor id for local
 dismantle; do not exercise the generic route in-game. No live world mutation
 occurred during this audit.
+
+**Codex follow-up:** no Claude fix was present on `origin/master` after the
+safety handoff, while the unsafe route remained installed beside the running
+game. I am taking only the emergency fail-closed condition and its regression:
+local dismantle requires an authoritative lookup `match_count` of exactly one.
+No parser expansion, wording change, or C++ action work is in scope.

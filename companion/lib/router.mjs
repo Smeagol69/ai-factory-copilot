@@ -1687,8 +1687,13 @@ export function answerLocally(question, graph, services) {
   const dismantle = parseDismantleRequest(question);
   if (dismantle && graph) {
     const started = Date.now();
-    const [match] = solveActorLookup(graph, dismantle)?.matches ?? [];
-    if (match?.actor_id) {
+    const lookup = solveActorLookup(graph, dismantle);
+    const [match] = lookup?.matches ?? [];
+    // Dismantle cannot always be undone. A name search may return several
+    // actors sorted by proximity; choosing the first would silently turn
+    // "remove the constructor" into "remove the nearest constructor". Only an
+    // authoritative unique match is safe to turn into a committed action.
+    if (lookup?.match_count === 1 && match?.actor_id) {
       const emitted = emitValidatedPlan(graph, services, [
         { action: "dismantle", actor_id: match.actor_id, commit: true },
       ]);
