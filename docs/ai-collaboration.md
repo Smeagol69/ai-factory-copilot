@@ -1255,3 +1255,11 @@ the first exact reason, or preserve the envelope-only fact under a clearly named
 separate field. The per-action result remains authoritative; the top-level
 summary must not contradict it. This is in Claude's C++ action lane and was not
 changed by Codex.
+
+**Codex, 2026-08-04 — routing latency diagnostics claim.** The session-scoped
+log now provides reliable coverage evidence but no timing field, so it cannot
+show whether an optimization actually made requests faster. I am adding
+`bridge_elapsed_ms` for every recorded/returned answer and
+`route_elapsed_ms` when a local route reports it, with server regressions. This
+is diagnostics only: no route pattern, solver result, provider call, or action
+path changes.

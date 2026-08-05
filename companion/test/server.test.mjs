@@ -152,6 +152,31 @@ test("routing diagnostics are instance-scoped and carry request provenance", asy
       }),
     });
     assert.equal(response.status, 200);
+
+    const localResponse = await fetch(`http://127.0.0.1:${address.port}/v1/ask`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        schema: "aifactory.ask",
+        schema_version: 1,
+        session_id: "routing-provenance-local-test",
+        question: "What is in this factory?",
+        world_snapshot: {
+          schema: "aifactory.snapshot",
+          schema_version: 1,
+          data_policy: "authoritative_or_explicitly_unknown",
+          world_revision: 43,
+          generated_at_utc: "2026-08-03T21:00:01.000Z",
+          actors: [],
+          content: { items: [], recipes: [] },
+        },
+      }),
+    });
+    assert.equal(localResponse.status, 200);
+    const localBody = await localResponse.json();
+    assert.equal(localBody.answered_by, "local_solver");
+    assert.ok(Number.isInteger(localBody.bridge_elapsed_ms));
+    assert.ok(localBody.bridge_elapsed_ms >= 0);
   } finally {
     if (diagnosticServer.listening) {
       await new Promise((resolve, reject) =>
@@ -165,7 +190,7 @@ test("routing diagnostics are instance-scoped and carry request provenance", asy
     .trim()
     .split(/\r?\n/)
     .map((line) => JSON.parse(line));
-  assert.equal(entries.length, 1);
+  assert.equal(entries.length, 2);
   assert.equal(entries[0].question, "Tell me a joke about this factory.");
   assert.equal(entries[0].answeredBy, "deterministic_diagnostic");
   assert.equal(entries[0].session_id, "routing-provenance-test");
@@ -176,6 +201,15 @@ test("routing diagnostics are instance-scoped and carry request provenance", asy
   assert.equal(entries[0].question_received_at_game_utc, "2026-08-03T21:00:00.000Z");
   assert.match(entries[0].at, /^2026-/);
   assert.match(entries[0].bridge_received_at_utc, /^2026-/);
+  assert.ok(Number.isInteger(entries[0].bridge_elapsed_ms));
+  assert.ok(entries[0].bridge_elapsed_ms >= 0);
+  assert.equal(entries[0].route_elapsed_ms, null);
+  assert.equal(entries[1].answeredBy, "local_solver");
+  assert.equal(entries[1].solver, "get_factory_summary");
+  assert.ok(Number.isInteger(entries[1].bridge_elapsed_ms));
+  assert.ok(entries[1].bridge_elapsed_ms >= 0);
+  assert.ok(Number.isInteger(entries[1].route_elapsed_ms));
+  assert.ok(entries[1].route_elapsed_ms >= 0);
 });
 
 test("reset endpoint clears one local conversation", async () => {
