@@ -400,6 +400,8 @@ export function planEnclosedFactory(graph, args = {}) {
     measure_building: measureBuilding = null,
     measure_connectors: measureConnectors = null,
     plan_structure: planStructure = null,
+    plan_tower: planTower = null,
+    levels: levelsArg = 1,
     raised_cm: raisedCm = 800,
     glass_roof: glassRoof = true,
     margin_cells: marginCells = 1,
@@ -444,28 +446,64 @@ export function planEnclosedFactory(graph, args = {}) {
   const interiorDepth =
     rows.reduce((sum, row) => sum + row.row_depth_cells, 0) + marginCells * (rows.length + 1);
 
-  const structure = planStructure(graph, {
-    width_cells: interiorWidth,
-    depth_cells: interiorDepth,
-    height_cm: raisedCm,
-    glass_roof: glassRoof,
-  });
+  // With several storeys the rows are split between decks, so each floor only
+  // has to be deep enough for its share. That is the entire point of building
+  // upward rather than sideways, and it is what the reference builds do.
+  const levels = Math.max(1, Math.min(12, Math.round(Number(levelsArg) || 1)));
+  const rowsPerLevel = Math.ceil(rows.length / levels);
+  const deepestLevelCells = (() => {
+    let deepest = 1;
+    for (let level = 0; level < levels; level += 1) {
+      const slice = rows.slice(level * rowsPerLevel, (level + 1) * rowsPerLevel);
+      if (slice.length === 0) continue;
+      const depth =
+        slice.reduce((sum, row) => sum + row.row_depth_cells, 0) + marginCells * (slice.length + 1);
+      deepest = Math.max(deepest, depth);
+    }
+    return deepest;
+  })();
+
+  const structure =
+    levels > 1 && typeof planTower === "function"
+      ? planTower(graph, {
+          levels,
+          width_cells: interiorWidth,
+          depth_cells: deepestLevelCells,
+          height_cm: raisedCm,
+          glass_roof: glassRoof,
+          // Straight sides when housing machines: a tier stepping in would
+          // shrink the deck out from under the row it is meant to hold.
+          inset_cells: 0,
+        })
+      : planStructure(graph, {
+          width_cells: interiorWidth,
+          depth_cells: interiorDepth,
+          height_cm: raisedCm,
+          glass_roof: glassRoof,
+        });
   if (!structure.planned) return { ...structure, solver: "enclosed_factory" };
 
-  // Re-place every machine on the deck, inside the shell, on the grid.
-  const deckZ = structure.interior.floor_z_cm;
-  let rowCursor = marginCells;
-  const placed = rows.map((row) => {
-    const y = structure.interior.min_y_cm + rowCursor * cell;
-    rowCursor += row.row_depth_cells + marginCells;
+  // Re-place every machine on its own deck, inside the shell, on the grid.
+  //
+  // A tower reports one interior per storey; a single structure reports one.
+  // Normalising them here means the placement code does not care which it got.
+  const decks = structure.interiors ?? [{ level: 1, ...structure.interior }];
+  const rowCursors = new Map();
+  const placed = rows.map((row, rowIndex) => {
+    const level = Math.min(decks.length - 1, Math.floor(rowIndex / rowsPerLevel));
+    const deck = decks[level];
+    const cursor = rowCursors.get(level) ?? marginCells;
+    const y = deck.min_y_cm + cursor * cell;
+    rowCursors.set(level, cursor + row.row_depth_cells + marginCells);
     return {
       ...row,
-      positions: row.positions.map((position, index) => ({
+      level: level + 1,
+      positions: row.positions.map((position, machineIndex) => ({
         ...position,
         location_cm: {
-          x: structure.interior.min_x_cm + (marginCells + index * row.cells_per_machine) * cell,
+          x: deck.min_x_cm + (marginCells + machineIndex * row.cells_per_machine) * cell,
           y,
-          z: deckZ,
+          z: deck.floor_z_cm,
         },
       })),
     };

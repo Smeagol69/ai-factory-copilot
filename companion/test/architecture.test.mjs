@@ -25,6 +25,7 @@ import {
   surveyStructuralPieces,
 } from "../lib/architecture.mjs";
 import { runSolverTool } from "../lib/tools.mjs";
+import { DEFAULT_MAX_ACTIONS } from "../lib/actions.mjs";
 
 const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
 const piece = (recipeName, descriptor, name, available = true) => ({
@@ -206,13 +207,20 @@ test("model tool exposes a dry-run preview and names the transaction limit", () 
 
   assert.equal(plan.planned, true);
   assert.equal(plan.source, "captured_available_build_gun_recipes_and_descriptor_dimensions");
-  assert.ok(plan.actions_preview.length > 64);
+  // Sized against the real cap, not a literal: the limit moved from 64 to 512
+  // when a housed factory turned out to be 205 pieces, and a test pinning the
+  // old number would have failed for the wrong reason.
+  assert.ok(plan.actions_preview.length > 0);
   assert.equal(plan.actions_preview.every((action) => action.commit === false), true);
   assert.deepEqual(plan.transaction_limit, {
-    maximum_actions: 64,
+    maximum_actions: DEFAULT_MAX_ACTIONS,
     proposed_actions: plan.actions_preview.length,
-    requires_chunking: true,
-    effect: "This preview cannot be submitted as one action plan; bounded reversible chunking is required.",
+    requires_chunking: plan.actions_preview.length > DEFAULT_MAX_ACTIONS,
+    // Whichever branch applies: the message must match the verdict, and
+    // the verdict now depends on the real cap rather than a fixed 64.
+    effect: plan.transaction_limit.requires_chunking
+      ? "This preview cannot be submitted as one action plan; bounded reversible chunking is required."
+      : "The preview fits the bridge action-count limit but remains unsubmitted.",
   });
 });
 

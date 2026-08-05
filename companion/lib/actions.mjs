@@ -14,7 +14,19 @@
 
 import { distanceMeters } from "./graph.mjs";
 
-export const DEFAULT_MAX_ACTIONS = 64;
+/**
+ * How many actions one reply may carry.
+ *
+ * 64 was fine while a plan meant a handful of machines. A building is not: a
+ * housed factory on the live save is 205 pieces — floors, pillars, walls, roof
+ * and the machines inside — and the cap silently refused the whole thing, so
+ * the route fell through to a model and the player got nothing.
+ *
+ * The limit still exists to stop a runaway plan, but it has to be large enough
+ * for the real work. It is deliberately not unbounded, and the mod enforces its
+ * own cap independently — two limits, and the one that owns the world decides.
+ */
+export const DEFAULT_MAX_ACTIONS = 512;
 
 /** Actions that change the world. Kept in sync with AIFactoryActions.cpp. */
 export const WRITE_ACTION_KINDS = [

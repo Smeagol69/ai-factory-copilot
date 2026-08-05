@@ -44,7 +44,7 @@ import {
   planBaseBuild,
   planEnclosedFactory,
 } from "./base-build.mjs";
-import { planStructure, structureActions } from "./architecture.mjs";
+import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
   measureConnectors,
@@ -67,10 +67,45 @@ function emitValidatedPlan(graph, services, proposals) {
   if (typeof emit !== "function") return null;
 
   const plan = validatePlan(graph, proposals);
-  if (!plan.valid) return null;
+  if (!plan.valid) {
+    // Carry the refusal back rather than swallowing it.
+    //
+    // Returning a bare null made every rejection look identical to "this route
+    // does not apply", so the request fell through to a model. A player asked
+    // to build a 205-piece factory, hit the action cap, and got a provider
+    // error about something else entirely. A route that knows why it failed
+    // should be able to say so.
+    lastPlanRejection = plan;
+    return null;
+  }
 
+  lastPlanRejection = null;
   emit(plan.actions);
   return plan;
+}
+
+/**
+ * Why the most recent local plan was refused, for the route that built it.
+ *
+ * Module-scoped and read immediately by the caller that just failed. It is not
+ * state that outlives a request: every `emitValidatedPlan` either sets or
+ * clears it, so a later route can never read a stale reason.
+ */
+let lastPlanRejection = null;
+
+/** A readable sentence for a plan the validator would not accept. */
+function describePlanRejection() {
+  const rejection = lastPlanRejection;
+  if (!rejection) return null;
+  if (rejection.reason === "too_many_actions") {
+    return (
+      `That plan is ${rejection.count} actions and the limit is ${rejection.limit}. ` +
+      "Ask for a smaller factory, fewer storeys, or say \"just the machines\" to " +
+      "skip the building."
+    );
+  }
+  const first = rejection.rejected?.[0];
+  return first ? `The plan was refused: ${first.reason} (step ${first.step}).` : null;
 }
 
 /** Words that carry no question meaning, so leftover ones do not block a route. */
@@ -576,7 +611,7 @@ export function parseUndoHistoryRequest(question) {
  * matched against the wrong proposal.
  */
 const BASE_DESIGN_VERB =
-  /^(?:can you |could you |please )?(?:(design|plan|lay ?out)|(build|make|construct|spawn))(?:\s+me)?(?:\s+(?:a|an|the))?(?:\s+(?:new|whole|complete|full))?\s+(?:base|factory|setup|production(?:\s+line)?|line|module)\s+/i;
+  /^(?:can you |could you |please )?(?:(design|plan|lay ?out)|(build|make|construct|spawn))(?:\s+me)?(?:\s+(?:a|an|the))?(?:\s+(?:new|whole|complete|full))?(?:\s+\d+[- ]?(?:storey|story|storeys|stories|floor|floors|level|levels|tier|tiers))?\s+(?:base|factory|setup|production(?:\s+line)?|line|module)\s+/i;
 
 /**
  * The rate is found by its unit, and the number by being a number.
@@ -639,7 +674,19 @@ export function parseBaseDesignRequest(question) {
 
   // Housed by default; these phrasings ask for the bare machines instead.
   const bare = /\b(?:no|without|skip)\s+(?:the\s+)?(?:building|shell|walls|roof)\b|\bjust\s+the\s+machines\b|\bmachines\s+only\b/i.test(text);
-  return { item, per_minute: perMinute, commit, bare };
+  // A storey count anywhere in the request. Multi-floor is the shape the
+  // reference builds have and the efficient one: three decks in a footprint
+  // instead of sprawling sideways.
+  const levelsMatch = text.match(/(\d+)[- ]?(?:storey|story|storeys|stories|floor|floors|level|levels|tier|tiers)\b/i);
+  const levels = levelsMatch ? Number(levelsMatch[1]) : 1;
+
+  return {
+    item,
+    per_minute: perMinute,
+    commit,
+    bare,
+    levels: Number.isInteger(levels) && levels >= 1 && levels <= 12 ? levels : 1,
+  };
 }
 
 export function parseWaypointRequest(question) {
@@ -1794,6 +1841,8 @@ export function answerLocally(question, graph, services) {
               measure_building: measureBuilding,
               measure_connectors: measureConnectors,
               plan_structure: planStructure,
+              plan_tower: planTower,
+              levels: design.levels,
             })
           : null;
         const plan = enclosed?.planned
@@ -1867,6 +1916,17 @@ export function answerLocally(question, graph, services) {
           }
         }
       }
+    }
+    // A plan the validator refused is worth saying out loud: the player asked
+    // for something specific and deserves the reason, not a fall-through.
+    const rejection = describePlanRejection();
+    if (rejection) {
+      return localAnswer(
+        rejection,
+        "build_base_refused",
+        started,
+        "The plan was built and then refused by validation before anything ran.",
+      );
     }
     // Unknown item or an unplannable goal: the model can ask which item was
     // meant, or explain why the chain cannot be built here.

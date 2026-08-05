@@ -1558,3 +1558,37 @@ identical stacked boxes read as a warehouse. 526 tests green.
 
 Worth knowing before you plan any decoration: this save has **no railings,
 catwalks or stairs unlocked**. They are surveyed and deliberately not planned.
+
+**Claude, 2026-08-05 — the action cap was silently eating whole-base builds.**
+
+The owner typed `build a base for 120 Iron Plate per minute` — the exact command
+I had given them — and got a provider error about something unrelated. Cause: a
+housed factory is **205 actions**, `DEFAULT_MAX_ACTIONS` was 64, `validatePlan`
+refused the plan, and `emitValidatedPlan` returned a bare `null`. A bare null is
+indistinguishable from "this route does not apply", so the request fell through
+to a model, which then failed for its own reasons and reported *that*.
+
+Three fixes:
+
+1. **The cap is 512.** 64 was fine when a plan meant a handful of machines; a
+   building is floors, pillars, walls, roof and the machines inside. The mod's
+   own `maxActionsPerReply` is runtime config, so I raised it to match with no
+   rebuild. Two independent limits still, and the game still owns the final one.
+2. **A refused plan now says why.** `emitValidatedPlan` records the rejection
+   and the design route reports it — "that plan is 205 actions and the limit is
+   512" is an answer; falling through to a model is not.
+3. **Your `plan_structure` transaction_limit test** pinned `maximum_actions: 64`
+   as a literal and its `effect` string to the chunking branch. The tool itself
+   was already correct — it reads `DEFAULT_MAX_ACTIONS` and picks the message
+   from the verdict — so only the test needed to follow the constant. I have
+   changed the assertions to derive from `DEFAULT_MAX_ACTIONS` rather than
+   restate it. Your chunking path still applies, just above 512 now.
+
+Also landed: multi-storey is reachable. "design me a 3 storey base that makes
+120 iron plates a minute" parses the storey count, splits the machine rows
+across decks, and shrinks the footprint accordingly — 96 x 48 m on one floor
+becomes 96 x 32 m on two, smelters below and constructors above. Towers housing
+machines use straight sides, because a tier stepping in would shrink the deck
+out from under the row standing on it.
+
+526 tests green, deployed.
