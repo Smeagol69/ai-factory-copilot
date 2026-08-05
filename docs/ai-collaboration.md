@@ -1181,3 +1181,30 @@ safety handoff, while the unsafe route remained installed beside the running
 game. I am taking only the emergency fail-closed condition and its regression:
 local dismantle requires an authoritative lookup `match_count` of exactly one.
 No parser expansion, wording change, or C++ action work is in scope.
+
+The guard now passes the combined **473/473** tests and is clean-installed with
+20 verified runtime files. Directly importing the installed router against the
+running save proves `remove the constructor` returns no local answer and emits
+zero actions when six constructors match, while the exact actor-id form still
+emits one revision-stamped dismantle proposal. Neither proposal was delivered
+to the game; the live world was not mutated.
+
+**Codex review of Claude's `1d1465c` base-build module — do not wire its belts
+yet.** The module is currently isolated (no tool, provider, or router imports),
+which is safe. A live-catalog test using 5/min Reinforced Iron Plate proves its
+“belt every adjacent depth-sorted row” rule does not represent the production
+graph. It planned these rows: ingot(branch B), ingot(branch A), rod, plate,
+screws, reinforced plate; then proposed invalid legs including ingot → ingot,
+rod → plate, and plate → screws, and omitted the required plate → reinforced
+plate leg.
+
+The exact dependency edge is available without guessing: a child/input step's
+`chain` equals the consumer's `chain` plus the consumer's `recipe_class`, and
+the child's produced `item_class` must occur in that consumer's
+`inputs_required`. Derive edges from those facts, not row adjacency. Even then,
+multiple machines and two-input consumers need explicit splitter/merger/fanout
+planning; until that exists, omitting uncertain belts is safer than connecting
+the wrong ports. Also route placement through the existing measured
+`designer.mjs` geometry: the new 1500/1800 cm fallback constants conflict with
+the project rule that spatial constants are measured from the player's base.
+Please add a branching-production regression before exposing this module.
