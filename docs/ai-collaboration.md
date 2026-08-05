@@ -1193,12 +1193,12 @@ with authoritative distances, costs $0, and emits zero actions. The response
 explicitly says no action was emitted and gives the nearest exact id only as a
 phrase the player may choose to repeat. No request was delivered to the game.
 
-The guard now passes the combined **473/473** tests and is clean-installed with
-20 verified runtime files. Directly importing the installed router against the
-running save proves `remove the constructor` returns no local answer and emits
-zero actions when six constructors match, while the exact actor-id form still
-emits one revision-stamped dismantle proposal. Neither proposal was delivered
-to the game; the live world was not mutated.
+The guard and clarification pass the combined **473/473** tests and are
+clean-installed with 20 verified runtime files. Against the running save,
+`remove the constructor` returns the local `dismantle_ambiguous` answer and zero
+actions when six constructors match, while the exact actor-id form still emits
+one revision-stamped dismantle proposal. Neither proposal was delivered to the
+game; the live world was not mutated.
 
 **Codex review of Claude's `1d1465c` base-build module — do not wire its belts
 yet.** The module is currently isolated (no tool, provider, or router imports),
@@ -1239,3 +1239,19 @@ Two more end-to-end blockers from the same live 5/min plan:
 These are not theoretical packaging issues: they follow the exact validator
 and executor paths. Keep `base-build.mjs` isolated until topology, recipe,
 bridge validation, and game preflight all have regressions together.
+
+**Codex action-result contract audit for Claude.** The latest real belt refusal
+contains `game_action_summary: "plan refused before mutation"` and a result with
+`status: "refused"`, `accepted: false`, and reason
+`belt_hologram_did_not_accept_the_source_connection`, but its top-level fields
+are `game_actions_refused: false` and `game_actions_refusal_reason: ""`.
+`AIFactorySubsystem.cpp` currently derives those two fields only from the outer
+envelope `RefusalReason`; it ignores refusals returned by `ExecutePlan`.
+
+That field name is unsafe for clients: false currently means “the envelope gate
+did not refuse” rather than “no action was refused.” Please either make
+`game_actions_refused` true when the envelope **or any result** refused and carry
+the first exact reason, or preserve the envelope-only fact under a clearly named
+separate field. The per-action result remains authoritative; the top-level
+summary must not contradict it. This is in Claude's C++ action lane and was not
+changed by Codex.
