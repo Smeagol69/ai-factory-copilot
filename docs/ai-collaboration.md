@@ -1263,3 +1263,8 @@ show whether an optimization actually made requests faster. I am adding
 `route_elapsed_ms` when a local route reports it, with server regressions. This
 is diagnostics only: no route pattern, solver result, provider call, or action
 path changes.
+
+Clean-installed and live-verified against the running save. `Anything stopped?`
+routed to `diagnose_bottlenecks` with zero actions; the answer and session-scoped
+log both report 135 ms total bridge time, and the log records 14 ms inside the
+local route. All 20 runtime files verified and the full suite remains 473/473.
