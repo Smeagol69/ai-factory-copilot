@@ -644,6 +644,30 @@ function findItemByName(graph, name) {
   return near.length === 1 ? near[0] : null;
 }
 
+/**
+ * The item a design request is about, matched against the real catalog.
+ *
+ * Tried in order: the phrase the parser carved out, then the longest catalog
+ * name that appears anywhere in the request. The second exists because trailing
+ * instructions defeat any amount of clause-splitting — a real request ended
+ * "...120 Iron Plate per minute scan a 500m radius for terrain xyz and place
+ * base accordingly" — and the catalog is the authority on what is an item name
+ * anyway. Longest wins so "Reinforced Iron Plate" is not read as "Iron Plate".
+ */
+function resolveDesignItem(graph, design) {
+  const direct = findItemByName(graph, design.item);
+  if (direct) return direct;
+
+  const haystack = String(design.raw_text ?? "").toLowerCase();
+  let best = null;
+  for (const item of graph?.snapshot?.content?.items ?? []) {
+    const name = String(item.name ?? "").trim();
+    if (name.length < 3 || !haystack.includes(name.toLowerCase())) continue;
+    if (!best || name.length > best.name.length) best = item;
+  }
+  return best;
+}
+
 export function parseBaseDesignRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
@@ -671,6 +695,13 @@ export function parseBaseDesignRequest(question) {
   const clause = body.split(/\s+(?:and|then|also|plus|please|but)\s+/i)[0] ?? body;
 
   // Whatever is left once the rate and its scaffolding are removed is the item.
+  //
+  // This is a fallback, not the primary method. Carving the item out of the
+  // sentence works until someone appends instructions without a conjunction —
+  // "...120 Iron Plate per minute scan a 500m radius for terrain xyz and place
+  // base accordingly" — and then the item becomes the whole tail. The caller
+  // matches this against the real catalog and falls back to a catalog scan when
+  // it does not resolve, which is robust to any amount of trailing prose.
   const item = clause
     .replace(BASE_NUMBER, " ")
     .replace(BASE_PER_MINUTE, " ")
@@ -679,6 +710,12 @@ export function parseBaseDesignRequest(question) {
     .replace(/\s+/g, " ")
     .trim();
   if (item.length < 2) return null;
+
+  // Site the base where the solver says, rather than under the player's feet.
+  const atBestSite =
+    /\b(?:best|ideal|optimal|good)\s+(?:location|place|spot|site)\b|\bbest place to (?:spawn|build|put)\b|\bfind (?:the )?best\b/i.test(
+      text,
+    );
 
   // Housed by default; these phrasings ask for the bare machines instead.
   const bare = /\b(?:no|without|skip)\s+(?:the\s+)?(?:building|shell|walls|roof)\b|\bjust\s+the\s+machines\b|\bmachines\s+only\b/i.test(text);
@@ -694,6 +731,8 @@ export function parseBaseDesignRequest(question) {
     commit,
     bare,
     levels: Number.isInteger(levels) && levels >= 1 && levels <= 12 ? levels : 1,
+    at_best_site: atBestSite,
+    raw_text: text,
   };
 }
 
@@ -1831,7 +1870,7 @@ export function answerLocally(question, graph, services) {
   const design = parseBaseDesignRequest(question);
   if (design && graph) {
     const started = Date.now();
-    const item = findItemByName(graph, design.item);
+    const item = resolveDesignItem(graph, design);
     if (item) {
       const production = solveProductionPlan(graph, {
         item_class: item.class_path,
@@ -1843,6 +1882,19 @@ export function answerLocally(question, graph, services) {
         // bare machines on open ground is the special case, not the norm.
         // "just the machines" or "no building" asks for the bare version.
         const housed = !design.bare;
+        // "find the best place to spawn it" means the solver picks the site,
+        // not the player's feet. The site scoring already measures terrain,
+        // resources and distance, so this is one solver feeding another rather
+        // than a second opinion about where to build.
+        let sitedAt = null;
+        if (design.at_best_site) {
+          const site = solveSiteSelection(graph, {});
+          const best = site?.sites?.[0];
+          if (best?.center_cm) {
+            sitedAt = { anchor_cm: best.center_cm, why: site.why_this_site?.headline ?? null };
+          }
+        }
+
         const enclosed = housed
           ? planEnclosedFactory(graph, {
               production_plan: production,
@@ -1851,6 +1903,7 @@ export function answerLocally(question, graph, services) {
               plan_structure: planStructure,
               plan_tower: planTower,
               levels: design.levels,
+              anchor_cm: sitedAt?.anchor_cm ?? null,
             })
           : null;
         const plan = enclosed?.planned

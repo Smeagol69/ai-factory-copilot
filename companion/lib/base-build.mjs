@@ -402,6 +402,9 @@ export function planEnclosedFactory(graph, args = {}) {
     plan_structure: planStructure = null,
     plan_tower: planTower = null,
     levels: levelsArg = 1,
+    // Where to put the building. Null means the player's position; a solver
+    // that picked a site passes its winner here.
+    anchor_cm: anchorOverride = null,
     raised_cm: raisedCm = 800,
     glass_roof: glassRoof = true,
     margin_cells: marginCells = 1,
@@ -472,6 +475,9 @@ export function planEnclosedFactory(graph, args = {}) {
           height_cm: raisedCm,
           glass_roof: glassRoof,
           clear_terrain: true,
+          // Site chosen by the solver when the request asked for one,
+          // otherwise the planner falls back to the player position.
+          ...(anchorOverride ? { origin_cm: anchorOverride } : {}),
           // Straight sides when housing machines: a tier stepping in would
           // shrink the deck out from under the row it is meant to hold.
           inset_cells: 0,
@@ -482,6 +488,9 @@ export function planEnclosedFactory(graph, args = {}) {
           height_cm: raisedCm,
           glass_roof: glassRoof,
           clear_terrain: true,
+          // Site chosen by the solver when the request asked for one,
+          // otherwise the planner falls back to the player position.
+          ...(anchorOverride ? { origin_cm: anchorOverride } : {}),
         });
   if (!structure.planned) return { ...structure, solver: "enclosed_factory" };
 
