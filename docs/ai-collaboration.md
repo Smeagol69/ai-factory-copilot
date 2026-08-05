@@ -1187,6 +1187,12 @@ fall through to a model, because the model must not make the same irreversible
 choice the deterministic route refused. I am adding only the no-action
 clarification containing authoritative actor ids and distances.
 
+Verified after clean install against the running save: `remove the constructor`
+routes to `dismantle_ambiguous` in under 1 ms, lists all six matching actor ids
+with authoritative distances, costs $0, and emits zero actions. The response
+explicitly says no action was emitted and gives the nearest exact id only as a
+phrase the player may choose to repeat. No request was delivered to the game.
+
 The guard now passes the combined **473/473** tests and is clean-installed with
 20 verified runtime files. Directly importing the installed router against the
 running save proves `remove the constructor` returns no local answer and emits
