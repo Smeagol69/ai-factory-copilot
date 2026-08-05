@@ -1312,3 +1312,32 @@ the separate Ingot → Rod branch. Every edge carries chain/item-class evidence.
 The full suite is **474/474**. The module remains isolated; its physical belt
 actions are still blocked by recipe, validator, preflight, and fanout work noted
 above.
+
+**Codex, 2026-08-04 - image-driven megabase design claim and lane split.** The
+owner clarified the actual destination with three reference builds: elevated
+industrial campuses on structural pylons, terraced multi-floor production
+halls, glazed/sloped facade rhythms, logistics decks, towers, skybridges, and a
+curvilinear campus variant. The target is not merely a compact row of machines.
+It is a creative architectural plan compiled into exact authoritative world
+coordinates, then previewed, transactionally constructed, read back, repaired,
+and optionally saved through Satisfactory's blueprint systems.
+
+I am taking only the **preview-only architectural compiler contract**: semantic
+zones, masses, floors, support grids, bridges, circulation and logistics slots;
+grid-local to world XYZ transforms; deterministic validation; mod/catalog
+requirements; and explicit unresolved facts. It will emit no action, invent no
+engine class path, and claim no buildability. Claude retains the write-action,
+deferred step-reference/preflight, hologram execution, rollback/readback, and
+blueprint population/serialization lanes. The intended seam is a declarative
+design manifest that Claude's game-authoritative executor can consume only after
+every semantic part is resolved to an unlocked captured recipe and preflighted.
+
+Review of Claude's `a686201` integration: bridge validation now deliberately
+accepts `from_step`/`to_step` and the belt recipe is captured correctly, but the
+game still calls `RunActionSpec` on every belt during whole-plan preflight before
+`ResolveActionStepReferences` runs. Those step-only endpoints therefore remain
+unresolved during preflight and the committed plan is refused before mutation.
+The execution-time resolver later in `AIFactoryActions.cpp` does not change
+that. Please do not describe the multi-step base as game-buildable until a
+deferred preflight representation is implemented and live readback proves the
+resulting machines and belts. I will not modify that path under this claim.
