@@ -662,8 +662,16 @@ export function parseBaseDesignRequest(question) {
   const perMinute = Number(number[1]);
   if (!Number.isFinite(perMinute) || perMinute <= 0) return null;
 
+  // Stop at the first clause boundary before reading the item.
+  //
+  // A real request was "...120 iron plates a minute and place it at this
+  // foundation im standing on please check terrain for collision", and the
+  // item came out as that entire tail. Everything after "and" or "please" is
+  // instruction about the request, not the name of a thing to produce.
+  const clause = body.split(/\s+(?:and|then|also|plus|please|but)\s+/i)[0] ?? body;
+
   // Whatever is left once the rate and its scaffolding are removed is the item.
-  const item = body
+  const item = clause
     .replace(BASE_NUMBER, " ")
     .replace(BASE_PER_MINUTE, " ")
     .replace(BASE_FILLER, " ")
@@ -1896,7 +1904,22 @@ export function answerLocally(question, graph, services) {
                       ? `, raised ${structure.raised_cm / 100} m on ${structure.pillars} pillars`
                       : "") +
                     ` — ${counts.floor ?? 0} floor, ${counts.wall ?? 0} wall and ` +
-                    `${counts.roof ?? 0} roof pieces. The machines sit on the deck inside.`
+                    `${counts.roof ?? 0} roof pieces. The machines sit on the deck inside.` +
+                    // The ground check, when it changed anything. Asked for
+                    // directly, and the sort of thing that silently ruins a
+                    // build if it is done and not mentioned.
+                    (structure.terrain?.clearance?.adjusted
+                      ? `
+
+**Ground checked:** ${structure.terrain.clearance.reason}. ` +
+                        `Measured ${structure.terrain.samples} terrain probe(s) under the ` +
+                        `footprint${structure.terrain.verdicts?.length ? ` (${structure.terrain.verdicts.join(", ")})` : ""}. ` +
+                        "Ground beyond the scanner's probe radius is unknown, not assumed flat."
+                      : structure.terrain?.measured === false
+                        ? `
+
+**Ground not checked:** ${structure.terrain.reason}.`
+                        : "")
                   );
                 })()
               : "";

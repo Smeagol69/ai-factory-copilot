@@ -471,6 +471,7 @@ export function planEnclosedFactory(graph, args = {}) {
           depth_cells: deepestLevelCells,
           height_cm: raisedCm,
           glass_roof: glassRoof,
+          clear_terrain: true,
           // Straight sides when housing machines: a tier stepping in would
           // shrink the deck out from under the row it is meant to hold.
           inset_cells: 0,
@@ -480,6 +481,7 @@ export function planEnclosedFactory(graph, args = {}) {
           depth_cells: interiorDepth,
           height_cm: raisedCm,
           glass_roof: glassRoof,
+          clear_terrain: true,
         });
   if (!structure.planned) return { ...structure, solver: "enclosed_factory" };
 

@@ -153,6 +153,10 @@ export function planStructure(graph, args = {}) {
     // Upper storeys of a tower sit on the floor below, so they must be able
     // to opt out of supports that would otherwise hang in mid-air.
     pillars: wantPillars = true,
+    // Raise the deck clear of the measured ground before placing anything.
+    // Off by default so callers that already know their height are not
+    // second-guessed; the factory planner turns it on.
+    clear_terrain: wantTerrainClearance = false,
   } = args;
 
   const pieces = surveyStructuralPieces(graph);
@@ -198,6 +202,19 @@ export function planStructure(graph, args = {}) {
     };
   }
 
+  // Ground first, so the deck height accounts for what is under it.
+  let heightAfterTerrain = heightNumber;
+  let terrain = null;
+  if (wantTerrainClearance) {
+    terrain = groundUnderFootprint(graph, { centre_cm: origin });
+    const adjusted = clearanceAdjustedHeight(terrain, {
+      anchor_z_cm: Number(origin.z),
+      requested_height_cm: heightNumber,
+    });
+    heightAfterTerrain = adjusted.height_cm;
+    terrain = { ...terrain, clearance: adjusted };
+  }
+
   const cell = pieces.cell_size_cm;
   const width = widthNumber;
   const depth = depthNumber;
@@ -207,7 +224,7 @@ export function planStructure(graph, args = {}) {
   const floorPiece = pieceForHeight(pieces.foundations, heightNumber > 0 ? 200 : 100);
   const baseX = snapToGrid(Number(origin.x), cell);
   const baseY = snapToGrid(Number(origin.y), cell);
-  const baseZ = Number(origin.z) + heightNumber;
+  const baseZ = Number(origin.z) + heightAfterTerrain;
 
   const parts = [];
   const add = (kind, piece, x, y, z, yaw = 0) => {
@@ -233,7 +250,7 @@ export function planStructure(graph, args = {}) {
   // filling the underside with a forest.
   const pillarPiece = pieces.pillars[0] ?? null;
   const pillars = [];
-  if (heightNumber > 0 && pillarPiece && wantPillars) {
+  if (heightAfterTerrain > 0 && pillarPiece && wantPillars) {
     const edgeCells = [];
     for (let column = 0; column < width; column += 2) {
       edgeCells.push([column, 0], [column, depth - 1]);
@@ -314,8 +331,9 @@ export function planStructure(graph, args = {}) {
       max_y_cm: baseY + (depth - 1) * cell,
       usable_cells: width * depth,
     },
-    raised_cm: heightNumber,
+    raised_cm: heightAfterTerrain,
     pillars: pillars.length,
+    terrain,
     parts,
     piece_counts: parts.reduce((counts, part) => {
       counts[part.kind] = (counts[part.kind] ?? 0) + 1;
@@ -433,14 +451,20 @@ export function planTower(graph, args = {}) {
         // Keep each tier centred on the one below as it shrinks.
         x: ground.footprint.origin_cm.x + inset * ground.grid.cell_size_cm,
         y: ground.footprint.origin_cm.y + inset * ground.grid.cell_size_cm,
-        z: ground.footprint.origin_cm.z - baseHeightCm,
+        // The actual raise, not the requested one: the ground floor may have
+        // been lifted to clear terrain, and subtracting the request would leave
+        // every storey above it offset by the difference.
+        z: ground.footprint.origin_cm.z - ground.raised_cm,
       },
-      height_cm: baseHeightCm + level * storeyCm,
+      height_cm: ground.raised_cm + level * storeyCm,
       // Only the top storey is roofed; the others are floors for the one above.
       roof: level === levels - 1 ? structureArgs.roof !== false : false,
       // Pillars belong under the building, not between its floors: a support
       // starting at storey three would hang in mid-air under the deck above.
       pillars: false,
+      // The ground was measured once for the whole building. Re-probing per
+      // storey would let floors drift apart on a slope.
+      clear_terrain: false,
     });
     if (!storey.planned) return { ...storey, solver: "tower" };
     storeys.push(storey);
@@ -503,8 +527,12 @@ export function planTower(graph, args = {}) {
     inset_cells_per_tier: insetCells,
     storey_height_cm: storeyCm,
     storey_height_source: "floor slab plus wall, both measured from the pieces used",
-    total_height_cm: baseHeightCm + levels * storeyCm,
-    raised_cm: baseHeightCm,
+    total_height_cm: ground.raised_cm + levels * storeyCm,
+    // The ground floor may have been raised to clear the terrain, so the
+    // requested height is not necessarily what got built.
+    raised_cm: ground.raised_cm,
+    raised_requested_cm: baseHeightCm,
+    terrain: ground.terrain ?? null,
     pillars: ground.pillars,
     // Every deck's interior, so machines can be spread across floors.
     interiors: storeys.map((storey, index) => ({ level: index + 1, ...storey.interior })),
@@ -516,5 +544,130 @@ export function planTower(graph, args = {}) {
     }, {}),
     notes,
     unverified: ground.unverified,
+  };
+}
+
+/**
+ * Ground under a proposed footprint, from what the scanner actually measured.
+ *
+ * Asked for directly: "check terrain for collision and adjust xyz accordingly".
+ * Without it a platform is placed at whatever Z the player happens to stand at,
+ * which on a slope means half the foundations are buried and the other half
+ * float.
+ *
+ * Every number here is a real line trace the mod took, never an estimate. Where
+ * nothing was probed the answer is "unmeasured", because a base sunk into a
+ * hill is a worse outcome than being told the ground is unknown.
+ */
+export function groundUnderFootprint(graph, { centre_cm: centre, radius_cm: radius = 4_000 } = {}) {
+  const samples = [];
+
+  // The scan-centre probe: a real grid of traces around the player.
+  const atCentre = graph?.snapshot?.terrain?.at_scan_center;
+  if (atCentre?.sampled) {
+    samples.push({
+      source: "scan_centre_probe",
+      min_z: atCentre.min_ground_z,
+      max_z: atCentre.max_ground_z,
+      mean_slope_degrees: atCentre.mean_slope_degrees,
+      verdict: atCentre.verdict,
+      blocked_samples: atCentre.blocked_samples ?? 0,
+      water_samples: atCentre.water_samples ?? 0,
+    });
+  }
+
+  // Any actor carrying its own measured terrain inside the footprint.
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    const terrain = node.raw?.terrain;
+    const location = node.raw?.location;
+    if (!terrain?.sampled || !location || !centre) continue;
+    const dx = Number(location.x) - Number(centre.x);
+    const dy = Number(location.y) - Number(centre.y);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
+    if (Math.hypot(dx, dy) > radius) continue;
+
+    samples.push({
+      source: node.raw?.name ?? node.actor_id,
+      min_z: terrain.min_ground_z,
+      max_z: terrain.max_ground_z,
+      mean_slope_degrees: terrain.mean_slope_degrees,
+      verdict: terrain.verdict,
+      blocked_samples: terrain.blocked_samples ?? 0,
+      water_samples: terrain.water_samples ?? 0,
+      from_cache: terrain.from_cache === true,
+    });
+  }
+
+  if (samples.length === 0) {
+    return {
+      measured: false,
+      reason:
+        "no terrain was probed near that footprint, so the ground height there is unknown",
+      samples: 0,
+    };
+  }
+
+  const highest = Math.max(...samples.map((sample) => sample.max_z).filter(Number.isFinite));
+  const lowest = Math.min(...samples.map((sample) => sample.min_z).filter(Number.isFinite));
+  const steepest = Math.max(
+    ...samples.map((sample) => sample.mean_slope_degrees ?? 0).filter(Number.isFinite),
+  );
+  const blocked = samples.reduce((sum, sample) => sum + (sample.blocked_samples ?? 0), 0);
+  const overWater = samples.reduce((sum, sample) => sum + (sample.water_samples ?? 0), 0);
+
+  return {
+    measured: true,
+    samples: samples.length,
+    highest_ground_z: highest,
+    lowest_ground_z: lowest,
+    elevation_range_cm: Number.isFinite(highest) && Number.isFinite(lowest) ? highest - lowest : null,
+    steepest_mean_slope_degrees: steepest,
+    blocked_samples: blocked,
+    water_samples: overWater,
+    verdicts: [...new Set(samples.map((sample) => sample.verdict).filter(Boolean))],
+    // Only the probe radius was measured; a large building can easily overhang it.
+    coverage_note:
+      "Measured within the scanner's probe radius. Ground beyond it is unknown, " +
+      "not assumed flat.",
+  };
+}
+
+/**
+ * A platform height that clears the measured ground.
+ *
+ * Returns the Z to build the deck at and why. Deliberately conservative: it
+ * clears the *highest* ground found, because a foundation buried in a hill is
+ * worse than one standing a metre proud. When nothing was measured it returns
+ * the requested height unchanged and says the ground is unknown, rather than
+ * inventing a correction.
+ */
+export function clearanceAdjustedHeight(ground, { anchor_z_cm: anchorZ, requested_height_cm: requested = 0, margin_cm: margin = 100 } = {}) {
+  if (!ground?.measured || !Number.isFinite(ground.highest_ground_z)) {
+    return {
+      height_cm: requested,
+      adjusted: false,
+      reason: ground?.reason ?? "the ground under that footprint was never measured",
+    };
+  }
+
+  const requestedZ = Number(anchorZ) + requested;
+  const neededZ = ground.highest_ground_z + margin;
+  if (requestedZ >= neededZ) {
+    return {
+      height_cm: requested,
+      adjusted: false,
+      reason: `the deck already clears the highest measured ground by ${Math.round(requestedZ - ground.highest_ground_z)} cm`,
+    };
+  }
+
+  const corrected = Math.ceil(neededZ - Number(anchorZ));
+  return {
+    height_cm: corrected,
+    adjusted: true,
+    raised_by_cm: corrected - requested,
+    reason:
+      `raised ${Math.round((corrected - requested) / 100)} m so the deck clears the ` +
+      `highest ground measured under it (${Math.round(ground.elevation_range_cm / 100)} m of ` +
+      "fall across the footprint)",
   };
 }
