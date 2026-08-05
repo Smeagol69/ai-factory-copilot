@@ -209,15 +209,50 @@ export function planBaseBuild(graph, args = {}) {
     };
   }
 
-  // One belt per row boundary, referencing the step that builds each end.
-  const belts = steps.slice(0, -1).map((step, index) => ({
-    leg: index + 1,
-    carries: step.produces,
-    from_row: step.row,
-    to_row: steps[index + 1].row,
-    from_action_index: firstActionOfStep.get(step.production_step),
-    to_action_index: firstActionOfStep.get(steps[index + 1].production_step),
-  }));
+  // Logical material edges come from the production expansion itself, never
+  // from visual row adjacency. For an input step, `chain` is the consumer's
+  // chain plus the consumer recipe. Matching that provenance and the input item
+  // class keeps parallel branches separate even when they share a depth.
+  const placedByProductionStep = new Map(
+    steps.map((step) => [step.production_step, step]),
+  );
+  const sameChain = (left, right) =>
+    JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
+  const belts = [];
+  for (const consumer of plan.steps) {
+    const consumerRow = placedByProductionStep.get(consumer.step);
+    if (!consumerRow) continue;
+    const childChain = [...(consumer.chain ?? []), consumer.recipe_class];
+    const inputClasses = new Set(
+      (consumer.inputs_required ?? []).map((input) => input.item_class).filter(Boolean),
+    );
+
+    for (const producer of plan.steps) {
+      const producerRow = placedByProductionStep.get(producer.step);
+      const producedClass = producer.produces?.item_class;
+      if (
+        !producerRow ||
+        producer.step === consumer.step ||
+        !producedClass ||
+        !inputClasses.has(producedClass) ||
+        !sameChain(producer.chain, childChain)
+      ) {
+        continue;
+      }
+      belts.push({
+        leg: belts.length + 1,
+        carries: producer.produces?.item_name ?? null,
+        carries_item_class: producedClass,
+        from_row: producerRow.row,
+        to_row: consumerRow.row,
+        from_production_step: producer.step,
+        to_production_step: consumer.step,
+        from_action_index: firstActionOfStep.get(producer.step),
+        to_action_index: firstActionOfStep.get(consumer.step),
+        evidence: "producer chain and item class match the consumer recipe input",
+      });
+    }
+  }
 
   const notes = [];
   if (unbuildable.length > 0) {
@@ -238,8 +273,8 @@ export function planBaseBuild(graph, args = {}) {
   );
   if (belts.length > 0) {
     notes.push(
-      `${belts.length} belt leg(s) connect the rows. Each names the step that ` +
-        "builds its end, because the machines do not exist when the plan is written.",
+      `${belts.length} logical material edge(s) connect producer and consumer rows. ` +
+        "Physical splitter, merger, port and fanout routing remains unverified.",
     );
   }
 

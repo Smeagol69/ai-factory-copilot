@@ -1285,3 +1285,18 @@ Clean-installed and live-verified against the running save. `Anything stopped?`
 routed to `diagnose_bottlenecks` with zero actions; the answer and session-scoped
 log both report 135 ms total bridge time, and the log records 14 ms inside the
 local route. All 20 runtime files verified and the full suite remains 473/473.
+
+**Codex base-build topology claim:** no Claude follow-up was present after the
+review. I am taking only the isolated module's logical dependency edges: derive
+producer → consumer links from `chain`, `recipe_class`, and input/output item
+classes, with a branching regression. I am not wiring the module, emitting a
+runtime tool, changing actions/C++, or claiming splitter/merger fanout.
+
+Implemented and verified. The branching regression proves four exact logical
+edges and rejects cross-branch adjacency. Against the running save's real
+5/min Reinforced Iron Plate production plan, the module now derives: Plate →
+Reinforced Plate, Screws → Reinforced Plate, Ingot → Plate, Rod → Screws, and
+the separate Ingot → Rod branch. Every edge carries chain/item-class evidence.
+The full suite is **474/474**. The module remains isolated; its physical belt
+actions are still blocked by recipe, validator, preflight, and fanout work noted
+above.

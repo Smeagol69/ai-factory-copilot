@@ -57,20 +57,24 @@ const productionPlan = {
     {
       step: 1,
       depth: 0,
-      produces: { item_name: "Iron Plate", display_units_per_minute: 40 },
+      chain: [],
+      produces: { item_class: "iron-plate", item_name: "Iron Plate", display_units_per_minute: 40 },
       recipe_class: "/Game/Recipes/Recipe_IronPlate.Recipe_IronPlate_C",
       recipe_name: "Iron Plate",
       produced_in: [CONSTRUCTOR_CLASS],
       machines_required: 2,
+      inputs_required: [{ item_class: "iron-ingot", item_name: "Iron Ingot" }],
     },
     {
       step: 2,
       depth: 1,
-      produces: { item_name: "Iron Ingot", display_units_per_minute: 30 },
+      chain: ["/Game/Recipes/Recipe_IronPlate.Recipe_IronPlate_C"],
+      produces: { item_class: "iron-ingot", item_name: "Iron Ingot", display_units_per_minute: 30 },
       recipe_class: "/Game/Recipes/Recipe_IronIngot.Recipe_IronIngot_C",
       recipe_name: "Iron Ingot",
       produced_in: [SMELTER_CLASS],
       machines_required: 1,
+      inputs_required: [{ item_class: "iron-ore", item_name: "Iron Ore" }],
     },
   ],
 };
@@ -99,6 +103,81 @@ test("builds deepest dependency first, so belts run forward", () => {
   assert.equal(plan.steps[1].produces, "Iron Plate");
   assert.equal(plan.steps[0].building_name, "Smelter");
   assert.equal(plan.machines_total, 3);
+});
+
+test("derives branching material edges from recipe provenance, not adjacent rows", () => {
+  const targetRecipe = "/Game/Recipes/Recipe_ReinforcedPlate.Recipe_ReinforcedPlate_C";
+  const plateRecipe = "/Game/Recipes/Recipe_IronPlate.Recipe_IronPlate_C";
+  const screwRecipe = "/Game/Recipes/Recipe_Screw.Recipe_Screw_C";
+  const branching = {
+    ...productionPlan,
+    steps: [
+      {
+        step: 1,
+        depth: 0,
+        chain: [],
+        produces: { item_class: "reinforced", item_name: "Reinforced Iron Plate" },
+        recipe_class: targetRecipe,
+        recipe_name: "Reinforced Iron Plate",
+        produced_in: [CONSTRUCTOR_CLASS],
+        machines_required: 1,
+        inputs_required: [
+          { item_class: "plate", item_name: "Iron Plate" },
+          { item_class: "screw", item_name: "Screws" },
+        ],
+      },
+      {
+        step: 2,
+        depth: 1,
+        chain: [targetRecipe],
+        produces: { item_class: "plate", item_name: "Iron Plate" },
+        recipe_class: plateRecipe,
+        recipe_name: "Iron Plate",
+        produced_in: [CONSTRUCTOR_CLASS],
+        machines_required: 1,
+        inputs_required: [{ item_class: "ingot-a", item_name: "Iron Ingot" }],
+      },
+      {
+        step: 3,
+        depth: 1,
+        chain: [targetRecipe],
+        produces: { item_class: "screw", item_name: "Screws" },
+        recipe_class: screwRecipe,
+        recipe_name: "Screws",
+        produced_in: [CONSTRUCTOR_CLASS],
+        machines_required: 1,
+        inputs_required: [{ item_class: "rod", item_name: "Iron Rod" }],
+      },
+      {
+        step: 4,
+        depth: 2,
+        chain: [targetRecipe, plateRecipe],
+        produces: { item_class: "ingot-a", item_name: "Iron Ingot" },
+        recipe_class: "/Game/Recipes/Recipe_IngotA.Recipe_IngotA_C",
+        recipe_name: "Iron Ingot",
+        produced_in: [SMELTER_CLASS],
+        machines_required: 1,
+        inputs_required: [],
+      },
+      {
+        step: 5,
+        depth: 2,
+        chain: [targetRecipe, screwRecipe],
+        produces: { item_class: "rod", item_name: "Iron Rod" },
+        recipe_class: "/Game/Recipes/Recipe_Rod.Recipe_Rod_C",
+        recipe_name: "Iron Rod",
+        produced_in: [CONSTRUCTOR_CLASS],
+        machines_required: 1,
+        inputs_required: [],
+      },
+    ],
+  };
+
+  const plan = planBaseBuild(graph, { production_plan: branching });
+  const edges = plan.belts.map((belt) => [belt.from_production_step, belt.to_production_step]);
+  assert.deepEqual(edges, [[2, 1], [3, 1], [4, 2], [5, 3]]);
+  assert.equal(edges.some(([from, to]) => from === 2 && to === 3), false);
+  assert.equal(edges.some(([from, to]) => from === 3 && to === 2), false);
 });
 
 test("anchors on the player when no position is given", () => {
