@@ -62,6 +62,16 @@ import {
  * local write was refused by the game; place_building also used field names
  * the C++ executor does not understand. One path now owns every emitted shape.
  */
+/**
+ * How far from the player a base may be sited.
+ *
+ * Not a game constant — a practical one. Satisfactory streams the world around
+ * the player, and a placement trace beyond that finds no ground to build on.
+ * 500 m matches the scanner's own terrain probe radius, which is the furthest
+ * anything in this project has actually measured.
+ */
+const BUILDABLE_RANGE_METRES = 500;
+
 function emitValidatedPlan(graph, services, proposals) {
   const emit = services?.actions?.emit;
   if (typeof emit !== "function") return null;
@@ -1892,6 +1902,33 @@ export function answerLocally(question, graph, services) {
           const best = site?.sites?.[0];
           if (best?.center_cm) {
             sitedAt = { anchor_cm: best.center_cm, why: site.why_this_site?.headline ?? null };
+          }
+        }
+
+        // A site the game cannot build on is worse than no site.
+        //
+        // `find_best_site` scores the whole map, and on this save the winner
+        // came back 5.5 km away. Satisfactory only streams the world near the
+        // player, so a downward trace out there finds nothing and the very
+        // first foundation is refused for having no ground under it — after 205
+        // actions had been planned, validated and sent. Distance is cheap to
+        // check here, and teleporting first genuinely fixes it.
+        if (sitedAt) {
+          const me = graph?.snapshot?.interaction_context?.player?.pawn_location;
+          const awayMetres = me
+            ? Math.hypot(sitedAt.anchor_cm.x - me.x, sitedAt.anchor_cm.y - me.y) / 100
+            : null;
+          if (awayMetres !== null && awayMetres > BUILDABLE_RANGE_METRES) {
+            return localAnswer(
+              `The best site is **${Math.round(awayMetres)} m away**, which is too far to ` +
+                "build. Satisfactory only loads the world around you, so every " +
+                "foundation out there would be refused for having no ground under it.\n\n" +
+                'Say **"teleport me to the best hub location"** first, then ask for the ' +
+                "base again and it will build where you are standing.",
+              "build_base_out_of_range",
+              started,
+              "The distance to the chosen site was checked before any action was sent.",
+            );
           }
         }
 
