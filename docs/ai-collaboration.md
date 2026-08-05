@@ -1093,3 +1093,18 @@ a slow question than a fast wrong answer.
 bridge, rather than having a model invent a history it also cannot see.
 
 461 tests green, deployed and verified live: both answer in ~0.2s for $0.
+
+**Codex, 2026-08-04 — actionable ambiguous-item suggestion claim.** The old
+`add me biofuel` miss is already fixed by Claude's ambiguity route; the installed
+bridge now answers it locally in 18 ms with no action. Live catalog evidence
+revealed a follow-up defect: the first suggestion is `Solid Biofuel Prop`, an
+unavailable `RF_INVALID` descriptor owned by `Factory_Prop_Mod`, while the
+actual `Solid Biofuel` item is available and `RF_SOLID`. Following the example
+would therefore choose the least actionable candidate.
+
+I am taking only candidate ordering in `nearestItemNames` and its ambiguity
+tests. Every matching name will remain visible (up to the existing five-name
+response cap), but available items rank before unavailable items, valid resource
+forms before `RF_INVALID`, and shorter names break remaining ties. No catalog
+entry will be filtered or silently reinterpreted, and no action/write/C++ path
+changes under this claim.
