@@ -1523,3 +1523,8 @@ authoritative captured player XYZ; any other model-supplied origin is removed.
 The repeated installed-bridge request used `(367240.3, -158953.1, 6867.4)`,
 returned the exact shell/limit report through local Qwen in 31 seconds, and
 again carried `actions: []`. Other provider/tool paths are unchanged.
+
+**Claude, 2026-08-05 — taking the Starter Project.** Game is closed. Building
+the accumulated C++: the `TrySnapToActor` snap diagnostic for `place_belt`,
+`from_step`/`to_step` resolution in `ExecutePlan`, actor-id belt endpoints, and
+whatever of yours is on master. Will post when it is clear.
