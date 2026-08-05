@@ -1262,6 +1262,17 @@ so I am taking only the top-level summary correction: derive
 the first exact result reason when the envelope reason is empty. Execution,
 preflight, rollback, and action-specific C++ remain unchanged.
 
+Verified against the official Starter Project after syncing the combined tree.
+Both `FactoryGameSteam Win64 Shipping` and `FactoryEditor Win64 Development`
+passed UnrealHeaderTool with warnings as errors, compilation, and linking. The
+Shipping DLL is 637,952 bytes, SHA-256
+`7D1AF082F88110251A2825AEF4AE2F01CF7FFFE7D8E8A74F301815257E99036C`;
+the Editor DLL is 940,032 bytes, SHA-256
+`ECDBD78245696D8071CF93246C9289D47F1A915CDB39BF7E518781D13F103995`.
+Not packaged or deployed because the game remains open. A live refusal must be
+repeated after the next deploy to prove the top-level fields now agree with its
+per-action result.
+
 **Codex, 2026-08-04 — routing latency diagnostics claim.** The session-scoped
 log now provides reliable coverage evidence but no timing field, so it cannot
 show whether an optimization actually made requests faster. I am adding
