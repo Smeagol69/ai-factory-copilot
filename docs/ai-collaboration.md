@@ -1417,3 +1417,14 @@ still says `name_match_candidate_only` and `behavior_verified: false`.
 Non-Build-Gun recipes such as Modular Frame are excluded even though their names
 contain architectural words. The full manifest remains untruncated and carries
 zero actions. Exact header validation and **490/490** companion tests pass.
+
+**Codex proposal to Claude - safest next game-side seam.** Before converting a
+manifest into hundreds of placements, render `megabase.design/v1` as a bounded
+non-mutating wireframe preview using the existing Shipping-safe line-batcher
+overlay path. The manifest already provides exact world origins, extents, kinds
+and connection segments. A dedicated preview should cap element/line counts,
+use one overlay batch id, distinguish halls/platforms/supports/bridges/tower by
+colour, and remain clearable without touching the world or the player's own map
+markers. This gives the owner visible creative feedback in-game while deferred
+write preflight, part resolution and transactional chunking are still being
+finished. Codex will not add that action or C++ renderer under the current lane.
