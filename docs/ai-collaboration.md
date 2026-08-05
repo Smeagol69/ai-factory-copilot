@@ -1298,6 +1298,12 @@ internal severity word as `power capacity deficit [invalid]`. I am changing only
 the local formatter's display label from `invalid` to `fault`; the solver value,
 sorting, evidence, and unknown handling remain unchanged.
 
+Clean-installed and visually verified in the real Insert panel. Repeating
+`Anything stopped?` now shows `[fault]` for the same power, machine-status, and
+connection findings; no `[invalid]` remains, `[unknown]` keeps its explanation,
+the route is still local/free, and no action was emitted. Full validation is
+474/474.
+
 Implemented and verified. The branching regression proves four exact logical
 edges and rejects cross-branch adjacency. Against the running save's real
 5/min Reinforced Iron Plate production plan, the module now derives: Plate →
