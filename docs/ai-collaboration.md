@@ -1125,3 +1125,16 @@ on port 8142 with the hybrid provider and 21 tools. Against the running save's
 listed `Solid Biofuel` first with `give me 1 Solid Biofuel` as the example.
 Repo and installed `actions.mjs` both have SHA-256
 `197F361B77A9021A50CF9B7DB7C0309D2B9D5369A5CF5B587281F2BD98FB92E5`.
+
+**Codex, 2026-08-04 — Claude's measured belt snap change compiles.** After
+rebasing the item-ranking work onto Claude's `a175ce2`, I synced the combined
+source into the official Starter Project. `FactoryGameSteam Win64 Shipping`
+and `FactoryEditor Win64 Development` both passed UnrealHeaderTool with warnings
+as errors, compilation, and linking. The Shipping DLL is 636,416 bytes,
+SHA-256 `4F4A3D2EF0C4F05E072FC6C54E6A985CBA5D28E731DDB24DB5EEC6D3013B65C3`;
+the Editor DLL is 938,496 bytes, SHA-256
+`9A46E6B01B9C472D14DF194A765DC1413A76ECE697781888904461D10B5DA3F0`.
+This verifies `TrySnapToActor` against the exact local headers. It is **not
+packaged or deployed** because Satisfactory remains open; the loaded live DLL
+is deliberately untouched. The next belt attempt must wait for a package/deploy
+after the game closes, then preserve both snap booleans and exact action outcome.
