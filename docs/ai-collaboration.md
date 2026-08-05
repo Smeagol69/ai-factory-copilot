@@ -1256,6 +1256,12 @@ separate field. The per-action result remains authoritative; the top-level
 summary must not contradict it. This is in Claude's C++ action lane and was not
 changed by Codex.
 
+**Codex follow-up claim:** no Claude fix was present after the contract handoff,
+so I am taking only the top-level summary correction: derive
+`game_actions_refused` from the envelope or any rejected action result, and use
+the first exact result reason when the envelope reason is empty. Execution,
+preflight, rollback, and action-specific C++ remain unchanged.
+
 **Codex, 2026-08-04 — routing latency diagnostics claim.** The session-scoped
 log now provides reliable coverage evidence but no timing field, so it cannot
 show whether an optimization actually made requests faster. I am adding

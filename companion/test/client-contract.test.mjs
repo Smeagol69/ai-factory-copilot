@@ -27,5 +27,8 @@ test("the game refuses stale or oversized action plans whole", () => {
   assert.match(subsystem, /bridge\/mod version mismatch/);
   assert.match(subsystem, /action plan contains %d steps/);
   assert.match(subsystem, /game_actions_refused/);
+  assert.match(subsystem, /ContainsByPredicate\(IsRefusedActionResult\)/);
+  assert.match(subsystem, /FirstActionRefusalReason\(ActionResults\)/);
+  assert.match(subsystem, /TEXT\("game_actions_refused"\),\s*bActionsRefused/);
   assert.doesNotMatch(subsystem, /Requested\.SetNum\(/);
 });
