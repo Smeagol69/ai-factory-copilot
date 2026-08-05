@@ -32,12 +32,15 @@ import {
   solveActorLookup,
   solveBuildRecipeLookup,
   solvePlacementTarget,
+  solveProductionPlan,
   solveSiteSelection,
   solveUnlockStatus,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
 import { validatePlan } from "./actions.mjs";
+import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import {
+  measureConnectors,
   solveBeltRoute,
   solveCompatibleBeltCandidates,
   solveNearestCompatibleBeltRoute,
@@ -551,6 +554,78 @@ export function parseUndoHistoryRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   // "undo" alone is the action; this is only the question about it.
   return Boolean(text) && UNDO_HISTORY.test(text) && !parseUndoRequest(text);
+}
+/**
+ * "design me a base that makes 60 iron plates a minute".
+ *
+ * The verb carries the intent and nothing else has to: **design** previews,
+ * **build** commits. That keeps the whole thing stateless — there is no
+ * pending plan to remember between messages, and no way for a "yes" to be
+ * matched against the wrong proposal.
+ */
+const BASE_DESIGN_VERB =
+  /^(?:can you |could you |please )?(?:(design|plan|lay ?out)|(build|make|construct|spawn))(?:\s+me)?(?:\s+(?:a|an|the))?(?:\s+(?:new|whole|complete|full))?\s+(?:base|factory|setup|production(?:\s+line)?|line|module)\s+/i;
+
+/**
+ * The rate is found by its unit, and the number by being a number.
+ *
+ * They are matched separately because in real phrasing the item sits between
+ * them: "60 iron plates a minute" puts two words where a tighter pattern would
+ * expect "per". Requiring them adjacent silently failed every natural sentence
+ * a player types.
+ */
+const BASE_PER_MINUTE = /(?:\/|\bper\b|\ba\b|\beach\b)\s*min(?:ute)?s?\b|\/\s*m\b|\bpm\b/i;
+const BASE_NUMBER = /\b(\d+(?:\.\d+)?)\b/;
+/** Words that describe the request rather than name the item. */
+const BASE_FILLER =
+  /\b(?:for|of|that|which|making|makes|produces|producing|produce|make|output|outputs|at|per|each|a|an|the|minute|minutes|min|mins|pm)\b/gi;
+
+/** An item from the game's own catalog, matched by display name. */
+function findItemByName(graph, name) {
+  const needle = String(name ?? "").trim().toLowerCase();
+  if (!needle) return null;
+  const items = graph?.snapshot?.content?.items ?? [];
+  // Exact first, then a singular/plural tolerant match. Ambiguity is treated as
+  // no match: designing a whole factory around the wrong item is expensive.
+  const exact = items.filter((item) => String(item.name ?? "").toLowerCase() === needle);
+  if (exact.length === 1) return exact[0];
+  const singular = needle.replace(/s$/, "");
+  const near = items.filter((item) => {
+    const itemName = String(item.name ?? "").toLowerCase();
+    return itemName === singular || itemName === `${singular}s`;
+  });
+  return near.length === 1 ? near[0] : null;
+}
+
+export function parseBaseDesignRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  const verb = text.match(BASE_DESIGN_VERB);
+  if (!verb) return null;
+
+  // Group 1 is the previewing verb, group 2 the committing one.
+  const commit = Boolean(verb[2]);
+  const body = text.slice(verb[0].length).trim();
+
+  // Both a number and a per-minute unit are required. Without a rate there is
+  // nothing to size the base against, and inventing one would be inventing the
+  // whole factory — so that goes to the model, which can ask.
+  const number = body.match(BASE_NUMBER);
+  if (!number || !BASE_PER_MINUTE.test(body)) return null;
+  const perMinute = Number(number[1]);
+  if (!Number.isFinite(perMinute) || perMinute <= 0) return null;
+
+  // Whatever is left once the rate and its scaffolding are removed is the item.
+  const item = body
+    .replace(BASE_NUMBER, " ")
+    .replace(BASE_PER_MINUTE, " ")
+    .replace(BASE_FILLER, " ")
+    .replace(/[^A-Za-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (item.length < 2) return null;
+
+  return { item, per_minute: perMinute, commit };
 }
 
 export function parseWaypointRequest(question) {
@@ -1683,6 +1758,66 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "design me a base that makes 60 iron plates a minute".
+  const design = parseBaseDesignRequest(question);
+  if (design && graph) {
+    const started = Date.now();
+    const item = findItemByName(graph, design.item);
+    if (item) {
+      const production = solveProductionPlan(graph, {
+        item_class: item.class_path,
+        target_rate_per_minute: design.per_minute,
+      });
+      if (production?.planned) {
+        const plan = planBaseBuild(graph, {
+          production_plan: production,
+          measure_connectors: measureConnectors,
+        });
+        if (plan.planned) {
+          const actions = baseBuildActions(plan, { commit: design.commit });
+          const emitted = design.commit
+            ? emitValidatedPlan(graph, services, actions)
+            : true;
+
+          if (emitted) {
+            const rows = plan.steps
+              .map(
+                (step) =>
+                  `- **Row ${step.row}** — ${step.machines} × ${step.building_name} ` +
+                  `→ ${step.produces} @ ${step.rate_per_minute}/min`,
+              )
+              .join("\n");
+            const skipped = plan.unbuildable.length
+              ? `\n\nCannot place: ${plan.unbuildable
+                  .map((entry) => `${entry.produces ?? "?"} (${entry.reason})`)
+                  .join("; ")}.`
+              : "";
+            const power = plan.power?.plan_draw_mw
+              ? `\n\nDraws ${plan.power.plan_draw_mw} MW; ` +
+                `${plan.power.fits_on_existing_power ? "your existing circuit can carry that" : "**more generation is needed**"}. ` +
+                "Power is not wired by this plan."
+              : "";
+
+            return localAnswer(
+              `**${design.commit ? "Building" : "Design for"} ${design.per_minute}/min ${item.name}** ` +
+                `— ${plan.machines_total} machine(s) across ${plan.rows} row(s), ` +
+                `${plan.belts_planned} belt leg(s).\n\n${rows}${skipped}${power}\n\n` +
+                (design.commit
+                  ? "Placing now. Each machine is validated by the game as it goes, and " +
+                    'the whole transaction rolls back if one fails. Say "undo" to reverse it.'
+                  : `Say **"build a base for ${design.per_minute} ${item.name} per minute"** to place it.`),
+              design.commit ? "build_base" : "design_base",
+              started,
+              "Recipes, machine counts and positions all came from captured data.",
+            );
+          }
+        }
+      }
+    }
+    // Unknown item or an unplannable goal: the model can ask which item was
+    // meant, or explain why the chain cannot be built here.
+  }
+
   // "dismantle Build_Belt_C_1" — one named building, resolved and removed.
   const dismantle = parseDismantleRequest(question);
   if (dismantle && graph) {

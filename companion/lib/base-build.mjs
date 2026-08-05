@@ -28,6 +28,34 @@
 const DEFAULT_MACHINE_SPACING_CM = 1_500;
 const DEFAULT_ROW_SPACING_CM = 1_800;
 
+/**
+ * The best conveyor the player has actually unlocked.
+ *
+ * Belts are strictly ordered — a Mk3 carries everything a Mk1 does and more —
+ * so the highest unlocked tier is always the right default and needs no
+ * judgement. The tier number is read from the descriptor rather than assumed,
+ * and if nothing resolves the plan says so instead of naming a belt the save
+ * may not have.
+ */
+export function findBestAvailableBelt(graph) {
+  let best = null;
+  for (const recipe of graph?.snapshot?.content?.recipes ?? []) {
+    if (recipe.available !== true) continue;
+    if (!(recipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun"))) continue;
+
+    const product = (recipe.products ?? [])[0];
+    const productShort = String(product?.item_class ?? "").split(".").pop()?.replace(/_C$/, "");
+    const tier = productShort?.match(/^Desc_ConveyorBeltMk(\d+)$/)?.[1];
+    if (!tier) continue;
+
+    const level = Number(tier);
+    if (!best || level > best.tier) {
+      best = { tier: level, recipe_class: recipe.class_path, name: recipe.name };
+    }
+  }
+  return best;
+}
+
 function vectorOf(value) {
   if (!value || typeof value !== "object") return null;
   const x = Number(value.x);
@@ -209,6 +237,8 @@ export function planBaseBuild(graph, args = {}) {
     };
   }
 
+  const belt = findBestAvailableBelt(graph);
+
   // One belt per row boundary, referencing the step that builds each end.
   const belts = steps.slice(0, -1).map((step, index) => ({
     leg: index + 1,
@@ -220,6 +250,12 @@ export function planBaseBuild(graph, args = {}) {
   }));
 
   const notes = [];
+  if (!belt && belts.length > 0) {
+    notes.push(
+      "No conveyor belt is unlocked in this save, so the rows cannot be joined. " +
+        "The machines can still be placed.",
+    );
+  }
   if (unbuildable.length > 0) {
     notes.push(
       `${unbuildable.length} production step(s) cannot be placed and are listed in unbuildable.`,
@@ -249,9 +285,10 @@ export function planBaseBuild(graph, args = {}) {
     anchor_cm: anchor,
     target: plan.target ?? null,
     power: plan.power_check ?? null,
+    belt: belt ?? null,
     rows: steps.length,
     machines_total: steps.reduce((sum, step) => sum + step.machines, 0),
-    belts_planned: belts.length,
+    belts_planned: belt ? belts.length : 0,
     steps,
     belts,
     unbuildable,
@@ -289,14 +326,19 @@ export function baseBuildActions(plan, { commit = false } = {}) {
     }
   }
 
-  for (const belt of plan.belts) {
-    actions.push({
-      action: "place_belt",
-      // Resolved by the executor from what those steps built.
-      from_step: belt.from_action_index + 1,
-      to_step: belt.to_action_index + 1,
-      commit,
-    });
+  // Without an unlocked belt there is nothing to join the rows with, so no
+  // belt actions are emitted at all rather than ones certain to be refused.
+  if (plan.belt?.recipe_class) {
+    for (const leg of plan.belts) {
+      actions.push({
+        action: "place_belt",
+        recipe_class: plan.belt.recipe_class,
+        // Resolved by the executor from what those steps built.
+        from_step: leg.from_action_index + 1,
+        to_step: leg.to_action_index + 1,
+        commit,
+      });
+    }
   }
   return actions;
 }

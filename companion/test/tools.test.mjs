@@ -29,6 +29,7 @@ test("exposes the roadmap solver set to the model", () => {
   const names = SOLVER_TOOLS.map((tool) => tool.name).sort();
   assert.deepEqual(names, [
     "clear_highlight",
+    "design_base",
     "design_factory_layout",
     "diagnose_bottlenecks",
     "find_belt_candidates",

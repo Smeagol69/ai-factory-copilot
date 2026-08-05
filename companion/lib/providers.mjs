@@ -1553,24 +1553,25 @@ function mentionsSolverTool(text) {
  * `companion/test/hybrid-fallback.test.mjs`.
  */
 const SOLVER_TOOL_NAMES = [
-  "get_factory_summary",
-  "get_machine_rates",
-  "get_item_balance",
-  "find_recipes",
-  "get_transport_capacity",
-  "get_power_circuits",
+  "design_base",
+  "design_factory_layout",
   "diagnose_bottlenecks",
-  "get_build_cost",
-  "find_best_site",
-  "plan_production",
-  "list_blueprints",
-  "get_unlock_status",
-  "locate",
   "find_belt_candidates",
+  "find_best_site",
+  "find_recipes",
+  "get_build_cost",
+  "get_factory_summary",
+  "get_item_balance",
+  "get_machine_rates",
+  "get_power_circuits",
+  "get_transport_capacity",
+  "get_unlock_status",
+  "list_blueprints",
+  "locate",
   "plan_belt_route",
   "plan_belted_module",
+  "plan_production",
   "plan_splitter_fan_out",
-  "design_factory_layout",
 ];
 
 /**

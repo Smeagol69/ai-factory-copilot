@@ -48,8 +48,8 @@ test("place_belt is a write, so it is gated and stamped like the rest", () => {
 test("refuses the malformed requests rather than belting something arbitrary", () => {
   const cases = [
     [{ from_component: FROM, to_component: TO }, /recipe_class/],
-    [{ recipe_class: BELT, to_component: TO }, /from_component_and_to_component/],
-    [{ recipe_class: BELT, from_component: FROM }, /from_component_and_to_component/],
+    [{ recipe_class: BELT, to_component: TO }, /each_end_needs_a_component_actor_or_step/],
+    [{ recipe_class: BELT, from_component: FROM }, /each_end_needs_a_component_actor_or_step/],
     [{ recipe_class: BELT, from_component: FROM, to_component: FROM }, /two_different_connections/],
   ];
   for (const [proposal, expected] of cases) {

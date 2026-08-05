@@ -45,6 +45,10 @@ const graph = buildGraph({
       buildRecipe("Recipe_ConstructorMk1", "Desc_ConstructorMk1", "Constructor"),
       // Locked: present in the catalog but not usable yet.
       buildRecipe("Recipe_Refinery", "Desc_Refinery", "Refinery", false),
+      // Belts are how rows get joined; the best unlocked tier is chosen.
+      buildRecipe("Recipe_ConveyorBeltMk1", "Desc_ConveyorBeltMk1", "Conveyor Belt Mk.1"),
+      buildRecipe("Recipe_ConveyorBeltMk2", "Desc_ConveyorBeltMk2", "Conveyor Belt Mk.2"),
+      buildRecipe("Recipe_ConveyorBeltMk3", "Desc_ConveyorBeltMk3", "Conveyor Belt Mk.3", false),
     ],
   },
 });
@@ -152,4 +156,43 @@ test("never claims the base will stand", () => {
 test("refuses without a production plan rather than inventing one", () => {
   assert.match(planBaseBuild(graph, {}).reason, /run plan_production first/);
   assert.match(planBaseBuild(graph, { production_plan: { planned: false } }).reason, /plan_production/);
+});
+
+test("joins rows with the best belt actually unlocked", () => {
+  // Belts are strictly ordered, so the highest unlocked tier is always right
+  // and needs no judgement. Mk3 exists in the fixture but is locked.
+  const plan = planBaseBuild(graph, { production_plan: productionPlan });
+  assert.equal(plan.belt.tier, 2);
+  assert.equal(plan.belt.name, "Conveyor Belt Mk.2");
+
+  const belt = baseBuildActions(plan, { commit: true }).find((a) => a.action === "place_belt");
+  assert.match(belt.recipe_class, /Recipe_ConveyorBeltMk2/);
+});
+
+test("with no belt unlocked, machines are still placed and the gap is stated", () => {
+  // Emitting belt actions certain to be refused would turn a working partial
+  // plan into a failed transaction.
+  const noBelts = buildGraph({
+    world_revision: 8,
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    interaction_context: { player: { pawn_available: true, pawn_location: { x: 0, y: 0, z: 0 } } },
+    actors: [],
+    content: {
+      items: [],
+      recipes: [
+        buildRecipe("Recipe_SmelterBasicMk1", "Desc_SmelterMk1", "Smelter"),
+        buildRecipe("Recipe_ConstructorMk1", "Desc_ConstructorMk1", "Constructor"),
+      ],
+    },
+  });
+
+  const plan = planBaseBuild(noBelts, { production_plan: productionPlan });
+  assert.equal(plan.planned, true);
+  assert.equal(plan.belt, null);
+  assert.equal(plan.belts_planned, 0);
+  assert.ok(plan.notes.some((note) => /No conveyor belt is unlocked/.test(note)));
+
+  const actions = baseBuildActions(plan, { commit: true });
+  assert.equal(actions.filter((a) => a.action === "place_belt").length, 0);
+  assert.equal(actions.filter((a) => a.action === "place_building").length, 3);
 });

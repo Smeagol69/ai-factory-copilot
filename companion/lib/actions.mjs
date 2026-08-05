@@ -428,12 +428,40 @@ export function validateAction(graph, proposal) {
     const fromComponent = String(proposal.from_component ?? "").trim();
     const toComponent = String(proposal.to_component ?? "").trim();
 
+    // An endpoint can be named three ways, in descending order of certainty:
+    // a connection component (exact), an actor (the executor picks a free
+    // port), or an earlier step in this same plan (the executor resolves it
+    // from what that step built).
+    //
+    // The third exists because a belt in a whole-base plan cannot name
+    // components for machines that do not exist when the plan is written. That
+    // is the only thing standing between "here is a factory design" and "here
+    // is a factory", so it is a first-class way to address an endpoint rather
+    // than a special case.
+    const fromActor = String(proposal.from_actor_id ?? "").trim();
+    const toActor = String(proposal.to_actor_id ?? "").trim();
+    const fromStep = finite(proposal.from_step);
+    const toStep = finite(proposal.to_step);
+
+    const hasFrom = Boolean(fromComponent || fromActor) || fromStep !== null;
+    const hasTo = Boolean(toComponent || toActor) || toStep !== null;
+
     if (!recipeClass) return reject(kind, "recipe_class_is_required");
-    if (!fromComponent || !toComponent) {
-      return reject(kind, "from_component_and_to_component_are_required");
+    if (!hasFrom || !hasTo) {
+      return reject(kind, "each_end_needs_a_component_actor_or_step");
     }
-    if (fromComponent === toComponent) {
+    if (fromComponent && fromComponent === toComponent) {
       return reject(kind, "a_belt_needs_two_different_connections");
+    }
+    if (fromStep !== null && fromStep === toStep) {
+      return reject(kind, "a_belt_needs_two_different_steps");
+    }
+    // Steps are 1-based and can only refer backwards: a belt cannot be built
+    // from something later in the plan than itself.
+    for (const [label, step] of [["from_step", fromStep], ["to_step", toStep]]) {
+      if (step !== null && (!Number.isInteger(step) || step < 1)) {
+        return reject(kind, `${label}_must_be_a_positive_whole_step_number`);
+      }
     }
 
     // The route planner already knows whether these ports exist, face each
@@ -457,8 +485,14 @@ export function validateAction(graph, proposal) {
         {
           action: kind,
           recipe_class: recipeClass,
-          from_component: fromComponent,
-          to_component: toComponent,
+          // Only the endpoint forms that were actually given travel onward, so
+          // the executor is never handed an empty string to resolve.
+          ...(fromComponent ? { from_component: fromComponent } : {}),
+          ...(toComponent ? { to_component: toComponent } : {}),
+          ...(fromActor ? { from_actor_id: fromActor } : {}),
+          ...(toActor ? { to_actor_id: toActor } : {}),
+          ...(fromStep !== null ? { from_step: fromStep } : {}),
+          ...(toStep !== null ? { to_step: toStep } : {}),
           commit: proposal.commit === true,
         },
         proposal,

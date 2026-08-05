@@ -14,6 +14,7 @@
 
 import { summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
+import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import {
   planBeltedModule,
   solveBeltChain,
@@ -348,6 +349,38 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => planSplitterFanOut(graph, args),
+  },
+
+  {
+    name: "design_base",
+    description:
+      "Designs a whole factory from a production goal and returns an ordered build plan: which buildings, how many, where each one goes, and the belt legs between them. Run plan_production first and pass its result. One row per production step, deepest dependency first, so belts run the short way and nothing crosses. Reports what it cannot place and why — a locked building is named, not silently skipped — and states plainly that power is not wired. Positions are a proposal; ground, clearance and cost are decided by the game when the plan runs. Use this for any 'design me a base', 'build me a factory for X', or 'lay this out' request.",
+    parameters: {
+      type: "object",
+      properties: {
+        production_plan: {
+          type: "object",
+          description: "The result of plan_production for the goal being built.",
+        },
+        anchor_cm: {
+          type: "object",
+          description: "Where to put the first row. Defaults to the player's position.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+        },
+        machine_spacing_cm: { type: "number", description: "Gap between machines in a row. Defaults to 1500." },
+        row_spacing_cm: { type: "number", description: "Gap between rows. Defaults to 1800." },
+      },
+      required: ["production_plan"],
+      additionalProperties: false,
+    },
+    run: (graph, args) => {
+      const plan = planBaseBuild(graph, args);
+      // The actions travel with the plan so the caller can see exactly what
+      // would run, without any of it committing until asked.
+      return plan.planned
+        ? { ...plan, actions_preview: baseBuildActions(plan, { commit: false }) }
+        : plan;
+    },
   },
 
   /* ---------------- world-changing tools ---------------- */
