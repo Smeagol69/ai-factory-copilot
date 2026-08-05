@@ -75,7 +75,11 @@ test("a generic name matching more than one building emits no dismantle", () => 
     actions: { emit: (actions) => emitted.push(...actions) },
   });
 
-  assert.equal(answer, null);
+  assert.equal(answer.local.solver, "dismantle_ambiguous");
+  assert.match(answer.reply, /found \*\*2\*\* buildings/);
+  assert.match(answer.reply, /Build_ConstructorMk1_C_1/);
+  assert.match(answer.reply, /Build_ConstructorMk1_C_2/);
+  assert.match(answer.reply, /No action was emitted/);
   assert.deepEqual(emitted, []);
 });
 

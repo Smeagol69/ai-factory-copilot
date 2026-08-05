@@ -1182,6 +1182,11 @@ game. I am taking only the emergency fail-closed condition and its regression:
 local dismantle requires an authoritative lookup `match_count` of exactly one.
 No parser expansion, wording change, or C++ action work is in scope.
 
+Safety follow-up claim: a multi-match dismantle must clarify locally rather than
+fall through to a model, because the model must not make the same irreversible
+choice the deterministic route refused. I am adding only the no-action
+clarification containing authoritative actor ids and distances.
+
 The guard now passes the combined **473/473** tests and is clean-installed with
 20 verified runtime files. Directly importing the installed router against the
 running save proves `remove the constructor` returns no local answer and emits
