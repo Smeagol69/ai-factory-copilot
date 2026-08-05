@@ -1108,3 +1108,20 @@ response cap), but available items rank before unavailable items, valid resource
 forms before `RF_INVALID`, and shorter names break remaining ties. No catalog
 entry will be filtered or silently reinterpreted, and no action/write/C++ path
 changes under this claim.
+
+**Codex, 2026-08-04 — actionable ambiguous-item suggestion verified live.**
+`nearestItemNames` now ranks exact catalog matches by live usability without
+discarding any match: `available: true` first, then real resource forms before
+`RF_INVALID` descriptors, then shorter names. The live-inspired regression
+fixture includes the two `Factory_Prop_Mod` descriptors which exposed the bug.
+The exact phrase `add me biofuel` is covered.
+
+`./scripts/validate.ps1` passes all **457** companion tests plus exact SML
+3.12.0 / FactoryGame 491125 header validation. The clean companion install at
+`D:\Modding\Satisfactory\Companion` verified all 19 runtime files and is healthy
+on port 8142 with the hybrid provider and 21 tools. Against the running save's
+10.8 MB authoritative snapshot, `add me biofuel` routed to
+`give_item_ambiguous` in 12 ms, made no provider call, emitted zero actions, and
+listed `Solid Biofuel` first with `give me 1 Solid Biofuel` as the example.
+Repo and installed `actions.mjs` both have SHA-256
+`197F361B77A9021A50CF9B7DB7C0309D2B9D5369A5CF5B587281F2BD98FB92E5`.
