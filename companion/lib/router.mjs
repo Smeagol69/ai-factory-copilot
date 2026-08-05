@@ -402,7 +402,7 @@ export function parseShowRequest(question) {
 }
 
 /** "clear waypoints" removes map markers; "clear overlays" removes drawings. */
-const CLEAR_WAYPOINTS = /\bclear\s+(?:my\s+|the\s+|all\s+)?way\s?points?\b|\bremove\s+(?:my\s+|the\s+|all\s+)?way\s?points?\b/i;
+const CLEAR_WAYPOINTS = /\b(?:clear|remove|delete|wipe)\s+(?:(?:my|the|all|every|any)\s+)*way\s?points?\b/i;
 
 export function parseClearWaypointRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
@@ -507,6 +507,50 @@ export function parseBeltRequest(question) {
   const to = asTarget(parts[1]);
   if (!from || !to) return null;
   return { from, to, belt_name: beltName };
+}
+
+/**
+ * "dismantle Build_ConveyorBeltMk1_C_123", "remove that constructor".
+ *
+ * Deliberately narrow. Dismantling is the one write the undo journal cannot
+ * always reverse — the mod runs it as a standalone committed action for exactly
+ * that reason — so this only accepts a single, explicitly named target. No
+ * "dismantle everything", no plurals, no "all the belts": those are the phrasings
+ * where a misparse costs someone their factory, and a model asking "which one?"
+ * is the correct outcome rather than a fast wrong one.
+ */
+const DISMANTLE_VERB =
+  /^(?:can you |could you |please )?(?:dismantle|demolish|deconstruct|tear down|remove|delete)\s+/i;
+const DISMANTLE_PLURAL = /\b(?:all|every|everything|these|those|both|each)\b|s\s*$/i;
+
+export function parseDismantleRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || MULTI_CLAUSE.test(text)) return null;
+
+  const verb = text.match(DISMANTLE_VERB);
+  if (!verb) return null;
+
+  let target = text.slice(verb[0].length).trim();
+  while (LOCATE_LEADING_ARTICLE.test(target)) {
+    target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  }
+  if (!target || target.length < 2) return null;
+  // Anything that reads as more than one building goes to the model.
+  if (DISMANTLE_PLURAL.test(target)) return null;
+
+  return /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
+    ? { actor_id: target, target, limit: 1 }
+    : { name_contains: target, target, limit: 1 };
+}
+
+/** "what can I undo", "what did you just do". */
+const UNDO_HISTORY =
+  /\b(?:what|anything)\b.*\bundo\b|\bundo\s+(?:history|list|stack)\b|\bwhat did you (?:just )?(?:do|change|build)\b/i;
+
+export function parseUndoHistoryRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  // "undo" alone is the action; this is only the question about it.
+  return Boolean(text) && UNDO_HISTORY.test(text) && !parseUndoRequest(text);
 }
 
 export function parseWaypointRequest(question) {
@@ -1639,6 +1683,46 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "dismantle Build_Belt_C_1" — one named building, resolved and removed.
+  const dismantle = parseDismantleRequest(question);
+  if (dismantle && graph) {
+    const started = Date.now();
+    const [match] = solveActorLookup(graph, dismantle)?.matches ?? [];
+    if (match?.actor_id) {
+      const emitted = emitValidatedPlan(graph, services, [
+        { action: "dismantle", actor_id: match.actor_id, commit: true },
+      ]);
+      if (emitted) {
+        return localAnswer(
+          `Dismantling **${match.name ?? match.actor_id}**` +
+            `${match.distance_meters !== undefined ? ` (${round(match.distance_meters)} m away)` : ""}. ` +
+            "The refund goes to your inventory, and anything that does not fit drops. " +
+            "The mod runs this on its own so a failure cannot half-undo something else.",
+          "dismantle",
+          started,
+          "One named building was resolved from the snapshot; nothing was inferred.",
+        );
+      }
+    }
+    // Unresolved name: the model can ask which building was meant.
+  }
+
+  // "what can I undo" — a question about the journal, not a request to use it.
+  if (parseUndoHistoryRequest(question)) {
+    const started = Date.now();
+    // The journal lives in the mod, not here, so this cannot list its contents.
+    // Saying that plainly beats a model inventing a history it also cannot see.
+    return localAnswer(
+      "The undo journal is kept by the mod, not the bridge, so I cannot list it " +
+        'from here. Say **"undo"** and it will reverse its most recent ' +
+        "transaction and tell you exactly what it reversed. Each answer that " +
+        "changed something also says whether it can be undone.",
+      "undo_history",
+      started,
+      "The journal is game-side; claiming to read it would be inventing.",
+    );
+  }
+
   // "belt the smelter to the constructor" — plan the run and build it, locally.
   const belt = parseBeltRequest(question);
   if (belt && graph) {
