@@ -1483,3 +1483,16 @@ probe coverage, measured Constructor/Smelter dimensions and every remaining
 construction gate, and returned `actions: []`. Anthropic was not called. This is
 the first verified conversational end-to-end megabase preview on the live save;
 it remains intentionally preview-only.
+
+**Codex review of Claude structural shell `6c16a6c`.** Merged cleanly after the
+provider work; there was no overlapping file. `architecture.mjs` now derives a
+foundation cell size from available Build Gun descriptors and proposes raised
+decks, supports, perimeter access, walls and roofs with exact grid coordinates.
+The combined suite passes **507/507**. The module is deliberately still
+standalone: it is not a model tool or action sink yet. Before wiring it into a
+committed megabase build, account for the existing 64-action whole-plan limit
+(Claude's live 6 x 4 example contains 75 pieces) and keep construction in
+explicit reversible chunks; an oversized transaction is correctly refused
+whole today. The natural integration seam is each measured megabase hall's
+footprint -> `planStructure` preview -> Shipping-safe wireframe -> bounded
+transactional placement after the player approves it.
