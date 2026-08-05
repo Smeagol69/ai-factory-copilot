@@ -92,17 +92,40 @@ function nearestItemNames(graph, requested) {
   // Plate". The reverse test — item name inside the request — was tried and
   // removed: it matched "Tan" inside "unobtanium" and suggested nonsense.
   const words = needle.split(/\s+/).filter((word) => word.length >= 3);
-  const names = new Set();
+  const matches = [];
   for (const item of graph?.snapshot?.content?.items ?? []) {
     const name = String(item.name ?? "").trim();
     if (!name) continue;
     const lowered = name.toLowerCase();
     if (lowered.includes(needle) || words.some((word) => lowered.includes(word))) {
-      names.add(name);
-      if (names.size >= 5) break;
+      matches.push(item);
     }
   }
-  return [...names];
+
+  // A live modded catalog put unavailable RF_INVALID decoration descriptors
+  // before the real unlocked item. Keep every kind of match eligible, but make
+  // the first example the player is invited to type the most actionable one.
+  matches.sort((a, b) => {
+    const available = Number(b.available === true) - Number(a.available === true);
+    if (available !== 0) return available;
+    const validForm = Number(String(a.form ?? "").toUpperCase() === "RF_INVALID") -
+      Number(String(b.form ?? "").toUpperCase() === "RF_INVALID");
+    if (validForm !== 0) return validForm;
+    const aName = String(a.name ?? "").trim();
+    const bName = String(b.name ?? "").trim();
+    return aName.length - bName.length || aName.localeCompare(bName);
+  });
+
+  const names = [];
+  const seen = new Set();
+  for (const item of matches) {
+    const name = String(item.name ?? "").trim();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+    if (names.length >= 5) break;
+  }
+  return names;
 }
 
 function finite(value) {

@@ -16,7 +16,13 @@ import test from "node:test";
 import { answerLocally } from "../lib/router.mjs";
 import { buildGraph } from "../lib/graph.mjs";
 
-const item = (name, classPath) => ({ name, class_path: classPath, available: true });
+const item = (name, classPath, overrides = {}) => ({
+  name,
+  class_path: classPath,
+  available: true,
+  form: "RF_SOLID",
+  ...overrides,
+});
 
 const graph = buildGraph({
   world_revision: 8,
@@ -25,9 +31,22 @@ const graph = buildGraph({
   actors: [],
   content: {
     items: [
+      item("Solid Biofuel Prop", "/Factory_Prop_Mod/SolidBiofuelDescrip.SolidBiofuelDescrip_C", {
+        available: false,
+        form: "RF_INVALID",
+      }),
+      item("Packaged Liquid Biofuel Prop", "/Factory_Prop_Mod/BiofuelDesc.BiofuelDesc_C", {
+        available: false,
+        form: "RF_INVALID",
+      }),
+      item("Packaged Liquid Biofuel", "/Game/Desc_PackagedBiofuel.Desc_PackagedBiofuel_C", {
+        available: false,
+      }),
+      item("Liquid Biofuel", "/Game/Desc_LiquidBiofuel.Desc_LiquidBiofuel_C", {
+        available: false,
+        form: "RF_LIQUID",
+      }),
       item("Solid Biofuel", "/Game/Desc_SolidBiofuel.Desc_SolidBiofuel_C"),
-      item("Liquid Biofuel", "/Game/Desc_LiquidBiofuel.Desc_LiquidBiofuel_C"),
-      item("Packaged Liquid Biofuel", "/Game/Desc_PackagedBiofuel.Desc_PackagedBiofuel_C"),
       item("Iron Ore", "/Game/Desc_OreIron.Desc_OreIron_C"),
     ],
     recipes: [],
@@ -50,7 +69,15 @@ test("an ambiguous item is answered locally with the candidates, not sent to a m
 
 test("the suggestion is a phrasing that will actually work", () => {
   const answer = answerLocally("give me 64 biofuel", graph, {});
-  assert.match(answer.reply, /give me 64 (Solid|Liquid|Packaged)/);
+  assert.match(answer.reply, /give me 64 Solid Biofuel"/);
+});
+
+test("the exact missing-count phrase prefers the available item over invalid decoration descriptors", () => {
+  const answer = answerLocally("add me biofuel", graph, {});
+
+  assert.equal(answer.local.solver, "give_item_ambiguous");
+  assert.match(answer.reply, /give me 1 Solid Biofuel"/);
+  assert.ok(answer.reply.indexOf("- Solid Biofuel\n") < answer.reply.indexOf("- Solid Biofuel Prop\n"));
 });
 
 test("an unambiguous item still just works", () => {
