@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
-import { ACTION_KINDS, summarizePlan, validateAction, validatePlan } from "../lib/actions.mjs";
+import {
+  ACTION_KINDS,
+  describeUnkeptPromise,
+  summarizePlan,
+  validateAction,
+  validatePlan,
+} from "../lib/actions.mjs";
 import { runSolverTool } from "../lib/tools.mjs";
 import { CONSTRUCTOR, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
@@ -325,4 +331,58 @@ test("a nonsensical overlay radius is refused", () => {
   const result = validateAction(graphOf(), { action: "highlight", radius_m: -5 });
   assert.equal(result.valid, false);
   assert.equal(result.reason, "radius_must_be_positive");
+});
+
+/* ---------------- a reply that promised more than it sent ---------------- */
+
+// The real one: asked for a storage hub, the local model said "Let me build
+// this for you." and emitted zero actions. Nothing was built, and the reply
+// still read like success.
+test("a model that promises to build and sends nothing is called out", () => {
+  const note = describeUnkeptPromise({
+    reply: "Let me build this for you.",
+    actionCount: 0,
+    answeredBy: "model",
+  });
+  assert.ok(note);
+  assert.match(note, /Nothing was actually built/);
+});
+
+test("a promise that was kept says nothing", () => {
+  assert.equal(
+    describeUnkeptPromise({
+      reply: "Let me build this for you.",
+      actionCount: 51,
+      answeredBy: "model",
+    }),
+    null,
+  );
+});
+
+test("advice is not a promise", () => {
+  // If describing a design tripped the guard, every layout discussion would
+  // carry a false warning, and the player would learn to skip past the real one.
+  for (const reply of [
+    "You could build a storage hub here.",
+    "That would place 16 foundations and 4 containers.",
+    "The design places 16 foundations.",
+    "Building this by hand would take a while.",
+  ]) {
+    assert.equal(
+      describeUnkeptPromise({ reply, actionCount: 0, answeredBy: "model" }),
+      null,
+      `should not warn: ${reply}`,
+    );
+  }
+});
+
+test("a solver that emits no actions has already explained itself", () => {
+  assert.equal(
+    describeUnkeptPromise({
+      reply: "Let me build this for you.",
+      actionCount: 0,
+      answeredBy: "local_solver",
+    }),
+    null,
+  );
 });

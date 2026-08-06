@@ -723,3 +723,38 @@ export function summarizePlan(graph, plan) {
     },
   };
 }
+
+/**
+ * Phrases in which a reply commits to changing the world.
+ *
+ * Deliberately narrow: first-person commitments only. "You could build a
+ * storage hub here" and "that would place 16 foundations" are advice, and a
+ * pattern loose enough to catch them puts a false warning under every design
+ * discussion — which teaches the player to ignore the real ones.
+ */
+export const UNKEPT_PROMISE_PATTERN =
+  /\b(?:let me (?:build|place|put|spawn|make|do)|i'll (?:build|place|put|spawn|make|start)|i am (?:now )?(?:building|placing|spawning)|building (?:it|this) (?:for you|now)|placing (?:it|this) now)\b/i;
+
+/**
+ * A note to append when a reply promised an action it never sent, or null.
+ *
+ * Asked for a storage hub, the local model answered "Let me build this for
+ * you." and emitted zero actions. Nothing was built, but the reply read like
+ * success, so the only way to find out was to go and look at the factory.
+ *
+ * The grounding gate already refuses unsupported claims about how the world
+ * *is*. This covers the other direction: an unsupported promise about what the
+ * reply is *about to do*. Solver output is exempt because a solver that emits
+ * no actions has already said why.
+ */
+export function describeUnkeptPromise({ reply, actionCount, answeredBy }) {
+  if (answeredBy !== "model") return null;
+  if (Number(actionCount) > 0) return null;
+  if (!UNKEPT_PROMISE_PATTERN.test(String(reply ?? ""))) return null;
+  return (
+    "**Nothing was actually built.** That reply promised an action but no " +
+    "action was sent to the game, so your world is unchanged. Try phrasing " +
+    'it as a direct instruction — for example "build me a storage hub here" ' +
+    "— which is handled without a model."
+  );
+}

@@ -766,7 +766,10 @@ const STRUCTURE_VERB =
 const STRUCTURE_KIND =
   /\b(storage|warehouse|depot|container)?\s*(hub|building|platform|shed|warehouse|depot|deck|floor|structure)\b/i;
 const STRUCTURE_HERE =
-  /\b(?:here|at this|on this|same level|this foundation|where i(?:'m| am)? (?:looking|standing|aiming))\b/i;
+  // "im" without the apostrophe is the common case, not the exception, so the
+  // bare "m" is an alternative rather than a typo to be tolerated. Same reason
+  // as the verb list: this pattern is matched against what players type.
+  /\b(?:here|at this|on this|same level|this foundation|where i(?:'m|m| am)?\s+(?:looking|standing|aiming|pointing)|what i(?:'m|m| am)?\s+(?:looking at|aiming at)|my crosshair)\b/i;
 
 export function parseStructureRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");

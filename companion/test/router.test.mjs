@@ -8,6 +8,7 @@ import {
   parseClearRequest,
   parseExactBeltSolverRequest,
   parseShowRequest,
+  parseStructureRequest,
   routeQuestion,
 } from "../lib/router.mjs";
 import { buildFactorySnapshot, MINER, SMELTER } from "./fixtures/factory.mjs";
@@ -296,4 +297,56 @@ test("no source file carries a stray control character", () => {
   }
 
   assert.deepEqual(offenders, []);
+});
+
+/* ---------------- building where the player is aiming ---------------- */
+
+// The request that produced the bug: the model answered "Let me build this for
+// you." and emitted nothing. Every phrasing here is one a player would type,
+// including the typo that was actually in the log.
+test("a structure request routes on the phrasing players really use", () => {
+  const routes = [
+    "buld me a storage hub same level as this foundation im looking at",
+    "build a storage hub where im looking",
+    "build a storage hub where i'm looking",
+    "build a storage hub where i am aiming",
+    "build me a platform at what im looking at",
+    "build a shed at my crosshair",
+    "build me a storage hub here",
+    "biuld a 5x5 storage hub on this foundation",
+  ];
+  for (const question of routes) {
+    assert.ok(
+      parseStructureRequest(question),
+      `should route locally: ${question}`,
+    );
+  }
+});
+
+test("asking about a structure is not asking for one", () => {
+  // A question needs an answer, and a request without a place to put the
+  // building belongs to the production planner, not the shell builder.
+  for (const question of [
+    "what is a storage hub",
+    "how do i build a storage hub",
+    "build a storage hub in the desert",
+  ]) {
+    assert.equal(
+      parseStructureRequest(question),
+      null,
+      `should not build: ${question}`,
+    );
+  }
+});
+
+test("an explicit size is carried through, and its absence stays unknown", () => {
+  assert.partialDeepStrictEqual(parseStructureRequest("biuld a 5x5 storage hub here"), {
+    width_cells: 5,
+    depth_cells: 5,
+    fills_with: "storage",
+    at_aim: true,
+  });
+  const unsized = parseStructureRequest("build me a storage hub here");
+  assert.equal(unsized.width_cells, null);
+  assert.equal(unsized.depth_cells, null);
 });
