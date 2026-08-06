@@ -1941,6 +1941,10 @@ export function answerLocally(question, graph, services) {
         recipe_class: recipe.recipe_class,
         location: target.location,
         yaw,
+        // Name the node. Without it the mod traces downward for a surface and
+        // finds the terrain mesh beside the node, so the miner is positioned
+        // right and attached to a rock.
+        ...(target.actor_id ? { target_actor_id: target.actor_id } : {}),
         commit: true,
       };
       if (!emitValidatedPlan(graph, services, [action])) return null;

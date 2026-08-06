@@ -173,3 +173,29 @@ test("the request routes on how it was actually typed", () => {
     assert.equal(parseCoalPowerRequest(question), null, `should not build: ${question}`);
   }
 });
+
+test("the miner names the node it sits on, not just a coordinate", () => {
+  // A miner placed on BP_ResourceNode213 was refused with
+  // hologram_disqualified:FGCDInitializing. The mod traces downward for a build
+  // surface and the trace struck StaticMeshActor_8276 -- the terrain mesh
+  // beside the node. The hologram was positioned correctly and bound to a rock,
+  // so it never finished initialising. A trace finds a surface, not a target.
+  const result = plan({ count: 2 });
+  const miner = result.actions.find((action) =>
+    String(action.recipe_class).includes("Miner"),
+  );
+  assert.ok(miner);
+  assert.equal(miner.target_actor_id, NODE.actor_id);
+});
+
+test("a node with no actor id places without one rather than sending an empty string", () => {
+  // Absent stays absent: the mod treats an empty target as "use the trace",
+  // and an empty string would instead be a lookup that fails.
+  const { actor_id: _dropped, ...anonymous } = NODE;
+  const result = plan({ count: 1, node: { resolved: true, ...anonymous, on: NODE.name } });
+  const miner = result.actions.find((action) =>
+    String(action.recipe_class).includes("Miner"),
+  );
+  assert.ok(miner);
+  assert.equal("target_actor_id" in miner, false);
+});

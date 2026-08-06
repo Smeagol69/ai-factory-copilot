@@ -136,12 +136,20 @@ namespace AIFactoryActions
      * the ground under the target is probed, and the footprint is overlap-tested.
      * The game's own construction is what actually runs, so anything it refuses
      * is reported as refused rather than silently skipped.
+     *
+     * PlacementTargetActorId names what the building is placed *on*, when the
+     * caller knows. A downward trace finds a surface, not a target: placing a
+     * miner on a resource node traced onto the terrain mesh beside it, so the
+     * hologram sat in exactly the right place attached to a rock and refused
+     * with FGCDInitializing, never having been told about the node. Empty keeps
+     * the trace, which is right for anything placed on open ground.
      */
     FAIFactoryActionResult PlaceBuilding(
         const FAIFactoryActionContext& Context,
         const FString& RecipeClassPath,
         const FTransform& Target,
-        bool bCheckClearance);
+        bool bCheckClearance,
+        const FString& PlacementTargetActorId = FString());
 
     /**
      * Places a saved blueprint through AFGBlueprintHologram, so Satisfactory

@@ -2329,6 +2329,11 @@ export function solvePlacementTarget(graph, args = {}) {
         on: snapshotOfActor.name ?? target.actor_name,
         node_type: snapshotOfActor.node_type ?? null,
         occupied: Boolean(snapshotOfActor.occupied),
+        purity: snapshotOfActor.purity ?? null,
+        // The node itself, not the ground under it. A miner has to be told what
+        // it sits on: the mod's downward trace hits the terrain mesh beside the
+        // node, which positions the hologram correctly and binds it to nothing.
+        actor_id: snapshotOfActor.actor_id ?? target.actor_id ?? null,
       };
     }
     if (target.hit_location) {

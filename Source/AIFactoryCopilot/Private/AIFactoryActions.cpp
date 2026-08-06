@@ -498,12 +498,44 @@ namespace
         return FirstHardReason;
     }
 
+    /**
+     * A hit that names the actor a building is being placed *on*.
+     *
+     * A downward trace finds a surface, not a target. Placing a miner on
+     * BP_ResourceNode213 traced onto StaticMeshActor_8276 -- the terrain mesh
+     * beside the node -- so the hologram sat in the right place attached to a
+     * rock, never bound to the node, and refused with FGCDInitializing. The
+     * position was never the problem, which is why it looked correct.
+     *
+     * Same shape as MakeActionConnectionHit, and for the same reason: when the
+     * caller already knows the actor, saying so beats hoping a trace lands on
+     * it.
+     */
+    FHitResult MakeActorPlacementHit(AActor* Target, const FVector& Location)
+    {
+        FHitResult Hit;
+        Hit.bBlockingHit = true;
+        Hit.ImpactPoint = Location;
+        Hit.Location = Location;
+        Hit.TraceStart = Location + FVector(0.0, 0.0, 500.0);
+        Hit.TraceEnd = Location - FVector(0.0, 0.0, 500.0);
+        Hit.ImpactNormal = FVector::UpVector;
+        Hit.Normal = Hit.ImpactNormal;
+        Hit.HitObjectHandle = FActorInstanceHandle(Target);
+        if (IsValid(Target))
+        {
+            Hit.Component = Target->FindComponentByClass<UPrimitiveComponent>();
+        }
+        return Hit;
+    }
+
     bool PositionAndValidateActionHologram(
         AFGHologram* Hologram,
         UWorld* World,
         AFGCharacterPlayer* Player,
         UFGInventoryComponent* Inventory,
         const FTransform& Requested,
+        AActor* PlacementTarget,
         const TSharedPtr<FJsonObject>& Predicted,
         FString& OutFailure)
     {
@@ -514,7 +546,16 @@ namespace
         }
 
         FHitResult Hit;
-        if (!TraceActionPlacementSurface(
+        if (IsValid(PlacementTarget))
+        {
+            // The caller named what this goes on, so hand the hologram that
+            // rather than whatever a trace happens to strike first.
+            Hit = MakeActorPlacementHit(PlacementTarget, Requested.GetLocation());
+            Predicted->SetStringField(
+                TEXT("placement_target_actor"),
+                PlacementTarget->GetPathName());
+        }
+        else if (!TraceActionPlacementSurface(
                 World,
                 Player,
                 Requested.GetLocation(),
@@ -1146,7 +1187,8 @@ FAIFactoryActionResult PlaceBuilding(
     const FAIFactoryActionContext& Context,
     const FString& RecipeClassPath,
     const FTransform& Target,
-    bool bCheckClearance)
+    bool bCheckClearance,
+    const FString& PlacementTargetActorId)
 {
     const FString Action = TEXT("place_building");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -1286,6 +1328,21 @@ FAIFactoryActionResult PlaceBuilding(
         return Result;
     }
 
+    // Resolving here rather than in the hologram helper keeps the refusal
+    // specific: a target that was named and cannot be found is a different
+    // fault from one that was never named, and only the first is a mistake.
+    AActor* PlacementTarget = nullptr;
+    if (!PlacementTargetActorId.IsEmpty())
+    {
+        PlacementTarget = FindActionActorByPathName(Context.World, PlacementTargetActorId);
+        if (!IsValid(PlacementTarget))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("placement_target_actor_not_found:") + PlacementTargetActorId);
+        }
+    }
+
     FString HologramFailure;
     const bool bHologramValid = PositionAndValidateActionHologram(
         Hologram,
@@ -1293,6 +1350,7 @@ FAIFactoryActionResult PlaceBuilding(
         Context.Player,
         Inventory,
         Target,
+        PlacementTarget,
         Predicted,
         HologramFailure);
     const TArray<FItemAmount> Cost =
@@ -1548,6 +1606,9 @@ FAIFactoryActionResult PlaceBlueprint(
         Context.Player,
         Inventory,
         Origin,
+        // A blueprint is placed on ground, not onto a named actor, so it keeps
+        // the downward trace.
+        nullptr,
         Predicted,
         HologramFailure);
     const TArray<FItemAmount> Cost =
@@ -2521,11 +2582,17 @@ namespace
             Spec->TryGetNumberField(TEXT("yaw"), Yaw);
             bool bCheck = true;
             Spec->TryGetBoolField(TEXT("check_clearance"), bCheck);
+            // What this building goes *on*, when the caller knows. A miner is
+            // placed on a named resource node, and a trace cannot be relied on
+            // to find it.
+            FString PlacementTargetActorId;
+            Spec->TryGetStringField(TEXT("target_actor_id"), PlacementTargetActorId);
             return PlaceBuilding(
                 Context,
                 RecipeClass,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location),
-                bCheck);
+                bCheck,
+                PlacementTargetActorId);
         }
         if (Kind == TEXT("place_blueprint"))
         {

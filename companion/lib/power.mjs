@@ -156,6 +156,9 @@ export function planCoalPower(graph, args = {}) {
     recipe_class: miner.recipe_class,
     location: { x: origin.x, y: origin.y, z: origin.z },
     yaw: 0,
+    // The node itself. A downward trace finds the terrain mesh beside it, which
+    // puts the miner in the right place bound to nothing and refuses.
+    ...(node.actor_id ? { target_actor_id: node.actor_id } : {}),
     commit: true,
   };
 

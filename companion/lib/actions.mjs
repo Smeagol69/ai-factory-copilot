@@ -341,6 +341,17 @@ export function validateAction(graph, proposal) {
       }
     }
 
+    // What the building goes *on*, when the caller knows.
+    //
+    // A miner placed on BP_ResourceNode213 was refused with
+    // hologram_disqualified:FGCDInitializing. The mod traces downward to find a
+    // build surface, and the trace struck StaticMeshActor_8276 -- the terrain
+    // mesh beside the node. The hologram was positioned correctly and attached
+    // to a rock, so it never bound to the node and never finished initialising.
+    // A trace finds a surface; it does not find a target.
+    const targetActorId = String(proposal.target_actor_id ?? "").trim();
+    if (targetActorId) checks.placement_target_actor_id = targetActorId;
+
     return {
       valid: true,
       warnings,
@@ -351,6 +362,7 @@ export function validateAction(graph, proposal) {
         location,
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
+        ...(targetActorId ? { target_actor_id: targetActorId } : {}),
         commit: proposal.commit === true,
       }, proposal),
     };
