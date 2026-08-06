@@ -350,3 +350,88 @@ test("an explicit size is carried through, and its absence stays unknown", () =>
   assert.equal(unsized.width_cells, null);
   assert.equal(unsized.depth_cells, null);
 });
+
+// The whole route, not just the parser: a real structural kit, an aim point
+// below the player, and the actions that come back. Nothing covered this, and
+// two wiring faults hid inside it -- a refusal that returned bare null and fell
+// through to a model, and the aim/player mix-up this test exists to pin.
+const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
+const structuralPiece = (recipe, descriptor, name) => ({
+  class_path: `/Game/Recipes/${recipe}.${recipe}_C`,
+  name,
+  owner_mod: "FactoryGame",
+  available: true,
+  produced_in: [BUILD_GUN],
+  products: [
+    { item_class: `/Game/Desc/${descriptor}.${descriptor}_C`, item_name: name, amount: 1 },
+  ],
+});
+
+const AIM_Z = 6857;
+const PLAYER_Z = 7900;
+
+const structureWorld = (recipes) => ({
+  world_revision: 3,
+  world: { scan_center: { x: 12_000, y: 4_000, z: AIM_Z } },
+  interaction_context: {
+    player: { pawn_available: true, pawn_location: { x: 12_000, y: 4_000, z: PLAYER_Z } },
+    preferred_target: {
+      available: true,
+      selected_from: "aim_trace",
+      hit_location: { x: 12_000, y: 4_000, z: AIM_Z },
+    },
+  },
+  actors: [],
+  content: { items: [], recipes },
+});
+
+const FULL_KIT = [
+  structuralPiece("Recipe_Foundation_8x1_01", "Desc_Foundation_8x1_01", "Foundation (1 m)"),
+  structuralPiece("Recipe_Wall_8x4_01", "Desc_Wall_8x4_01", "Basic Wall (4 m)"),
+  structuralPiece("Recipe_Roof_Orange_01", "Desc_Roof_Orange_01", "Flat Roof"),
+  structuralPiece("Recipe_StorageContainerMk1", "Desc_StorageContainerMk1", "Storage Container"),
+];
+
+const askToBuild = (recipes, question) => {
+  let emitted = [];
+  const answer = answerLocally(question, buildGraph(structureWorld(recipes)), {
+    actions: { emit: (actions) => { emitted = actions; } },
+  });
+  return { answer, emitted };
+};
+
+test("a storage hub is built level with the aim point, not the player", () => {
+  const { answer, emitted } = askToBuild(
+    FULL_KIT,
+    "buld me a storage hub same level as this foundation im looking at",
+  );
+  assert.ok(answer, "should route locally");
+  assert.ok(emitted.length > 0, "should emit actions, not just describe them");
+
+  // The floor sits where the player was looking. If it used the pawn instead,
+  // the hub would hover a storey above the deck it was meant to join.
+  const floorZs = emitted
+    .filter((action) => String(action.recipe_class).includes("Foundation"))
+    .map((action) => action.location.z);
+  assert.ok(floorZs.length > 0);
+  for (const z of floorZs) assert.equal(z, AIM_Z);
+  assert.ok(!emitted.some((action) => action.location?.z === PLAYER_Z));
+
+  // Filled, and with a container resolved from the catalog rather than named.
+  assert.ok(
+    emitted.some((action) => String(action.recipe_class).includes("StorageContainer")),
+    "the hub should contain storage",
+  );
+});
+
+test("a hub with nothing to build it from says so instead of asking a model", () => {
+  // The failure that started this: falling through here sent the request to a
+  // model, which cannot build either and answered "Let me build this for you."
+  const { answer, emitted } = askToBuild(
+    [structuralPiece("Recipe_StorageContainerMk1", "Desc_StorageContainerMk1", "Storage Container")],
+    "build me a storage hub here",
+  );
+  assert.ok(answer, "a known refusal must be answered, not passed on");
+  assert.match(answer.reply, /can't build that here/i);
+  assert.equal(emitted.length, 0);
+});

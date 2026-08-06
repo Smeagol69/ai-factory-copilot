@@ -1996,7 +1996,27 @@ export function answerLocally(question, graph, services) {
         if (refusal) {
           return localAnswer(refusal, "build_structure_refused", started, "Refused by validation before anything ran.");
         }
+      } else if (structure.reason) {
+        // The planner said exactly why -- no foundation unlocked yet, no ground
+        // under the footprint. Falling through would hand a request we already
+        // understand to a model, which is how "Let me build this for you"
+        // happened in the first place: it cannot build either, and it does not
+        // know this reason, so it invents an answer instead of reporting one.
+        return localAnswer(
+          `I can't build that here: ${structure.reason}.`,
+          "build_structure_refused",
+          started,
+          "The structural planner refused; nothing was sent to the game.",
+        );
       }
+    } else {
+      return localAnswer(
+        "I don't know where to build it — the game didn't report what you're " +
+          "aiming at. Look directly at the spot and ask again.",
+        "build_structure_refused",
+        started,
+        "No aim point and no player position in the snapshot.",
+      );
     }
   }
   // "design me a base that makes 60 iron plates a minute".
