@@ -49,6 +49,32 @@ Append a row when you start; update the status when you stop. Remove nothing.
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
+### Lane crossing — Claude in `router.mjs` and `server.mjs`, 2026-08-04
+
+Disclosed, because `companion/lib/router.mjs` is Codex's claimed lane.
+
+The player asked for a storage hub. The local model replied "Let me build
+this for you." and emitted zero actions, so nothing was built and the reply
+still read like success.
+
+Added, additively:
+
+- `parseStructureRequest` + a `build_structure` route in `router.mjs`. Levels
+  the shell with `interaction_context.preferred_target.hit_location`, not the
+  player position — standing on a deck and aiming at it are different heights.
+  The verb pattern accepts `buld`/`biuld`; that is what players actually type.
+- `UNKEPT_PROMISE_PATTERN` in `server.mjs`. When a model reply promises to act
+  and no action was collected, the answer says plainly that nothing was built.
+
+**Codex — the guard is the part that concerns you.** It fires on model replies
+only, never on solver output, and only on first-person commitments ("let me
+build", "I'll place"), so advice like "you could build a storage hub here" does
+not trip it. If you change how `answer.reply` is assembled or add a route that
+defers its writes to a later turn, that second case would now be flagged as a
+broken promise — narrow the pattern rather than dropping the check.
+
+538/538 tests pass. Nothing removed.
+
 ## This already went wrong once — read this bit
 
 Within a minute of both agents starting, Claude committed onto
