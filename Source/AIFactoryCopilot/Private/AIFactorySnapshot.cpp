@@ -12,6 +12,8 @@
 #include "Buildables/FGBuildableFactory.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildablePipeline.h"
+#include "Buildables/FGBuildableGenerator.h"
+#include "Buildables/FGBuildableGeneratorFuel.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/PanelWidget.h"
@@ -50,6 +52,7 @@
 #include "Kismet/BlueprintAssetHelperLibrary.h"
 #include "ModLoading/ModLoadingLibrary.h"
 #include "Registry/ModContentRegistry.h"
+#include "Resources/FGBuildingDescriptor.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceNode.h"
 #include "Resources/FGResourceNodeBase.h"
@@ -172,6 +175,136 @@ namespace
             Amount.ItemClass ? UFGItemDescriptor::GetItemName(Amount.ItemClass).ToString() : TEXT(""));
         Result->SetNumberField(TEXT("amount"), Amount.Amount);
         return Result;
+    }
+
+    /**
+     * What a building does, read off its class rather than a placed example.
+     *
+     * The build menu shows "75 MW" for a Coal-Powered Generator the player has
+     * never built. The snapshot did not: it sent the recipe's cost and name and
+     * nothing about the building itself, so asked to plan a coal plant the
+     * copilot could not work out how many generators one node feeds and had to
+     * ask. The owner's objection was exact -- it knows the node purity and the
+     * tech tier, so it should already know.
+     *
+     * These come from the class default object, so nothing has to exist to be
+     * measured. That is the case that matters: a player switching to coal power
+     * has no coal generator yet, which is precisely when they ask.
+     *
+     * Nothing here is coal-specific, and no rate is written down. Power is MJ/s
+     * and a fuel item is worth MJ, so the burn rate is the game's own
+     * relationship -- which keeps it right for the modded generators this save
+     * has, where a table copied from a wiki would be wrong.
+     *
+     * Returns nothing for a building with no stats worth reporting, so absent
+     * stays absent rather than becoming a zero the solvers would treat as fact.
+     */
+    TSharedPtr<FJsonObject> BuildingStatsJson(const TSubclassOf<UFGItemDescriptor>& ProductClass)
+    {
+        if (!ProductClass)
+        {
+            return nullptr;
+        }
+        // Most recipe products are items, not buildings. Iron Plate has no
+        // buildable class, and asking for one must be a decline rather than a
+        // bad cast, so the descendancy is checked before the conversion.
+        if (!ProductClass->IsChildOf(UFGBuildingDescriptor::StaticClass()))
+        {
+            return nullptr;
+        }
+        const TSubclassOf<UFGBuildingDescriptor> BuildingDescriptor(*ProductClass);
+        if (!BuildingDescriptor)
+        {
+            return nullptr;
+        }
+        const TSubclassOf<AFGBuildable> BuildableClass =
+            UFGBuildingDescriptor::GetBuildableClass(BuildingDescriptor);
+        if (!BuildableClass)
+        {
+            return nullptr;
+        }
+
+        const TSharedRef<FJsonObject> Stats = MakeShared<FJsonObject>();
+        bool bAnything = false;
+
+        if (const AFGBuildableGenerator* Generator =
+                Cast<AFGBuildableGenerator>(BuildableClass->GetDefaultObject()))
+        {
+            const float PowerMw = Generator->GetDefaultPowerProductionCapacity();
+            if (FMath::IsFinite(PowerMw) && PowerMw > 0.0f)
+            {
+                Stats->SetNumberField(TEXT("power_production_mw"), PowerMw);
+                bAnything = true;
+            }
+
+            if (const AFGBuildableGeneratorFuel* FuelGenerator =
+                    Cast<AFGBuildableGeneratorFuel>(Generator))
+            {
+                // Water, for a coal generator. Reported as the flag and the
+                // resource so the reply can name it instead of warning vaguely.
+                const bool bSupplemental = FuelGenerator->GetRequiresSupplementalResource();
+                Stats->SetBoolField(TEXT("requires_supplemental_resource"), bSupplemental);
+                if (bSupplemental)
+                {
+                    Stats->SetStringField(TEXT("supplemental_resource_class"),
+                        ClassPath(FuelGenerator->GetSupplementalResourceClass().Get()));
+                }
+                bAnything = true;
+
+                TArray<TSharedPtr<FJsonValue>> Fuels;
+                for (const TSoftClassPtr<UFGItemDescriptor>& SoftFuel :
+                     FuelGenerator->GetDefaultFuelClasses())
+                {
+                    const TSubclassOf<UFGItemDescriptor> FuelClass(SoftFuel.LoadSynchronous());
+                    if (!FuelClass)
+                    {
+                        continue;
+                    }
+                    const TSharedRef<FJsonObject> Fuel = MakeShared<FJsonObject>();
+                    Fuel->SetStringField(TEXT("item_class"), ClassPath(FuelClass.Get()));
+                    Fuel->SetStringField(TEXT("item_name"),
+                        UFGItemDescriptor::GetItemName(FuelClass).ToString());
+
+                    // MJ per item. The burn rate is power / this * 60, and the
+                    // division is left to the solvers so an unusable energy
+                    // value stays visibly unusable instead of dividing by zero.
+                    const float EnergyMj = UFGItemDescriptor::GetEnergyValue(FuelClass);
+                    if (FMath::IsFinite(EnergyMj) && EnergyMj > 0.0f)
+                    {
+                        Fuel->SetNumberField(TEXT("energy_mj_per_item"), EnergyMj);
+                        if (FMath::IsFinite(PowerMw) && PowerMw > 0.0f)
+                        {
+                            Fuel->SetNumberField(TEXT("items_per_minute_at_full_load"),
+                                PowerMw / EnergyMj * 60.0f);
+                        }
+                    }
+                    Fuels.Add(MakeShared<FJsonValueObject>(Fuel));
+                }
+                if (Fuels.Num() > 0)
+                {
+                    Stats->SetArrayField(TEXT("fuels"), Fuels);
+                }
+            }
+        }
+
+        if (const AFGBuildableResourceExtractor* Extractor =
+                Cast<AFGBuildableResourceExtractor>(BuildableClass->GetDefaultObject()))
+        {
+            const int32 PerCycle = Extractor->GetNumExtractedItemsPerCycle();
+            const float CycleSeconds = Extractor->GetDefaultExtractCycleTime();
+            if (PerCycle > 0 && FMath::IsFinite(CycleSeconds) && CycleSeconds > 0.0f)
+            {
+                Stats->SetNumberField(TEXT("extracted_items_per_cycle"), PerCycle);
+                Stats->SetNumberField(TEXT("extract_cycle_seconds"), CycleSeconds);
+                // At 100% and before node purity, which the solvers apply from
+                // the purity already captured on the node itself.
+                Stats->SetNumberField(TEXT("items_per_minute_at_normal_purity"),
+                    static_cast<float>(PerCycle) / CycleSeconds * 60.0f);
+                bAnything = true;
+            }
+        }
+
+        return bAnything ? Stats : nullptr;
     }
 
     TArray<TSharedPtr<FJsonValue>> ItemAmountsJson(const TArray<FItemAmount>& Amounts)
@@ -1301,6 +1434,19 @@ namespace
                 Products.Add(MakeShared<FJsonValueObject>(ItemAmountJson(Product)));
             }
             Entry->SetArrayField(TEXT("products"), Products);
+
+            // What the building does, not just what it costs. Only build
+            // recipes have one, and only some of those -- a wall has no stats,
+            // so the field is simply absent rather than empty.
+            const TArray<FItemAmount> ProductAmounts = UFGRecipe::GetProducts(RecipeClass);
+            if (ProductAmounts.Num() > 0)
+            {
+                if (const TSharedPtr<FJsonObject> Stats =
+                        BuildingStatsJson(ProductAmounts[0].ItemClass))
+                {
+                    Entry->SetObjectField(TEXT("building_stats"), Stats);
+                }
+            }
 
             TArray<TSharedPtr<FJsonValue>> Producers;
             for (const TSubclassOf<UObject>& Producer : UFGRecipe::GetProducedIn(RecipeClass))
