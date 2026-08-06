@@ -539,6 +539,24 @@ namespace
             OutFailure = TEXT("hologram_rejected_build_surface");
             return false;
         }
+        // Ask the hologram to snap before positioning it, the same way the
+        // build gun does, and the same way the belt path had to learn to.
+        //
+        // A miner on a resource node came back
+        // `hologram_disqualified:FGCDInitializing` from a live save: the
+        // hologram was still waiting to be told what it sits on.
+        // `UpdateHologramPlacement` alone does not tell it.
+        // AFGResourceExtractorHologram overrides `TrySnapToActor` for exactly
+        // this -- binding itself to the node under the hit -- and without the
+        // call it never binds, so it never finishes initialising and refuses.
+        //
+        // Not a refusal when it returns false: most buildings do not snap to
+        // anything, and a foundation on open ground is the normal case. The
+        // answer is recorded instead, so a building that *should* have snapped
+        // and did not is visible in the reply rather than inferred from a
+        // downstream failure.
+        const bool bSnappedToTarget = Hologram->TrySnapToActor(Hit);
+        Predicted->SetBoolField(TEXT("snap_accepted"), bSnappedToTarget);
         Hologram->UpdateHologramPlacement(Hit);
 
         // Rotate through the hologram's own scroll input, measuring the result
