@@ -29,6 +29,16 @@ const BRIDGE_PACKAGE = JSON.parse(
 export const BRIDGE_VERSION = BRIDGE_PACKAGE.version;
 export const ACTION_CONTRACT_VERSION = 1;
 
+/**
+ * Phrases that promise a world change the reply must then actually make.
+ *
+ * Deliberately narrow: only first-person commitments to act. "You could build"
+ * and "that would place" are advice, and tripping on those would put a false
+ * warning under every design discussion.
+ */
+const UNKEPT_PROMISE_PATTERN =
+  /\b(?:let me (?:build|place|put|spawn|make|do)|i'll (?:build|place|put|spawn|make|start)|i am (?:now )?(?:building|placing|spawning)|building (?:it|this) (?:for you|now)|placing (?:it|this) now)\b/i;
+
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -785,6 +795,23 @@ export function createBridgeServer({ env = process.env } = {}) {
               ? "deterministic_diagnostic"
             : "model";
       const bridgeElapsedMs = Math.max(0, Date.now() - bridgeReceivedAtMs);
+
+      // A reply that promises an action but sends none is a lie the player only
+      // discovers by looking at their factory.
+      //
+      // Asked for a storage hub, the local model answered "Let me build this for
+      // you." and emitted nothing. The grounding gate catches unsupported
+      // *claims* about the world; this is an unsupported *promise* about the
+      // future, which reads as success and leaves no trace. Naming it costs a
+      // sentence and turns a silent no-op into something actionable.
+      const promisedAction = UNKEPT_PROMISE_PATTERN.test(String(answer.reply ?? ""));
+      if (answeredBy === "model" && promisedAction && collectedActions.length === 0) {
+        answer.reply +=
+          "\n\n---\n**Nothing was actually built.** That reply promised an action " +
+          "but no action was sent to the game, so your world is unchanged. Try " +
+          "phrasing it as a direct instruction — for example " +
+          '"build me a storage hub here" — which is handled without a model.';
+      }
 
       // Every question is recorded with why it did or did not route. Routing was
       // tuned against invented phrasings, and a whole play session went by with

@@ -746,6 +746,48 @@ export function parseBaseDesignRequest(question) {
   };
 }
 
+/**
+ * "build me a storage hub here", "put a platform on this foundation".
+ *
+ * A structure at the point the player is looking at, filled with whatever the
+ * request names. Entirely mechanical — a position, a size, a piece to repeat —
+ * which is why it was worth routing: the local model was asked for exactly this
+ * and replied "Let me build this for you" while emitting nothing at all.
+ *
+ * "Same level as this foundation" is the hit point's own Z, not the player's.
+ * Standing on a deck and aiming at it are different heights, and the difference
+ * is the whole point of the request.
+ */
+const STRUCTURE_VERB =
+  // "buld" and "biuld" are in the routing log as real typing, not
+  // hypotheticals. A route that only fires on perfect spelling sends the
+  // request to a model that then answers worse and costs more.
+  /^(?:can you |could you |please )?(?:build|buld|biuld|make|construct|place|put|spawn)\s+(?:me\s+)?(?:a|an|the)?\s*/i;
+const STRUCTURE_KIND =
+  /\b(storage|warehouse|depot|container)?\s*(hub|building|platform|shed|warehouse|depot|deck|floor|structure)\b/i;
+const STRUCTURE_HERE =
+  /\b(?:here|at this|on this|same level|this foundation|where i(?:'m| am)? (?:looking|standing|aiming))\b/i;
+
+export function parseStructureRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || !STRUCTURE_VERB.test(text)) return null;
+  const kind = text.match(STRUCTURE_KIND);
+  if (!kind) return null;
+  // Without a "here" the request is about a factory, not a building, and the
+  // production planner should own it.
+  if (!STRUCTURE_HERE.test(text)) return null;
+
+  const sizeMatch = text.match(/\b(\d+)\s*(?:x|by)\s*(\d+)\b/i);
+  const fill = /\bstorage|container|warehouse|depot\b/i.test(text) ? "storage" : null;
+
+  return {
+    fills_with: fill,
+    width_cells: sizeMatch ? Number(sizeMatch[1]) : null,
+    depth_cells: sizeMatch ? Number(sizeMatch[2]) : null,
+    at_aim: /\b(?:here|looking|aiming|this foundation|at this|on this|same level)\b/i.test(text),
+  };
+}
+
 export function parseWaypointRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
@@ -1876,6 +1918,84 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "build me a storage hub here" — a structure at the point being aimed at.
+  const structureRequest = parseStructureRequest(question);
+  if (structureRequest && graph) {
+    const started = Date.now();
+    // The aim point, not the player: standing on a deck and looking at it are
+    // different heights, and "same level as this foundation" means the latter.
+    const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
+    const origin = structureRequest.at_aim && aim
+      ? aim
+      : graph.snapshot?.interaction_context?.player?.pawn_location;
+
+    if (origin) {
+      const width = structureRequest.width_cells ?? 4;
+      const depth = structureRequest.depth_cells ?? 4;
+      const structure = planStructure(graph, {
+        origin_cm: origin,
+        width_cells: width,
+        depth_cells: depth,
+        // Level with what is being aimed at, so it joins the existing build
+        // rather than hovering above it.
+        height_cm: 0,
+        walls: true,
+        roof: true,
+      });
+
+      if (structure.planned) {
+        const actions = structureActions(structure, { commit: true });
+
+        // Fill it, when the request named something to fill it with.
+        const filler = structureRequest.fills_with === "storage"
+          ? solveBuildRecipeLookup(graph, { building: "storage container" })
+          : null;
+        const filled = [];
+        if (filler?.resolved) {
+          const cell = structure.grid.cell_size_cm;
+          for (let column = 0; column < width; column += 1) {
+            for (let row = 0; row < depth; row += 1) {
+              // One per cell, inset by a cell so nothing sits in the wall line.
+              if (column === 0 || row === 0 || column === width - 1 || row === depth - 1) continue;
+              filled.push({
+                action: "place_building",
+                recipe_class: filler.recipe_class,
+                location: {
+                  x: structure.interior.min_x_cm + column * cell,
+                  y: structure.interior.min_y_cm + row * cell,
+                  z: structure.interior.floor_z_cm,
+                },
+                yaw: 0,
+                commit: true,
+              });
+            }
+          }
+        }
+
+        const emitted = emitValidatedPlan(graph, services, [...actions, ...filled]);
+        if (emitted) {
+          const counts = structure.piece_counts ?? {};
+          return localAnswer(
+            `Building a **${width * (structure.grid.cell_size_cm / 100)} × ` +
+              `${depth * (structure.grid.cell_size_cm / 100)} m ` +
+              `${structureRequest.fills_with === "storage" ? "storage hub" : "platform"}** ` +
+              `level with what you are aiming at ` +
+              `(z=${Math.round(origin.z)}) — ${counts.floor ?? 0} floor, ` +
+              `${counts.wall ?? 0} wall and ${counts.roof ?? 0} roof pieces` +
+              (filled.length > 0 ? `, plus ${filled.length} ${filler.name}(s) inside` : "") +
+              '. Say "undo" to reverse the whole thing.',
+            "build_structure",
+            started,
+            "Position came from the aim point; every piece from the unlocked catalog.",
+          );
+        }
+        const refusal = describePlanRejection();
+        if (refusal) {
+          return localAnswer(refusal, "build_structure_refused", started, "Refused by validation before anything ran.");
+        }
+      }
+    }
+  }
   // "design me a base that makes 60 iron plates a minute".
   const design = parseBaseDesignRequest(question);
   if (design && graph) {
