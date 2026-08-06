@@ -305,7 +305,16 @@ export function planComposition(graph, args = {}) {
     }
   }
 
-  const parts = [...built.flatMap((entry) => entry.structure.parts), ...bridgeParts];
+  // Each part remembers the block it belongs to. Without it the composition
+  // flattens into an anonymous pile, and a build too large for one transaction
+  // cannot be split along the only seams that make sense to a player: "the main
+  // hall went up, the tower is next".
+  const parts = [
+    ...built.flatMap((entry) =>
+      entry.structure.parts.map((part) => ({ ...part, block: entry.name })),
+    ),
+    ...bridgeParts.map((part) => ({ ...part, block: part.block ?? "bridges" })),
+  ];
   return {
     solver: "composition",
     planned: true,
@@ -348,4 +357,88 @@ export function compositionActions(plan, { commit = false } = {}) {
       yaw: part.yaw ?? 0,
       commit,
     }));
+}
+
+/**
+ * A composition too big for one transaction, split into buildable stages.
+ *
+ * The mod clamps a single reply to 512 actions, and a four-block design of
+ * fairly ordinary size already comes to 764. The cap is not arbitrary: every
+ * action is preflighted and rolled back as one unit, so an unbounded batch is
+ * an unbounded hitch and an unbounded undo journal. Raising it would trade a
+ * refusal the player can act on for a stall they cannot.
+ *
+ * So split it where a player would: a block at a time, in build order, with the
+ * bridges last because a walkway needs both ends to exist. A block that alone
+ * exceeds the limit is split further, still in structural order — decks, then
+ * supports, then shells, then roofs — so no stage leaves the build in a state
+ * that could not stand on its own.
+ *
+ * Undo stays per stage. That is a real limit, not a detail to gloss: after
+ * three stages, "undo" reverses the third. Anything else would need the mod to
+ * hold a transaction open across replies.
+ */
+export function stageComposition(plan, { maxActions = 512, commit = false } = {}) {
+  if (!plan?.planned) return { staged: false, reason: "the composition was not planned" };
+
+  const order = { floor: 0, pillar: 1, wall: 2, roof: 3, ramp: 4, bridge: 5 };
+  const asAction = (part) => ({
+    action: "place_building",
+    recipe_class: part.recipe_class,
+    location: part.location_cm,
+    yaw: part.yaw ?? 0,
+    commit,
+  });
+
+  // Blocks in the order they were designed, bridges after every block.
+  const byBlock = new Map();
+  for (const part of plan.parts ?? []) {
+    const key = part.kind === "bridge" ? "bridges" : (part.block ?? "unnamed");
+    if (!byBlock.has(key)) byBlock.set(key, []);
+    byBlock.get(key).push(part);
+  }
+  const bridgeParts = byBlock.get("bridges") ?? [];
+  byBlock.delete("bridges");
+
+  const stages = [];
+  const pushStage = (name, parts) => {
+    if (parts.length === 0) return;
+    stages.push({
+      index: stages.length + 1,
+      name,
+      blocks: [...new Set(parts.map((part) => part.block).filter(Boolean))],
+      action_count: parts.length,
+      actions: parts.map(asAction),
+    });
+  };
+
+  const emitGroup = (name, parts) => {
+    const sorted = [...parts].sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9));
+    if (sorted.length <= maxActions) {
+      pushStage(name, sorted);
+      return;
+    }
+    // One block bigger than a whole transaction. Split it in structural order
+    // so each stage ends on something that stands up.
+    for (let start = 0, part = 1; start < sorted.length; start += maxActions, part += 1) {
+      pushStage(`${name} (part ${part})`, sorted.slice(start, start + maxActions));
+    }
+  };
+
+  for (const [name, parts] of byBlock) emitGroup(name, parts);
+  if (bridgeParts.length > 0) emitGroup("bridges", bridgeParts);
+
+  const total = stages.reduce((sum, stage) => sum + stage.action_count, 0);
+  return {
+    staged: true,
+    total_actions: total,
+    fits_in_one_transaction: stages.length <= 1,
+    stage_count: stages.length,
+    stages,
+    undo_note:
+      stages.length > 1
+        ? 'Each stage commits on its own, so "undo" reverses the most recent ' +
+          "stage rather than the whole composition."
+        : 'The whole composition is one transaction, so "undo" reverses all of it.',
+  };
 }

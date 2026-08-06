@@ -41,10 +41,17 @@ import { validatePlan } from "./actions.mjs";
 import {
   baseBuildActions,
   enclosedFactoryActions,
+  findBestAvailableBelt,
   planBaseBuild,
   planEnclosedFactory,
 } from "./base-build.mjs";
-import { planStructure, planTower, structureActions } from "./architecture.mjs";
+import {
+  planStructure,
+  planTower,
+  structureActions,
+  surveyStructuralPieces,
+} from "./architecture.mjs";
+import { planCoalPower } from "./power.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
   measureConnectors,
@@ -770,6 +777,42 @@ const STRUCTURE_HERE =
   // bare "m" is an alternative rather than a typo to be tolerated. Same reason
   // as the verb list: this pattern is matched against what players type.
   /\b(?:here|at this|on this|same level|this foundation|where i(?:'m|m| am)?\s+(?:looking|standing|aiming|pointing)|what i(?:'m|m| am)?\s+(?:looking at|aiming at)|my crosshair)\b/i;
+
+/**
+ * "im switching to coal power i want something step 1 to end compact from this node".
+ *
+ * That request cost sixty-two seconds and a provider error because nothing
+ * local claimed it. Every part of it is a lookup: the node is under the
+ * crosshair, the miner and generator are in the save's catalog, the belts are
+ * geometry. The only unknown is how many generators, and that is asked for
+ * rather than guessed.
+ */
+const COAL_POWER_SUBJECT =
+  /\b(?:coal\s*(?:power|gen(?:erator)?s?|burner)|(?:switch(?:ing)?|swap(?:ping)?)\s+to\s+coal)\b/i;
+const COAL_POWER_INTENT =
+  /\b(?:build|buld|biuld|make|set\s*up|setup|want|need|switch(?:ing)?|give|run|start|design|plan)\b/i;
+const COAL_POWER_COUNT = /\b(\d{1,2})\s*(?:x\s*)?(?:coal\s*)?gen(?:erator)?s?\b/i;
+const COAL_POWER_SOURCE =
+  /\b(?:this|that|the)\s+(?:node|one|coal|deposit|resource)|\bfrom\s+(?:this|here)|\bhere\b/i;
+
+export function parseCoalPowerRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  if (!COAL_POWER_SUBJECT.test(text)) return null;
+  // A question about coal power is not a request to build one.
+  if (/^(?:what|which|how much|how many|why|is|are|does|do|can)\b/i.test(text)) return null;
+  const count = text.match(COAL_POWER_COUNT);
+  // "coal power here with 4 generators" carries no verb, but naming a count is
+  // not something anyone does idly — it is the request.
+  if (!COAL_POWER_INTENT.test(text) && !count && !COAL_POWER_SOURCE.test(text)) return null;
+  return {
+    generator_count: count ? Number(count[1]) : null,
+    // Without a source the player means wherever they are looking, which is
+    // what they were doing when they asked.
+    at_aim: true,
+    named_source: COAL_POWER_SOURCE.test(text),
+  };
+}
 
 export function parseStructureRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
@@ -1921,6 +1964,57 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "im switching to coal power ... from this node" — miner, generators, belts.
+  const coalRequest = parseCoalPowerRequest(question);
+  if (coalRequest && graph) {
+    const started = Date.now();
+    const target = solvePlacementTarget(graph, { kind: "aim" });
+    const structural = surveyStructuralPieces(graph);
+    const plan = planCoalPower(graph, {
+      node: target?.resolved ? target : null,
+      generator_count: coalRequest.generator_count,
+      build_recipe_lookup: solveBuildRecipeLookup,
+      belt: findBestAvailableBelt(graph),
+      cell_size_cm: structural?.cell_size_cm ?? 800,
+    });
+
+    if (!plan.planned) {
+      // "how many generators?" is a question, not a failure, and it is the one
+      // thing here the save genuinely cannot answer.
+      const detail = plan.why_unknown ? ` ${plan.why_unknown}` : "";
+      return localAnswer(
+        `${plan.reason === "how many generators?" ? "**How many generators?**" : `I can't set that up: ${plan.reason}.`}${detail}`,
+        "coal_power_refused",
+        started,
+        "Nothing was sent to the game.",
+      );
+    }
+
+    const emitted = emitValidatedPlan(graph, services, plan.actions);
+    if (emitted) {
+      const chain =
+        plan.splitter_count > 0
+          ? `${plan.generator_count} × **${plan.generator}** in a row ` +
+            `${plan.spacing_cm / 100} m apart, fed through ${plan.splitter_count} ` +
+            `splitter(s) — a miner has one output port, so the coal is shared ` +
+            `rather than belted four ways off one connector`
+          : `one **${plan.generator}** belted straight off it`;
+      return localAnswer(
+        `Coal power off **${plan.node}**: one **${plan.miner}** on the node, ${chain}.\n\n` +
+          `**${plan.missing.water}**\n\n` +
+          `Spacing is stated, not measured — no generator exists here to measure one from. ` +
+          `The game refuses anything that does not fit and names it. Say "undo" to reverse it all.`,
+        "coal_power",
+        started,
+        "Node from the crosshair, miner and generator from this save's catalog.",
+      );
+    }
+    const refusal = describePlanRejection();
+    if (refusal) {
+      return localAnswer(refusal, "coal_power_refused", started, "Refused by validation before anything ran.");
+    }
+  }
+
   // "build me a storage hub here" — a structure at the point being aimed at.
   const structureRequest = parseStructureRequest(question);
   if (structureRequest && graph) {

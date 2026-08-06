@@ -15,7 +15,7 @@
 import { DEFAULT_MAX_ACTIONS, summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
-import { compositionActions, planComposition } from "./composition.mjs";
+import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import {
@@ -599,19 +599,103 @@ export const SOLVER_TOOLS = [
           description: "Where cell 0,0 sits. Defaults to the player's position.",
           properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
         },
+        stage_index: {
+          type: "number",
+          description:
+            "For a composition too large to place in one go. Call once without this to get the stage list, then again with 1, 2, 3... to get each stage's actions. The same composition always splits the same way, so the stages are stable between calls. Undo reverses the most recent stage, not the whole build.",
+        },
+        build: {
+          type: "boolean",
+          description:
+            "Actually place it. Set true ONLY when the player has clearly asked for the building to go up; otherwise this previews and nothing is placed. For a composition that needs staging, this places the one stage named by stage_index.",
+        },
       },
       required: ["composition"],
       additionalProperties: false,
     },
-    run: (graph, args) => {
+    run: (graph, args, services) => {
       const plan = planComposition(graph, {
         ...args,
         plan_structure: planStructure,
         plan_tower: planTower,
       });
-      return plan.planned
-        ? { ...plan, actions_preview: compositionActions(plan, { commit: false }) }
-        : plan;
+      if (!plan.planned) return plan;
+
+      // Designing without being able to build was the gap that made this whole
+      // layer a demo: it returned a perfect plan and placed nothing, which is
+      // the same silence the player already complained about.
+      const build = args.build === true;
+      const commitAndEmit = (proposals) => {
+        const actions = proposals.map((action) => ({ ...action, commit: build }));
+        const validated = validatePlan(graph, actions);
+        if (validated.valid && build) services?.actions?.emit?.(validated.actions);
+        return { actions, validated };
+      };
+
+      const actions = compositionActions(plan, { commit: false });
+      if (actions.length <= DEFAULT_MAX_ACTIONS) {
+        const { actions: ready, validated } = commitAndEmit(actions);
+        return {
+          ...plan,
+          will_build: build,
+          actions_preview: ready,
+          plan_validation: validated.valid ? { valid: true, steps: validated.step_count } : validated,
+          next_step: build
+            ? 'Placing it now. Say "undo" to reverse the whole composition.'
+            : 'Nothing was placed. Say "build it" to put this up.',
+        };
+      }
+
+      // Too big for one transaction. Report the stages rather than the raw
+      // count: "764 exceeds 512" tells the player their design is wrong, when
+      // it is only too large to place at once. A four-block design of ordinary
+      // size lands here, so this is the normal path for anything ambitious.
+      const staged = stageComposition(plan, { maxActions: DEFAULT_MAX_ACTIONS });
+      const wanted = Number(args?.stage_index);
+      const stage = Number.isInteger(wanted)
+        ? staged.stages.find((entry) => entry.index === wanted)
+        : null;
+
+      const summary = {
+        ...plan,
+        exceeds_single_transaction: true,
+        will_build: build,
+        total_actions: staged.total_actions,
+        max_actions_per_transaction: DEFAULT_MAX_ACTIONS,
+        stage_count: staged.stage_count,
+        stages: staged.stages.map(({ actions: _actions, ...rest }) => rest),
+        undo_note: staged.undo_note,
+      };
+
+      if (!stage) {
+        return {
+          ...summary,
+          actions_preview: [],
+          // Refusing to build the whole thing is deliberate. Silently placing
+          // stage 1 when the player asked for the building would look like the
+          // build failed halfway.
+          next_step:
+            `This is ${staged.total_actions} pieces and the game places at most ` +
+            `${DEFAULT_MAX_ACTIONS} at once, so it goes up in ${staged.stage_count} ` +
+            `stages. Call this again with the same composition and stage_index 1, ` +
+            `then 2, through ${staged.stage_count}. ${staged.undo_note}`,
+        };
+      }
+
+      const { actions: ready, validated } = commitAndEmit(stage.actions);
+      return {
+        ...summary,
+        selected_stage: stage.index,
+        selected_stage_name: stage.name,
+        actions_preview: ready,
+        plan_validation: validated.valid ? { valid: true, steps: validated.step_count } : validated,
+        next_step: build
+          ? stage.index < staged.stage_count
+            ? `Placing stage ${stage.index} of ${staged.stage_count} (${stage.name}). ` +
+              `Ask for stage ${stage.index + 1} when it is up.`
+            : `Placing the last stage (${stage.name}). The composition is complete.`
+          : `Nothing was placed. Say "build it" to put up stage ${stage.index}.`,
+      };
     },
   },
   /* ---------------- world-changing tools ---------------- */
