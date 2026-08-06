@@ -15,7 +15,8 @@
 import { DEFAULT_MAX_ACTIONS, summarizePlan, validatePlan } from "./actions.mjs";
 import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
-import { planStructure, structureActions } from "./architecture.mjs";
+import { compositionActions, planComposition } from "./composition.mjs";
+import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import {
   planBeltedModule,
@@ -542,6 +543,77 @@ export const SOLVER_TOOLS = [
     },
   },
 
+  {
+    name: "design_composition",
+    description:
+      "Builds an architectural composition you design. This is where you make the creative decisions the solvers cannot: how many blocks a factory is, their proportions, which one is tall, where the wings sit, what connects to what. You describe the building; this places it exactly. Positions are in whole GRID CELLS relative to the composition origin, never world coordinates — a block at grid_x 8 sits eight cells east of origin. Blocks overlapping on the same level are refused with both names, because two blocks in the same cells leave a half-built mess. Blocks at different raised_cells MAY overlap: that is a cantilever, and it is how the reference megabases get their overhangs. Mark at least one block houses_production or the result is an empty shell.",
+    parameters: {
+      type: "object",
+      properties: {
+        composition: {
+          type: "object",
+          description: "The building you are designing.",
+          properties: {
+            blocks: {
+              type: "array",
+              description: "1-12 rectangular volumes on the grid.",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Unique; bridges refer to it." },
+                  role: { type: "string", description: "Free text for your own intent." },
+                  grid_x: { type: "number", description: "Whole cells east of origin; may be negative." },
+                  grid_y: { type: "number", description: "Whole cells north of origin; may be negative." },
+                  width_cells: { type: "number", description: "1 to 32." },
+                  depth_cells: { type: "number", description: "1 to 32." },
+                  levels: { type: "number", description: "Storeys, 1 to 12." },
+                  inset_cells: { type: "number", description: "Cells each tier steps in, 0 to 4. 1 gives a stepped silhouette." },
+                  raised_cells: { type: "number", description: "Cells of clear air beneath, 0 to 20. Non-zero puts it on pillars." },
+                  glass_roof: { type: "boolean", description: "Glass rather than solid, where unlocked." },
+                  houses_production: { type: "boolean", description: "Whether the machines go in this block." },
+                },
+                required: ["name", "grid_x", "grid_y", "width_cells", "depth_cells"],
+                additionalProperties: false,
+              },
+            },
+            bridges: {
+              type: "array",
+              description: "Walkways joining two blocks at a shared level.",
+              items: {
+                type: "object",
+                properties: {
+                  from: { type: "string" },
+                  to: { type: "string" },
+                  level: { type: "number" },
+                },
+                required: ["from", "to"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["blocks"],
+          additionalProperties: false,
+        },
+        origin_cm: {
+          type: "object",
+          description: "Where cell 0,0 sits. Defaults to the player's position.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+        },
+      },
+      required: ["composition"],
+      additionalProperties: false,
+    },
+    run: (graph, args) => {
+      const plan = planComposition(graph, {
+        ...args,
+        plan_structure: planStructure,
+        plan_tower: planTower,
+      });
+      return plan.planned
+        ? { ...plan, actions_preview: compositionActions(plan, { commit: false }) }
+        : plan;
+    },
+  },
   /* ---------------- world-changing tools ---------------- */
 
   {

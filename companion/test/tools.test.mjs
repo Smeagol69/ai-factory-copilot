@@ -30,6 +30,7 @@ test("exposes the roadmap solver set to the model", () => {
   assert.deepEqual(names, [
     "clear_highlight",
     "design_base",
+    "design_composition",
     "design_factory_layout",
     "design_megabase_concept",
     "diagnose_bottlenecks",

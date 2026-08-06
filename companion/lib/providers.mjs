@@ -1692,6 +1692,7 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
  */
 const SOLVER_TOOL_NAMES = [
   "design_base",
+  "design_composition",
   "design_factory_layout",
   "design_megabase_concept",
   "diagnose_bottlenecks",

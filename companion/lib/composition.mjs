@@ -286,6 +286,25 @@ export function planComposition(graph, args = {}) {
     notes.push(`Ground checked: ${terrain.clearance.reason}. Every block shares that height.`);
   }
 
+  // A block that could not be built as described still gets built, shorter or
+  // plainer. Losing that explanation is how a composition quietly comes out
+  // different from what was designed — a five-storey tower arriving as three
+  // reads as a bug unless the reason travels with it.
+  for (const entry of built) {
+    for (const note of entry.structure.notes ?? []) {
+      notes.push(`${entry.name}: ${note}`);
+    }
+    const requested = entry.levels;
+    const actual = entry.structure.levels ?? 1;
+    if (actual < requested) {
+      notes.push(
+        `"${entry.name}" was asked for ${requested} storeys and fits ${actual}: ` +
+          `stepping in ${entry.inset_cells} cell(s) a tier runs out of floor. ` +
+          "Widen it, or set inset_cells to 0 for straight sides.",
+      );
+    }
+  }
+
   const parts = [...built.flatMap((entry) => entry.structure.parts), ...bridgeParts];
   return {
     solver: "composition",
