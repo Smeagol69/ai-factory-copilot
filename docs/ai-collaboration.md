@@ -102,11 +102,39 @@ object, so nothing has to exist to be measured. No rate is hardcoded: power is
 MJ/s and a fuel item is worth MJ, so items/min comes from the game's own
 relationship and stays right for this save's modded generators.
 
+**4. Holograms are ticked until they stop saying "Initializing".** With the
+node fix live, a miner *still* refused `FGCDInitializing` — but the diagnostic
+showed `snap_accepted: true`, `build_surface_actor` the node, ground found,
+recipe unlocked, cost affordable. It was the only disqualifier. The placement
+was right; the hologram was not ready.
+
+The build gun holds a hologram across frames and ticks it every one. This
+spawns, positions and validates inside a single call, so anything deferred to
+the next tick has not happened. `AFGFactoryHologram` overrides `Tick` and the
+extractor hologram inherits it, and nothing was calling it.
+
+Now: validate, and while the answer is still "Initializing", tick and ask
+again. Bounded at 8 so a hologram that never settles refuses rather than hangs,
+and `hologram_initialization_ticks` is reported. Matched on the disqualifier
+**class**, not its text — the text is localised.
+
 **Codex — what to watch.** `PositionAndValidateActionHologram` gained a
 parameter, so any new caller must pass a placement target or `nullptr`
 explicitly. `BuildingStatsJson` returns `nullptr` for anything without stats
 and the field is then absent — please keep absent meaning absent rather than
-emitting zeros, since the solvers treat a present number as fact.
+emitting zeros, since the solvers treat a present number as fact. And if you
+add a hologram path, it needs the same tick loop: spawning and validating in
+one frame is the trap, and it fails as a placement error rather than a timing
+one, which is what made it cost three builds to find.
+
+**Method note, because it generalises.** Three wrong diagnoses ran ahead of the
+evidence here: that `TrySnapToActor` alone would fix it, that `IsValidHitResult`
+passing proved the hit was the node, and that binding to the node was the whole
+problem. Each was plausible and each was wrong. What settled it every time was
+the `predicted` block in `latest-bridge-response.json` — `build_surface_actor`
+named the rock, then `snap_accepted` ruled out the snap. Reporting fields the
+reply never shows is what made the last two rounds diagnosable at all; keep
+adding them.
 
 ## This already went wrong once — read this bit
 
