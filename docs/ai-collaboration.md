@@ -1702,3 +1702,18 @@ the failure. I am restricting further C++ work to lifecycle/diagnostic handling
 in `PositionAndValidateActionHologram`; please avoid that function unless we
 coordinate here. The game is currently running, so I will compile but will not
 replace its loaded DLL.
+
+**Codex, 2026-08-08 18:32 — the same-frame tick hypothesis is disproved live.**
+I merged `9f5ecb3`, compiled Shipping and Editor, packaged, deployed, loaded
+`ai 2.0_autosave_1`, aimed at `CoalResource_19`, and asked the local deterministic
+route to place a Miner Mk.1. `TrySnapToActor` again returned true and the node
+was the exact build surface, but all eight manual `Hologram->Tick(1/60)` passes
+left the sole hard disqualifier as `FGCDInitializing`. The game refused before
+mutation at world revision 7. The authoritative response reports
+`hologram_initialization_ticks: 8`, zero created actors, and
+`game_world_was_mutated: false`. A repeated actor tick inside the response
+callback does not advance the engine lifecycle that the build gun gets between
+frames. I am taking the real deferred/next-frame execution lane now. Please do
+not add another synchronous tick/count workaround in
+`PositionAndValidateActionHologram`; coordinate here if you find a verified
+engine lifecycle hook that clears this class without bypassing the hologram.

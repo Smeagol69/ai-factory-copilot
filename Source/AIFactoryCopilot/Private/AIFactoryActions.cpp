@@ -460,30 +460,6 @@ namespace
             Params);
     }
 
-    /**
-     * Whether the hologram is still saying "not ready yet".
-     *
-     * Matched on the disqualifier class rather than its display text, which is
-     * localised and would stop matching in any language but English.
-     */
-    bool HologramIsStillInitializing(AFGHologram* Hologram)
-    {
-        if (!IsValid(Hologram))
-        {
-            return false;
-        }
-        TArray<TSubclassOf<UFGConstructDisqualifier>> Disqualifiers;
-        Hologram->GetConstructDisqualifiers(Disqualifiers);
-        for (const TSubclassOf<UFGConstructDisqualifier>& Disqualifier : Disqualifiers)
-        {
-            if (Disqualifier && Disqualifier->IsChildOf(UFGCDInitializing::StaticClass()))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     FString DescribeHologramDisqualifiers(
         AFGHologram* Hologram,
         const TSharedPtr<FJsonObject>& Predicted)
@@ -715,37 +691,17 @@ namespace
                     RequestedYaw));
         }
 
-        // Let the hologram finish initialising before asking it anything.
-        //
-        // A miner on a resource node refused with FGCDInitializing even after
-        // it had snapped to the node -- snap_accepted was true and
-        // build_surface_actor was the node, so the placement was right and the
-        // hologram simply was not ready. It was the only disqualifier: ground
-        // found, recipe unlocked, cost affordable.
-        //
-        // The build gun holds a hologram across frames and ticks it every one.
-        // This spawns, positions and validates inside a single call, so
-        // anything the hologram defers to its next tick has not happened yet.
-        // AFGFactoryHologram overrides Tick, and the extractor hologram
-        // inherits it.
-        //
-        // Ticked by observation rather than a fixed count: validate, and if
-        // "Initializing" is still the answer, tick and ask again. Bounded, so a
-        // hologram that never settles fails as a refusal rather than a hang,
-        // and the count is reported so a building that needs an unusual number
-        // of ticks is visible instead of silently slow.
-        constexpr int32 MaximumInitializationTicks = 8;
-        constexpr float InitializationTickSeconds = 1.0f / 60.0f;
-        int32 InitializationTicks = 0;
+        // AFGHologram::BeginPlay deliberately starts an authority-side
+        // hologram with FGCDInitializing. Both of Satisfactory's real
+        // validation paths clear the previous pass first: the build gun's
+        // TickState and Server_ConstructHologram each call
+        // ResetConstructDisqualifiers immediately before
+        // ValidatePlacementAndCost. Skipping that reset leaves the initial
+        // sentinel in the array forever; manually ticking the actor does not
+        // remove it and is not equivalent to running the build-gun lifecycle.
+        Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
-        while (HologramIsStillInitializing(Hologram)
-            && InitializationTicks < MaximumInitializationTicks)
-        {
-            Hologram->Tick(InitializationTickSeconds);
-            Hologram->ValidatePlacementAndCost(Inventory);
-            ++InitializationTicks;
-        }
-        Predicted->SetNumberField(TEXT("hologram_initialization_ticks"), InitializationTicks);
+        Predicted->SetBoolField(TEXT("hologram_disqualifiers_reset_before_validation"), true);
 
         FString HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
         if (!Hologram->CanConstruct())
@@ -764,6 +720,7 @@ namespace
             OutFailure = TEXT("hologram_requires_additional_placement_points");
             return false;
         }
+        Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
         HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
         if (!Hologram->CanConstruct())
@@ -2180,9 +2137,11 @@ FAIFactoryActionResult PlaceBelt(
             TEXT("belt_hologram_did_not_accept_the_destination_connection"));
     }
 
-    FString HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
+    Belt->ResetConstructDisqualifiers();
     Belt->ValidatePlacementAndCost(
         IsValid(Context.Player) ? Context.Player->GetInventory() : nullptr);
+    Predicted->SetBoolField(TEXT("hologram_disqualifiers_reset_before_validation"), true);
+    const FString HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
     if (!Belt->CanConstruct())
     {
         Predicted->SetStringField(

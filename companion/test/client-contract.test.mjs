@@ -68,3 +68,31 @@ test("a missing placement target is refused before a hologram is spawned", () =>
   const hologramSpawn = actions.indexOf("AFGHologram* Hologram = AFGHologram::SpawnHologramFromRecipe");
   assert.ok(targetLookup >= 0 && targetLookup < hologramSpawn);
 });
+
+test("server holograms clear the initialization sentinel before validation", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /hologram_disqualifiers_reset_before_validation/);
+  assert.match(
+    actions,
+    /Hologram->ResetConstructDisqualifiers\(\);\s*Hologram->ValidatePlacementAndCost\(Inventory\)/,
+  );
+  assert.match(
+    actions,
+    /Belt->ResetConstructDisqualifiers\(\);\s*Belt->ValidatePlacementAndCost/,
+  );
+  assert.doesNotMatch(actions, /Hologram->Tick\(/);
+
+  const reset = actions.indexOf("Hologram->ResetConstructDisqualifiers()");
+  const firstValidation = actions.indexOf("Hologram->ValidatePlacementAndCost(Inventory)", reset);
+  const constructCheck = actions.indexOf("if (!Hologram->CanConstruct())", firstValidation);
+  assert.ok(
+    reset >= 0 && reset < firstValidation && firstValidation < constructCheck,
+  );
+});
