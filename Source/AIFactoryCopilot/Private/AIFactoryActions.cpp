@@ -1308,6 +1308,21 @@ FAIFactoryActionResult PlaceBuilding(
         Predicted->SetStringField(TEXT("clearance_check"), TEXT("skipped_by_request"));
     }
 
+    // Resolve a named target before spawning the hologram. Returning after the
+    // spawn used to leak that hologram actor whenever the target disappeared
+    // between capture and execution.
+    AActor* PlacementTarget = nullptr;
+    if (!PlacementTargetActorId.IsEmpty())
+    {
+        PlacementTarget = FindActionActorByPathName(Context.World, PlacementTargetActorId);
+        if (!IsValid(PlacementTarget))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("placement_target_actor_not_found:") + PlacementTargetActorId);
+        }
+    }
+
     AActor* HologramOwner = Context.Player;
     if (AFGBuildGun* BuildGun = Context.Player->GetBuildGun();
         IsValid(BuildGun))
@@ -1326,21 +1341,6 @@ FAIFactoryActionResult PlaceBuilding(
         Result.Status = TEXT("refused");
         Result.Reason = TEXT("game_could_not_spawn_recipe_hologram");
         return Result;
-    }
-
-    // Resolving here rather than in the hologram helper keeps the refusal
-    // specific: a target that was named and cannot be found is a different
-    // fault from one that was never named, and only the first is a mistake.
-    AActor* PlacementTarget = nullptr;
-    if (!PlacementTargetActorId.IsEmpty())
-    {
-        PlacementTarget = FindActionActorByPathName(Context.World, PlacementTargetActorId);
-        if (!IsValid(PlacementTarget))
-        {
-            return FAIFactoryActionResult::Refuse(
-                Action,
-                TEXT("placement_target_actor_not_found:") + PlacementTargetActorId);
-        }
     }
 
     FString HologramFailure;
@@ -2695,6 +2695,8 @@ FString ExecutePlan(
         FString Kind;
         bool bRequestedCommit = false;
         bool bWillCommitWrite = false;
+        bool bStaticValidationFailed = false;
+        bool bDeferredStepReferences = false;
         FAIFactoryActionResult Preflight;
     };
 
@@ -2705,8 +2707,9 @@ FString ExecutePlan(
     int32 UndoWrites = 0;
     FString PlanRefusal;
 
-    for (const TSharedPtr<FJsonValue>& Value : Actions)
+    for (int32 ActionIndex = 0; ActionIndex < Actions.Num(); ++ActionIndex)
     {
+        const TSharedPtr<FJsonValue>& Value = Actions[ActionIndex];
         FPreparedAction& Item = Prepared.AddDefaulted_GetRef();
         const TSharedPtr<FJsonObject>* Spec = nullptr;
         if (!Value.IsValid() || !Value->TryGetObject(Spec) || !Spec)
@@ -2722,6 +2725,97 @@ FString ExecutePlan(
         Item.Spec = *Spec;
         Item.Spec->TryGetStringField(TEXT("action"), Item.Kind);
         Item.Spec->TryGetBoolField(TEXT("commit"), Item.bRequestedCommit);
+
+        if (Item.Kind == TEXT("place_belt"))
+        {
+            FString FromComponent;
+            FString ToComponent;
+            FString FromActorId;
+            FString ToActorId;
+            Item.Spec->TryGetStringField(TEXT("from_component"), FromComponent);
+            Item.Spec->TryGetStringField(TEXT("to_component"), ToComponent);
+            Item.Spec->TryGetStringField(TEXT("from_actor_id"), FromActorId);
+            Item.Spec->TryGetStringField(TEXT("to_actor_id"), ToActorId);
+
+            const auto ValidateEndpoint =
+                [&Item, &Prepared, ActionIndex](
+                    const TCHAR* StepField,
+                    const FString& Component,
+                    const FString& ActorId,
+                    int32& OutStep) -> FString
+                {
+                    const bool bHasComponent = !Component.IsEmpty();
+                    const bool bHasActor = !ActorId.IsEmpty();
+                    const bool bHasStep = Item.Spec->HasField(StepField);
+                    const int32 SelectorCount =
+                        (bHasComponent ? 1 : 0) + (bHasActor ? 1 : 0) + (bHasStep ? 1 : 0);
+                    if (SelectorCount != 1)
+                    {
+                        return TEXT("each_end_must_use_exactly_one_component_actor_or_step");
+                    }
+                    if (!bHasStep)
+                    {
+                        return FString();
+                    }
+
+                    double StepNumber = 0.0;
+                    if (!Item.Spec->TryGetNumberField(StepField, StepNumber) ||
+                        !FMath::IsFinite(StepNumber) ||
+                        StepNumber != FMath::RoundToDouble(StepNumber) ||
+                        StepNumber < 1.0 ||
+                        StepNumber > static_cast<double>(MAX_int32))
+                    {
+                        return FString::Printf(
+                            TEXT("%s_must_be_a_positive_whole_step_number"), StepField);
+                    }
+
+                    OutStep = static_cast<int32>(StepNumber);
+                    if (OutStep >= ActionIndex + 1)
+                    {
+                        return FString::Printf(
+                            TEXT("%s_must_refer_to_an_earlier_step"), StepField);
+                    }
+
+                    const FString& ReferencedKind = Prepared[OutStep - 1].Kind;
+                    if (ReferencedKind != TEXT("place_building") &&
+                        ReferencedKind != TEXT("place_blueprint"))
+                    {
+                        return FString::Printf(
+                            TEXT("%s_must_refer_to_an_actor_creating_step"), StepField);
+                    }
+                    if (Item.bRequestedCommit && !Prepared[OutStep - 1].bRequestedCommit)
+                    {
+                        return FString::Printf(
+                            TEXT("%s_cannot_commit_from_a_preview_step"), StepField);
+                    }
+                    return FString();
+                };
+
+            int32 FromStep = 0;
+            int32 ToStep = 0;
+            FString EndpointError = ValidateEndpoint(
+                TEXT("from_step"), FromComponent, FromActorId, FromStep);
+            if (EndpointError.IsEmpty())
+            {
+                EndpointError = ValidateEndpoint(
+                    TEXT("to_step"), ToComponent, ToActorId, ToStep);
+            }
+            if (EndpointError.IsEmpty() && FromStep > 0 && FromStep == ToStep)
+            {
+                EndpointError = TEXT("a_belt_needs_two_different_steps");
+            }
+            if (!EndpointError.IsEmpty())
+            {
+                Item.Preflight = FAIFactoryActionResult::Refuse(Item.Kind, EndpointError);
+                Item.bStaticValidationFailed = true;
+                if (PlanRefusal.IsEmpty())
+                {
+                    PlanRefusal = TEXT("one_or_more_actions_failed_preflight");
+                }
+            }
+            Item.bDeferredStepReferences = FromStep > 0 || ToStep > 0;
+        }
+
         Item.bWillCommitWrite =
             bAllowCommit &&
             Item.bRequestedCommit &&
@@ -2763,12 +2857,34 @@ FString ExecutePlan(
         {
             continue;
         }
+        if (Item.bStaticValidationFailed)
+        {
+            continue;
+        }
         if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight"))
         {
             Item.Preflight.Action = Item.Kind;
             Item.Preflight.bAccepted = true;
             Item.Preflight.bDryRun = true;
             Item.Preflight.Status = TEXT("preflight_not_required_for_overlay");
+            continue;
+        }
+
+        // An endpoint that names a prior step does not exist until that step is
+        // committed. Running the belt hologram here therefore guarantees a
+        // false refusal for every generated whole-base plan. Its static shape,
+        // ordering, creator kind, and commit dependency were checked above; the
+        // real belt hologram runs after reference resolution during execution.
+        // If it refuses geometry, cost, or connectivity, the transaction rolls
+        // every earlier reversible write back.
+        if (Item.bDeferredStepReferences)
+        {
+            Item.Preflight.Action = Item.Kind;
+            Item.Preflight.bAccepted = true;
+            Item.Preflight.bDryRun = true;
+            Item.Preflight.Status = TEXT("preflight_deferred_until_step_references_resolve");
+            Item.Preflight.Warnings.Add(
+                TEXT("Belt hologram validation is deferred until its earlier-step actors exist; a refusal rolls the transaction back."));
             continue;
         }
 

@@ -16,7 +16,7 @@ import test from "node:test";
 
 import { buildGraph } from "../lib/graph.mjs";
 import { planStructure, planTower } from "../lib/architecture.mjs";
-import { compositionActions, planComposition, validateComposition } from "../lib/composition.mjs";
+import { compositionActions, planComposition, stageComposition, validateComposition } from "../lib/composition.mjs";
 
 const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
 const piece = (className, descriptor, name) => ({
@@ -88,6 +88,25 @@ test("names the block and field for anything unbuildable", () => {
   assert.ok(result.problems.some((problem) => /duplicate name/.test(problem)));
 });
 
+test("rejects invalid optional geometry instead of silently changing the design", () => {
+  const result = validateComposition({
+    blocks: [{
+      name: "bad options",
+      grid_x: 0,
+      grid_y: 0,
+      width_cells: 4,
+      depth_cells: 4,
+      inset_cells: 99,
+      raised_cells: 1.5,
+    }],
+    bridges: { from: "a", to: "b" },
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.problems.some((problem) => /inset_cells/.test(problem)));
+  assert.ok(result.problems.some((problem) => /raised_cells/.test(problem)));
+  assert.ok(result.problems.some((problem) => /bridges must be an array/.test(problem)));
+});
+
 test("a bridge must join two real blocks", () => {
   const result = validateComposition({
     blocks: [{ name: "tower", grid_x: 0, grid_y: 0, width_cells: 4, depth_cells: 4 }],
@@ -125,6 +144,28 @@ test("bridges span between the blocks they name", () => {
   assert.equal(result.bridges.length, 1);
   assert.ok(result.bridges[0].pieces > 0, "a span needs pieces in it");
   assert.ok(result.piece_counts.bridge > 0);
+  const [a, b] = result.blocks;
+  const inside = (part, block) =>
+    part.location_cm.x >= block.footprint.origin_cm.x &&
+    part.location_cm.x <= block.footprint.origin_cm.x + (block.footprint.width_cells - 1) * result.grid_cell_cm &&
+    part.location_cm.y >= block.footprint.origin_cm.y &&
+    part.location_cm.y <= block.footprint.origin_cm.y + (block.footprint.depth_cells - 1) * result.grid_cell_cm;
+  for (const part of result.parts.filter((entry) => entry.kind === "bridge")) {
+    assert.equal(inside(part, a) || inside(part, b), false, "a bridge must occupy the gap, not either deck");
+  }
+});
+
+test("bridges do not pretend a missing or mismatched deck can be joined", () => {
+  const missingLevel = plan({
+    blocks: [
+      { name: "a", grid_x: 0, grid_y: 0, width_cells: 4, depth_cells: 4 },
+      { name: "b", grid_x: 10, grid_y: 0, width_cells: 4, depth_cells: 4 },
+    ],
+    bridges: [{ from: "a", to: "b", level: 2 }],
+  });
+  assert.equal(missingLevel.bridges[0].planned, false);
+  assert.match(missingLevel.bridges[0].reason, /does not exist/);
+  assert.equal(missingLevel.parts.some((part) => part.kind === "bridge"), false);
 });
 
 test("says when a block came out different from the design", () => {
@@ -169,4 +210,20 @@ test("refuses an empty composition rather than building nothing quietly", () => 
   assert.equal(validateComposition({ blocks: [] }).valid, false);
   assert.equal(validateComposition(null).valid, false);
   assert.deepEqual(compositionActions({ planned: false }), []);
+});
+
+test("an explicit origin works without a captured player and stage limits cannot loop forever", () => {
+  const noPlayer = buildGraph({ ...graph.snapshot, interaction_context: {} });
+  const explicit = planComposition(noPlayer, {
+    composition: { blocks: [{ name: "remote", grid_x: 0, grid_y: 0, width_cells: 2, depth_cells: 2 }] },
+    origin_cm: { x: 10_000, y: 20_000, z: 3_000 },
+    plan_structure: planStructure,
+    plan_tower: planTower,
+  });
+  assert.equal(explicit.planned, true, explicit.reason);
+  assert.deepEqual(explicit.origin_cm, { x: 10_000, y: 20_000, z: 3_000 });
+
+  const badLimit = stageComposition(explicit, { maxActions: 0 });
+  assert.equal(badLimit.staged, false);
+  assert.match(badLimit.reason, /positive whole number/);
 });

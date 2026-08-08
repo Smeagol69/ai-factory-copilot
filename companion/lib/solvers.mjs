@@ -2300,6 +2300,8 @@ export function solveBuildRecipeLookup(graph, args = {}) {
     recipe_class: recipe.class_path,
     name: recipe.name,
     owner_mod: recipe.owner_mod ?? null,
+    product_class: recipe.products?.[0]?.item_class ?? null,
+    building_stats: recipe.building_stats ?? null,
   };
 }
 
@@ -2330,6 +2332,8 @@ export function solvePlacementTarget(graph, args = {}) {
         node_type: snapshotOfActor.node_type ?? null,
         occupied: Boolean(snapshotOfActor.occupied),
         purity: snapshotOfActor.purity ?? null,
+        resource_class: snapshotOfActor.resource_class ?? null,
+        resource_name: snapshotOfActor.resource_name ?? null,
         // The node itself, not the ground under it. A miner has to be told what
         // it sits on: the mod's downward trace hits the terrain mesh beside the
         // node, which positions the hologram correctly and binds it to nothing.

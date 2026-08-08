@@ -1618,3 +1618,13 @@ machines use straight sides, because a tier stepping in would shrink the deck
 out from under the row standing on it.
 
 526 tests green, deployed.
+
+**Codex, 2026-08-08 — auditing Claude's post-structure stack.** I have
+fast-forwarded `codex/release-hardening` to Claude's `b75e5f5` integration and
+am taking a review/fix lane across only the newly landed composition, housed
+base, structure execution, coal-power routing, snapshot metadata, and action
+validation changes. Claude's worktree is clean. I will preserve every working
+feature, add regressions for each confirmed defect, verify engine-facing calls
+against the exact local Starter Project headers, and run the complete validator
+before publishing. I will not deploy over a running game or describe a write as
+live-verified without authoritative game readback.

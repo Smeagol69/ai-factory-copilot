@@ -159,6 +159,51 @@ test("a valid plan counts its commits and says how it will run", () => {
   assert.match(plan.execution, /rolled back as one transaction/);
 });
 
+test("belt step endpoints are unambiguous and point to earlier actor creators", () => {
+  const graph = graphOf();
+  const recipe = "Recipe_ConveyorBeltMk1";
+  const building = {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+    commit: true,
+  };
+
+  const ambiguous = validateAction(graph, {
+    action: "place_belt",
+    recipe_class: recipe,
+    from_component: "FactoryGame.Persistent_Level:Build_A.ConveyorAny0",
+    from_step: 1,
+    to_actor_id: "FactoryGame.Persistent_Level:Build_B",
+  });
+  assert.equal(ambiguous.valid, false);
+  assert.equal(ambiguous.reason, "each_end_must_use_exactly_one_component_actor_or_step");
+
+  const future = validatePlan(graph, [
+    building,
+    { action: "place_belt", recipe_class: recipe, from_step: 1, to_step: 3, commit: true },
+    { ...building, location: { x: 2000, y: 2000, z: 300 } },
+  ]);
+  assert.equal(future.valid, false);
+  assert.equal(future.rejected[0].reason, "to_step_must_refer_to_an_earlier_step");
+
+  const nonCreator = validatePlan(graph, [
+    { action: "teleport_player", target: HERE, commit: true },
+    building,
+    { action: "place_belt", recipe_class: recipe, from_step: 1, to_step: 2, commit: true },
+  ]);
+  assert.equal(nonCreator.valid, false);
+  assert.equal(nonCreator.rejected[0].reason, "from_step_must_refer_to_an_actor_creating_step");
+
+  const previewDependency = validatePlan(graph, [
+    { ...building, commit: false },
+    building,
+    { action: "place_belt", recipe_class: recipe, from_step: 1, to_step: 2, commit: true },
+  ]);
+  assert.equal(previewDependency.valid, false);
+  assert.equal(previewDependency.rejected[0].reason, "from_step_cannot_commit_from_a_preview_step");
+});
+
 test("a committed dismantle cannot be mixed into a reversible transaction", () => {
   const plan = validatePlan(graphOf(), [
     { action: "teleport_player", target: HERE, commit: true },

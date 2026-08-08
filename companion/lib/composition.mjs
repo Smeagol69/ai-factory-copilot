@@ -75,7 +75,12 @@ export function validateComposition(composition) {
     if (gridY === null) problems.push(`${label}: grid_y must be a whole number of cells, -64 to 64`);
     if (levels === null) problems.push(`${label}: levels must be a whole number 1-${MAX_LEVELS}`);
 
-    if (width !== null && depth !== null && gridX !== null && gridY !== null && levels !== null) {
+    const inset = integerInRange(block?.inset_cells ?? 0, 0, 4);
+    const raised = integerInRange(block?.raised_cells ?? 0, 0, 20);
+    if (inset === null) problems.push(`${label}: inset_cells must be a whole number 0-4`);
+    if (raised === null) problems.push(`${label}: raised_cells must be a whole number 0-20`);
+
+    if (width !== null && depth !== null && gridX !== null && gridY !== null && levels !== null && inset !== null && raised !== null) {
       checked.push({
         name,
         grid_x: gridX,
@@ -83,8 +88,8 @@ export function validateComposition(composition) {
         width_cells: width,
         depth_cells: depth,
         levels,
-        inset_cells: integerInRange(block?.inset_cells ?? 0, 0, 4) ?? 0,
-        raised_cells: integerInRange(block?.raised_cells ?? 0, 0, 20) ?? 0,
+        inset_cells: inset,
+        raised_cells: raised,
         glass_roof: block?.glass_roof !== false,
         houses_production: block?.houses_production === true,
         role: String(block?.role ?? "").trim() || null,
@@ -119,15 +124,21 @@ export function validateComposition(composition) {
   }
 
   const bridges = [];
-  for (const [index, bridge] of (composition?.bridges ?? []).entries()) {
+  const bridgeInput = composition?.bridges ?? [];
+  if (!Array.isArray(bridgeInput)) {
+    problems.push("bridges must be an array");
+  }
+  for (const [index, bridge] of (Array.isArray(bridgeInput) ? bridgeInput : []).entries()) {
     const from = String(bridge?.from ?? "").trim();
     const to = String(bridge?.to ?? "").trim();
     const label = `bridge ${index + 1}`;
     if (!names.has(from)) problems.push(`${label}: "${from}" is not a block in this composition`);
     if (!names.has(to)) problems.push(`${label}: "${to}" is not a block in this composition`);
     if (from && to && from === to) problems.push(`${label}: a bridge needs two different blocks`);
-    if (names.has(from) && names.has(to) && from !== to) {
-      bridges.push({ from, to, level: integerInRange(bridge?.level ?? 1, 1, MAX_LEVELS) ?? 1 });
+    const level = integerInRange(bridge?.level ?? 1, 1, MAX_LEVELS);
+    if (level === null) problems.push(`${label}: level must be a whole number 1-${MAX_LEVELS}`);
+    if (names.has(from) && names.has(to) && from !== to && level !== null) {
+      bridges.push({ from, to, level });
     }
   }
 
@@ -167,17 +178,23 @@ export function planComposition(graph, args = {}) {
     };
   }
 
-  // A throwaway probe establishes the grid and the piece kit, so every block
-  // below is measured against the same cell size.
-  const probe = planStructure(graph, { width_cells: 1, depth_cells: 1, height_cm: 0 });
-  if (!probe.planned) return { ...probe, solver: "composition" };
-  const cell = probe.grid.cell_size_cm;
-
   const origin =
     originArg ?? graph?.snapshot?.interaction_context?.player?.pawn_location ?? null;
-  if (!origin || !Number.isFinite(Number(origin.x))) {
+  if (!origin || ![origin.x, origin.y, origin.z].every((value) => Number.isFinite(Number(value)))) {
     return { solver: "composition", planned: false, reason: "no origin given and no captured player position" };
   }
+
+  // A throwaway probe establishes the grid and the piece kit, so every block
+  // below is measured against the same cell size. Pass the explicit origin: a
+  // valid remote design must not fail merely because no player pawn was captured.
+  const probe = planStructure(graph, {
+    origin_cm: origin,
+    width_cells: 1,
+    depth_cells: 1,
+    height_cm: 0,
+  });
+  if (!probe.planned) return { ...probe, solver: "composition" };
+  const cell = probe.grid.cell_size_cm;
 
   const built = [];
   const failed = [];
@@ -238,20 +255,67 @@ export function planComposition(graph, args = {}) {
 
     const deckOf = (entry) => {
       const decks = entry.structure.interiors ?? [{ level: 1, ...entry.structure.interior }];
-      return decks[Math.min(decks.length - 1, bridge.level - 1)];
+      return decks.find((deck) => deck.level === bridge.level) ?? null;
     };
     const fromDeck = deckOf(from);
     const toDeck = deckOf(to);
+    if (!fromDeck || !toDeck) {
+      bridgesPlanned.push({
+        ...bridge,
+        planned: false,
+        reason: `level ${bridge.level} does not exist on both blocks`,
+        pieces: 0,
+      });
+      continue;
+    }
     const floorPiece = probe.parts.find((part) => part.kind === "floor");
     if (!floorPiece) continue;
 
-    // Straight run along whichever axis separates them further.
-    const dx = toDeck.min_x_cm - fromDeck.min_x_cm;
-    const dy = toDeck.min_y_cm - fromDeck.min_y_cm;
-    const alongX = Math.abs(dx) >= Math.abs(dy);
-    const spanCm = alongX ? Math.abs(dx) : Math.abs(dy);
+    if (Math.abs(fromDeck.floor_z_cm - toDeck.floor_z_cm) > 1) {
+      bridgesPlanned.push({
+        ...bridge,
+        planned: false,
+        reason: "the named decks are at different heights; a flat bridge cannot meet both",
+        pieces: 0,
+      });
+      continue;
+    }
+
+    // Straight run through the open gap between the nearest deck edges. The old
+    // min-origin span started inside the source block and laid bridge pieces on
+    // top of its own foundations, guaranteeing hologram overlap refusals.
+    const centreX = (deck) => (deck.min_x_cm + deck.max_x_cm) / 2;
+    const centreY = (deck) => (deck.min_y_cm + deck.max_y_cm) / 2;
+    const dx = centreX(toDeck) - centreX(fromDeck);
+    const dy = centreY(toDeck) - centreY(fromDeck);
+    const gapX = Math.max(toDeck.min_x_cm - fromDeck.max_x_cm, fromDeck.min_x_cm - toDeck.max_x_cm, 0);
+    const gapY = Math.max(toDeck.min_y_cm - fromDeck.max_y_cm, fromDeck.min_y_cm - toDeck.max_y_cm, 0);
+    const alongX = gapX >= gapY;
+    const overlapMin = alongX
+      ? Math.max(fromDeck.min_y_cm, toDeck.min_y_cm)
+      : Math.max(fromDeck.min_x_cm, toDeck.min_x_cm);
+    const overlapMax = alongX
+      ? Math.min(fromDeck.max_y_cm, toDeck.max_y_cm)
+      : Math.min(fromDeck.max_x_cm, toDeck.max_x_cm);
+    if (overlapMin > overlapMax) {
+      bridgesPlanned.push({
+        ...bridge,
+        planned: false,
+        reason: "the blocks have no aligned deck cells for a straight bridge",
+        pieces: 0,
+      });
+      continue;
+    }
+    const fixed = overlapMin;
+    const start = alongX
+      ? (dx >= 0 ? fromDeck.max_x_cm : fromDeck.min_x_cm)
+      : (dy >= 0 ? fromDeck.max_y_cm : fromDeck.min_y_cm);
+    const end = alongX
+      ? (dx >= 0 ? toDeck.min_x_cm : toDeck.max_x_cm)
+      : (dy >= 0 ? toDeck.min_y_cm : toDeck.max_y_cm);
+    const spanCm = Math.abs(end - start);
     const steps = Math.max(0, Math.round(spanCm / cell) - 1);
-    const step = alongX ? Math.sign(dx) : Math.sign(dy);
+    const step = Math.sign(end - start);
 
     for (let index = 1; index <= steps; index += 1) {
       bridgeParts.push({
@@ -259,15 +323,14 @@ export function planComposition(graph, args = {}) {
         recipe_class: floorPiece.recipe_class,
         name: floorPiece.name,
         location_cm: {
-          x: alongX ? fromDeck.min_x_cm + step * index * cell : fromDeck.min_x_cm,
-          y: alongX ? fromDeck.min_y_cm : fromDeck.min_y_cm + step * index * cell,
-          // The lower of the two decks, so the walkway meets both.
-          z: Math.min(fromDeck.floor_z_cm, toDeck.floor_z_cm),
+          x: alongX ? start + step * index * cell : fixed,
+          y: alongX ? fixed : start + step * index * cell,
+          z: fromDeck.floor_z_cm,
         },
         yaw: 0,
       });
     }
-    bridgesPlanned.push({ ...bridge, pieces: steps, span_cm: spanCm });
+    bridgesPlanned.push({ ...bridge, planned: true, pieces: steps, span_cm: spanCm });
   }
 
   const notes = [];
@@ -380,6 +443,9 @@ export function compositionActions(plan, { commit = false } = {}) {
  */
 export function stageComposition(plan, { maxActions = 512, commit = false } = {}) {
   if (!plan?.planned) return { staged: false, reason: "the composition was not planned" };
+  if (!Number.isInteger(maxActions) || maxActions < 1) {
+    return { staged: false, reason: "maxActions must be a positive whole number" };
+  }
 
   const order = { floor: 0, pillar: 1, wall: 2, roof: 3, ramp: 4, bridge: 5 };
   const asAction = (part) => ({

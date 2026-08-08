@@ -221,7 +221,7 @@ export function planStructure(graph, args = {}) {
 
   // The floor slab: thin when on the ground, thicker when raised, because a
   // raised platform reads as a deck rather than a sheet.
-  const floorPiece = pieceForHeight(pieces.foundations, heightNumber > 0 ? 200 : 100);
+  const floorPiece = pieceForHeight(pieces.foundations, heightAfterTerrain > 0 ? 200 : 100);
   const baseX = snapToGrid(Number(origin.x), cell);
   const baseY = snapToGrid(Number(origin.y), cell);
   const baseZ = Number(origin.z) + heightAfterTerrain;
@@ -470,14 +470,50 @@ export function planTower(graph, args = {}) {
     storeys.push(storey);
   }
 
+  // A stepped tower may run out of footprint before the requested top level.
+  // The prior loop only roofed the requested last level, so the shortened
+  // building was left open. Roof the actual top storey exactly once.
+  const topStorey = storeys.at(-1);
+  if (structureArgs.roof !== false && topStorey && !topStorey.parts.some((part) => part.kind === "roof")) {
+    const roofPiece = (structureArgs.glass_roof ? pieces.glass[0] : null) ?? pieces.roofs[0] ?? null;
+    if (roofPiece) {
+      const floorPart = topStorey.parts.find((part) => part.kind === "floor");
+      const topFloorHeight = pieces.foundations.find(
+        (piece) => piece.recipe_class === floorPart?.recipe_class,
+      )?.height_cm ?? 0;
+      const wallPart = topStorey.parts.find((part) => part.kind === "wall");
+      const topWallHeight = pieces.walls.find(
+        (piece) => piece.recipe_class === wallPart?.recipe_class,
+      )?.height_cm ?? 400;
+      const roofZ = topStorey.footprint.origin_cm.z + topFloorHeight + topWallHeight;
+      for (let column = 0; column < topStorey.footprint.width_cells; column += 1) {
+        for (let row = 0; row < topStorey.footprint.depth_cells; row += 1) {
+          topStorey.parts.push({
+            kind: "roof",
+            recipe_class: roofPiece.recipe_class,
+            name: roofPiece.name,
+            location_cm: {
+              x: topStorey.footprint.origin_cm.x + column * topStorey.grid.cell_size_cm,
+              y: topStorey.footprint.origin_cm.y + row * topStorey.grid.cell_size_cm,
+              z: roofZ,
+            },
+            yaw: 0,
+          });
+        }
+      }
+    } else {
+      topStorey.notes.push("No roof is unlocked, so the platform is left uncovered.");
+    }
+  }
+
   // Ramps up the near edge, one run per storey boundary.
   const rampPiece = wantRamps
     ? pieceForHeight(pieces.ramps, storeyCm) ?? pieces.ramps[0] ?? null
     : null;
   const ramps = [];
-  if (rampPiece && levels > 1) {
+  if (rampPiece && storeys.length > 1) {
     const cell = ground.grid.cell_size_cm;
-    for (let level = 0; level < levels - 1; level += 1) {
+    for (let level = 0; level < storeys.length - 1; level += 1) {
       ramps.push({
         kind: "ramp",
         recipe_class: rampPiece.recipe_class,
@@ -527,7 +563,7 @@ export function planTower(graph, args = {}) {
     inset_cells_per_tier: insetCells,
     storey_height_cm: storeyCm,
     storey_height_source: "floor slab plus wall, both measured from the pieces used",
-    total_height_cm: ground.raised_cm + levels * storeyCm,
+    total_height_cm: ground.raised_cm + storeys.length * storeyCm,
     // The ground floor may have been raised to clear the terrain, so the
     // requested height is not necessarily what got built.
     raised_cm: ground.raised_cm,
@@ -564,7 +600,12 @@ export function groundUnderFootprint(graph, { centre_cm: centre, radius_cm: radi
 
   // The scan-centre probe: a real grid of traces around the player.
   const atCentre = graph?.snapshot?.terrain?.at_scan_center;
-  if (atCentre?.sampled) {
+  const scanCentre = graph?.snapshot?.world?.scan_center;
+  const probeHalfCm = Number(graph?.snapshot?.terrain?.probe_footprint_meters) * 50;
+  const centreUsesScanProbe = centre && scanCentre && Number.isFinite(probeHalfCm) && probeHalfCm > 0 &&
+    Math.abs(Number(centre.x) - Number(scanCentre.x)) <= probeHalfCm &&
+    Math.abs(Number(centre.y) - Number(scanCentre.y)) <= probeHalfCm;
+  if (atCentre?.sampled && centreUsesScanProbe) {
     samples.push({
       source: "scan_centre_probe",
       min_z: atCentre.min_ground_z,
@@ -607,8 +648,17 @@ export function groundUnderFootprint(graph, { centre_cm: centre, radius_cm: radi
     };
   }
 
-  const highest = Math.max(...samples.map((sample) => sample.max_z).filter(Number.isFinite));
-  const lowest = Math.min(...samples.map((sample) => sample.min_z).filter(Number.isFinite));
+  const maximums = samples.map((sample) => sample.max_z).filter(Number.isFinite);
+  const minimums = samples.map((sample) => sample.min_z).filter(Number.isFinite);
+  if (maximums.length === 0 || minimums.length === 0) {
+    return {
+      measured: false,
+      reason: "nearby terrain probes did not report finite ground heights",
+      samples: samples.length,
+    };
+  }
+  const highest = Math.max(...maximums);
+  const lowest = Math.min(...minimums);
   const steepest = Math.max(
     ...samples.map((sample) => sample.mean_slope_degrees ?? 0).filter(Number.isFinite),
   );

@@ -224,7 +224,7 @@ namespace
             return nullptr;
         }
 
-        const TSharedRef<FJsonObject> Stats = MakeShared<FJsonObject>();
+        const TSharedPtr<FJsonObject> Stats = MakeShared<FJsonObject>();
         bool bAnything = false;
 
         if (const AFGBuildableGenerator* Generator =

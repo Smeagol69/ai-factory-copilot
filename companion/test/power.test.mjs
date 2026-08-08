@@ -21,18 +21,25 @@ import { findBestAvailableBelt } from "../lib/base-build.mjs";
 import { parseCoalPowerRequest } from "../lib/router.mjs";
 
 const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
-const recipe = (className, descriptor, name) => ({
+const recipe = (className, descriptor, name, extra = {}) => ({
   class_path: `/Game/Recipes/${className}.${className}_C`,
   name,
   available: true,
   produced_in: [BUILD_GUN],
   products: [{ item_class: `/Game/Desc/${descriptor}.${descriptor}_C`, item_name: name, amount: 1 }],
+  ...extra,
 });
+
+const COAL_CLASS = "/Game/FactoryGame/Resource/RawResources/Coal/Desc_Coal.Desc_Coal_C";
 
 const FULL_KIT = [
   recipe("Recipe_MinerMk1", "Desc_MinerMk1", "Miner Mk1"),
   recipe("Recipe_MinerMk2", "Desc_MinerMk2", "Miner Mk2"),
-  recipe("Recipe_GeneratorCoal", "Desc_GeneratorCoal", "Coal Generator"),
+  recipe("Recipe_GeneratorCoal", "Desc_GeneratorCoal", "Coal Generator", {
+    building_stats: {
+      fuels: [{ item_class: COAL_CLASS, item_name: "Coal", energy_mj_per_item: 300 }],
+    },
+  }),
   recipe("Recipe_ConveyorBeltMk2", "Desc_ConveyorBeltMk2", "Conveyor Belt Mk.2"),
   recipe("Recipe_ConveyorAttachmentSplitter", "Desc_ConveyorAttachmentSplitter", "Conveyor Splitter"),
 ];
@@ -43,6 +50,8 @@ const NODE = {
   name: "BP_ResourceNode618",
   node_type: "Node",
   occupied: false,
+  resource_class: COAL_CLASS,
+  resource_name: "Coal",
   location: { x: 367_000, y: -139_000, z: 5_500 },
 };
 
@@ -66,7 +75,7 @@ const plan = (options = {}) => {
     generator_count: "count" in options ? options.count : 4,
     build_recipe_lookup: solveBuildRecipeLookup,
     belt: findBestAvailableBelt(graph),
-    cell_size_cm: 800,
+    cell_size_cm: "cell" in options ? options.cell : 800,
   });
 };
 
@@ -152,6 +161,23 @@ test("a deposit or an occupied node is refused before anything is placed", () =>
   const taken = plan({ count: 2, node: { ...target, occupied: true } });
   assert.equal(taken.planned, false);
   assert.match(taken.reason, /already has something/i);
+});
+
+test("coal power refuses the wrong resource, guessed grid, and silently clamped counts", () => {
+  const iron = plan({
+    count: 2,
+    node: { ...target, resource_name: "Iron Ore", resource_class: "Desc_OreIron" },
+  });
+  assert.equal(iron.planned, false);
+  assert.match(iron.reason, /not coal/i);
+
+  const noGrid = plan({ count: 2, cell: null });
+  assert.equal(noGrid.planned, false);
+  assert.match(noGrid.reason, /grid.*unknown/i);
+
+  const tooMany = plan({ count: 12 });
+  assert.equal(tooMany.planned, false);
+  assert.match(tooMany.reason, /1 through 8/);
 });
 
 test("the request routes on how it was actually typed", () => {

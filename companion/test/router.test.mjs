@@ -5,6 +5,7 @@ import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   answerLocally,
+  describePlanRejection,
   parseClearRequest,
   parseExactBeltSolverRequest,
   parseShowRequest,
@@ -14,6 +15,12 @@ import {
 import { buildFactorySnapshot, MINER, SMELTER } from "./fixtures/factory.mjs";
 
 const graphOf = () => buildGraph(buildFactorySnapshot());
+
+test("oversized plan refusals report the requested count", () => {
+  const reply = describePlanRejection({ reason: "too_many_actions", requested: 513, limit: 512 });
+  assert.match(reply, /513 actions/);
+  assert.doesNotMatch(reply, /undefined/);
+});
 
 /* ---------------- what routes locally ---------------- */
 

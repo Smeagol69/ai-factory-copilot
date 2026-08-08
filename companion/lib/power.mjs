@@ -60,7 +60,7 @@ export function planCoalPower(graph, args = {}) {
     generator_count: requestedCount = null,
     build_recipe_lookup: lookup = null,
     belt = null,
-    cell_size_cm: cellSize = 800,
+    cell_size_cm: cellSize = null,
     spacing_cells: spacingCells = GENERATOR_SPACING_CELLS,
   } = args;
 
@@ -79,6 +79,33 @@ export function planCoalPower(graph, args = {}) {
       solver: "coal_power",
       planned: false,
       reason: "no resource node was resolved to mine from",
+    };
+  }
+  const origin = {
+    x: Number(node.location.x),
+    y: Number(node.location.y),
+    z: Number(node.location.z),
+  };
+  if (!Object.values(origin).every(Number.isFinite)) {
+    return {
+      solver: "coal_power",
+      planned: false,
+      reason: "the resource node has no complete finite XYZ position",
+    };
+  }
+  const resourceIdentity = `${node.resource_name ?? ""} ${node.resource_class ?? ""}`.toLowerCase();
+  if (!resourceIdentity.trim()) {
+    return {
+      solver: "coal_power",
+      planned: false,
+      reason: "the aimed node's resource is missing from the snapshot, so coal cannot be assumed",
+    };
+  }
+  if (!resourceIdentity.includes("coal")) {
+    return {
+      solver: "coal_power",
+      planned: false,
+      reason: `${node.on} contains ${node.resource_name ?? node.resource_class}, not coal`,
     };
   }
   if (node.node_type === "Deposit") {
@@ -114,10 +141,32 @@ export function planCoalPower(graph, args = {}) {
     };
   }
 
-  const count = Number.isInteger(requestedCount) && requestedCount > 0
-    ? Math.min(requestedCount, 8)
+  const compatibleFuels = generator.building_stats?.fuels;
+  if (Array.isArray(compatibleFuels) && compatibleFuels.length > 0) {
+    const exactFuel = compatibleFuels.some((fuel) =>
+      (node.resource_class && fuel.item_class === node.resource_class) ||
+      String(fuel.item_name ?? "").toLowerCase() === String(node.resource_name ?? "").toLowerCase()
+    );
+    if (!exactFuel) {
+      return {
+        solver: "coal_power",
+        planned: false,
+        reason: `${generator.name} does not list ${node.resource_name ?? node.resource_class} as a captured fuel`,
+      };
+    }
+  }
+
+  const count = Number.isInteger(requestedCount) && requestedCount >= 1 && requestedCount <= 8
+    ? requestedCount
     : null;
   if (count === null) {
+    if (requestedCount !== null && requestedCount !== undefined) {
+      return {
+        solver: "coal_power",
+        planned: false,
+        reason: "generator_count must be a whole number from 1 through 8",
+      };
+    }
     return {
       solver: "coal_power",
       planned: false,
@@ -133,9 +182,25 @@ export function planCoalPower(graph, args = {}) {
     };
   }
 
+  const cell = Number(cellSize);
+  const spacing = Number(spacingCells);
+  if (!Number.isFinite(cell) || cell <= 0) {
+    return {
+      solver: "coal_power",
+      planned: false,
+      reason: "no foundation grid was derived from this save, so generator spacing is unknown",
+    };
+  }
+  if (!Number.isInteger(spacing) || spacing < 1 || spacing > 8) {
+    return {
+      solver: "coal_power",
+      planned: false,
+      reason: "spacing_cells must be a whole number from 1 through 8",
+    };
+  }
+
   // The row runs off the node along +X, clear of the miner itself.
-  const step = cellSize * spacingCells;
-  const origin = node.location;
+  const step = cell * spacing;
   const generators = [];
   for (let index = 0; index < count; index += 1) {
     generators.push({
@@ -185,7 +250,7 @@ export function planCoalPower(graph, args = {}) {
         // A row parallel to the generators, one cell back toward the miner.
         location: {
           x: origin.x + step * (index + 1),
-          y: origin.y - cellSize,
+          y: origin.y - cell,
           z: origin.z,
         },
         yaw: 0,
@@ -233,7 +298,7 @@ export function planCoalPower(graph, args = {}) {
     generator_count: count,
     splitter_count: splitters.length,
     belt: belt.name ?? null,
-    spacing_cells: spacingCells,
+    spacing_cells: spacing,
     spacing_cm: step,
     actions: [minerAction, ...generators, ...splitters, ...belts],
     missing: {

@@ -111,12 +111,11 @@ function emitValidatedPlan(graph, services, proposals) {
 let lastPlanRejection = null;
 
 /** A readable sentence for a plan the validator would not accept. */
-function describePlanRejection() {
-  const rejection = lastPlanRejection;
+export function describePlanRejection(rejection = lastPlanRejection) {
   if (!rejection) return null;
   if (rejection.reason === "too_many_actions") {
     return (
-      `That plan is ${rejection.count} actions and the limit is ${rejection.limit}. ` +
+      `That plan is ${rejection.requested} actions and the limit is ${rejection.limit}. ` +
       "Ask for a smaller factory, fewer storeys, or say \"just the machines\" to " +
       "skip the building."
     );
@@ -1979,7 +1978,7 @@ export function answerLocally(question, graph, services) {
       generator_count: coalRequest.generator_count,
       build_recipe_lookup: solveBuildRecipeLookup,
       belt: findBestAvailableBelt(graph),
-      cell_size_cm: structural?.cell_size_cm ?? 800,
+      cell_size_cm: structural?.cell_size_cm ?? null,
     });
 
     if (!plan.planned) {

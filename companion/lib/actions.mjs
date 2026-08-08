@@ -469,6 +469,20 @@ export function validateAction(graph, proposal) {
     const fromStep = finite(proposal.from_step);
     const toStep = finite(proposal.to_step);
 
+    const fromSelectorCount = [fromComponent, fromActor, fromStep].filter(
+      (value) => value !== "" && value !== null,
+    ).length;
+    const toSelectorCount = [toComponent, toActor, toStep].filter(
+      (value) => value !== "" && value !== null,
+    ).length;
+    if (fromSelectorCount > 1 || toSelectorCount > 1) {
+      return reject(
+        kind,
+        "each_end_must_use_exactly_one_component_actor_or_step",
+        { from_selectors: fromSelectorCount, to_selectors: toSelectorCount },
+      );
+    }
+
     const hasFrom = Boolean(fromComponent || fromActor) || fromStep !== null;
     const hasTo = Boolean(toComponent || toActor) || toStep !== null;
 
@@ -651,6 +665,49 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
     if (!result.valid) {
       rejected.push({ step: index + 1, ...result });
       return;
+    }
+
+    // A step endpoint is meaningful only inside this plan. Validate the graph
+    // here, where the referenced proposals are still available, rather than
+    // letting the game mutate earlier steps and discover a forward/non-creator
+    // reference only when it reaches the belt. The game repeats these checks.
+    if (result.action.action === "place_belt") {
+      for (const field of ["from_step", "to_step"]) {
+        const referencedStep = result.action[field];
+        if (referencedStep === undefined) continue;
+
+        if (referencedStep >= index + 1) {
+          rejected.push({
+            step: index + 1,
+            ...reject("place_belt", `${field}_must_refer_to_an_earlier_step`, {
+              referenced_step: referencedStep,
+            }),
+          });
+          return;
+        }
+
+        const referencedProposal = list[referencedStep - 1];
+        if (!["place_building", "place_blueprint"].includes(referencedProposal?.action)) {
+          rejected.push({
+            step: index + 1,
+            ...reject("place_belt", `${field}_must_refer_to_an_actor_creating_step`, {
+              referenced_step: referencedStep,
+              referenced_action: referencedProposal?.action ?? null,
+            }),
+          });
+          return;
+        }
+
+        if (result.action.commit && referencedProposal.commit !== true) {
+          rejected.push({
+            step: index + 1,
+            ...reject("place_belt", `${field}_cannot_commit_from_a_preview_step`, {
+              referenced_step: referencedStep,
+            }),
+          });
+          return;
+        }
+      }
     }
     actions.push(result.action);
     for (const warning of result.warnings ?? []) {

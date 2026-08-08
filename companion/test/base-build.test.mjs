@@ -366,6 +366,35 @@ test("builds the shell before the machines that stand on it", () => {
   const firstStructural = actions.findIndex((a) => /Foundation/.test(a.recipe_class));
   const firstMachine = actions.findIndex((a) => /Constructor|Smelter/.test(a.recipe_class));
   assert.ok(firstStructural < firstMachine, "the deck goes down first");
+
+  const machineActionIndexes = new Set(
+    actions
+      .map((action, index) => ({ action, step: index + 1 }))
+      .filter(({ action }) => action.action === "place_building" && /Constructor|Smelter/.test(action.recipe_class))
+      .map(({ step }) => step),
+  );
+  for (const belt of actions.filter((action) => action.action === "place_belt")) {
+    assert.ok(machineActionIndexes.has(belt.from_step), "belt source must resolve to a machine, not shell");
+    assert.ok(machineActionIndexes.has(belt.to_step), "belt destination must resolve to a machine, not shell");
+  }
+});
+
+test("refuses unbounded machine counts and invalid enclosure geometry before allocating", () => {
+  const runaway = {
+    ...productionPlan,
+    steps: [{ ...productionPlan.steps[0], machines_required: Infinity }],
+  };
+  const base = planBaseBuild(housedGraph, { production_plan: runaway });
+  assert.equal(base.planned, false);
+  assert.match(base.reason, /finite positive machine count/);
+
+  const badLevels = planEnclosedFactory(housedGraph, {
+    production_plan: productionPlan,
+    plan_structure: planStructure,
+    levels: 1.5,
+  });
+  assert.equal(badLevels.planned, false);
+  assert.match(badLevels.reason, /levels must be a whole number/);
 });
 
 test("a raised factory gets pillars under it", () => {

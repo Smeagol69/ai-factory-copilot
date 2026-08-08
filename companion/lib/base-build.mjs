@@ -27,6 +27,7 @@
 /** Used only when nothing of a class has been built yet to measure. */
 const DEFAULT_MACHINE_SPACING_CM = 1_500;
 const DEFAULT_ROW_SPACING_CM = 1_800;
+const MAX_MACHINES_PER_PLAN = 256;
 
 /**
  * The best conveyor the player has actually unlocked.
@@ -152,8 +153,18 @@ export function planBaseBuild(graph, args = {}) {
     };
   }
 
-  const rowSpacing = Number(rowSpacingOverride) || DEFAULT_ROW_SPACING_CM;
-  const machineSpacing = Number(machineSpacingOverride) || DEFAULT_MACHINE_SPACING_CM;
+  const spacingOrDefault = (value, fallback) => value === null || value === undefined
+    ? fallback
+    : Number(value);
+  const rowSpacing = spacingOrDefault(rowSpacingOverride, DEFAULT_ROW_SPACING_CM);
+  const machineSpacing = spacingOrDefault(machineSpacingOverride, DEFAULT_MACHINE_SPACING_CM);
+  if (![rowSpacing, machineSpacing].every((value) => Number.isFinite(value) && value > 0 && value <= 100_000)) {
+    return {
+      solver: "base_build",
+      planned: false,
+      reason: "row_spacing_cm and machine_spacing_cm must be finite positive values no greater than 100000",
+    };
+  }
 
   // Deepest dependency first: raw inputs are built before what consumes them,
   // so every belt between rows runs forward along +X and none double back.
@@ -194,7 +205,22 @@ export function planBaseBuild(graph, args = {}) {
     const measured = typeof measureConnectors === "function"
       ? measureConnectors(graph, buildingClass)
       : null;
-    const count = Math.max(1, Math.ceil(Number(productionStep.machines_required) || 1));
+    const required = Number(productionStep.machines_required);
+    if (!Number.isFinite(required) || required <= 0) {
+      return {
+        solver: "base_build",
+        planned: false,
+        reason: `production step ${productionStep.step ?? "?"} has no finite positive machine count`,
+      };
+    }
+    const count = Math.ceil(required);
+    if (actionIndex + count > MAX_MACHINES_PER_PLAN) {
+      return {
+        solver: "base_build",
+        planned: false,
+        reason: `the layout needs more than ${MAX_MACHINES_PER_PLAN} machines and is refused before allocation`,
+      };
+    }
     const rowY = anchor.y + steps.length * rowSpacing;
 
     const positions = [];
@@ -345,8 +371,9 @@ export function planBaseBuild(graph, args = {}) {
  *
  * Steps are 1-based to match how the mod reports them back to the player.
  */
-export function baseBuildActions(plan, { commit = false } = {}) {
+export function baseBuildActions(plan, { commit = false, step_offset: stepOffset = 0 } = {}) {
   if (!plan?.planned) return [];
+  if (!Number.isInteger(stepOffset) || stepOffset < 0) return [];
 
   const actions = [];
   for (const step of plan.steps) {
@@ -369,8 +396,8 @@ export function baseBuildActions(plan, { commit = false } = {}) {
         action: "place_belt",
         recipe_class: plan.belt.recipe_class,
         // Resolved by the executor from what those steps built.
-        from_step: leg.from_action_index + 1,
-        to_step: leg.to_action_index + 1,
+        from_step: stepOffset + leg.from_action_index + 1,
+        to_step: stepOffset + leg.to_action_index + 1,
         commit,
       });
     }
@@ -414,6 +441,19 @@ export function planEnclosedFactory(graph, args = {}) {
     return { solver: "enclosed_factory", planned: false, reason: "no structure planner was provided" };
   }
 
+  const levels = Number(levelsArg);
+  const margin = Number(marginCells);
+  const raised = Number(raisedCm);
+  if (!Number.isInteger(levels) || levels < 1 || levels > 12) {
+    return { solver: "enclosed_factory", planned: false, reason: "levels must be a whole number from 1 through 12" };
+  }
+  if (!Number.isInteger(margin) || margin < 0 || margin > 8) {
+    return { solver: "enclosed_factory", planned: false, reason: "margin_cells must be a whole number from 0 through 8" };
+  }
+  if (!Number.isFinite(raised) || raised < 0 || raised > 100_000) {
+    return { solver: "enclosed_factory", planned: false, reason: "raised_cm must be finite and between 0 and 100000" };
+  }
+
   // The machines first: their count and footprint decide how big the shell is.
   const machinePlan = planBaseBuild(graph, {
     production_plan: production,
@@ -423,7 +463,12 @@ export function planEnclosedFactory(graph, args = {}) {
 
   // Probe the grid with a throwaway structure, so cell size comes from the
   // same place the real one will use rather than a second opinion.
-  const probe = planStructure(graph, { width_cells: 1, depth_cells: 1, height_cm: 0 });
+  const probe = planStructure(graph, {
+    ...(anchorOverride ? { origin_cm: anchorOverride } : {}),
+    width_cells: 1,
+    depth_cells: 1,
+    height_cm: 0,
+  });
   if (!probe.planned) return { ...probe, solver: "enclosed_factory" };
   const cell = probe.grid.cell_size_cm;
 
@@ -445,14 +490,13 @@ export function planEnclosedFactory(graph, args = {}) {
     return { ...step, cells_per_machine: widthCells, row_depth_cells: depthCells, row_width_cells: rowCells };
   });
 
-  const interiorWidth = widestRowCells + marginCells * 2;
+  const interiorWidth = widestRowCells + margin * 2;
   const interiorDepth =
-    rows.reduce((sum, row) => sum + row.row_depth_cells, 0) + marginCells * (rows.length + 1);
+    rows.reduce((sum, row) => sum + row.row_depth_cells, 0) + margin * (rows.length + 1);
 
   // With several storeys the rows are split between decks, so each floor only
   // has to be deep enough for its share. That is the entire point of building
   // upward rather than sideways, and it is what the reference builds do.
-  const levels = Math.max(1, Math.min(12, Math.round(Number(levelsArg) || 1)));
   const rowsPerLevel = Math.ceil(rows.length / levels);
   const deepestLevelCells = (() => {
     let deepest = 1;
@@ -460,7 +504,7 @@ export function planEnclosedFactory(graph, args = {}) {
       const slice = rows.slice(level * rowsPerLevel, (level + 1) * rowsPerLevel);
       if (slice.length === 0) continue;
       const depth =
-        slice.reduce((sum, row) => sum + row.row_depth_cells, 0) + marginCells * (slice.length + 1);
+        slice.reduce((sum, row) => sum + row.row_depth_cells, 0) + margin * (slice.length + 1);
       deepest = Math.max(deepest, depth);
     }
     return deepest;
@@ -472,7 +516,7 @@ export function planEnclosedFactory(graph, args = {}) {
           levels,
           width_cells: interiorWidth,
           depth_cells: deepestLevelCells,
-          height_cm: raisedCm,
+          height_cm: raised,
           glass_roof: glassRoof,
           clear_terrain: true,
           // Site chosen by the solver when the request asked for one,
@@ -485,7 +529,7 @@ export function planEnclosedFactory(graph, args = {}) {
       : planStructure(graph, {
           width_cells: interiorWidth,
           depth_cells: interiorDepth,
-          height_cm: raisedCm,
+          height_cm: raised,
           glass_roof: glassRoof,
           clear_terrain: true,
           // Site chosen by the solver when the request asked for one,
@@ -503,16 +547,16 @@ export function planEnclosedFactory(graph, args = {}) {
   const placed = rows.map((row, rowIndex) => {
     const level = Math.min(decks.length - 1, Math.floor(rowIndex / rowsPerLevel));
     const deck = decks[level];
-    const cursor = rowCursors.get(level) ?? marginCells;
+    const cursor = rowCursors.get(level) ?? margin;
     const y = deck.min_y_cm + cursor * cell;
-    rowCursors.set(level, cursor + row.row_depth_cells + marginCells);
+    rowCursors.set(level, cursor + row.row_depth_cells + margin);
     return {
       ...row,
       level: level + 1,
       positions: row.positions.map((position, machineIndex) => ({
         ...position,
         location_cm: {
-          x: deck.min_x_cm + (marginCells + machineIndex * row.cells_per_machine) * cell,
+          x: deck.min_x_cm + (margin + machineIndex * row.cells_per_machine) * cell,
           y,
           z: deck.floor_z_cm,
         },
@@ -535,7 +579,10 @@ export function planEnclosedFactory(graph, args = {}) {
     structure: { ...structure, parts: structure.parts },
     machines: { ...machinePlan, steps: placed },
     grid_cell_cm: cell,
-    interior_cells: { width: interiorWidth, depth: interiorDepth },
+    interior_cells: {
+      width: interiorWidth,
+      depth: levels > 1 ? deepestLevelCells : interiorDepth,
+    },
     notes,
     unverified: structure.unverified,
   };
@@ -553,6 +600,9 @@ export function enclosedFactoryActions(plan, { commit = false, structure_actions
   const shell = typeof structureActions === "function"
     ? structureActions(plan.structure, { commit })
     : [];
-  const inside = baseBuildActions(plan.machines, { commit });
+  // Machine-relative step references must be shifted past the shell. Without
+  // this, every housed-factory belt resolves to a foundation or wall instead
+  // of the machine it was designed to connect.
+  const inside = baseBuildActions(plan.machines, { commit, step_offset: shell.length });
   return [...shell, ...inside];
 }

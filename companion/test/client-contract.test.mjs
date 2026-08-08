@@ -32,3 +32,39 @@ test("the game refuses stale or oversized action plans whole", () => {
   assert.match(subsystem, /TEXT\("game_actions_refused"\),\s*bActionsRefused/);
   assert.doesNotMatch(subsystem, /Requested\.SetNum\(/);
 });
+
+test("the game defers step-referenced belt preflight until its actors exist", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /bDeferredStepReferences/);
+  assert.match(actions, /must_refer_to_an_earlier_step/);
+  assert.match(actions, /must_refer_to_an_actor_creating_step/);
+  assert.match(actions, /preflight_deferred_until_step_references_resolve/);
+  assert.match(
+    actions,
+    /ResolveActionStepReferences\(Item\.Spec, OutResults\);[\s\S]*RunActionSpec\(Context, Item\.Spec\)/,
+  );
+
+  const deferred = actions.indexOf("if (Item.bDeferredStepReferences)");
+  const ordinaryPreflight = actions.indexOf("Item.Preflight = RunActionSpec(Context, Item.Spec)");
+  assert.ok(deferred >= 0 && deferred < ordinaryPreflight);
+});
+
+test("a missing placement target is refused before a hologram is spawned", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const targetLookup = actions.indexOf("PlacementTarget = FindActionActorByPathName");
+  const hologramSpawn = actions.indexOf("AFGHologram* Hologram = AFGHologram::SpawnHologramFromRecipe");
+  assert.ok(targetLookup >= 0 && targetLookup < hologramSpawn);
+});

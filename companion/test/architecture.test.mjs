@@ -226,7 +226,7 @@ test("model tool exposes a dry-run preview and names the transaction limit", () 
 
 /* ---------------- stacked storeys ---------------- */
 
-import { planTower } from "../lib/architecture.mjs";
+import { groundUnderFootprint, planTower } from "../lib/architecture.mjs";
 
 test("stacks storeys at a height measured from the pieces used", () => {
   const tower = planTower(graph, { levels: 3, width_cells: 4, depth_cells: 3, height_cm: 800, inset_cells: 0 });
@@ -334,4 +334,30 @@ test("a building too small to keep stepping is shortened, not failed", () => {
   assert.equal(squat.planned, true);
   assert.ok(squat.levels < squat.levels_requested, "should stop before running out of floor");
   assert.ok(squat.notes.some((note) => /runs out of floor/.test(note)));
+  assert.equal(squat.ramps, squat.levels - 1, "ramps must not lead to storeys that were truncated");
+  assert.equal(
+    squat.total_height_cm,
+    squat.raised_cm + squat.levels * squat.storey_height_cm,
+    "reported height must describe the storeys that exist",
+  );
+  assert.ok(squat.parts.some((part) => part.kind === "roof"), "the actual top storey needs a roof");
+});
+
+test("scan-centre terrain is never reused for a distant structure", () => {
+  const terrainGraph = buildGraph({
+    ...graph.snapshot,
+    world: { ...graph.snapshot.world, scan_center: { x: 0, y: 0, z: 0 } },
+    terrain: {
+      probe_footprint_meters: 24,
+      at_scan_center: { sampled: true, min_ground_z: 10, max_ground_z: 20, verdict: "buildable" },
+    },
+  });
+
+  const here = groundUnderFootprint(terrainGraph, { centre_cm: { x: 0, y: 0, z: 0 } });
+  assert.equal(here.measured, true);
+  assert.equal(here.highest_ground_z, 20);
+
+  const far = groundUnderFootprint(terrainGraph, { centre_cm: { x: 100_000, y: 100_000, z: 0 } });
+  assert.equal(far.measured, false);
+  assert.match(far.reason, /no terrain was probed/i);
 });
