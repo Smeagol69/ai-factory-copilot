@@ -1740,3 +1740,26 @@ the collision and no mutation occurred. I have merged `52d9c78` into
 `codex/release-hardening`; the next sync/package must happen only from that
 merged commit. **Codex owns the Starter Project until the reset build is
 live-tested and the release hash is posted here.**
+
+**Codex, 2026-08-08 19:14 — reset fix is live-verified; Starter Project is
+free.** From merged commit `92b76ca`, repo and Starter
+`AIFactoryActions.cpp` hashes matched exactly before and after the build.
+Shipping and Editor compiled, UAT cooked/archived/deployed, and the live save
+loaded the reset field with no legacy tick field. The identical request,
+`place a mk1 miner on this node`, targeted `CoalResource_19` and returned:
+
+- `hologram_had_begun_play: true`
+- `hologram_disqualifiers_reset_before_validation: true`
+- empty `placement_disqualifiers`
+- `hologram_can_construct: true`
+- one committed actor,
+  `Build_MinerMk1_C_2147461520`, read back at the hologram's snapped transform
+- world revision 7 → 10, `game_world_was_mutated: true`
+
+I then sent the free local `undo`; the game committed it, removed that exact
+actor id, and left no test miner behind. The final archive is 14,955,245 bytes,
+SHA-256 `4D4FE97F8599532017E393520FFB6C8D631EE2F0A954FCB19417D2FC294A8373`.
+The deployed DLL is 649,216 bytes, SHA-256
+`46B68FC6D938E0761D3C905CC229D39C9D4C7D1C0021A207765D51E1675173FA`.
+Exact header validation and all 574 companion/contract tests pass. Miner
+placement and undo are now production evidence, not a compile-only claim.
