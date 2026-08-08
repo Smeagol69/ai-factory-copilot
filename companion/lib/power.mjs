@@ -49,6 +49,70 @@ function resolveFirst(graph, lookup, candidates) {
 }
 
 /**
+ * How a node's purity scales what a miner pulls out of it.
+ *
+ * Written down here, in one place, and reported in the reply, because it is the
+ * one number in this file the snapshot does not supply. Every other rate comes
+ * from `building_stats`, which the mod reads off the class default object. If
+ * this table is ever wrong the reply says which multiplier it used, so it shows
+ * up as a number to correct rather than a silently wrong plant.
+ */
+const PURITY_MULTIPLIER = { impure: 0.5, normal: 1, pure: 2 };
+
+function statsFor(graph, recipeClass) {
+  for (const recipe of graph?.snapshot?.content?.recipes ?? []) {
+    if (recipe.class_path === recipeClass) return recipe.building_stats ?? null;
+  }
+  return null;
+}
+
+/**
+ * How many generators one node keeps fed, or null when the save cannot say.
+ *
+ * The owner's objection was that the copilot knows the node purity and the tech
+ * tier, so it should not have to ask. It should not, and now it does not --
+ * once the mod ships `building_stats`. Until then this returns null and the
+ * question stands, which is the honest state rather than a guess.
+ */
+export function sizeGeneratorsForNode(graph, { miner, generator, purity, fuel_item_class: fuelClass }) {
+  const minerStats = statsFor(graph, miner?.recipe_class);
+  const generatorStats = statsFor(graph, generator?.recipe_class);
+
+  const perMinuteAtNormal = Number(minerStats?.items_per_minute_at_normal_purity);
+  const multiplier = PURITY_MULTIPLIER[String(purity ?? "normal").toLowerCase()];
+  if (!Number.isFinite(perMinuteAtNormal) || perMinuteAtNormal <= 0) return null;
+  if (!Number.isFinite(multiplier)) return null;
+
+  // The generator burns whichever of its fuels this node actually produces.
+  const fuels = Array.isArray(generatorStats?.fuels) ? generatorStats.fuels : [];
+  const burning = fuelClass
+    ? fuels.find((entry) => String(entry.item_class) === String(fuelClass))
+    : fuels[0];
+  const burnPerMinute = Number(burning?.items_per_minute_at_full_load);
+  if (!Number.isFinite(burnPerMinute) || burnPerMinute <= 0) return null;
+
+  const mined = perMinuteAtNormal * multiplier;
+  // Whole generators only, and never more than the coal actually supports: a
+  // starved generator stutters the whole circuit rather than running slower.
+  const count = Math.floor(mined / burnPerMinute);
+  if (count < 1) return null;
+
+  return {
+    count,
+    mined_per_minute: mined,
+    burn_per_minute: burnPerMinute,
+    purity: purity ?? "normal",
+    purity_multiplier: multiplier,
+    leftover_per_minute: Math.round((mined - count * burnPerMinute) * 100) / 100,
+    power_mw: Number(generatorStats?.power_production_mw) * count || null,
+    water_per_minute:
+      generatorStats?.requires_supplemental_resource === true
+        ? Number(generatorStats?.supplemental_per_minute) * count || null
+        : null,
+  };
+}
+
+/**
  * A miner on the node, generators beside it, belts between.
  *
  * `lookup` and `cell_size_cm` are injected so this stays arithmetic over the
@@ -114,20 +178,31 @@ export function planCoalPower(graph, args = {}) {
     };
   }
 
+  // Work it out when the save can say, and only ask when it cannot.
+  const sized = Number.isInteger(requestedCount) && requestedCount > 0
+    ? null
+    : sizeGeneratorsForNode(graph, {
+        miner,
+        generator,
+        purity: node.purity,
+        fuel_item_class: node.resource_class ?? null,
+      });
+
   const count = Number.isInteger(requestedCount) && requestedCount > 0
     ? Math.min(requestedCount, 8)
-    : null;
+    : (sized?.count ?? null);
   if (count === null) {
     return {
       solver: "coal_power",
       planned: false,
       reason: "how many generators?",
-      // Not a shrug: the burn rate that would answer this is not captured, so
-      // the player is the only authority on it here.
+      // Not a shrug: the rates that would answer this are not in this
+      // snapshot, so the player is the only authority on it here. Once the mod
+      // ships building_stats the question stops being asked.
       why_unknown:
-        "A coal generator's fuel rate is not in the snapshot, so the number one " +
-        "node supports cannot be worked out from this save. Say how many you " +
-        'want — for example "coal power here with 4 generators".',
+        "A coal generator's fuel rate is not in this snapshot, so the number " +
+        "one node supports cannot be worked out yet. Say how many you want — " +
+        'for example "coal power here with 4 generators".',
       miner: miner.name,
       generator: generator.name,
     };
@@ -231,6 +306,9 @@ export function planCoalPower(graph, args = {}) {
     miner: miner.name,
     generator: generator.name,
     generator_count: count,
+    // Present only when the count was worked out rather than asked for, so the
+    // reply can show its arithmetic instead of asserting a number.
+    sizing: sized ?? null,
     splitter_count: splitters.length,
     belt: belt.name ?? null,
     spacing_cells: spacingCells,

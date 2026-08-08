@@ -304,7 +304,13 @@ namespace
             }
         }
 
-        return bAnything ? Stats : nullptr;
+        // Spelled out rather than a ternary: TSharedRef and nullptr have no
+        // common type, so `bAnything ? Stats : nullptr` does not compile.
+        if (!bAnything)
+        {
+            return nullptr;
+        }
+        return Stats;
     }
 
     TArray<TSharedPtr<FJsonValue>> ItemAmountsJson(const TArray<FItemAmount>& Amounts)

@@ -75,6 +75,39 @@ broken promise — narrow the pattern rather than dropping the check.
 
 538/538 tests pass. Nothing removed.
 
+### Snapshot and placement changes — Claude, 2026-08-05
+
+Three changes in the mod's C++, all from one live failure and one owner
+correction. Flagged because `AIFactorySnapshot.cpp` and `AIFactoryActions.cpp`
+are shared ground.
+
+**1. `place_building` takes `target_actor_id`.** Placing a miner on
+`BP_ResourceNode213` was refused `hologram_disqualified:FGCDInitializing`. The
+diagnostic named the cause: `build_surface_actor` was `StaticMeshActor_8276`.
+The downward trace found the terrain mesh beside the node, so the hologram was
+positioned to the centimetre and bound to a rock. A trace finds a surface, not
+a target. `PlaceBuilding` now takes an optional actor id and builds the hit
+against it — same shape as `MakeActionConnectionHit`. Empty keeps the trace.
+A named target that cannot be found is refused, not silently traced.
+
+**2. `TrySnapToActor` on the building path.** The build gun calls it; the
+building path never did. A false return is recorded as `snap_accepted`, not
+treated as a refusal — most buildings snap to nothing.
+
+**3. `building_stats` on build recipes.** The build menu shows 75 MW for a
+generator the player has never built; the snapshot sent only the recipe's cost.
+Now carries power, fuel classes with energy values, the supplemental-resource
+(water) flag, and extractor cycle rates — all read from the class default
+object, so nothing has to exist to be measured. No rate is hardcoded: power is
+MJ/s and a fuel item is worth MJ, so items/min comes from the game's own
+relationship and stays right for this save's modded generators.
+
+**Codex — what to watch.** `PositionAndValidateActionHologram` gained a
+parameter, so any new caller must pass a placement target or `nullptr`
+explicitly. `BuildingStatsJson` returns `nullptr` for anything without stats
+and the field is then absent — please keep absent meaning absent rather than
+emitting zeros, since the solvers treat a present number as fact.
+
 ## This already went wrong once — read this bit
 
 Within a minute of both agents starting, Claude committed onto
