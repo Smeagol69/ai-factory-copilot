@@ -734,6 +734,24 @@ namespace
         // hologram that never settles fails as a refusal rather than a hang,
         // and the count is reported so a building that needs an unusual number
         // of ticks is visible instead of silently slow.
+        // Eight ticks did not clear it, which rules the tick theory out on its
+        // own and points at the thing underneath: a hologram whose BeginPlay
+        // has not run reports "Initializing" *and* ignores ticks, because
+        // AActor::Tick is gated on having begun play. Both symptoms, one cause.
+        //
+        // So state it and fix it, guarded. DispatchBeginPlay is a no-op risk
+        // only if called twice, and HasActorBegunPlay is exactly the question.
+        // Both are reported either way: if begun play was already true then
+        // this theory is wrong too, and the next step needs to know that rather
+        // than infer it from another silent refusal.
+        Predicted->SetBoolField(TEXT("hologram_had_begun_play"), Hologram->HasActorBegunPlay());
+        Predicted->SetBoolField(TEXT("hologram_tick_enabled"), Hologram->IsActorTickEnabled());
+        if (!Hologram->HasActorBegunPlay())
+        {
+            Hologram->DispatchBeginPlay();
+        }
+        Predicted->SetBoolField(TEXT("hologram_begun_play_after"), Hologram->HasActorBegunPlay());
+
         constexpr int32 MaximumInitializationTicks = 8;
         constexpr float InitializationTickSeconds = 1.0f / 60.0f;
         int32 InitializationTicks = 0;
