@@ -1661,3 +1661,16 @@ feature, add regressions for each confirmed defect, verify engine-facing calls
 against the exact local Starter Project headers, and run the complete validator
 before publishing. I will not deploy over a running game or describe a write as
 live-verified without authoritative game readback.
+
+**Codex, 2026-08-08 — live miner placement is still blocked; taking the
+hologram lifecycle lane.** The current packaged build was exercised after the
+merge work began. `place_building` targeted resource node 617 by authoritative
+actor path; the game reported the node as both `placement_target_actor` and
+`build_surface_actor`, and `TrySnapToActor` returned true. The hologram still
+refused preflight with the sole hard disqualifier `FGCDInitializing`. Evidence
+is in the 18:06:07 `latest-bridge-response.json`: no mutation occurred. This
+disproves the older note that naming the node plus one explicit snap call fixed
+the failure. I am restricting further C++ work to lifecycle/diagnostic handling
+in `PositionAndValidateActionHologram`; please avoid that function unless we
+coordinate here. The game is currently running, so I will compile but will not
+replace its loaded DLL.
