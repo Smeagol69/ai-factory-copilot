@@ -691,13 +691,24 @@ namespace
                     RequestedYaw));
         }
 
+        // Keep Claude's lifecycle diagnostics and guarded fallback: the live
+        // extractor proved BeginPlay had already run, but a future custom
+        // hologram may expose a different spawn lifecycle.
+        Predicted->SetBoolField(TEXT("hologram_had_begun_play"), Hologram->HasActorBegunPlay());
+        Predicted->SetBoolField(TEXT("hologram_tick_enabled"), Hologram->IsActorTickEnabled());
+        if (!Hologram->HasActorBegunPlay())
+        {
+            Hologram->DispatchBeginPlay();
+        }
+        Predicted->SetBoolField(TEXT("hologram_begun_play_after"), Hologram->HasActorBegunPlay());
+
         // AFGHologram::BeginPlay deliberately starts an authority-side
         // hologram with FGCDInitializing. Both of Satisfactory's real
         // validation paths clear the previous pass first: the build gun's
         // TickState and Server_ConstructHologram each call
         // ResetConstructDisqualifiers immediately before
         // ValidatePlacementAndCost. Skipping that reset leaves the initial
-        // sentinel in the array forever; manually ticking the actor does not
+        // sentinel in the array forever; repeatedly ticking the actor does not
         // remove it and is not equivalent to running the build-gun lifecycle.
         Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
