@@ -1982,8 +1982,7 @@ export function answerLocally(question, graph, services) {
     });
 
     if (!plan.planned) {
-      // "how many generators?" is a question, not a failure, and it is the one
-      // thing here the save genuinely cannot answer.
+      // Older snapshots may still lack the class rates needed to answer this.
       const detail = plan.why_unknown ? ` ${plan.why_unknown}` : "";
       return localAnswer(
         `${plan.reason === "how many generators?" ? "**How many generators?**" : `I can't set that up: ${plan.reason}.`}${detail}`,
@@ -1995,6 +1994,11 @@ export function answerLocally(question, graph, services) {
 
     const emitted = emitValidatedPlan(graph, services, plan.actions);
     if (emitted) {
+      const sizing = plan.sizing
+        ? `Captured rates: ${plan.sizing.mined_per_minute}/min from this ${plan.sizing.purity} node ` +
+          `(${plan.sizing.purity_multiplier}× purity) ÷ ${plan.sizing.burn_per_minute}/min per generator ` +
+          `= **${plan.generator_count} generators**.\n\n`
+        : "";
       const chain =
         plan.splitter_count > 0
           ? `${plan.generator_count} × **${plan.generator}** in a row ` +
@@ -2003,7 +2007,7 @@ export function answerLocally(question, graph, services) {
             `rather than belted four ways off one connector`
           : `one **${plan.generator}** belted straight off it`;
       return localAnswer(
-        `Coal power off **${plan.node}**: one **${plan.miner}** on the node, ${chain}.\n\n` +
+        `Coal power off **${plan.node}**: one **${plan.miner}** on the node, ${chain}.\n\n${sizing}` +
           `**${plan.missing.water}**\n\n` +
           `Spacing is stated, not measured — no generator exists here to measure one from. ` +
           `The game refuses anything that does not fit and names it. Say "undo" to reverse it all.`,

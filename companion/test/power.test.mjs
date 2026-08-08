@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
-import { planCoalPower } from "../lib/power.mjs";
+import { planCoalPower, sizeGeneratorsForNode } from "../lib/power.mjs";
 import { solveBuildRecipeLookup } from "../lib/solvers.mjs";
 import { findBestAvailableBelt } from "../lib/base-build.mjs";
 import { parseCoalPowerRequest } from "../lib/router.mjs";
@@ -125,12 +125,13 @@ test("step references only ever point backwards", () => {
 });
 
 test("the plant is not sized by guessing a burn rate", () => {
-  // A coal generator's fuel rate is not in the snapshot. Inventing 15/min would
-  // be the exact habit this project exists to break, so it asks instead.
+  // A snapshot without building_stats cannot say what a generator burns.
+  // Inventing 15/min would be the exact habit this project exists to break, so
+  // it asks instead. FULL_KIT deliberately carries no stats.
   const result = plan({ count: null });
   assert.equal(result.planned, false);
   assert.equal(result.reason, "how many generators?");
-  assert.match(result.why_unknown, /not in the snapshot/i);
+  assert.match(result.why_unknown, /not in this snapshot/i);
 });
 
 test("water is reported missing rather than quietly skipped", () => {
@@ -224,4 +225,132 @@ test("a node with no actor id places without one rather than sending an empty st
   );
   assert.ok(miner);
   assert.equal("target_actor_id" in miner, false);
+});
+
+/* ---------------- sizing the plant from the save ---------------- */
+
+// The owner's objection: it knows the node purity and the tech tier, so it
+// should not have to ask how many generators. Once the mod reports
+// building_stats it does not. These are real Satisfactory numbers, but none of
+// them is written down in the source -- they are derived from the class data
+// the snapshot now carries, which is what keeps them right for modded
+// generators too.
+const MINER_MK1 = "/Game/Recipes/Recipe_MinerMk1.Recipe_MinerMk1_C";
+const COAL_GENERATOR = "/Game/Recipes/Recipe_GeneratorCoal.Recipe_GeneratorCoal_C";
+
+const withStats = (className, descriptor, name, buildingStats) => ({
+  ...recipe(className, descriptor, name),
+  building_stats: buildingStats,
+});
+
+const STATTED_KIT = [
+  withStats("Recipe_MinerMk1", "Desc_MinerMk1", "Miner Mk.1", {
+    extracted_items_per_cycle: 1,
+    extract_cycle_seconds: 1,
+    items_per_minute_at_normal_purity: 60,
+  }),
+  withStats("Recipe_GeneratorCoal", "Desc_GeneratorCoal", "Coal-Powered Generator", {
+    power_production_mw: 75,
+    requires_supplemental_resource: true,
+    supplemental_resource_class: "/Game/Desc/Desc_Water.Desc_Water_C",
+    fuels: [
+      {
+        item_class: COAL_CLASS,
+        item_name: "Coal",
+        energy_mj_per_item: 300,
+        items_per_minute_at_full_load: 15,
+      },
+    ],
+  }),
+  recipe("Recipe_ConveyorBeltMk2", "Desc_ConveyorBeltMk2", "Conveyor Belt Mk.2"),
+  recipe("Recipe_ConveyorAttachmentSplitter", "Desc_ConveyorAttachmentSplitter", "Conveyor Splitter"),
+];
+
+const sizedGraph = () =>
+  buildGraph({
+    world_revision: 1,
+    world: { scan_center: NODE.location },
+    interaction_context: {
+      player: { pawn_available: true, pawn_location: NODE.location },
+    },
+    actors: [NODE],
+    content: { items: [], recipes: STATTED_KIT },
+  });
+
+test("purity decides the plant size, and the save supplies the rates", () => {
+  const graph = sizedGraph();
+  const sizeFor = (purity) =>
+    sizeGeneratorsForNode(graph, {
+      miner: { recipe_class: MINER_MK1 },
+      generator: { recipe_class: COAL_GENERATOR },
+      purity,
+      fuel_item_class: COAL_CLASS,
+    });
+
+  // 60/min mined, 15/min burned. Doubling and halving with purity.
+  assert.equal(sizeFor("Impure").count, 2);
+  assert.equal(sizeFor("Normal").count, 4);
+  assert.equal(sizeFor("Pure").count, 8);
+  assert.equal(sizeFor("RP_Inpure").count, 2);
+  assert.equal(sizeFor("RP_Normal").count, 4);
+  assert.equal(sizeFor("RP_Pure").count, 8);
+  assert.equal(sizeFor("Normal").power_mw, 300);
+  // Nothing left stranded on the belt at normal purity.
+  assert.equal(sizeFor("Normal").leftover_per_minute, 0);
+});
+
+test("missing or unrecognized purity stays unknown", () => {
+  const graph = sizedGraph();
+  const sizeFor = (purity) =>
+    sizeGeneratorsForNode(graph, {
+      miner: { recipe_class: MINER_MK1 },
+      generator: { recipe_class: COAL_GENERATOR },
+      purity,
+      fuel_item_class: COAL_CLASS,
+    });
+  assert.equal(sizeFor(null), null);
+  assert.equal(sizeFor("RP_Unknown"), null);
+});
+
+test("a sized node no longer asks how many generators", () => {
+  const graph = sizedGraph();
+  const result = planCoalPower(graph, {
+    node: { resolved: true, ...NODE, purity: "RP_Normal", resource_class: COAL_CLASS, on: NODE.name },
+    generator_count: null,
+    build_recipe_lookup: solveBuildRecipeLookup,
+    belt: findBestAvailableBelt(graph),
+    cell_size_cm: 800,
+  });
+  assert.equal(result.planned, true);
+  assert.equal(result.generator_count, 4);
+  assert.equal(result.splitter_count, 3);
+  assert.equal(result.sizing.purity_multiplier, 1);
+});
+
+test("an explicit count still wins over the derived one", () => {
+  // The player asked for two. Working out that four fit is not permission to
+  // build four.
+  const graph = sizedGraph();
+  const result = planCoalPower(graph, {
+    node: { resolved: true, ...NODE, purity: "Normal", resource_class: COAL_CLASS, on: NODE.name },
+    generator_count: 2,
+    build_recipe_lookup: solveBuildRecipeLookup,
+    belt: findBestAvailableBelt(graph),
+    cell_size_cm: 800,
+  });
+  assert.equal(result.generator_count, 2);
+  assert.equal(result.sizing, null);
+});
+
+test("without building_stats it goes back to asking rather than guessing", () => {
+  assert.equal(plan({ count: null }).planned, false);
+  assert.equal(
+    sizeGeneratorsForNode(graphWith(FULL_KIT), {
+      miner: { recipe_class: MINER_MK1 },
+      generator: { recipe_class: COAL_GENERATOR },
+      purity: "Normal",
+      fuel_item_class: COAL_CLASS,
+    }),
+    null,
+  );
 });
