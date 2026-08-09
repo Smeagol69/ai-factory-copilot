@@ -138,18 +138,61 @@ test("conveyor snap gates name the exact expected endpoint buildables", () => {
   assert.match(actions, /Belt->GetAnyConnectedBuildables\(\)/);
   assert.match(
     actions,
-    /IsValid\(FromBuildable\) && SourceSnappedBuildables\.Contains\(FromBuildable\)/,
+    /FromBuildable = Cast<AFGBuildable>\(From->GetOwner\(\)\)/,
   );
   assert.match(
     actions,
-    /IsValid\(ToBuildable\) && DestinationSnappedBuildables\.Contains\(ToBuildable\)/,
+    /ToBuildable = Cast<AFGBuildable>\(To->GetOwner\(\)\)/,
   );
+  assert.match(
+    actions,
+    /DestinationSnappedBuildables\.Contains\(FromBuildable\)/,
+  );
+  const firstAdvance = actions.indexOf("Belt->DoMultiStepPlacement(false)");
+  const sourceReadback = actions.indexOf("const TArray<AFGBuildable*> SourceSnappedBuildables");
   const sourceGate = actions.indexOf("if (!bExpectedSourceBuildableSnapped)");
-  const firstAdvance = actions.indexOf("Belt->DoMultiStepPlacement(false)", sourceGate);
-  const destinationGate = actions.indexOf("if (!bExpectedDestinationBuildableSnapped)");
+  const destinationSnap = actions.indexOf("Belt->TrySnapToActor(ToHit)");
+  const destinationGate = actions.indexOf(
+    "if (!bExpectedSourceBuildableStillSnapped || !bExpectedDestinationBuildableSnapped)",
+  );
   const validate = actions.indexOf("Belt->ValidatePlacementAndCost", destinationGate);
-  assert.ok(sourceGate >= 0 && sourceGate < firstAdvance);
+  assert.ok(firstAdvance >= 0 && firstAdvance < sourceReadback);
+  assert.ok(sourceReadback < sourceGate && sourceGate < destinationSnap);
   assert.ok(destinationGate >= 0 && destinationGate < validate);
+});
+
+test("a conveyor is revalidated, charged, and accepted only after exact endpoint readback", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const beltStart = actions.indexOf("FAIFactoryActionResult PlaceBelt(");
+  const beltEnd = actions.indexOf("FAIFactoryActionResult DismantleActor(", beltStart);
+  const belt = actions.slice(beltStart, beltEnd);
+
+  assert.match(belt, /AFGBuildableConveyorBase/);
+  assert.match(belt, /ConstructedBelt->GetConnection0\(\)/);
+  assert.match(belt, /ConstructedBelt->GetConnection1\(\)/);
+  assert.match(
+    belt,
+    /Left->GetConnection\(\) == Right &&\s*Right->GetConnection\(\) == Left/,
+  );
+  assert.match(belt, /constructed_belt_endpoints_did_not_match_requested_components/);
+  assert.match(belt, /IFGDismantleInterface::Execute_Dismantle\(Buildable\)/);
+
+  const finalStep = belt.indexOf("Belt->DoMultiStepPlacement(true)");
+  const finalRevalidation = belt.indexOf("hologram_revalidated_after_final_build_step");
+  const cost = belt.indexOf("NormalizeActionCost(Belt->GetCost(true))");
+  const exactReadback = belt.indexOf("const bool bExactEndpoints");
+  const exactGate = belt.indexOf("if (!bExactEndpoints)");
+  const charge = belt.indexOf("ChargeActionCost(Cost, Inventory)");
+  const journal = belt.indexOf("RecordActionUndo(MoveTemp(Step))");
+  assert.ok(finalStep >= 0 && finalStep < finalRevalidation && finalRevalidation < cost);
+  assert.ok(cost < exactReadback && exactReadback < exactGate);
+  assert.ok(exactGate < charge && charge < journal);
 });
 
 test("the game rejects a locked belt recipe before spawning its hologram", () => {

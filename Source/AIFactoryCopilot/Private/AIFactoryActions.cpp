@@ -4,6 +4,7 @@
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
+#include "Buildables/FGBuildableConveyorBase.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "CollisionQueryParams.h"
 #include "Components/PrimitiveComponent.h"
@@ -2246,6 +2247,15 @@ FAIFactoryActionResult PlaceBelt(
     {
         return FAIFactoryActionResult::Refuse(Action, Blocked);
     }
+    if (!IsValid(Context.Player))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player"));
+    }
+    UFGInventoryComponent* Inventory = Context.Player->GetInventory();
+    if (!IsValid(Inventory))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player_inventory"));
+    }
 
     UFGFactoryConnectionComponent* From = FindActionFactoryConnection(FromConnectionComponent);
     UFGFactoryConnectionComponent* To = FindActionFactoryConnection(ToConnectionComponent);
@@ -2404,13 +2414,29 @@ FAIFactoryActionResult PlaceBelt(
         TEXT("source_connection_snapped_true"),
         Belt->IsConnectionSnapped(true));
 
-    // IsConnectionSnapped's boolean selects an internal spline endpoint; it is
-    // not a statement about the exact component passed above. The conveyor
-    // hologram exposes the authoritative actor-level answer directly. Require
-    // the owner of the selected source component to be among its current
-    // snapped buildables, then keep the final component-to-component readback
-    // after construction as the stricter proof.
-    AFGBuildable* FromBuildable = From->GetOuterBuildable();
+    const ESplineHologramBuildStep SourceStep = Belt->GetCurrentBuildStep();
+    const bool bFinishedAtSource = Belt->DoMultiStepPlacement(false);
+    if (bFinishedAtSource || Belt->GetCurrentBuildStep() == SourceStep)
+    {
+        // DoMultiStepPlacement returns true only when placement is finished.
+        // At the source it must instead advance to the destination step.
+        Belt->Destroy();
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            bFinishedAtSource
+                ? TEXT("belt_hologram_finished_before_destination")
+                : TEXT("belt_hologram_did_not_advance_from_source"));
+    }
+
+    // GetAnyConnectedBuildables deliberately hides its stored source while the
+    // hologram is still at SHBS_FindStart. TrySnapToActor records the component
+    // but does not advance that step, so reading it before the successful
+    // DoMultiStepPlacement above is guaranteed to return an empty array. Now
+    // that the source is locked, require the exact actor owner used by the
+    // engine's own GetAnyConnectedBuildables implementation. The final
+    // component-to-component world readback after construction remains the
+    // stricter proof.
+    AFGBuildable* FromBuildable = Cast<AFGBuildable>(From->GetOwner());
     const TArray<AFGBuildable*> SourceSnappedBuildables =
         Belt->GetAnyConnectedBuildables();
     const bool bExpectedSourceBuildableSnapped =
@@ -2426,24 +2452,10 @@ FAIFactoryActionResult PlaceBelt(
         Result.Status = TEXT("refused");
         Result.Reason =
             bSnappedSource
-                ? TEXT("belt_hologram_accepted_source_hit_but_not_expected_buildable")
+                ? TEXT("belt_source_step_advanced_but_expected_buildable_was_absent")
                 : TEXT("belt_hologram_did_not_accept_the_source_connection");
         Belt->Destroy();
         return Result;
-    }
-
-    const ESplineHologramBuildStep SourceStep = Belt->GetCurrentBuildStep();
-    const bool bFinishedAtSource = Belt->DoMultiStepPlacement(false);
-    if (bFinishedAtSource || Belt->GetCurrentBuildStep() == SourceStep)
-    {
-        // DoMultiStepPlacement returns true only when placement is finished.
-        // At the source it must instead advance to the destination step.
-        Belt->Destroy();
-        return FAIFactoryActionResult::Refuse(
-            Action,
-            bFinishedAtSource
-                ? TEXT("belt_hologram_finished_before_destination")
-                : TEXT("belt_hologram_did_not_advance_from_source"));
     }
 
     const FHitResult ToHit = MakeActionConnectionHit(To);
@@ -2459,29 +2471,40 @@ FAIFactoryActionResult PlaceBelt(
     Predicted->SetBoolField(
         TEXT("destination_connection_snapped_true"),
         Belt->IsConnectionSnapped(true));
-    AFGBuildable* ToBuildable = To->GetOuterBuildable();
+    AFGBuildable* ToBuildable = Cast<AFGBuildable>(To->GetOwner());
     const TArray<AFGBuildable*> DestinationSnappedBuildables =
         Belt->GetAnyConnectedBuildables();
+    const bool bExpectedSourceBuildableStillSnapped =
+        IsValid(FromBuildable) && DestinationSnappedBuildables.Contains(FromBuildable);
     const bool bExpectedDestinationBuildableSnapped =
         IsValid(ToBuildable) && DestinationSnappedBuildables.Contains(ToBuildable);
     Predicted->SetBoolField(
+        TEXT("expected_source_buildable_still_snapped_at_destination"),
+        bExpectedSourceBuildableStillSnapped);
+    Predicted->SetBoolField(
         TEXT("expected_destination_buildable_snapped"),
         bExpectedDestinationBuildableSnapped);
-    if (!bExpectedDestinationBuildableSnapped)
+    if (!bExpectedSourceBuildableStillSnapped || !bExpectedDestinationBuildableSnapped)
     {
         Result.Predicted = Predicted;
         Result.bAccepted = false;
         Result.Status = TEXT("refused");
-        Result.Reason = TEXT("belt_hologram_did_not_snap_to_expected_destination_buildable");
+        Result.Reason = !bExpectedSourceBuildableStillSnapped
+            ? TEXT("belt_hologram_lost_expected_source_while_snapping_destination")
+            : TEXT("belt_hologram_did_not_snap_to_expected_destination_buildable");
         Belt->Destroy();
         return Result;
     }
 
+    // Validate the destination pose before accepting the final multi-step
+    // transition, then validate again afterward. The build-gun lifecycle does
+    // both: a state transition can change spline geometry, cost and
+    // disqualifiers, so constructing from the pre-transition verdict would be
+    // stale evidence.
     Belt->ResetConstructDisqualifiers();
-    Belt->ValidatePlacementAndCost(
-        IsValid(Context.Player) ? Context.Player->GetInventory() : nullptr);
+    Belt->ValidatePlacementAndCost(Inventory);
     Predicted->SetBoolField(TEXT("hologram_disqualifiers_reset_before_validation"), true);
-    const FString HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
+    FString HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
     if (!Belt->CanConstruct())
     {
         Predicted->SetStringField(
@@ -2493,6 +2516,43 @@ FAIFactoryActionResult PlaceBelt(
         Result.Reason = HardReason.IsEmpty()
             ? TEXT("belt_hologram_refused_placement_or_cost")
             : TEXT("belt_hologram_disqualified:") + HardReason;
+        Belt->Destroy();
+        return Result;
+    }
+
+    if (!Belt->DoMultiStepPlacement(true))
+    {
+        Belt->Destroy();
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_wants_more_placement_points"));
+    }
+
+    Belt->ResetConstructDisqualifiers();
+    Belt->ValidatePlacementAndCost(Inventory);
+    Predicted->SetBoolField(TEXT("hologram_revalidated_after_final_build_step"), true);
+    HardReason = DescribeHologramDisqualifiers(Belt, Predicted);
+    const TArray<FItemAmount> Cost = NormalizeActionCost(Belt->GetCost(true));
+    const bool bCanAfford = CanAffordActionCost(Cost, Inventory);
+    Predicted->SetBoolField(TEXT("no_build_cost"), Inventory->GetNoBuildCost());
+    Predicted->SetArrayField(
+        TEXT("cost"),
+        ActionCostJson(Cost, Inventory, Inventory->GetNoBuildCost()));
+    Predicted->SetBoolField(TEXT("can_afford"), bCanAfford);
+    if (!Belt->CanConstruct() || !bCanAfford)
+    {
+        Predicted->SetStringField(
+            TEXT("hologram_transform"),
+            Belt->GetActorTransform().ToString());
+        Result.Predicted = Predicted;
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = !Belt->CanConstruct()
+            ? (HardReason.IsEmpty()
+                ? TEXT("belt_hologram_refused_after_final_build_step")
+                : TEXT("belt_hologram_disqualified_after_final_build_step:") + HardReason)
+            : TEXT("player_cannot_afford_hologram_cost");
+        Belt->Destroy();
         return Result;
     }
 
@@ -2503,14 +2563,6 @@ FAIFactoryActionResult PlaceBelt(
         Result.bAccepted = true;
         Result.Status = TEXT("dry_run");
         return Result;
-    }
-
-    if (!Belt->DoMultiStepPlacement(true))
-    {
-        Belt->Destroy();
-        return FAIFactoryActionResult::Refuse(
-            Action,
-            TEXT("belt_hologram_wants_more_placement_points"));
     }
 
     TArray<AActor*> ConstructedChildren;
@@ -2541,18 +2593,87 @@ FAIFactoryActionResult PlaceBelt(
         return FAIFactoryActionResult::Refuse(Action, TEXT("game_constructed_no_belt"));
     }
 
-    // Read the world back rather than trusting the request: whether the belt
-    // actually joined both ports is the only thing that answers "did it work".
+    // Read the exact endpoint graph back rather than trusting the hologram.
+    // Actor-level snap evidence prevents obviously wrong construction, but a
+    // splitter can expose several ports on the same actor. Only the constructed
+    // belt's two public connection components can prove that these exact From
+    // and To components were joined, in either belt orientation, with both
+    // sides pointing back to each other.
     const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetBoolField(TEXT("from_connected"), From->IsConnected());
     Observed->SetBoolField(TEXT("to_connected"), To->IsConnected());
     TArray<TSharedPtr<FJsonValue>> BuiltIds;
     for (AFGBuildable* Buildable : Built)
     {
-        Result.CreatedActorIds.Add(Buildable->GetPathName());
         BuiltIds.Add(MakeShared<FJsonValueString>(Buildable->GetPathName()));
     }
     Observed->SetArrayField(TEXT("belt_actors"), BuiltIds);
+
+    AFGBuildableConveyorBase* ConstructedBelt =
+        Cast<AFGBuildableConveyorBase>(Constructed);
+    UFGFactoryConnectionComponent* Belt0 = IsValid(ConstructedBelt)
+        ? ConstructedBelt->GetConnection0()
+        : nullptr;
+    UFGFactoryConnectionComponent* Belt1 = IsValid(ConstructedBelt)
+        ? ConstructedBelt->GetConnection1()
+        : nullptr;
+    const auto IsExactPair = [](
+        UFGFactoryConnectionComponent* Left,
+        UFGFactoryConnectionComponent* Right)
+    {
+        return IsValid(Left) && IsValid(Right) &&
+            Left->GetConnection() == Right &&
+            Right->GetConnection() == Left;
+    };
+    const bool bExactEndpoints =
+        (IsExactPair(Belt0, From) && IsExactPair(Belt1, To)) ||
+        (IsExactPair(Belt0, To) && IsExactPair(Belt1, From));
+    Observed->SetBoolField(TEXT("constructed_root_is_conveyor"), IsValid(ConstructedBelt));
+    Observed->SetStringField(
+        TEXT("belt_connection_0"),
+        IsValid(Belt0) ? Belt0->GetPathName() : TEXT(""));
+    Observed->SetStringField(
+        TEXT("belt_connection_1"),
+        IsValid(Belt1) ? Belt1->GetPathName() : TEXT(""));
+    Observed->SetBoolField(TEXT("exact_requested_endpoints"), bExactEndpoints);
+    if (!bExactEndpoints)
+    {
+        // Construct does not charge the player; successful actions charge only
+        // after this readback. Raw dismantle is therefore required here. A
+        // normal refund would duplicate materials the action never removed.
+        for (int32 Index = Built.Num() - 1; Index >= 0; --Index)
+        {
+            AFGBuildable* Buildable = Built[Index];
+            if (!IsValid(Buildable))
+            {
+                continue;
+            }
+            if (Buildable->GetClass()->ImplementsInterface(
+                    UFGDismantleInterface::StaticClass()))
+            {
+                IFGDismantleInterface::Execute_Dismantle(Buildable);
+            }
+            else
+            {
+                Buildable->Destroy();
+            }
+        }
+        Observed->SetBoolField(TEXT("from_connected_after_cleanup"), From->IsConnected());
+        Observed->SetBoolField(TEXT("to_connected_after_cleanup"), To->IsConnected());
+        Result.Predicted = Predicted;
+        Result.Observed = Observed;
+        Result.bAccepted = false;
+        Result.bCommitted = false;
+        Result.Status = TEXT("failed");
+        Result.Reason = TEXT("constructed_belt_endpoints_did_not_match_requested_components");
+        return Result;
+    }
+
+    ChargeActionCost(Cost, Inventory);
+    for (AFGBuildable* Buildable : Built)
+    {
+        Result.CreatedActorIds.Add(Buildable->GetPathName());
+    }
 
     FAIFactoryUndoStep Step;
     Step.Action = Action;
@@ -2569,12 +2690,6 @@ FAIFactoryActionResult PlaceBelt(
     Result.Status = TEXT("committed");
     Result.bUndoable = true;
     Result.UndoDescription = Step.Description;
-    if (!From->IsConnected() || !To->IsConnected())
-    {
-        Result.Warnings.Add(
-            TEXT("The belt was built but at least one end did not register as connected. "
-                 "Check both machines before relying on the throughput."));
-    }
     RecordActionUndo(MoveTemp(Step));
     return Result;
 }

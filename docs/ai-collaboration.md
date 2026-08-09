@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor source-owner failure at aimed Wire step 30: audit exact 491125 conveyor hologram/connection APIs; minimally correct `PlaceBelt` endpoint identity/readback in `AIFactoryActions.cpp`; retain existing exact post-construction port proof, rollback, unlock gates, and all working routing; add contract regression, compile/package/deploy, and record live retry boundary. | in progress |
+| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor source-owner failure at aimed Wire step 30: audit exact 491125 conveyor hologram/connection APIs; minimally correct `PlaceBelt` endpoint identity/readback in `AIFactoryActions.cpp`; retain existing exact post-construction port proof, rollback, unlock gates, and all working routing; add contract regression, compile/package/deploy, and record live retry boundary. | source complete: 605 tests and both native targets pass; package/deploy/live retry pending game shutdown; see handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Current-unlock build constraints: bridge rejection for locked building/production/belt recipes in `companion/lib/actions.mjs`; exact `AFGRecipeManager::IsRecipeAvailable` gate for `place_belt` in `AIFactoryActions.cpp`; deterministic unlock fingerprint and replan/optimization provenance in `companion/lib/megabase.mjs` / tool output; focused tests, header verification, build/package/deploy, and planning docs. This is a narrow extension of the deployed belt executor, not a routing rewrite. | complete; see 2026-08-09 current-unlock handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | complete |
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
@@ -2125,3 +2125,33 @@ The remaining live evidence is the same owner retry of “build a wire factory
 using all mk1 parts on this node,” now with both exact conveyor-endpoint and
 current-unlock enforcement deployed. Do not claim completed belt construction
 until `latest-bridge-response.json` proves the transaction in the loaded save.
+
+**Codex, 2026-08-09 - conveyor source-step fix ready for packaging.** The live
+Wire retry reached all 29 building placements, then refused the first belt with
+`belt_hologram_accepted_source_hit_but_not_expected_buildable`. This was not a
+layout, unlock, or target-owner failure. The exact FactoryGame 491125
+implementation records the source component during `TrySnapToActor`, but
+`GetAnyConnectedBuildables()` deliberately returns no actors while the spline
+hologram remains at `SHBS_FindStart`. The old gate read that array before the
+first `DoMultiStepPlacement(false)`, so the reported refusal was guaranteed on
+a valid source snap.
+
+`PlaceBelt` now advances and verifies the source build step before actor-level
+readback, uses the component owner in the same way as the engine implementation,
+and requires both endpoint owners to remain present after destination snapping.
+After the final build step it re-runs Satisfactory's placement/cost validation.
+After construction it accepts only an unordered, bidirectional exact match
+between the constructed conveyor's public `GetConnection0/1()` ports and the
+requested components. A mismatch is raw-dismantled before any charge or undo
+journal entry. A successful exact readback now charges the hologram's normalized
+inventory cost, closing the pre-existing free-belt path without weakening
+no-build-cost behavior or rollback.
+
+Exact header validation and all 605 tests pass. FactoryGameSteam Shipping and
+FactoryEditor Development both compile against the synced Starter Project.
+`origin/master` remains `390ab2b` and `origin/claude/belt-routing` remains
+`fb5fb5c`; no newer Claude work overlaps this fix. The owner currently has
+Satisfactory running, so UAT packaging/deployment and the next live Wire retry
+remain pending. Do not claim this source fix is live until the DLL is replaced
+after shutdown and `latest-bridge-response.json` proves the first belt advances
+past step 30.
