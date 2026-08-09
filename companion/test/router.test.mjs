@@ -8,6 +8,7 @@ import {
   describePlanRejection,
   parseClearRequest,
   parseExactBeltSolverRequest,
+  parseBlueprintListRequest,
   parseShowRequest,
   parseStructureRequest,
   routeQuestion,
@@ -441,4 +442,58 @@ test("a hub with nothing to build it from says so instead of asking a model", ()
   assert.ok(answer, "a known refusal must be answered, not passed on");
   assert.match(answer.reply, /can't build that here/i);
   assert.equal(emitted.length, 0);
+});
+
+/* ---------------- listing blueprints ---------------- */
+
+// Asked "list blueprints" with 55 on disk, the local model answered "the player
+// has not saved any blueprints yet" and explained how to save one. No route
+// matched, so a model that cannot read files answered from nothing. The solver
+// already worked; only the route was missing, which is the worst version of
+// this failure -- the right answer was one call away and the player was told
+// the opposite.
+test("asking about blueprints reads the folder instead of asking a model", () => {
+  for (const question of [
+    "list blueprints",
+    "what blueprints do i have",
+    "show my blueprints",
+    "do i have any blueprints",
+    "list my blue prints",
+  ]) {
+    assert.ok(parseBlueprintListRequest(question), `should route: ${question}`);
+  }
+});
+
+test("a named filter is carried through", () => {
+  assert.equal(parseBlueprintListRequest("blueprints with coal in the name").name_contains, "coal");
+  assert.equal(parseBlueprintListRequest("blueprints named coal").name_contains, "coal");
+  assert.equal(parseBlueprintListRequest("list blueprints").name_contains, null);
+});
+
+test("placing, pricing or saving a blueprint is not listing them", () => {
+  for (const question of [
+    "place the coal power plant blueprint here",
+    "how much does that blueprint cost",
+    "save this as a blueprint",
+    "build a blueprint designer",
+  ]) {
+    assert.equal(parseBlueprintListRequest(question), null, `should not list: ${question}`);
+  }
+});
+
+test("an empty library says so plainly rather than inventing a count", () => {
+  const answer = answerLocally("list blueprints", buildGraph(buildFactorySnapshot()), {
+    listBlueprints: () => [],
+  });
+  assert.ok(answer);
+  assert.match(answer.reply, /no saved blueprints/i);
+});
+
+test("a library the bridge cannot read is reported, not guessed at", () => {
+  // No reader configured is a different answer from an empty folder, and
+  // collapsing the two would tell the player to go build something they
+  // already have.
+  const answer = answerLocally("list blueprints", buildGraph(buildFactorySnapshot()), {});
+  assert.ok(answer);
+  assert.match(answer.reply, /can't read your blueprint folder/i);
 });

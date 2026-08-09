@@ -778,6 +778,35 @@ const STRUCTURE_HERE =
   /\b(?:here|at this|on this|same level|this foundation|where i(?:'m|m| am)?\s+(?:looking|standing|aiming|pointing)|what i(?:'m|m| am)?\s+(?:looking at|aiming at)|my crosshair)\b/i;
 
 /**
+ * "list blueprints", "what blueprints do i have".
+ *
+ * Asked this with 55 blueprints on disk, the local model answered "the player
+ * has not saved any blueprints yet" and explained how to save one. Nothing had
+ * looked at the folder: no route matched, so the question reached a model that
+ * cannot read files and answered from nothing.
+ *
+ * The solver already existed and works. Only the route was missing, which is
+ * the worst version of this failure -- the right answer was one function call
+ * away and the player was told the opposite.
+ */
+const BLUEPRINT_LIST =
+  /\b(?:list|show|what|which|any|see|got|have)\b[^?]*\bblue\s?prints?\b|\bblue\s?prints?\b[^?]*\b(?:do i have|available|saved|list|named|called|with|containing|matching)\b/i;
+const BLUEPRINT_LIST_EXCLUDED =
+  // Placing, building or costing one is a different request with its own route.
+  /\b(?:place|build|put|spawn|drop|construct|cost|price|delete|remove|save)\b/i;
+
+export function parseBlueprintListRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  if (!BLUEPRINT_LIST.test(text)) return null;
+  if (BLUEPRINT_LIST_EXCLUDED.test(text)) return null;
+
+  // "blueprints with coal in the name" narrows the list rather than dumping it.
+  const filter = text.match(/\b(?:named|called|with|containing|matching|for)\s+"?([a-z0-9 _-]{2,40}?)"?\s*(?:in (?:the|its) name)?$/i);
+  return { name_contains: filter ? filter[1].trim() : null };
+}
+
+/**
  * "im switching to coal power i want something step 1 to end compact from this node".
  *
  * That request cost sixty-two seconds and a provider error because nothing
@@ -1967,6 +1996,58 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "list blueprints" — read the folder rather than asking a model about it.
+  const blueprintList = parseBlueprintListRequest(question);
+  if (blueprintList && graph) {
+    const started = Date.now();
+    const library = solveBlueprintLibrary(
+      graph,
+      { name_contains: blueprintList.name_contains },
+      { listBlueprints: services?.listBlueprints },
+    );
+
+    if (!library.available) {
+      return localAnswer(
+        `I can't read your blueprint folder: ${library.reason}. ${library.note ?? ""}`.trim(),
+        "blueprint_library_unavailable",
+        started,
+        "The bridge has no blueprint directory configured.",
+      );
+    }
+
+    const found = library.blueprints ?? [];
+    if (found.length === 0) {
+      return localAnswer(
+        blueprintList.name_contains
+          ? `No saved blueprint matches "${blueprintList.name_contains}". ` +
+            `You have ${library.total_files_seen ?? 0} in total.`
+          : "You have no saved blueprints. Build something in a Blueprint " +
+            'Designer and hit "Save Blueprint", and it will show up here.',
+        "blueprint_library",
+        started,
+        "Read from the blueprint folder on disk.",
+      );
+    }
+
+    const lines = found.slice(0, 15).map((entry) => {
+      const dimensions = entry.designer_dimensions;
+      const size = dimensions ? ` — ${dimensions.x}×${dimensions.y} foundations` : "";
+      const built = entry.game_changelist ? `, built on CL ${entry.game_changelist}` : "";
+      return `- **${entry.name}**${size}${built}`;
+    });
+    const more = found.length > lines.length ? `\n…and ${found.length - lines.length} more.` : "";
+
+    return localAnswer(
+      `You have **${library.blueprint_count ?? found.length}** saved blueprint(s)` +
+        (blueprintList.name_contains ? ` matching "${blueprintList.name_contains}"` : "") +
+        `:\n\n${lines.join("\n")}${more}\n\n` +
+        'Say "place <name> here" to put one down.',
+      "blueprint_library",
+      started,
+      "Read from the blueprint folder on disk, not from a model.",
+    );
+  }
+
   // "im switching to coal power ... from this node" — miner, generators, belts.
   const coalRequest = parseCoalPowerRequest(question);
   if (coalRequest && graph) {

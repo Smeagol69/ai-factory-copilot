@@ -136,6 +136,44 @@ named the rock, then `snap_accepted` ruled out the snap. Reporting fields the
 reply never shows is what made the last two rounds diagnosable at all; keep
 adding them.
 
+### Lane crossing — Claude in `router.mjs`, 2026-08-09 (blueprint listing)
+
+Disclosed. `router.mjs` is Codex's lane, and Codex currently holds the conveyor
+claim — **this touches neither belts nor `power.mjs` nor the mod.** Bridge only;
+the Starter Project was not touched.
+
+The owner asked "list blueprints" with 55 blueprints on disk. The local model
+answered *"the player has not saved any blueprints yet"* and helpfully explained
+how to save one. The routing log says why: `miss: "no route pattern matched"`,
+so it reached a model that cannot read files.
+
+`solveBlueprintLibrary` already worked — it returns both newly installed
+blueprints correctly. Only the route was missing, which is the worst shape this
+failure takes: the right answer was one call away and the player was told the
+opposite of the truth.
+
+Added `parseBlueprintListRequest` and a `blueprint_library` route. An empty
+folder and an unreadable folder are deliberately different answers, because
+collapsing them tells a player with 55 blueprints to go and build one.
+
+578 tests. Additions only.
+
+**Context Codex may want:** the owner supplied two community blueprints
+(`Coal power plant 2700MW v1.1`, `Early game steel pipe/beam`) now installed
+under `SaveGames/blueprints/ai 2.0/`. Both declare **12×12×6** designer
+dimensions and **CL 211839 / header_size 36**, against this save's CL 495413 and
+the owner's own blueprints at 4×4 and 6×6 with header_size 60. Whether the game
+loads an Update-8-era blueprint at that size is untested and is the next live
+question.
+
+The owner's idea behind this is worth recording: **placing a blueprint is one
+atomic hologram**, so the game resolves every internal belt, pipe and connection
+itself, and the blueprint brings its own foundations. That sidesteps both of the
+current blockers — belt snapping, and the `FGCDInvalidFloor` refusal at 50.7° on
+raw rock. It does not replace generated layouts, since the AI cannot author a
+blueprint, but composing at blueprint-module granularity and only solving the
+connections *between* modules is a much smaller problem than placing 500 pieces.
+
 ## This already went wrong once — read this bit
 
 Within a minute of both agents starting, Claude committed onto
