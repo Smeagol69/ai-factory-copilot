@@ -790,18 +790,45 @@ export function parseAimedMk1FactoryRequest(question) {
   return item.length >= 2 ? { item, commit: true, raw_text: text } : null;
 }
 
+/**
+ * "...without belts", "no belts", "skip the belts", "i'll belt it myself".
+ *
+ * The belt executor has never once committed, and a whole-plan rollback means
+ * one refused belt takes 29 correctly-placed buildings with it. The machines
+ * and their recipes are the part worth having; dragging a belt is ten seconds
+ * of play. So let the player say so and keep the rest.
+ */
+const NO_BELTS =
+  /\b(?:no|without|skip|omit|exclude|minus)\s+(?:the\s+)?(?:belts?|conveyors?)\b|\bbelts?\s+(?:myself|by hand|manually)\b|\bi(?:'ll|ll| will)\s+(?:do|place|add|run)\s+(?:the\s+)?belts?\b/i;
+
 export function parseAimedFactoryRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   // The strict route owns anything that already names the tier.
   if (AIMED_MK1_FACTORY.test(text)) return null;
-  const match = text.match(AIMED_FACTORY_LOOSE);
+  // Strip the belt clause before matching, so the anchored tail still lines up.
+  const withoutBeltClause = text
+    .replace(NO_BELTS, "")
+    // "I'll do the belts myself" leaves a trailing "myself" that breaks the
+    // anchored tail, so the leftovers of the clause go with it.
+    .replace(/\b(?:myself|by hand|manually|later|after)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/[,;]+\s*$/, "")
+    .trim();
+  const match = withoutBeltClause.match(AIMED_FACTORY_LOOSE);
   if (!match) return null;
 
   const item = match[1].replace(/\s+/g, " ").replace(/\b(?:mk\.?\s*\d|mark\s*\d)\b/gi, "").trim();
   if (item.length < 2) return null;
   // "modular" belongs to the blueprint tiler, not the production planner.
   if (/\bmodular\b/i.test(item)) return null;
-  return { item, commit: true, tier_was_stated: false, raw_text: text };
+  return {
+    item,
+    commit: true,
+    tier_was_stated: false,
+    skip_belts: NO_BELTS.test(text),
+    raw_text: text,
+  };
 }
 
 /**
@@ -858,6 +885,37 @@ export function parseModularShellRequest(question) {
     depth_modules: size ? Number(size[2]) : null,
     at_aim: MODULAR_HERE.test(text),
   };
+}
+
+/**
+ * "place the coal power plant blueprint here".
+ *
+ * The mod has had `place_blueprint` all along and nothing could reach it: the
+ * same gap that made "list blueprints" answer from a model rather than from the
+ * folder on disk.
+ *
+ * This matters more than a convenience route. A blueprint is placed as one
+ * hologram, so the game resolves every belt and pipe inside it and it carries
+ * its own foundations — which is the way past both live blockers at once, the
+ * conveyor aim refusal and uneven ground.
+ */
+// "build" is deliberately absent. "build me a storage hub here" is a builder
+// route, and a verb list that swallows it turns a working request into a
+// blueprint lookup that was never going to match.
+const BLUEPRINT_PLACE =
+  /^(?:can you |could you |please )?(?:place|put|drop|spawn|stamp)\s+(?:down\s+)?(?:the\s+|a\s+|an\s+|my\s+)?(.+?)(?:\s+blue\s?print)?\s+(?:here|down|at this|on this|where i(?:'m|m| am)?\s+(?:looking|standing|aiming))$/i;
+
+export function parseBlueprintPlaceRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(BLUEPRINT_PLACE);
+  if (!match) return null;
+  const name = match[1].replace(/\s+/g, " ").replace(/\bblue\s?print\b/i, "").trim();
+  // No keyword blocklist. A blocklist here would have to guess which words can
+  // appear in a saved blueprint's name, and it guessed wrong immediately: the
+  // owner's file really is called "Coal power plant 2700MW v1.1". The library
+  // is the authority instead — the route falls through when nothing matches, so
+  // a phrase that belongs to another planner reaches it untouched.
+  return name.length >= 2 ? { name } : null;
 }
 
 /**
@@ -2008,7 +2066,29 @@ export function answerLocally(question, graph, services) {
       );
     }
 
-    const emitted = emitValidatedPlan(graph, services, plan.actions);
+    // Drop the belts when asked. One refused belt rolls back every building
+    // with it, and the machines with their recipes set are the part that is
+    // hard to do by hand.
+    const beltCount = plan.actions.filter((action) => action.action === "place_belt").length;
+    const requestedActions = aimedMk1Factory.skip_belts
+      ? plan.actions.filter((action) => action.action !== "place_belt")
+      : plan.actions;
+
+    const emitted = emitValidatedPlan(graph, services, requestedActions);
+    if (emitted && aimedMk1Factory.skip_belts) {
+      return localAnswer(
+        `Building the **${plan.output_per_minute} Wire/min Mk.1 factory** from ` +
+          `**${plan.node}** without belts: 1 Miner Mk.1, ${plan.smelters} Smelters, ` +
+          `${plan.constructors} Constructors, splitters and mergers, and ` +
+          `${plan.storage_lanes} storage lanes, each with its recipe set. ` +
+          `Recipe: **${plan.recipe}**.\n\n` +
+          `**${beltCount} belts left to you**, and power. Everything is positioned ` +
+          `so the runs are short. Say "undo" to reverse the whole placement.`,
+        "aimed_mk1_wire_factory",
+        started,
+        "Belts omitted at your request; every machine still validated by the game.",
+      );
+    }
     if (emitted) {
       const capped = plan.extracted_per_minute > plan.line_input_per_minute
         ? ` The ${plan.purity} node and Miner Mk.1 can supply ${plan.extracted_per_minute}/min, ` +
@@ -2207,6 +2287,66 @@ export function answerLocally(question, graph, services) {
     const refusal = describePlanRejection();
     if (refusal) {
       return localAnswer(refusal, "modular_shell_refused", started, "Refused by validation before anything ran.");
+    }
+  }
+
+  // "place <name> here" — one hologram, and the game wires its insides itself.
+  const blueprintPlace = parseBlueprintPlaceRequest(question);
+  if (blueprintPlace && graph) {
+    const started = Date.now();
+    const library = typeof services?.listBlueprints === "function" ? services.listBlueprints() : [];
+    const needle = blueprintPlace.name.toLowerCase();
+    const exact = library.filter((entry) => String(entry.name).toLowerCase() === needle);
+    const partial = library.filter((entry) => String(entry.name).toLowerCase().includes(needle));
+    const matches = exact.length > 0 ? exact : partial;
+
+    // Nothing matched, so this was never a blueprint request. Fall through and
+    // let the planner that owns the phrase have it, rather than refusing on its
+    // behalf.
+    if (matches.length > 1) {
+      // Placing the wrong 12x12 factory is expensive to undo by hand.
+      return localAnswer(
+        `"${blueprintPlace.name}" matches ${matches.length} blueprints, so I have not guessed:\n` +
+          matches.slice(0, 6).map((entry) => `- ${entry.name}`).join("\n") +
+          "\n\nSay the full name.",
+        "blueprint_place_refused",
+        started,
+        "Ambiguous name; nothing was sent to the game.",
+      );
+    }
+
+    if (matches.length === 1) {
+    const chosen = matches[0];
+    const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
+    const origin = aim ?? graph.snapshot?.interaction_context?.player?.pawn_location;
+    if (!origin) {
+      return localAnswer(
+        "I don't know where to put it — the game didn't report what you're aiming at.",
+        "blueprint_place_refused",
+        started,
+        "No aim point and no player position in the snapshot.",
+      );
+    }
+
+    const emitted = emitValidatedPlan(graph, services, [
+      { action: "place_blueprint", blueprint_name: chosen.name, location: origin, yaw: 0, commit: true },
+    ]);
+    if (emitted) {
+      const dimensions = chosen.designer_dimensions;
+      const size = dimensions ? ` (${dimensions.x}×${dimensions.y} foundations)` : "";
+      return localAnswer(
+        `Placing **${chosen.name}**${size} where you are aiming. The game builds it as ` +
+          `one piece, so every belt and pipe inside it is its own to resolve — nothing ` +
+          `here places them individually. Say "undo" to reverse it.`,
+        "blueprint_place",
+        started,
+        "Name resolved against the blueprint folder; position from the aim point.",
+      );
+    }
+    const refusal = describePlanRejection();
+    if (refusal) {
+      return localAnswer(refusal, "blueprint_place_refused", started, "Refused by validation before anything ran.");
+    }
     }
   }
 

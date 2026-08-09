@@ -108,22 +108,36 @@ test("a successful conveyor snap is not erased by a second placement update", ()
     "utf8",
   );
 
-  assert.match(
-    actions,
-    /const bool bSnappedSource = Belt->TrySnapToActor\(FromHit\);\s*if \(!bSnappedSource\)\s*\{\s*Belt->UpdateHologramPlacement\(FromHit\);\s*\}/,
+  // Both endpoints go through the one helper, so the rule is stated once.
+  assert.match(actions, /SnapBeltEndpointWithAim\(Belt, FromHit\)/);
+  assert.match(actions, /SnapBeltEndpointWithAim\(Belt, ToHit\)/);
+
+  // The original invariant, kept and widened: a successful snap must never be
+  // followed by a placement update, which erases the connection it recorded.
+  // The belt path now calls UpdateHologramPlacement nowhere at all, so assert
+  // that outright rather than only forbidding the adjacent pair.
+  const beltStart = actions.indexOf("FAIFactoryActionResult PlaceBelt(");
+  const beltEnd = actions.indexOf("FAIFactoryActionResult DismantleActor(", beltStart);
+  const belt = actions.slice(beltStart, beltEnd);
+  assert.ok(beltStart >= 0 && beltEnd > beltStart);
+  // The call, not the word: the comments above the helper explain why this
+  // call is absent, and a bare word match would fail on its own explanation.
+  assert.doesNotMatch(belt, /->UpdateHologramPlacement\(/);
+
+  // And the reason the helper exists: snapping outside the placement envelope
+  // left the hologram with a connection and no aim, which the game refuses as
+  // FGCDInvalidAimLocation. Pre and Post must bracket the snap.
+  const helper = actions.slice(
+    actions.indexOf("bool SnapBeltEndpointWithAim("),
+    actions.indexOf("FHitResult MakeActionConnectionHit("),
   );
-  assert.match(
-    actions,
-    /const bool bSnappedDestination = Belt->TrySnapToActor\(ToHit\);\s*if \(!bSnappedDestination\)\s*\{\s*Belt->UpdateHologramPlacement\(ToHit\);\s*\}/,
-  );
-  assert.doesNotMatch(
-    actions,
-    /TrySnapToActor\(FromHit\);\s*Belt->UpdateHologramPlacement\(FromHit\)/,
-  );
-  assert.doesNotMatch(
-    actions,
-    /TrySnapToActor\(ToHit\);\s*Belt->UpdateHologramPlacement\(ToHit\)/,
-  );
+  const pre = helper.indexOf("PreHologramPlacement");
+  const snap = helper.indexOf("TrySnapToActor");
+  const fallback = helper.indexOf("SetHologramLocationAndRotation");
+  const post = helper.indexOf("PostHologramPlacement");
+  assert.ok(pre >= 0 && snap > pre, "the snap must run after PreHologramPlacement");
+  assert.ok(fallback > snap, "the fallback belongs to a declined snap");
+  assert.ok(post > fallback, "PostHologramPlacement must close the envelope");
 });
 
 test("conveyor snap gates name the exact expected endpoint buildables", () => {
@@ -151,7 +165,7 @@ test("conveyor snap gates name the exact expected endpoint buildables", () => {
   const firstAdvance = actions.indexOf("Belt->DoMultiStepPlacement(false)");
   const sourceReadback = actions.indexOf("const TArray<AFGBuildable*> SourceSnappedBuildables");
   const sourceGate = actions.indexOf("if (!bExpectedSourceBuildableSnapped)");
-  const destinationSnap = actions.indexOf("Belt->TrySnapToActor(ToHit)");
+  const destinationSnap = actions.indexOf("SnapBeltEndpointWithAim(Belt, ToHit)");
   const destinationGate = actions.indexOf(
     "if (!bExpectedSourceBuildableStillSnapped || !bExpectedDestinationBuildableSnapped)",
   );

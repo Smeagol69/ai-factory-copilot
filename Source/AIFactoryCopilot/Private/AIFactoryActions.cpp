@@ -795,10 +795,30 @@ namespace
             return false;
         }
 
-        // A single-point machine/building should complete immediately. Belts,
-        // pipes, wires, and other multi-point recipes need explicit endpoints
-        // and are refused by this action instead of inventing the missing point.
-        if (!Hologram->DoMultiStepPlacement(true))
+        // A single-point machine completes on the first call. Some holograms do
+        // not: AFGBlueprintHologram overrides both DoMultiStepPlacement and
+        // CanTakeNextBuildStep, and placing one refused with
+        // hologram_requires_additional_placement_points because a single call
+        // was read as failure. The header is explicit that the return means
+        // "finished", not "succeeded" -- the same inversion that once made a
+        // miner unplaceable.
+        //
+        // So advance while the hologram itself says it can. CanTakeNextBuildStep
+        // is the engine's own question and the right discriminator: a belt
+        // handed no endpoints cannot advance, so multi-point recipes are still
+        // refused here rather than being half-placed from an invented point.
+        constexpr int32 MaximumBuildSteps = 8;
+        int32 BuildSteps = 1;
+        bool bPlacementFinished = Hologram->DoMultiStepPlacement(true);
+        while (!bPlacementFinished
+            && BuildSteps < MaximumBuildSteps
+            && Hologram->CanTakeNextBuildStep())
+        {
+            bPlacementFinished = Hologram->DoMultiStepPlacement(true);
+            ++BuildSteps;
+        }
+        Predicted->SetNumberField(TEXT("hologram_build_steps"), BuildSteps);
+        if (!bPlacementFinished)
         {
             OutFailure = TEXT("hologram_requires_additional_placement_points");
             return false;
