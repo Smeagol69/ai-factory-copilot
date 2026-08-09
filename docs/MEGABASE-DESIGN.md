@@ -63,6 +63,32 @@ The manifest is not a list of build actions. `concept_only` means exactly that.
 It cannot claim that terrain is suitable, that a hologram will place, that the
 player can afford the design, or that a modded part behaves like a vanilla one.
 
+## Design families and staged commissioning
+
+Every manifest carries a `design_family`. Its human-readable `family_id` is not
+authority by itself: the compiler also hashes that id, the exact style grammar,
+creative parameters, and captured recipe selected for every semantic role. Related
+buildings match only when that signature matches. An unresolved role stays null
+and makes the family provisional; the model cannot fill the gap with a plausible
+class path. A later request can pass `match_design_family_fingerprint`; the
+compiler refuses the preview if any style parameter or exact role recipe drifted,
+even when the human-readable family id was reused.
+
+The optional `commissioning_phases` request splits every measured production
+group across one to eight phases and proves that all machine totals are
+preserved. It refuses a phase count that would leave any phase without a
+required production stage. Equal machine allocations are reported as identical;
+unequal allocations are reported honestly. It does not infer phase throughput
+from machine counts because a final machine may be supply-limited or underclocked.
+Each phase must be re-solved from the production graph.
+
+This is still a preview contract, not a claim that floors or wings are isolated.
+Spatial phase assignment, input/output trunks, belt and pipe topology, separate
+power switching, and post-build connectivity readback remain construction gates.
+That distinction comes directly from the owner's two-floor steel reference: a
+factory is independently commissionable only when each floor has a complete
+material and power path, not merely half of every machine row.
+
 ## Trust boundaries
 
 1. A site must supply explicit XYZ. No inferred Z is accepted.
@@ -86,6 +112,8 @@ Before a concept can become a base, all of these must exist and pass together:
 - exact foundation, wall, roof, support and machine hologram preflight;
 - deferred connection preflight for machines created earlier in one plan;
 - splitter, merger, belt, pipe, hypertube and power topology;
+- deterministic per-phase rate solving, spatial isolation, dedicated I/O and
+  separately switchable power when staged commissioning was requested;
 - chunked transactions with rollback and a resumable build journal;
 - post-build world read-back against the manifest;
 - repair planning for only the observed differences;

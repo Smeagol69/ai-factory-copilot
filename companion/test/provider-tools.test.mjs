@@ -601,6 +601,15 @@ test("local megabase dispatch uses the compact core schema", async () => {
       "target_rate_per_minute",
       "origin",
       "style",
+      "design_family_id",
+      "match_design_family_fingerprint",
+      "commissioning_phases",
+    ]);
+    assert.deepEqual(definition.parameters.required, [
+      "item_name",
+      "target_rate_per_minute",
+      "origin",
+      "style",
     ]);
     assert.equal(definition.parameters.properties.creative_parameters, undefined);
     assert.equal(

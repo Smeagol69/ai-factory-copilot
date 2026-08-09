@@ -11,6 +11,8 @@
  * future game-authoritative construction pipeline.
  */
 
+import { createHash } from "node:crypto";
+
 import { FOUNDATION_CM } from "./designer.mjs";
 
 export const MEGABASE_SCHEMA = "megabase.design/v1";
@@ -65,6 +67,8 @@ const SEMANTIC_ROLES = Object.freeze([
   "lighting",
 ]);
 
+const MAX_COMMISSIONING_PHASES = 8;
+
 const ROLE_NAME_PATTERNS = Object.freeze({
   foundation: Object.freeze(["foundation"]),
   support_column: Object.freeze(["pillar", "column", "support beam", "structural beam"]),
@@ -104,6 +108,117 @@ function failed(reason, details = {}) {
     reason,
     ...details,
     actions: [],
+  };
+}
+
+function normalizeDesignFamilyId(value, style) {
+  const familyId = String(value ?? style).trim();
+  if (!familyId || familyId.length > 80 || /[\u0000-\u001f\u007f]/.test(familyId)) {
+    return { valid: false, reason: "design_family_id_must_be_1_to_80_printable_characters" };
+  }
+  return { valid: true, family_id: familyId };
+}
+
+/**
+ * Splits every measured production group into independently commissionable
+ * machine allocations without changing the factory total.
+ *
+ * This deliberately does not divide rates arithmetically. A partially clocked
+ * final machine can make two equal machine counts produce unequal rates, and
+ * only the production solver has enough recipe evidence to size each phase.
+ */
+export function planCommissioningPhases(groups, requestedPhases = 1) {
+  const phaseCount = whole(requestedPhases);
+  if (phaseCount === null || phaseCount < 1 || phaseCount > MAX_COMMISSIONING_PHASES) {
+    return {
+      planned: false,
+      reason: `commissioning_phases_must_be_a_whole_number_from_1_through_${MAX_COMMISSIONING_PHASES}`,
+    };
+  }
+  if (!Array.isArray(groups) || groups.length === 0) {
+    return { planned: false, reason: "commissioning_requires_measured_production_groups" };
+  }
+
+  const smallestGroup = Math.min(...groups.map((group) => whole(group?.machines) ?? 0));
+  if (phaseCount > smallestGroup) {
+    return {
+      planned: false,
+      reason: "commissioning_phases_exceed_the_smallest_machine_group",
+      requested_phases: phaseCount,
+      smallest_machine_group: smallestGroup,
+      effect:
+        "At least one phase would omit a production stage, so it could not be called independently operable.",
+    };
+  }
+
+  const phases = Array.from({ length: phaseCount }, (_unused, index) => ({
+    id: `phase-${index + 1}`,
+    sequence: index + 1,
+    machine_groups: [],
+  }));
+  let identical = true;
+  for (const group of groups) {
+    const machines = whole(group.machines);
+    const base = Math.floor(machines / phaseCount);
+    const remainder = machines % phaseCount;
+    if (remainder !== 0) identical = false;
+    for (let index = 0; index < phaseCount; index += 1) {
+      phases[index].machine_groups.push({
+        program_group: group.id,
+        produces: group.produces,
+        machines: base + (index < remainder ? 1 : 0),
+      });
+    }
+  }
+
+  return {
+    planned: true,
+    requested_phases: phaseCount,
+    phases,
+    balanced_identical_machine_allocations: identical,
+    exact_total_preserved: groups.every((group) =>
+      phases.reduce(
+        (sum, phase) => sum + phase.machine_groups.find((entry) => entry.program_group === group.id).machines,
+        0,
+      ) === group.machines),
+    rate_allocation: "not_calculated_from_machine_counts",
+    rate_allocation_reason:
+      "Each phase must be re-solved deterministically because the last machine in a production step may be supply-limited or underclocked.",
+    spatial_layout: "not_compiled",
+    independence_requirements: [
+      "dedicated_or_isolatable_input_trunks_per_phase",
+      "dedicated_output_collection_per_phase",
+      "separately_switchable_power_distribution_per_phase",
+      "complete_internal_recipe_and_transport_path_per_phase",
+      "game_readback_of_material_and_power_connectivity_before_phase_is_called_operational",
+    ],
+  };
+}
+
+function designFamilyIdentity(style, familyId, creativeParameters, parts) {
+  const roleRecipes = Object.fromEntries(
+    SEMANTIC_ROLES.map((role) => [
+      role,
+      parts.resolved.find((entry) => entry.role === role)?.recipe_class ?? null,
+    ]),
+  );
+  const signature = {
+    family_id: familyId,
+    style_grammar: style,
+    creative_parameters: creativeParameters,
+    exact_role_recipes: roleRecipes,
+  };
+  return {
+    family_id: familyId,
+    fingerprint: `sha256:${createHash("sha256").update(JSON.stringify(signature)).digest("hex")}`,
+    signature,
+    complete: Object.values(roleRecipes).every(Boolean),
+    reuse_contract:
+      "Reuse this exact signature for related buildings. A different style parameter or role recipe is a new family revision, not the same theme.",
+    unresolved_effect:
+      Object.values(roleRecipes).some((value) => !value)
+        ? "The theme is provisional because one or more semantic roles have no captured available recipe selection."
+        : null,
   };
 }
 
@@ -566,6 +681,14 @@ export function validateMegabaseManifest(manifest) {
   if (!Array.isArray(manifest?.actions) || manifest.actions.length !== 0) {
     issues.push("a_preview_manifest_must_not_contain_actions");
   }
+  if (manifest?.commissioning?.planned !== true) {
+    issues.push("commissioning_plan_is_missing_or_unplanned");
+  } else if (manifest.commissioning.exact_total_preserved !== true) {
+    issues.push("commissioning_plan_does_not_preserve_machine_totals");
+  }
+  if (!manifest?.design_family?.family_id || !manifest?.design_family?.fingerprint) {
+    issues.push("design_family_identity_is_missing");
+  }
 
   const ids = new Set();
   for (const element of manifest?.elements ?? []) {
@@ -694,8 +817,15 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
   const normalizedParameters = normalizeParameters(style, options.creative_parameters);
   if (!normalizedParameters.valid) return failed(normalizedParameters.reason);
   const parameters = normalizedParameters.parameters;
+  const normalizedFamily = normalizeDesignFamilyId(options.design_family_id, style);
+  if (!normalizedFamily.valid) return failed(normalizedFamily.reason);
   const program = normalizeProgram(factoryLayout, unitCm, parameters.service_margin_cells);
   if (!program.valid) return failed(program.reason, { row: program.row ?? null });
+  const commissioning = planCommissioningPhases(
+    program.groups,
+    options.commissioning_phases ?? 1,
+  );
+  if (!commissioning.planned) return failed(commissioning.reason, commissioning);
 
   const grid = { unit_cm: unitCm, floor_height_cm: floorHeightCm, yaw_degrees: yaw };
   const zones = zonePlacements(program.groups, style, parameters);
@@ -706,13 +836,23 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
 
   for (const [index, zone] of zones.entries()) {
     const number = index + 1;
+    const phaseMachineAllocation = commissioning.phases.map((phase) => ({
+      phase_id: phase.id,
+      machines: phase.machine_groups.find(
+        (entry) => entry.program_group === zone.group.id,
+      )?.machines ?? 0,
+    }));
     add(
       `production-zone-${number}`,
       "production_zone",
       zone.local,
       zone.size,
       ["foundation", "wall", "lighting"],
-      { program_group: zone.group.id, produces: zone.group.produces },
+      {
+        program_group: zone.group.id,
+        produces: zone.group.produces,
+        phase_machine_allocation: phaseMachineAllocation,
+      },
     );
     add(
       `platform-${number}`,
@@ -799,9 +939,38 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     requires_roles: element.requires,
     ...(element.program_group ? { program_group: element.program_group } : {}),
     ...(element.produces ? { produces: element.produces } : {}),
+    ...(element.phase_machine_allocation
+      ? { phase_machine_allocation: element.phase_machine_allocation }
+      : {}),
   }));
 
   const parts = resolveSemanticRoles(graph, options.part_selections);
+  const designFamily = designFamilyIdentity(
+    style,
+    normalizedFamily.family_id,
+    parameters,
+    parts,
+  );
+  const requiredFamilyFingerprint = String(
+    options.match_design_family_fingerprint ?? "",
+  ).trim();
+  if (
+    requiredFamilyFingerprint &&
+    !/^sha256:[0-9a-f]{64}$/.test(requiredFamilyFingerprint)
+  ) {
+    return failed("match_design_family_fingerprint_must_be_an_exact_sha256_fingerprint");
+  }
+  if (
+    requiredFamilyFingerprint &&
+    requiredFamilyFingerprint !== designFamily.fingerprint
+  ) {
+    return failed("design_family_signature_does_not_match_the_requested_family", {
+      expected_fingerprint: requiredFamilyFingerprint,
+      actual_fingerprint: designFamily.fingerprint,
+      effect:
+        "The proposed style parameters or captured role recipes differ, so this building was not labelled as the same theme.",
+    });
+  }
   const manifest = {
     schema: MEGABASE_SCHEMA,
     compiled: true,
@@ -810,6 +979,11 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     anchor_cm: { x: Number(anchor.x), y: Number(anchor.y), z: Number(anchor.z) },
     grid,
     creative_parameters: parameters,
+    design_family: {
+      ...designFamily,
+      matched_required_fingerprint: requiredFamilyFingerprint || null,
+    },
+    commissioning,
     program: {
       source: "measured_factory_layout",
       groups: program.groups,
@@ -824,6 +998,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       "semantic_parts_must_resolve_to_available_captured_build_recipes",
       "complete_footprint_terrain_and_collision_preflight_has_not_run",
       "machine_logistics_power_and_circulation_are_not_routed",
+      "commissioning_phase_rates_and_spatial_isolation_have_not_been_compiled",
       "game_holograms_have_not_validated_the_elements",
       "transactional_construction_and_world_readback_have_not_run",
     ],

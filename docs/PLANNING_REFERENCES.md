@@ -129,6 +129,62 @@ The current aimed Wire route is intentionally the functional-core prototype.
 It is not considered aesthetically complete until it passes through the site,
 service-layout, architectural-composition, and reusable-blueprint stages above.
 
+## Reference blueprint: staged steel Pipe and Beam factory
+
+The owner supplied `Early game steel pipe(160ppm)  steel beam(140ppm)
+factory.sbp` and its `.sbpcfg` on 2026-08-09. They are design-corpus inputs,
+not files to redistribute. The `.sbp` SHA-256 is
+`9490C36C74F887D6929D7A1793EC3B6292DDCE3BC5253650336A650E0BDBF0CE`;
+the config SHA-256 is
+`2E4A2B6A44FA5A21BDEE8084D75234B337565729CDABED8AB22C10C147033A5D`.
+
+Authoritative facts decoded from the files:
+
+- save version 2, changelist 211839, and a 12 x 12 x 6 Blueprint Designer
+  envelope;
+- 11 exact cost classes: 2,350 Concrete, 950 Iron Plates, 632 Steel Plates,
+  574 Iron Rods, 438 Cable, 306 Reinforced Iron Plates, 188 Silica, 160 Wire,
+  140 Modular Frames, 140 Rotors, and 120 Quartz Crystals;
+- 34 exact referenced build-recipe classes spanning Smelters, Constructors,
+  splitters/mergers, belts/lifts/poles, concrete and asphalt foundations,
+  walls/windows, roofs, pillars, railings, catwalks, signs, wall power poles,
+  and power lines.
+
+The author's config separately declares a 7 x 12 finished footprint, two 267
+Coal/min inputs, two 267 Iron Ore/min inputs, 160 Steel Pipe/min and 140 Steel
+Beam/min total output. The building is two identical and independent floors;
+each floor accepts 267 Coal/min plus 267 Iron Ore/min, exports 80 Pipe/min plus
+70 Beam/min, and has separately connectable power and logistics. It is described
+as an early-game, no-mod build requiring only Mk.3 belts and no architecture
+unlock.
+
+Keep the evidence boundaries explicit. The current reference scan proves class
+paths are present, but its occurrence counts are only indicative and it does not
+decode transforms. Its Mk.1/Mk.2/Mk.3 belt and lift references therefore do not
+prove which tier each placed segment uses and do not override the author's Mk.3
+statement. Full save-serializer decoding and game readback are required before
+claiming exact placed counts, routes, floor membership, or symmetry.
+
+This reference adds four requirements to the design target:
+
+1. **Design-family identity:** related factories carry a stable family id plus
+   an exact fingerprint of style parameters and captured semantic-part recipes.
+   Reusing a name with a different recipe palette is a new revision, not the
+   same theme. Passing an earlier fingerprint turns this into a hard compiler
+   gate: a drifted proposal is refused rather than silently relabelled.
+2. **Staged production:** a requested phase count is decomposed across every
+   measured production group without losing machines. A phase is never called
+   independent if it omits a required stage.
+3. **Independent commissioning:** each phase needs isolatable input trunks,
+   dedicated output collection, separately switchable power, a complete
+   internal recipe/transport path, and game readback before being described as
+   operational.
+4. **Multi-objective layout:** throughput correctness and tier constraints are
+   hard requirements; compactness, route length, service access, expansion,
+   phase isolation, and architectural cohesion are scored together. "Optimal"
+   must name those objectives and tradeoffs rather than mean shortest belts at
+   the expense of maintainability or appearance.
+
 ## Implementation targets
 
 - `companion/lib/solvers.mjs`: deterministic quantities and provenance.

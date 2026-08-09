@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | in progress |
+| 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | complete |
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
@@ -2033,3 +2033,48 @@ facts are committed. The intended system is solver-owned quantities plus
 model-owned bounded architectural decisions, followed by hologram/readback
 proof and eventually reusable blueprint generation. The current Wire layout is
 only the functional-core prototype, not the finished aesthetic standard.
+
+**Codex, 2026-08-09 - staged steel reference and design-family handoff.** The
+owner supplied a second real reference blueprint: an early-game Steel Pipe and
+Steel Beam factory. Its binary/header SHA-256 is
+`9490C36C74F887D6929D7A1793EC3B6292DDCE3BC5253650336A650E0BDBF0CE`;
+its config SHA-256 is
+`2E4A2B6A44FA5A21BDEE8084D75234B337565729CDABED8AB22C10C147033A5D`.
+The parser authoritatively read save version 2, changelist 211839, a 12 x 12 x
+6 Designer envelope, 11 cost classes, and 34 referenced build-recipe classes.
+The author separately declares the 7 x 12 finished footprint, two identical
+floors, per-floor 267 Coal + 267 Iron Ore input, 80 Pipe + 70 Beam output,
+separate power/I/O, Mk.3 transport, and no mods. Counts and transforms remain
+unknown until the object graph is fully decoded; the third-party binary was not
+added to the public repo.
+
+`megabase.design/v1` now carries an additive `design_family` and
+`commissioning` contract. A family fingerprint binds its human id, style,
+creative parameters, and exact captured recipe for every semantic role. A
+caller may require a previous fingerprint; any drift is refused with zero
+actions. Commissioning divides every measured machine group across 1-8 phases,
+preserves totals, and refuses a phase count that would omit a production stage.
+It deliberately does not invent per-phase rates, floors/wings, I/O, belt/pipe
+routes, or power isolation; those remain named construction blockers. Both the
+full strong-provider schema and Qwen's compact schema expose the shallow family
+and phase controls.
+
+Exact headers and all 598 tests pass. The clean companion install verifies 25
+runtime hashes and is healthy on port 8142 with both local Qwen and Anthropic
+ready. Installed hashes match the repo: `megabase.mjs`
+`23D2A435E4B69044FD970C3251BAD5C1CCCD3A6D0DD239194F8C2CA2BFA079EF`,
+`providers.mjs`
+`0CD90FB1998259BC44366E215B679A05BC34288131FE1505D2B40188D48CF4DA`,
+and `tools.mjs`
+`C97E0AA2F60DE5D0B1971494B493C8A2389FD2C46406CDE2933772862CD18BE1`.
+No mod code or package changed.
+
+A read-only smoke test against the last real revision 12 snapshot refused
+`no_step_could_be_placed`: that capture contains no owned samples of the
+required machine classes from which the general layout tool can measure exact
+footprints. Its unconstrained production solver also preferred a late-game
+alternate Wire chain, which confirms that future aesthetic generation must
+carry explicit early-game/standard-recipe/tier constraints. Do not weaken the
+measured-geometry rule to force a preview. The separately deployed exact
+conveyor endpoint build (`7fc67f3`) still awaits the owner's next live 46-step
+Wire retry; this documentation/preview work did not touch it.
