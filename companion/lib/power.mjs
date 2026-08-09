@@ -46,6 +46,74 @@ function resolveFirst(graph, lookup, candidates) {
   return null;
 }
 
+function availableBuildingRecipes(graph) {
+  return (graph?.snapshot?.content?.recipes ?? []).filter((recipe) =>
+    recipe?.available === true && recipe?.building_stats
+  );
+}
+
+/** Prefer the strongest captured coal generator, including modded tiers. */
+function resolveCoalGenerator(graph, node, lookup) {
+  const resourceClass = String(node?.resource_class ?? "");
+  const resourceName = String(node?.resource_name ?? "").toLowerCase();
+  const candidates = availableBuildingRecipes(graph)
+    .filter((recipe) => /coal.*generator|generator.*coal/i.test(String(recipe.name ?? "")))
+    .filter((recipe) => (recipe.building_stats?.fuels ?? []).some((fuel) =>
+      (resourceClass && String(fuel.item_class) === resourceClass) ||
+      (resourceName && String(fuel.item_name ?? "").toLowerCase() === resourceName)
+    ))
+    .sort((left, right) => {
+      const power = Number(right.building_stats?.power_production_mw) -
+        Number(left.building_stats?.power_production_mw);
+      if (Number.isFinite(power) && power !== 0) return power;
+      return String(left.class_path).localeCompare(String(right.class_path));
+    });
+  const [best] = candidates;
+  if (best) {
+    return {
+      resolved: true,
+      recipe_class: best.class_path,
+      name: best.name,
+      owner_mod: best.owner_mod ?? null,
+      product_class: best.products?.[0]?.item_class ?? null,
+      building_stats: best.building_stats,
+      selected_by: "highest_captured_power_tier_compatible_with_resource",
+    };
+  }
+  return resolveFirst(graph, lookup, ["coal generator", "coal-powered generator"]);
+}
+
+/** Prefer the fastest captured real extractor rather than a similarly named prop. */
+function resolveBestMiner(graph, lookup) {
+  const candidates = availableBuildingRecipes(graph)
+    .filter((recipe) => {
+      const type = String(recipe.building_stats?.extractor_type_name ?? "").trim().toLowerCase();
+      if (type) return type === "miner";
+      // Compatibility with snapshots captured before extractor_type_name was
+      // added. Keep this narrow: a fluid/resource-well extractor's raw cycle
+      // amount is in inventory units and can be thousands of times larger.
+      return /\bminer\b/i.test(String(recipe.name ?? ""));
+    })
+    .filter((recipe) => Number(recipe.building_stats?.items_per_minute_at_normal_purity) > 0)
+    .sort((left, right) =>
+      Number(right.building_stats.items_per_minute_at_normal_purity) -
+      Number(left.building_stats.items_per_minute_at_normal_purity)
+    );
+  const [best] = candidates;
+  if (best) {
+    return {
+      resolved: true,
+      recipe_class: best.class_path,
+      name: best.name,
+      owner_mod: best.owner_mod ?? null,
+      product_class: best.products?.[0]?.item_class ?? null,
+      building_stats: best.building_stats,
+      selected_by: "highest_captured_extraction_tier",
+    };
+  }
+  return resolveFirst(graph, lookup, MINER_RANKS);
+}
+
 /**
  * How a node's purity scales what a miner pulls out of it.
  *
@@ -83,15 +151,23 @@ function statsFor(graph, recipeClass) {
  * once the mod ships `building_stats`. Until then this returns null and the
  * question stands, which is the honest state rather than a guess.
  */
-export function sizeGeneratorsForNode(graph, { miner, generator, purity, fuel_item_class: fuelClass }) {
+export function sizeGeneratorsForNode(graph, {
+  miner,
+  generator,
+  purity,
+  fuel_item_class: fuelClass,
+  extraction_per_minute: capturedExtractionRate = null,
+}) {
   const minerStats = statsFor(graph, miner?.recipe_class);
   const generatorStats = statsFor(graph, generator?.recipe_class);
 
   const perMinuteAtNormal = Number(minerStats?.items_per_minute_at_normal_purity);
   const normalizedPurity = purityKey(purity);
   const multiplier = PURITY_MULTIPLIER[normalizedPurity];
-  if (!Number.isFinite(perMinuteAtNormal) || perMinuteAtNormal <= 0) return null;
-  if (!Number.isFinite(multiplier)) return null;
+  const directRate = Number(capturedExtractionRate);
+  const hasDirectRate = Number.isFinite(directRate) && directRate > 0;
+  if (!hasDirectRate && (!Number.isFinite(perMinuteAtNormal) || perMinuteAtNormal <= 0)) return null;
+  if (!hasDirectRate && !Number.isFinite(multiplier)) return null;
 
   // The generator burns whichever of its fuels this node actually produces.
   const fuels = Array.isArray(generatorStats?.fuels) ? generatorStats.fuels : [];
@@ -101,7 +177,7 @@ export function sizeGeneratorsForNode(graph, { miner, generator, purity, fuel_it
   const burnPerMinute = Number(burning?.items_per_minute_at_full_load);
   if (!Number.isFinite(burnPerMinute) || burnPerMinute <= 0) return null;
 
-  const mined = perMinuteAtNormal * multiplier;
+  const mined = hasDirectRate ? directRate : perMinuteAtNormal * multiplier;
   // Whole generators only, and never more than the coal actually supports: a
   // starved generator stutters the whole circuit rather than running slower.
   const count = Math.floor(mined / burnPerMinute);
@@ -114,7 +190,10 @@ export function sizeGeneratorsForNode(graph, { miner, generator, purity, fuel_it
     mined_per_minute: mined,
     burn_per_minute: burnPerMinute,
     purity: normalizedPurity,
-    purity_multiplier: multiplier,
+    purity_multiplier: hasDirectRate ? null : multiplier,
+    rate_source: hasDirectRate
+      ? "authoritative_live_extractor_rate"
+      : "captured_class_rate_times_node_purity",
     leftover_per_minute: Math.round((mined - count * burnPerMinute) * 100) / 100,
     power_mw: Number.isFinite(producedPower) && producedPower > 0 ? producedPower : null,
     water_per_minute:
@@ -191,7 +270,9 @@ export function planCoalPower(graph, args = {}) {
       reason: `${node.on} is a hand-mined deposit, not a node a miner can sit on`,
     };
   }
-  if (node.occupied) {
+  const existingExtractorActorId = String(node.existing_extractor_actor_id ?? "").trim();
+  const reusesExistingExtractor = Boolean(existingExtractorActorId);
+  if (node.occupied && !reusesExistingExtractor) {
     return {
       solver: "coal_power",
       planned: false,
@@ -199,7 +280,13 @@ export function planCoalPower(graph, args = {}) {
     };
   }
 
-  const miner = resolveFirst(graph, lookup, MINER_RANKS);
+  const miner = reusesExistingExtractor
+    ? {
+        recipe_class: null,
+        name: node.existing_extractor_name ?? "existing extractor",
+        building_stats: null,
+      }
+    : resolveBestMiner(graph, lookup);
   if (!miner) {
     return {
       solver: "coal_power",
@@ -208,7 +295,7 @@ export function planCoalPower(graph, args = {}) {
     };
   }
 
-  const generator = resolveFirst(graph, lookup, ["coal generator", "coal-powered generator"]);
+  const generator = resolveCoalGenerator(graph, node, lookup);
   if (!generator) {
     return {
       solver: "coal_power",
@@ -250,6 +337,7 @@ export function planCoalPower(graph, args = {}) {
         generator,
         purity: node.purity,
         fuel_item_class: node.resource_class ?? null,
+        extraction_per_minute: reusesExistingExtractor ? node.extraction_per_minute : null,
       });
 
   if (sized?.count > 8) {
@@ -315,7 +403,7 @@ export function planCoalPower(graph, args = {}) {
     });
   }
 
-  const minerAction = {
+  const minerAction = reusesExistingExtractor ? null : {
     action: "place_building",
     recipe_class: miner.recipe_class,
     location: { x: origin.x, y: origin.y, z: origin.z },
@@ -360,11 +448,13 @@ export function planCoalPower(graph, args = {}) {
 
   // Belts refer to the steps that create their endpoints, so the whole plan
   // goes in as one transaction and the game resolves the actors it just made.
-  // Steps are 1-based and refer backwards only: miner is 1, generators are
-  // 2..count+1, splitters follow.
-  const minerStep = 1;
-  const generatorStep = (index) => index + 2;
-  const splitterStep = (index) => count + 2 + index;
+  // Steps are 1-based and refer backwards only. When the crosshair names an
+  // existing extractor there is no miner placement step; the first generator
+  // is step 1 and the source belt names the captured extractor actor directly.
+  const createdMinerSteps = minerAction ? 1 : 0;
+  const minerStep = minerAction ? 1 : null;
+  const generatorStep = (index) => createdMinerSteps + index + 1;
+  const splitterStep = (index) => createdMinerSteps + count + index + 1;
 
   const belts = [];
   const beltBetween = (fromStep, toStep) => {
@@ -377,10 +467,22 @@ export function planCoalPower(graph, args = {}) {
     });
   };
 
+  const beltFromExtractor = (toStep) => {
+    belts.push({
+      action: "place_belt",
+      recipe_class: belt.recipe_class,
+      ...(reusesExistingExtractor
+        ? { from_actor_id: existingExtractorActorId }
+        : { from_step: minerStep }),
+      to_step: toStep,
+      commit: true,
+    });
+  };
+
   if (count === 1) {
-    beltBetween(minerStep, generatorStep(0));
+    beltFromExtractor(generatorStep(0));
   } else {
-    beltBetween(minerStep, splitterStep(0));
+    beltFromExtractor(splitterStep(0));
     for (let index = 0; index < count - 1; index += 1) {
       beltBetween(splitterStep(index), generatorStep(index));
       if (index < count - 2) beltBetween(splitterStep(index), splitterStep(index + 1));
@@ -399,10 +501,12 @@ export function planCoalPower(graph, args = {}) {
     // reply can show its arithmetic instead of asserting a number.
     sizing: sized ?? null,
     splitter_count: splitters.length,
+    reused_existing_extractor: reusesExistingExtractor,
+    source_extractor_actor_id: reusesExistingExtractor ? existingExtractorActorId : null,
     belt: belt.name ?? null,
     spacing_cells: spacing,
     spacing_cm: step,
-    actions: [minerAction, ...generators, ...splitters, ...belts],
+    actions: [...(minerAction ? [minerAction] : []), ...generators, ...splitters, ...belts],
     missing: {
       water:
         "Coal generators need water as well as coal, and there is no pipe " +

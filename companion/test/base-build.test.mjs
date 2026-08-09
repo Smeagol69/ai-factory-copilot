@@ -208,6 +208,8 @@ test("turns the plan into ordered actions, with belts referencing earlier steps"
   const belts = actions.filter((action) => action.action === "place_belt");
   assert.equal(placements.length, 3);
   assert.equal(belts.length, 1);
+  assert.equal(placements[0].production_recipe_class, productionPlan.steps[1].recipe_class);
+  assert.equal(placements[2].production_recipe_class, productionPlan.steps[0].recipe_class);
 
   // Placements must all precede the belts that join them.
   assert.equal(actions.slice(0, 3).every((a) => a.action === "place_building"), true);

@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import { planCoalPower, sizeGeneratorsForNode } from "../lib/power.mjs";
-import { solveBuildRecipeLookup } from "../lib/solvers.mjs";
+import { solveBuildRecipeLookup, solvePlacementTarget } from "../lib/solvers.mjs";
 import { findBestAvailableBelt } from "../lib/base-build.mjs";
 import { parseCoalPowerRequest } from "../lib/router.mjs";
 
@@ -245,6 +245,7 @@ const withStats = (className, descriptor, name, buildingStats) => ({
 
 const STATTED_KIT = [
   withStats("Recipe_MinerMk1", "Desc_MinerMk1", "Miner Mk.1", {
+    extractor_type_name: "Miner",
     extracted_items_per_cycle: 1,
     extract_cycle_seconds: 1,
     items_per_minute_at_normal_purity: 60,
@@ -264,6 +265,40 @@ const STATTED_KIT = [
   }),
   recipe("Recipe_ConveyorBeltMk2", "Desc_ConveyorBeltMk2", "Conveyor Belt Mk.2"),
   recipe("Recipe_ConveyorAttachmentSplitter", "Desc_ConveyorAttachmentSplitter", "Conveyor Splitter"),
+];
+
+const MODDED_COAL_GENERATOR = withStats(
+  "Recipe_GeneratorCoalMk3",
+  "Desc_GeneratorCoalMk3",
+  "Coal-Powered Generator Mk.3",
+  {
+    power_production_mw: 600,
+    requires_supplemental_resource: true,
+    supplemental_resource_class: "/Game/Desc/Desc_Water.Desc_Water_C",
+    fuels: [
+      {
+        item_class: COAL_CLASS,
+        item_name: "Coal",
+        energy_mj_per_item: 300,
+        items_per_minute_at_full_load: 120,
+      },
+    ],
+  },
+);
+
+const NON_MINER_EXTRACTORS_WITH_LARGER_RAW_RATES = [
+  withStats("Recipe_WaterPumpMk2", "Desc_WaterPumpMk2", "Water Extractor Mk.2", {
+    extractor_type_name: "WaterPump",
+    extracted_items_per_cycle: 15000,
+    extract_cycle_seconds: 2.5,
+    items_per_minute_at_normal_purity: 360000,
+  }),
+  withStats("Recipe_FrackingExtractorMk2", "Desc_FrackingExtractorMk2", "Resource Well Extractor Mk.2", {
+    extractor_type_name: "FrackingExtractor",
+    extracted_items_per_cycle: 7500,
+    extract_cycle_seconds: 1,
+    items_per_minute_at_normal_purity: 450000,
+  }),
 ];
 
 const sizedGraph = () =>
@@ -313,7 +348,18 @@ test("missing or unrecognized purity stays unknown", () => {
 });
 
 test("a sized node no longer asks how many generators", () => {
-  const graph = sizedGraph();
+  const graph = buildGraph({
+    world_revision: 1,
+    world: { scan_center: NODE.location },
+    interaction_context: {
+      player: { pawn_available: true, pawn_location: NODE.location },
+    },
+    actors: [NODE],
+    content: {
+      items: [],
+      recipes: [...STATTED_KIT, ...NON_MINER_EXTRACTORS_WITH_LARGER_RAW_RATES],
+    },
+  });
   const result = planCoalPower(graph, {
     node: { resolved: true, ...NODE, purity: "RP_Normal", resource_class: COAL_CLASS, on: NODE.name },
     generator_count: null,
@@ -325,6 +371,91 @@ test("a sized node no longer asks how many generators", () => {
   assert.equal(result.generator_count, 4);
   assert.equal(result.splitter_count, 3);
   assert.equal(result.sizing.purity_multiplier, 1);
+  assert.equal(result.sizing.mined_per_minute, 60);
+  assert.match(result.miner, /Miner Mk\.1/);
+});
+
+test("an aimed existing extractor resolves through its authoritative resource and is reused", () => {
+  const extractorId = "/Game/Map.PersistentLevel.Build_MinerMk4_C_1";
+  const extractor = {
+    actor_id: extractorId,
+    name: "Build_MinerMk4_C_1",
+    kind: "buildable",
+    location: { ...NODE.location, z: NODE.location.z + 110 },
+    extractor: {
+      extractable_resource_actor_id: NODE.actor_id,
+      resource_class: COAL_CLASS,
+      resource_name: "Coal",
+      extraction_per_minute: 720,
+    },
+  };
+  const graph = buildGraph({
+    world_revision: 2,
+    world: { scan_center: NODE.location },
+    interaction_context: {
+      player: { pawn_available: true, pawn_location: NODE.location },
+      preferred_target: {
+        available: true,
+        actor_id: extractorId,
+        actor_name: extractor.name,
+        hit_location: extractor.location,
+        actor_snapshot: extractor,
+      },
+    },
+    actors: [{ ...NODE, occupied: true }, extractor],
+    content: { items: [], recipes: [...STATTED_KIT, MODDED_COAL_GENERATOR] },
+  });
+
+  const aimed = solvePlacementTarget(graph, { kind: "aim" });
+  assert.equal(aimed.actor_id, NODE.actor_id);
+  assert.equal(aimed.resource_class, COAL_CLASS);
+  assert.equal(aimed.existing_extractor_actor_id, extractorId);
+  assert.equal(aimed.extraction_per_minute, 720);
+  assert.equal(aimed.resource_relation_source, "authoritative_extractor_interface");
+
+  const result = planCoalPower(graph, {
+    node: aimed,
+    generator_count: null,
+    build_recipe_lookup: solveBuildRecipeLookup,
+    belt: findBestAvailableBelt(graph),
+    cell_size_cm: 800,
+  });
+  assert.equal(result.planned, true);
+  assert.equal(result.reused_existing_extractor, true);
+  assert.equal(result.generator, "Coal-Powered Generator Mk.3");
+  assert.equal(result.generator_count, 6);
+  assert.equal(result.sizing.rate_source, "authoritative_live_extractor_rate");
+  assert.equal(result.actions.some((action) => /Miner/i.test(action.recipe_class ?? "")), false);
+  const sourceBelt = result.actions.find((action) => action.from_actor_id === extractorId);
+  assert.ok(sourceBelt);
+  assert.equal("from_step" in sourceBelt, false);
+});
+
+test("a resource-looking inventory cannot replace the extractor relation", () => {
+  const graph = sizedGraph();
+  graph.snapshot.interaction_context.preferred_target = {
+    available: true,
+    actor_snapshot: {
+      actor_id: "MinerWithoutResourceRelation",
+      name: "MinerWithoutResourceRelation",
+      kind: "buildable",
+      location: NODE.location,
+      extractor: { extractable_resource_actor_id: "" },
+      inventories: [{ stacks: [{ item_class: COAL_CLASS, item_name: "Coal", amount: 100 }] }],
+    },
+    hit_location: NODE.location,
+  };
+  const aimed = solvePlacementTarget(graph, { kind: "aim" });
+  assert.equal(aimed.resource_class, undefined);
+  const result = planCoalPower(graph, {
+    node: aimed,
+    generator_count: 1,
+    build_recipe_lookup: solveBuildRecipeLookup,
+    belt: findBestAvailableBelt(graph),
+    cell_size_cm: 800,
+  });
+  assert.equal(result.planned, false);
+  assert.match(result.reason, /resource is missing/i);
 });
 
 test("an explicit count still wins over the derived one", () => {

@@ -61,6 +61,8 @@ test("official source list leads with Coffee Stain and the modding docs", () => 
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("satisfactorygame.com"));
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("docs.ficsit.app"));
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("satisfactory.wiki.gg"));
+  assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("factoriolab.github.io"));
+  assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("manifolder.app"));
   assert.ok(OFFICIAL_SOURCE_DOMAINS.includes("steamcommunity.com"));
   // Official docs outrank community forums.
   assert.ok(

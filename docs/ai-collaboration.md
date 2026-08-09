@@ -1801,3 +1801,150 @@ The deployed DLL is 649,216 bytes, SHA-256
 `46B68FC6D938E0761D3C905CC229D39C9D4C7D1C0021A207765D51E1675173FA`.
 Exact header validation and all 574 companion/contract tests pass. Miner
 placement and undo are now production evidence, not a compile-only claim.
+
+**Codex, 2026-08-08 19:43 — claiming aimed-extractor coal-power resolution.**
+The live command `coal power from this node` is correctly refusing to guess,
+but the missing field is our bug. The crosshair is on MkPlus
+`Build_Miner_Mk4_C_2147451100`; its authoritative output contains Coal and
+`BP_ResourceNode617` is the occupied Normal Coal node at the same placement.
+The scanner records an empty `extractable_resource_actor_id` because it calls
+the deprecated `GetResourceNode()`, while the exact 491125 header says current
+extractors expose `GetExtractableResource()` and keeps the deprecated pointer
+only for old-save support. I am taking the narrow scanner/resolver/planner lane:
+capture the current extractable interface, resolve an aimed extractor to its
+captured node, and reuse that existing extractor as the coal source rather than
+placing a second miner. Unknown resources will still refuse. Please avoid these
+functions until I post tests/build/live evidence: `BuildableJson`,
+`solvePlacementTarget`, and `planCoalPower`.
+
+**Codex, 2026-08-08 20:16 — second live coal-sizing defect found and fixed;
+reference lane documented.** The new packaged scanner proved the original
+resource-relation fix: the planner moved past "resource is missing." A bare
+Normal Coal node then produced `3750 generators`. The fuel rate was correct;
+`resolveBestMiner` had sorted every `AFGBuildableResourceExtractor` together
+and selected the unlocked MkPlus Resource Well Extractor Mk.2 at 450,000 raw
+fluid inventory units/min instead of a solid miner. The snapshot now records
+the engine's public `GetExtractorTypeName()` and the planner requires `Miner`,
+with a narrow name fallback for pre-field snapshots. A regression includes
+water and fracking extractors whose larger raw rates must never win. Exact
+header validation and all 577 tests pass. The companion fix is clean-installed
+and healthy; the C++ discriminator still needs a game-close compile/package.
+
+The owner also supplied the Pipeline Manual, maintained wiki, FactorioLab, and
+Manifolder. I added `docs/PLANNING_REFERENCES.md` and the two planning sites to
+the restricted source policy. It explicitly keeps live modded data above
+vanilla ratios and treats FactorioLab/Manifolder as algorithm and UX references,
+not numeric authority. I have not claimed pipe actions yet; coordinate here
+before changing `power.mjs`, extractor class stats, pipe snapshot capture, or
+pipeline hologram execution.
+
+**Codex, 2026-08-08 20:28 — coal sizing is live-verified; terrain is the next
+blocker.** I used the game UI to teleport reversibly back to
+`BP_ResourceNode617`, then sent the owner's exact command,
+`coal power from this node`. The clean-installed companion selected the MkPlus
+Miner Mk.4 and Coal-Powered Generator Mk.3 from the live catalog and reported
+the checkable arithmetic: 720 Coal/min on this Normal node divided by 120/min
+per generator equals 6 generators. It emitted 23 actions. Whole-plan preflight
+refused action 8, the first Conveyor Splitter, with
+`FGCDInvalidFloor` / "Surface is too uneven!" at 50.6763 degrees. Every other
+action was skipped, `game_world_was_mutated` was false, and no factory actor was
+created. I then undid the teleport and the game reported
+`player_restored: true`. Do not re-open the rate-selection bug; the next coal
+lane is a foundation/site phase so the splitter manifold is not placed directly
+on raw rock. Shipping and Editor module builds both pass with the extractor
+type field; all 577 tests and exact header validation pass.
+
+**Codex, 2026-08-08 20:35 — claiming deterministic aimed-node Mk.1 factory
+routing.** The exact live request `build a wire factory using all mk1 parts on
+this node` missed every local route, spent 224 seconds across local/Anthropic,
+and ended in the generic 1.2M-token diagnostic fallback. Revision 727 already
+contained the authoritative target (`BP_ResourceNode213`), 3,570 recipes, all
+tiers, and the required production graph. I am taking only the parser/router
+and production-layout composition needed to turn an explicitly named product +
+Mk.1 tier + aimed resource node into a deterministic plan. Unknown rate intent
+will be resolved only from the selected Mk.1 miner's captured normal rate, node
+purity, and an observed same-tier belt. On the live Pure Copper node that means
+120 ore/min available but a 60/min Mk.1 transport ceiling; the line must report
+50% node utilisation rather than pretending full-node consumption is possible.
+If any recipe/tier/capacity evidence is missing it will refuse by field, not
+guess. Please avoid the local base/factory route and its tests until I post the
+result.
+
+**Codex, 2026-08-08 21:40 - aimed-node Mk.1 Wire route implemented, packaged,
+and deployed; live construction test next.** The owner's exact phrase now stays
+local and deterministically sizes the aimed Pure Copper node to the observed
+Mk.1 transport ceiling: 60 Copper Ore/min into 2 Smelters and 4 Constructors,
+yielding 120 Wire/min across two 60/min storage lanes. The 32-step transaction
+contains 15 buildings and 17 Mk.1 belts; it uses explicit splitter/merger
+fan-out, never reuses a one-output machine port, ignores existing surplus, and
+states that power is not wired. Missing target, resource, purity, Miner rate,
+observed belt capacity, unlock, or standard recipe evidence refuses locally
+with no action emission. Faster tiers and alternate recipes cannot leak into
+this route.
+
+The action contract now lets a new `place_building` carry a
+`production_recipe_class`. The game verifies that recipe is unlocked and
+compatible twice (recipe manager/buildable class, then the constructed
+manufacturer's own available-recipe list), proves both inventories empty,
+sets it before charging cost, forces replication, and requires an exact
+immediate readback. Any failure dismantles the uncharged construction and the
+whole transaction rolls back. This intentionally does not add a general
+existing-machine recipe mutation or its harder undo semantics.
+
+Verification: exact SML 3.12.0 / FactoryGame 491125 header checks and all 587
+companion/contract tests pass; both Shipping and Editor targets compiled; UAT
+cooked, archived, and deployed. Archive: 14,968,623 bytes, SHA-256
+`A3563FD3555DC116AEA3FCF8AAE6B788E812562DBEC175548E7CB81C9B22DCE8`.
+Deployed DLL SHA-256:
+`ED712E22215D3CD86FAA3AB97FF81084761037E01FB86DF0652F72104B325F1E`.
+The clean companion install matches the repo's new planner byte-for-byte and
+reports healthy on port 8142. Satisfactory was closed normally only after a
+fresh autosave so the locked DLL could be replaced. Remaining evidence is the
+live 32-step hologram/preflight result; do not claim the factory was created
+until that result is captured from the game.
+
+**Codex, 2026-08-08 21:58 - resource-root follow-up fixed after live evidence.**
+The first live route correctly stayed local/free but refused on the owner's
+actual `BP_ResourceNode213`, a Pure Copper Ore node. I briefly misattributed the
+request to Iron because `Snapshots/latest.json` had already been overwritten by
+a later crosshair capture; the screenshot and request-time UI are the correct
+evidence. The loaded save also authoritatively reports unlocked `Alternate:
+Iron Wire` on `Build_ConstructorMk1`, so the planner now evaluates
+every unlocked Wire recipe that runs in a Mk.1 Constructor, expands its
+dependencies using standard intermediate recipes, and keeps only chains whose
+complete raw input is the aimed resource. It chooses the best raw-per-output
+candidate with a stable class-path tie break. Copper still selects standard
+Wire; Iron selects Iron Wire. Multi-input Fused Wire cannot leak into a
+single-node plan.
+
+`solveProductionPlan` now accepts `stop_at_item_classes`. This is essential on
+late-game saves: Copper Ore and Iron Ore have unlocked Converter recipes, so the
+generic graph previously expanded *past* the aimed node instead of treating its
+resource as the authoritative terminal source. The new boundary is explicit in
+solver output and defaults to empty for all existing callers.
+
+The physical topology is now machine-count driven rather than fixed at 2+4:
+splitter manifolds feed any verified Smelter/Constructor count, merger chains
+collect inputs without port reuse, and Mk.1 output lanes are split so no lane
+exceeds captured Mk.1 capacity. The verified Pure Iron plan is 60 Ore/min, 2
+Smelters, 5 Constructors (last supply-limited to 96%), 108 Wire/min, 3 storage
+lanes, 18 buildings + 20 belts = 38 committed actions. Exact header validation
+and all 589 tests pass. This is companion-only and can be clean-installed while
+the game remains open. Never correlate a prior bridge response to the mutable
+`Snapshots/latest.json` without matching its revision and timestamp.
+
+**Codex, 2026-08-08 22:12 - mod-heavy request ceiling raised and made
+observable.** The corrected Copper retry reached the bridge but returned HTTP
+413 before routing: its live serialized request exceeded the old fixed 64 MiB
+body limit. This is separate from model payload compaction; solvers must first
+receive the complete authoritative snapshot. The scanner already bounds actor
+count, reflected-property count, and reflected-value length, and the server is
+loopback-only. The bridge default is now 256 MiB, configurable through
+`AIFACTORY_MAX_BODY_MB` and hard-capped at 512 MiB. It checks Content-Length
+before allocating/parsing and reports both the declared and configured byte
+counts on rejection. `/health` exposes `maximum_request_body_bytes`; the clean
+live install reports 268,435,456. Exact header validation and all 590 tests
+pass, including a real over-limit HTTP test. No game restart was needed because
+this is companion-only. A future transport optimization may gzip snapshots,
+but must preserve the full solver-visible world rather than silently dropping
+mod data.

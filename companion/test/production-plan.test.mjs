@@ -94,6 +94,20 @@ test("prefers a recipe already used in this world over a higher-yield one", () =
   assert.equal(rod.alternate_recipes_available, 1);
 });
 
+test("standard-recipes mode overrides an in-use alternate recursively", () => {
+  const snapshot = buildFactorySnapshot();
+  const constructor = snapshot.actors.find((actor) => actor.actor_id === CONSTRUCTOR);
+  constructor.manufacturer.recipe_class = "Recipe_Alternate_IronRod";
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+    prefer_standard_recipes: true,
+  });
+  assert.equal(plan.steps[0].recipe_class, "Recipe_IronRod");
+  assert.match(plan.caveats.recipe_choice, /exactly matches/i);
+});
+
 test("an explicitly requested recipe overrides the in-use preference", () => {
   const plan = solveProductionPlan(graphWithoutSurplus(), {
     item_name: "Iron Rod",
@@ -158,6 +172,29 @@ test("stops at raw inputs and names them", () => {
   const ore = plan.raw_inputs_required.find((entry) => entry.item_name === "Iron Ore");
   assert.ok(ore, "iron ore is not produced by any recipe, so it is a raw input");
   assert.match(ore.supplied_by, /extraction/);
+});
+
+test("an authoritative source can stop recipe expansion at a manufacturable resource", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_ConvertIronOre",
+    name: "Iron Ore (Limestone)",
+    available: true,
+    duration_seconds: 6,
+    ingredients: [{ item_class: "Desc_Stone", item_name: "Limestone", amount: 1 }],
+    products: [{ item_class: "Desc_OreIron", item_name: "Iron Ore", amount: 12 }],
+    produced_in: ["Build_Converter_C"],
+  });
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+    stop_at_item_classes: ["Desc_OreIron"],
+  });
+  assert.equal(plan.steps.length, 2);
+  assert.deepEqual(plan.steps.map((step) => step.recipe_name), ["Iron Rod", "Iron Ingot"]);
+  assert.equal(plan.raw_inputs_required[0].item_class, "Desc_OreIron");
+  assert.match(plan.raw_inputs_required[0].supplied_by, /authoritative source/);
 });
 
 test("bounds recursion and reports what it did not expand", () => {

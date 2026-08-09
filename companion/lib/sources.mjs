@@ -27,6 +27,11 @@ export const OFFICIAL_SOURCE_DOMAINS = [
   // Planning and reference tools the community treats as canonical
   "satisfactory-calculator.com",
   "satisfactorytools.com",
+  // Production-graph and layout references requested by the project owner.
+  // They are design references only; the prompt keeps the live modded catalog
+  // authoritative for every rate, unlock, machine, and coordinate.
+  "factoriolab.github.io",
+  "manifolder.app",
   // Forums and discussion
   "steamcommunity.com",
 ];

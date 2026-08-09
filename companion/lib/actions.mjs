@@ -331,6 +331,37 @@ export function validateAction(graph, proposal) {
       if (known.class_path) checks.resolved_recipe_class = known.class_path;
     }
 
+    // Keep recipe assignment inside placement. A newly constructed
+    // manufacturer is the one moment the game can prove compatibility while
+    // both inventories are guaranteed to be empty, and rollback can still
+    // dismantle the configured machine as part of the same transaction.
+    const requestedProductionRecipe = String(
+      proposal.production_recipe_class ?? "",
+    ).trim();
+    let resolvedProductionRecipe = null;
+    if (requestedProductionRecipe) {
+      resolvedProductionRecipe =
+        catalog.get(requestedProductionRecipe) ??
+        findRecipeByShortName(catalog, requestedProductionRecipe);
+      if (catalog.size > 0 && !resolvedProductionRecipe) {
+        return reject(kind, "production_recipe_not_in_catalog", {
+          production_recipe_class: requestedProductionRecipe,
+          did_you_mean: nearestRecipeNames(catalog, requestedProductionRecipe),
+        });
+      }
+      if (resolvedProductionRecipe?.available === false) {
+        return reject(kind, "production_recipe_is_not_unlocked", {
+          production_recipe_class:
+            resolvedProductionRecipe.class_path ?? requestedProductionRecipe,
+        });
+      }
+      checks.production_recipe_name = resolvedProductionRecipe?.name ?? null;
+      checks.production_recipe_availability =
+        typeof resolvedProductionRecipe?.available === "boolean"
+          ? resolvedProductionRecipe.available
+          : "game_rechecks";
+    }
+
     if (playerPosition) {
       const metres = distanceMeters(playerPosition, location);
       checks.distance_from_player_m = Math.round(metres * 10) / 10;
@@ -363,6 +394,12 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
         ...(targetActorId ? { target_actor_id: targetActorId } : {}),
+        ...(requestedProductionRecipe
+          ? {
+              production_recipe_class:
+                resolvedProductionRecipe?.class_path ?? requestedProductionRecipe,
+            }
+          : {}),
         commit: proposal.commit === true,
       }, proposal),
     };

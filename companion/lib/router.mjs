@@ -52,6 +52,7 @@ import {
   surveyStructuralPieces,
 } from "./architecture.mjs";
 import { planCoalPower } from "./power.mjs";
+import { planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
   measureConnectors,
@@ -750,6 +751,25 @@ export function parseBaseDesignRequest(question) {
     at_best_site: atBestSite,
     raw_text: text,
   };
+}
+
+/**
+ * "build a wire factory using all mk1 parts on this node".
+ *
+ * Both the tier and aimed-node phrase are mandatory. Without either, choosing
+ * a source rate or transport tier would be an assumption, so the general
+ * planner/model keeps the request. The pattern is fully anchored so a second
+ * instruction cannot be silently ignored after an expensive write.
+ */
+const AIMED_MK1_FACTORY =
+  /^(?:can you |could you |please )?(?:build|make|construct|spawn)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(.+?)\s+factory\s+using\s+(?:all\s+)?(?:mk\.?\s*1|mark\s*1)\s+parts\s+(?:on|from)\s+this\s+node$/i;
+
+export function parseAimedMk1FactoryRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(AIMED_MK1_FACTORY);
+  if (!match) return null;
+  const item = match[1].replace(/\s+/g, " ").trim();
+  return item.length >= 2 ? { item, commit: true, raw_text: text } : null;
 }
 
 /**
@@ -1890,6 +1910,72 @@ export function answerLocally(question, graph, services) {
     );
   }
 
+  // The exact live request that previously missed every route and spent 1.2M
+  // tokens before returning a generic diagnostic. This is a fixed arithmetic
+  // and topology problem: aimed node + explicit Mk.1 tier + catalog item.
+  const aimedMk1Factory = parseAimedMk1FactoryRequest(question);
+  if (aimedMk1Factory && graph) {
+    const started = Date.now();
+    const item = findItemByName(graph, aimedMk1Factory.item);
+    if (!item) {
+      return localAnswer(
+        `I can't build that: **${aimedMk1Factory.item}** does not resolve to one unique item in the captured catalog.`,
+        "aimed_mk1_wire_factory_refused",
+        started,
+        "The understood local route refused before any action was sent.",
+      );
+    }
+
+    const target = solvePlacementTarget(graph, { kind: "aim" });
+    const plan = planAimedMk1WireFactory(graph, {
+      target,
+      item,
+      build_recipe_lookup: solveBuildRecipeLookup,
+    });
+    if (!plan.planned) {
+      return localAnswer(
+        `I can't build that Mk.1 factory: ${plan.reason}.`,
+        "aimed_mk1_wire_factory_refused",
+        started,
+        "The understood local route refused before any action was sent.",
+      );
+    }
+
+    const emitted = emitValidatedPlan(graph, services, plan.actions);
+    if (emitted) {
+      const capped = plan.extracted_per_minute > plan.line_input_per_minute
+        ? ` The ${plan.purity} node and Miner Mk.1 can supply ${plan.extracted_per_minute}/min, ` +
+          `but Mk.1 belt capacity is ${plan.belt_capacity_per_minute}/min, so the ` +
+          `line uses ${plan.node_utilisation_percent}% of the node and the miner will back up.`
+        : "";
+      const partialMachine = plan.last_constructor_utilisation_percent < 100
+        ? ` The last Constructor is supply-limited to ${plan.last_constructor_utilisation_percent}% utilisation.`
+        : "";
+      return localAnswer(
+        `Building a deterministic **${plan.output_per_minute} Wire/min Mk.1 factory** ` +
+          `from **${plan.node}**: 1 Miner Mk.1, ${plan.smelters} Smelters, ` +
+          `${plan.constructors} Constructors, splitter/merger fan-out, and ` +
+          `${plan.storage_lanes} separate Mk.1 output storage lanes. Recipe: **${plan.recipe}**.${capped}${partialMachine}\n\n` +
+          "Every Smelter and Constructor receives its captured selected recipe during placement, " +
+          "and the game reads it back before accepting the action. The complete transaction rolls " +
+          "back if any building, recipe, or belt fails.\n\n" +
+          "**Power is not wired yet**, so this builds and configures the material line but does not " +
+          `claim it is running. Connect the ${plan.smelters + plan.constructors} machines to your circuit; say undo to reverse ` +
+          "the whole placement.",
+        "aimed_mk1_wire_factory",
+        started,
+        "Node, tier, recipes, rates, machine counts, and belt capacity came from the live snapshot.",
+      );
+    }
+    const refusal = describePlanRejection();
+    return localAnswer(
+      refusal ?? "I could not validate the Mk.1 factory action plan, so nothing was sent to the game.",
+      "aimed_mk1_wire_factory_refused",
+      started,
+      "The whole plan was refused before any action was sent.",
+    );
+  }
+
   // A waypoint is a position handed to the game's own marker system. The
   // position either comes from the site solver or from a name lookup; neither
   // needs a model.
@@ -2076,8 +2162,11 @@ export function answerLocally(question, graph, services) {
     const emitted = emitValidatedPlan(graph, services, plan.actions);
     if (emitted) {
       const sizing = plan.sizing
-        ? `Captured rates: ${plan.sizing.mined_per_minute}/min from this ${plan.sizing.purity} node ` +
-          `(${plan.sizing.purity_multiplier}× purity) ÷ ${plan.sizing.burn_per_minute}/min per generator ` +
+        ? `Captured rates: ${plan.sizing.mined_per_minute}/min ` +
+          `${plan.sizing.rate_source === "authoritative_live_extractor_rate"
+            ? "from the existing extractor"
+            : `from this ${plan.sizing.purity} node (${plan.sizing.purity_multiplier}× purity)`} ` +
+          `÷ ${plan.sizing.burn_per_minute}/min per generator ` +
           `= **${plan.generator_count} generators**.\n\n`
         : "";
       const chain =
@@ -2088,7 +2177,9 @@ export function answerLocally(question, graph, services) {
             `rather than belted four ways off one connector`
           : `one **${plan.generator}** belted straight off it`;
       return localAnswer(
-        `Coal power off **${plan.node}**: one **${plan.miner}** on the node, ${chain}.\n\n${sizing}` +
+        `Coal power off **${plan.node}**: ` +
+          `${plan.reused_existing_extractor ? `reusing your existing **${plan.miner}**` : `one **${plan.miner}** on the node`}, ` +
+          `${chain}.\n\n${sizing}` +
           `**${plan.missing.water}**\n\n` +
           `Spacing is stated, not measured — no generator exists here to measure one from. ` +
           `The game refuses anything that does not fit and names it. Say "undo" to reverse it all.`,

@@ -38,7 +38,7 @@ const MAX_MACHINES_PER_PLAN = 256;
  * and if nothing resolves the plan says so instead of naming a belt the save
  * may not have.
  */
-export function findBestAvailableBelt(graph) {
+export function findBestAvailableBelt(graph, { tier: requiredTier = null } = {}) {
   let best = null;
   for (const recipe of graph?.snapshot?.content?.recipes ?? []) {
     if (recipe.available !== true) continue;
@@ -50,8 +50,14 @@ export function findBestAvailableBelt(graph) {
     if (!tier) continue;
 
     const level = Number(tier);
+    if (requiredTier !== null && level !== Number(requiredTier)) continue;
     if (!best || level > best.tier) {
-      best = { tier: level, recipe_class: recipe.class_path, name: recipe.name };
+      best = {
+        tier: level,
+        recipe_class: recipe.class_path,
+        name: recipe.name,
+        owner_mod: recipe.owner_mod ?? null,
+      };
     }
   }
   return best;
@@ -381,6 +387,7 @@ export function baseBuildActions(plan, { commit = false, step_offset: stepOffset
       actions.push({
         action: "place_building",
         recipe_class: step.build_recipe_class,
+        production_recipe_class: step.recipe_class,
         location: position.location_cm,
         yaw: 0,
         commit,

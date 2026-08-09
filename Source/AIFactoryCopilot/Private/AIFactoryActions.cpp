@@ -4,6 +4,7 @@
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
+#include "Buildables/FGBuildableManufacturer.h"
 #include "CollisionQueryParams.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
@@ -1211,7 +1212,8 @@ FAIFactoryActionResult PlaceBuilding(
     const FString& RecipeClassPath,
     const FTransform& Target,
     bool bCheckClearance,
-    const FString& PlacementTargetActorId)
+    const FString& PlacementTargetActorId,
+    const FString& ProductionRecipeClassPath)
 {
     const FString Action = TEXT("place_building");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -1228,6 +1230,23 @@ FAIFactoryActionResult PlaceBuilding(
             FString::Printf(TEXT("recipe_not_found:%s"), *RecipeClassPath));
     }
     const TSubclassOf<UFGRecipe> RecipeClass = RecipeClassObject;
+
+    UClass* ProductionRecipeClassObject = nullptr;
+    TSubclassOf<UFGRecipe> ProductionRecipeClass = nullptr;
+    if (!ProductionRecipeClassPath.IsEmpty())
+    {
+        ProductionRecipeClassObject = FindActionClassByPath(ProductionRecipeClassPath);
+        if (!ProductionRecipeClassObject ||
+            !ProductionRecipeClassObject->IsChildOf(UFGRecipe::StaticClass()))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                FString::Printf(
+                    TEXT("production_recipe_not_found:%s"),
+                    *ProductionRecipeClassPath));
+        }
+        ProductionRecipeClass = ProductionRecipeClassObject;
+    }
 
     // A build recipe produces exactly one building descriptor, and that
     // descriptor names the buildable class. Anything else is not placeable.
@@ -1275,6 +1294,24 @@ FAIFactoryActionResult PlaceBuilding(
                 TEXT("building_is_not_unlocked:%s"),
                 *BuildableClass->GetName()));
     }
+    if (ProductionRecipeClass &&
+        !RecipeManager->IsRecipeAvailable(ProductionRecipeClass))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("production_recipe_is_not_unlocked:%s"),
+                *ProductionRecipeClassObject->GetName()));
+    }
+    if (ProductionRecipeClass &&
+        !UFGRecipe::IsProducedIn(ProductionRecipeClass, BuildableClass))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("production_recipe_is_not_compatible_with_building:%s"),
+                *ProductionRecipeClassObject->GetName()));
+    }
 
     UFGInventoryComponent* Inventory = Context.Player->GetInventory();
     if (!IsValid(Inventory))
@@ -1301,6 +1338,17 @@ FAIFactoryActionResult PlaceBuilding(
     Predicted->SetObjectField(TEXT("transform"), ActionTransformJson(Target));
     Predicted->SetBoolField(TEXT("recipe_unlocked"), true);
     Predicted->SetBoolField(TEXT("building_unlocked"), true);
+    if (ProductionRecipeClass)
+    {
+        Predicted->SetStringField(
+            TEXT("production_recipe_class"),
+            ProductionRecipeClass->GetPathName());
+        Predicted->SetStringField(
+            TEXT("production_recipe_name"),
+            UFGRecipe::GetRecipeName(ProductionRecipeClass).ToString());
+        Predicted->SetBoolField(TEXT("production_recipe_unlocked"), true);
+        Predicted->SetBoolField(TEXT("production_recipe_compatible"), true);
+    }
 
     // Measure the ground and the space rather than assuming both are fine. This
     // is advisory: the game's own construction still decides.
@@ -1455,6 +1503,66 @@ FAIFactoryActionResult PlaceBuilding(
         return Result;
     }
 
+    // A generated factory is not usable if its manufacturers are left with no
+    // recipe. Configure a newly constructed machine before charging the build
+    // cost or exposing it to production. New machines have empty inventories;
+    // the explicit checks enforce SetRecipe's documented precondition and make
+    // this fail closed if a mod constructs unusual pre-filled machinery.
+    if (ProductionRecipeClass)
+    {
+        AFGBuildableManufacturer* Manufacturer =
+            Cast<AFGBuildableManufacturer>(RootBuildable);
+        UFGInventoryComponent* Input = IsValid(Manufacturer)
+            ? Manufacturer->GetInputInventory()
+            : nullptr;
+        UFGInventoryComponent* Output = IsValid(Manufacturer)
+            ? Manufacturer->GetOutputInventory()
+            : nullptr;
+        TArray<TSubclassOf<UFGRecipe>> AvailableRecipes;
+        if (IsValid(Manufacturer))
+        {
+            Manufacturer->GetAvailableRecipes(AvailableRecipes);
+        }
+        const bool bInventoriesEmpty =
+            IsValid(Input) && IsValid(Output) && Input->IsEmpty() && Output->IsEmpty();
+        const bool bInstanceCompatible =
+            AvailableRecipes.Contains(ProductionRecipeClass);
+        if (!IsValid(Manufacturer) || !bInventoriesEmpty || !bInstanceCompatible)
+        {
+            for (AFGBuildable* Buildable : ConstructedBuildables)
+            {
+                if (IsValid(Buildable))
+                {
+                    // No material was charged, so cleanup must not grant a refund.
+                    IFGDismantleInterface::Execute_Dismantle(Buildable);
+                }
+            }
+            Result.Status = TEXT("failed");
+            Result.Reason = !IsValid(Manufacturer)
+                ? TEXT("production_recipe_requested_for_non_manufacturer")
+                : !bInventoriesEmpty
+                    ? TEXT("new_manufacturer_inventories_were_not_empty")
+                    : TEXT("production_recipe_not_available_on_constructed_machine");
+            return Result;
+        }
+
+        Manufacturer->SetRecipe(ProductionRecipeClass);
+        Manufacturer->ForceNetUpdate();
+        if (Manufacturer->GetCurrentRecipe() != ProductionRecipeClass)
+        {
+            for (AFGBuildable* Buildable : ConstructedBuildables)
+            {
+                if (IsValid(Buildable))
+                {
+                    IFGDismantleInterface::Execute_Dismantle(Buildable);
+                }
+            }
+            Result.Status = TEXT("failed");
+            Result.Reason = TEXT("production_recipe_readback_did_not_match");
+            return Result;
+        }
+    }
+
     ChargeActionCost(Cost, Inventory);
 
     Result.bCommitted = true;
@@ -1478,6 +1586,16 @@ FAIFactoryActionResult PlaceBuilding(
             ? RootBuildable->GetBuiltWithRecipe()->GetPathName()
             : TEXT(""));
     Observed->SetBoolField(TEXT("validated_by_hologram"), true);
+    if (AFGBuildableManufacturer* Manufacturer =
+            Cast<AFGBuildableManufacturer>(RootBuildable);
+        IsValid(Manufacturer))
+    {
+        Observed->SetStringField(
+            TEXT("production_recipe_class"),
+            Manufacturer->GetCurrentRecipe()
+                ? Manufacturer->GetCurrentRecipe()->GetPathName()
+                : TEXT(""));
+    }
     Observed->SetNumberField(
         TEXT("offset_from_requested_cm"),
         FVector::Dist(RootBuildable->GetActorLocation(), Target.GetLocation()));
@@ -2612,12 +2730,17 @@ namespace
             // to find it.
             FString PlacementTargetActorId;
             Spec->TryGetStringField(TEXT("target_actor_id"), PlacementTargetActorId);
+            FString ProductionRecipeClassPath;
+            Spec->TryGetStringField(
+                TEXT("production_recipe_class"),
+                ProductionRecipeClassPath);
             return PlaceBuilding(
                 Context,
                 RecipeClass,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location),
                 bCheck,
-                PlacementTargetActorId);
+                PlacementTargetActorId,
+                ProductionRecipeClassPath);
         }
         if (Kind == TEXT("place_blueprint"))
         {

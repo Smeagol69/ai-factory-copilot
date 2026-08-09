@@ -1763,6 +1763,8 @@ export function solveProductionPlan(
     recipe_class = null,
     max_depth = DEFAULT_PLAN_DEPTH,
     use_existing_surplus = true,
+    prefer_standard_recipes = false,
+    stop_at_item_classes = [],
   } = {},
 ) {
   const targetRate = finitePositive(target_rate_per_minute);
@@ -1816,6 +1818,16 @@ export function solveProductionPlan(
       certainty: "unknown",
     };
   }
+
+  // Callers that own an authoritative source (for example, an aimed resource
+  // node) can declare it as a terminal input. This prevents late-game
+  // Converter recipes from expanding Iron Ore into SAM/Limestone merely
+  // because the catalog says Iron Ore can also be manufactured.
+  const terminalInputs = new Set(
+    Array.isArray(stop_at_item_classes)
+      ? stop_at_item_classes.map((value) => String(value)).filter(Boolean)
+      : [],
+  );
 
   const surplusByItem = new Map();
   if (use_existing_surplus) {
@@ -1873,6 +1885,19 @@ export function solveProductionPlan(
     const remaining = rate - fromSurplus;
     if (remaining <= 1e-9) return;
 
+    if (terminalInputs.has(itemClass)) {
+      const scale = itemUnitScale(graph, itemClass);
+      rawInputs.set(itemClass, {
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round((rawInputs.get(itemClass)?.raw ?? 0) + remaining),
+        raw: (rawInputs.get(itemClass)?.raw ?? 0) + remaining,
+        display_unit: scale.display_unit,
+        supplied_by: "the caller's authoritative source; recipe expansion stops here",
+      });
+      return;
+    }
+
     const recipeOptions = recipesProducing(itemClass);
     if (recipeOptions.all.length === 0) {
       // Nothing makes it, so it is a raw input for this plan.
@@ -1926,10 +1951,39 @@ export function solveProductionPlan(
       return;
     }
 
-    // Prefer an explicitly requested recipe, then one already used in this
-    // world, then the highest-yield option.
+    // "All Mk.1 parts" means the ordinary early-game chain, not an alternate
+    // recipe that happens to have higher yield or is already running elsewhere
+    // in a heavily modded save. The standard recipe's display name is exactly
+    // the product's item name. This preference applies recursively so Wire does
+    // not quietly become Caterium Wire or Pure Copper Ingot downstream.
+    const itemDisplayName = String(graph.itemsByClass.get(itemClass)?.name ?? "").trim();
+    const isStandardRecipe = (candidate) =>
+      itemDisplayName &&
+      String(candidate?.name ?? "").trim().toLowerCase() ===
+        itemDisplayName.toLowerCase();
+    const registeredStandardRecipe = prefer_standard_recipes
+      ? recipeOptions.all.find(isStandardRecipe)
+      : null;
+    if (registeredStandardRecipe?.available === false) {
+      unresolved.push({
+        item_class: itemClass,
+        item_name: itemDisplayName || null,
+        display_units_per_minute: round(remaining),
+        reason: "standard_recipe_is_unavailable_in_this_save",
+        recipe_class: registeredStandardRecipe.class_path,
+        chain,
+      });
+      return;
+    }
+    const standardRecipe = prefer_standard_recipes
+      ? options.find(isStandardRecipe)
+      : null;
+
+    // Prefer an explicitly requested recipe, then the standard recipe when
+    // requested, then one already used in this world, then highest yield.
     const chosen =
       requestedRecipe ||
+      standardRecipe ||
       options.find((r) => inUseRecipeClasses.has(r.class_path)) ||
       options.slice().sort((a, b) => (recipeOutputRate(graph, b, itemClass) ?? 0) - (recipeOutputRate(graph, a, itemClass) ?? 0))[0];
 
@@ -2072,7 +2126,9 @@ export function solveProductionPlan(
     step_budget_hit: stepBudgetHit,
     caveats: {
       recipe_choice:
-        "Unavailable recipes are excluded. Among usable recipes, ones already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
+        prefer_standard_recipes
+          ? "Unavailable recipes are excluded. The recipe whose name exactly matches each product is preferred recursively; existing-use and yield only break a missing standard match."
+          : "Unavailable recipes are excluded. Among usable recipes, ones already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
       unlocks:
         graph.snapshot?.content?.availability_known === true
           ? "Recipe choices use the loaded save's authoritative AFGRecipeManager availability state."
@@ -2081,6 +2137,10 @@ export function solveProductionPlan(
         "Per-machine draw is read off your own machines of that type. Steps with no such machine report power as unknown rather than estimating it.",
       layout:
         "This is a bill of materials and machine count, not a physical layout. Placement still needs find_best_site for ground and the game's own hologram check.",
+      terminal_inputs:
+        terminalInputs.size > 0
+          ? [...terminalInputs]
+          : "none supplied; catalog recipes may expand resources that can also be manufactured",
     },
     source: "deterministic_recipe_expansion_over_the_authoritative_catalog",
     certainty: "calculated",
@@ -2339,6 +2399,40 @@ export function solvePlacementTarget(graph, args = {}) {
         // node, which positions the hologram correctly and binds it to nothing.
         actor_id: snapshotOfActor.actor_id ?? target.actor_id ?? null,
       };
+    }
+
+    // A placed extractor physically covers the node it mines, so the camera
+    // normally hits the machine rather than the node underneath it. Current
+    // snapshots carry the game's GetExtractableResource() relation. Follow
+    // that exact actor id back to the complete graph instead of inferring a
+    // resource from an inventory stack or nearest-neighbour geometry.
+    const extractor = snapshotOfActor.extractor;
+    if (extractor) {
+      const resourceActorId = String(extractor.extractable_resource_actor_id ?? "").trim();
+      const capturedResource = resourceActorId
+        ? graph?.nodes?.get?.(resourceActorId)?.raw ?? null
+        : null;
+      const resourceClass = capturedResource?.resource_class ?? extractor.resource_class ?? null;
+      const resourceName = capturedResource?.resource_name ?? extractor.resource_name ?? null;
+      if (resourceActorId && (resourceClass || resourceName)) {
+        return {
+          resolved: true,
+          location: capturedResource?.location ?? snapshotOfActor.location ?? target.hit_location,
+          on: capturedResource?.name ?? resourceActorId,
+          node_type: capturedResource?.node_type ?? null,
+          occupied: true,
+          purity: capturedResource?.purity ?? null,
+          resource_class: resourceClass,
+          resource_name: resourceName,
+          actor_id: resourceActorId,
+          existing_extractor_actor_id: snapshotOfActor.actor_id ?? target.actor_id ?? null,
+          existing_extractor_name: snapshotOfActor.name ?? target.actor_name ?? "existing extractor",
+          extraction_per_minute: Number.isFinite(Number(extractor.extraction_per_minute))
+            ? Number(extractor.extraction_per_minute)
+            : null,
+          resource_relation_source: "authoritative_extractor_interface",
+        };
+      }
     }
     if (target.hit_location) {
       return { resolved: true, location: target.hit_location, on: target.actor_name ?? "the ground" };

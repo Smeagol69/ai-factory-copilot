@@ -47,6 +47,7 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.provider, "mock");
   assert.equal(body.readiness.ready, true);
   assert.equal(body.loopback_only, true);
+  assert.equal(body.maximum_request_body_bytes, 256 * 1024 * 1024);
   assert.equal(body.conveyor_speed_divisor, 2);
   assert.ok(body.solver_tools.includes("get_factory_summary"));
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
@@ -211,6 +212,27 @@ test("routing diagnostics are instance-scoped and carry request provenance", asy
   assert.ok(entries[1].bridge_elapsed_ms >= 0);
   assert.ok(Number.isInteger(entries[1].route_elapsed_ms));
   assert.ok(entries[1].route_elapsed_ms >= 0);
+});
+
+test("request body limits reject from Content-Length before JSON parsing", async () => {
+  const limitedServer = createBridgeServer({
+    env: { AI_PROVIDER: "mock", AIFACTORY_MAX_BODY_MB: "1" },
+  });
+  await new Promise((resolve) => limitedServer.listen(0, "127.0.0.1", resolve));
+  const address = limitedServer.address();
+  try {
+    const response = await fetch(`http://127.0.0.1:${address.port}/v1/ask`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ padding: "x".repeat(1024 * 1024) }),
+    });
+    assert.equal(response.status, 413);
+    assert.match((await response.json()).error, /exceeding the configured 1048576-byte limit/);
+  } finally {
+    await new Promise((resolve, reject) =>
+      limitedServer.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });
 
 test("reset endpoint clears one local conversation", async () => {

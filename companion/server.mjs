@@ -454,12 +454,22 @@ function jsonResponse(response, status, body) {
 }
 
 async function readJsonBody(request, maximumBytes) {
+  const declaredBytes = Number(request.headers["content-length"]);
+  if (Number.isFinite(declaredBytes) && declaredBytes > maximumBytes) {
+    const error = new Error(
+      `Request body is ${declaredBytes} bytes, exceeding the configured ${maximumBytes}-byte limit.`,
+    );
+    error.statusCode = 413;
+    throw error;
+  }
   let received = 0;
   const chunks = [];
   for await (const chunk of request) {
     received += chunk.length;
     if (received > maximumBytes) {
-      const error = new Error(`Request body exceeds ${maximumBytes} bytes.`);
+      const error = new Error(
+        `Request body exceeded the configured ${maximumBytes}-byte limit after receiving ${received} bytes.`,
+      );
       error.statusCode = 413;
       throw error;
     }
@@ -524,7 +534,7 @@ export function makeBlueprintReader(env = process.env) {
 export function createBridgeServer({ env = process.env } = {}) {
   const provider = (env.AI_PROVIDER || "mock").toLowerCase();
   const maximumBodyBytes =
-    positiveInteger(env.AIFACTORY_MAX_BODY_MB, 64) * 1024 * 1024;
+    Math.min(positiveInteger(env.AIFACTORY_MAX_BODY_MB, 256), 512) * 1024 * 1024;
   const maximumQuestionCharacters = positiveInteger(
     env.AIFACTORY_MAX_QUESTION_CHARS,
     16_000,
@@ -579,6 +589,7 @@ export function createBridgeServer({ env = process.env } = {}) {
           model: providerReadiness.model,
           readiness: providerReadiness,
           loopback_only: true,
+          maximum_request_body_bytes: maximumBodyBytes,
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
