@@ -45,6 +45,44 @@ test("a mistyped recipe is caught here with the near misses named", () => {
   assert.ok(Array.isArray(result.did_you_mean));
 });
 
+test("a locked building recipe is refused before the game is asked", () => {
+  const snapshot = buildFactorySnapshot();
+  const recipe = {
+    class_path: "/Game/Recipes/Recipe_LockedConstructor.Recipe_LockedConstructor_C",
+    name: "Locked Constructor",
+    available: false,
+    products: [{ item_class: "/Game/Desc_LockedConstructor.Desc_LockedConstructor_C" }],
+    produced_in: ["/Script/FactoryGame.FGBuildGun"],
+  };
+  snapshot.content.recipes.push(recipe);
+
+  const result = validateAction(buildGraph(snapshot), {
+    action: "place_building",
+    recipe_class: recipe.class_path,
+    location: HERE,
+    commit: true,
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "build_recipe_is_not_unlocked");
+  assert.equal(result.recipe_class, recipe.class_path);
+});
+
+test("a current capture treats missing recipe availability as unknown, never unlocked", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.availability_known = true;
+  const recipe = snapshot.content.recipes[0];
+  delete recipe.available;
+
+  const result = validateAction(buildGraph(snapshot), {
+    action: "place_building",
+    recipe_class: recipe.class_path,
+    location: HERE,
+    commit: true,
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "build_recipe_unlock_is_not_proven");
+});
+
 test("an implausibly distant teleport is refused", () => {
   const result = validateAction(graphOf(), {
     action: "teleport_player",
@@ -243,6 +281,34 @@ test("belt step endpoints are unambiguous and point to earlier actor creators", 
   ]);
   assert.equal(previewDependency.valid, false);
   assert.equal(previewDependency.rejected[0].reason, "from_step_cannot_commit_from_a_preview_step");
+});
+
+test("a missing or locked belt recipe is refused before endpoint execution", () => {
+  const missing = validateAction(graphOf(), {
+    action: "place_belt",
+    recipe_class: "Recipe_ConveyorBeltTypo",
+    from_actor_id: "Build_A",
+    to_actor_id: "Build_B",
+  });
+  assert.equal(missing.valid, false);
+  assert.equal(missing.reason, "belt_recipe_not_in_catalog");
+
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_ConveyorBeltLocked",
+    name: "Conveyor Belt Mk. 99",
+    available: false,
+    products: [{ item_class: "Desc_ConveyorBeltMk99", item_name: "Conveyor Belt Mk. 99" }],
+    produced_in: ["BP_BuildGun_C"],
+  });
+  const locked = validateAction(buildGraph(snapshot), {
+    action: "place_belt",
+    recipe_class: "Recipe_ConveyorBeltLocked",
+    from_actor_id: "Build_A",
+    to_actor_id: "Build_B",
+  });
+  assert.equal(locked.valid, false);
+  assert.equal(locked.reason, "belt_recipe_is_not_unlocked");
 });
 
 test("a building can target an earlier committed foundation step only", () => {

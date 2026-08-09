@@ -159,6 +159,10 @@ test("Pure Copper is capped by observed Mk.1 transport and uses standard recipes
   assert.equal(plan.constructors, 4);
   assert.equal(plan.foundations, 14);
   assert.equal(plan.production.covered_by_existing_surplus.length, 0);
+  assert.equal(plan.unlock_constraints.availability_known, true);
+  assert.match(plan.unlock_constraints.availability_fingerprint, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(plan.optimization.recalculated_from_current_capture, true);
+  assert.ok(plan.optimization.recipe_candidates_considered >= 1);
 
   const belts = plan.actions.filter((action) => action.action === "place_belt");
   assert.equal(belts.length, 17);
@@ -282,6 +286,22 @@ test("missing authoritative evidence refuses instead of guessing", () => {
       graph: graphOf(),
       target: { ...target, occupied: true },
       pattern: /already occupied/,
+    },
+    {
+      name: "unlock availability",
+      graph: graphOf((snapshot) => { snapshot.content.availability_known = false; }),
+      target,
+      pattern: /unlock state was not captured/,
+    },
+    {
+      name: "foundation unlock",
+      graph: graphOf((snapshot) => {
+        snapshot.content.recipes.find((recipe) =>
+          /Recipe_Foundation_8x1_01/i.test(recipe.class_path),
+        ).available = false;
+      }),
+      target,
+      pattern: /Foundation \(1 m\)/,
     },
   ];
   for (const entry of cases) {

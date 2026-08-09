@@ -307,6 +307,7 @@ export function validateAction(graph, proposal) {
     // Check the recipe exists before the game is asked to build it, so a typo
     // is caught here with the near-misses named rather than failing in-world.
     const catalog = graph?.recipesByClass ?? new Map();
+    const availabilityKnown = graph?.snapshot?.content?.availability_known === true;
     const known = catalog.get(recipeClass) ?? findRecipeByShortName(catalog, recipeClass);
 
     // A recipe that already built something standing in this world is real
@@ -329,6 +330,16 @@ export function validateAction(graph, proposal) {
       // Emit the exact class path the catalog knows, so a short name the model
       // used resolves to something the game can actually look up.
       if (known.class_path) checks.resolved_recipe_class = known.class_path;
+      if (known.available === false || (availabilityKnown && known.available !== true)) {
+        return reject(kind, known.available === false
+          ? "build_recipe_is_not_unlocked"
+          : "build_recipe_unlock_is_not_proven", {
+          recipe_class: known.class_path ?? recipeClass,
+          building_name: known.name ?? null,
+        });
+      }
+      checks.build_recipe_availability =
+        typeof known.available === "boolean" ? known.available : "game_rechecks";
     }
 
     // Keep recipe assignment inside placement. A newly constructed
@@ -349,8 +360,14 @@ export function validateAction(graph, proposal) {
           did_you_mean: nearestRecipeNames(catalog, requestedProductionRecipe),
         });
       }
-      if (resolvedProductionRecipe?.available === false) {
-        return reject(kind, "production_recipe_is_not_unlocked", {
+      if (
+        resolvedProductionRecipe &&
+        (resolvedProductionRecipe.available === false ||
+          (availabilityKnown && resolvedProductionRecipe.available !== true))
+      ) {
+        return reject(kind, resolvedProductionRecipe.available === false
+          ? "production_recipe_is_not_unlocked"
+          : "production_recipe_unlock_is_not_proven", {
           production_recipe_class:
             resolvedProductionRecipe.class_path ?? requestedProductionRecipe,
         });
@@ -537,6 +554,34 @@ export function validateAction(graph, proposal) {
     const hasTo = Boolean(toComponent || toActor) || toStep !== null;
 
     if (!recipeClass) return reject(kind, "recipe_class_is_required");
+
+    const catalog = graph?.recipesByClass ?? new Map();
+    const availabilityKnown = graph?.snapshot?.content?.availability_known === true;
+    const known = catalog.get(recipeClass) ?? findRecipeByShortName(catalog, recipeClass);
+    const builtSomethingHere = recipeIsInUse(graph, recipeClass);
+    if (catalog.size > 0 && !known && !builtSomethingHere) {
+      return reject(kind, "belt_recipe_not_in_catalog", {
+        recipe_class: recipeClass,
+        did_you_mean: nearestRecipeNames(catalog, recipeClass),
+      });
+    }
+    if (
+      known &&
+      (known.available === false || (availabilityKnown && known.available !== true))
+    ) {
+      return reject(kind, known.available === false
+        ? "belt_recipe_is_not_unlocked"
+        : "belt_recipe_unlock_is_not_proven", {
+        recipe_class: known.class_path ?? recipeClass,
+        recipe_name: known.name ?? null,
+      });
+    }
+    const resolvedRecipeClass = known?.class_path ?? recipeClass;
+    checks.belt_recipe_availability = known?.available === true
+      ? true
+      : "game_rechecks";
+    if (known?.name) checks.belt_recipe_name = known.name;
+
     if (!hasFrom || !hasTo) {
       return reject(kind, "each_end_needs_a_component_actor_or_step");
     }
@@ -574,7 +619,7 @@ export function validateAction(graph, proposal) {
         graph,
         {
           action: kind,
-          recipe_class: recipeClass,
+          recipe_class: resolvedRecipeClass,
           // Only the endpoint forms that were actually given travel onward, so
           // the executor is never handed an empty string to resolve.
           ...(fromComponent ? { from_component: fromComponent } : {}),

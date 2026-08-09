@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-09 | Codex | `codex/release-hardening` | Current-unlock build constraints: bridge rejection for locked building/production/belt recipes in `companion/lib/actions.mjs`; exact `AFGRecipeManager::IsRecipeAvailable` gate for `place_belt` in `AIFactoryActions.cpp`; deterministic unlock fingerprint and replan/optimization provenance in `companion/lib/megabase.mjs` / tool output; focused tests, header verification, build/package/deploy, and planning docs. This is a narrow extension of the deployed belt executor, not a routing rewrite. | in progress |
+| 2026-08-09 | Codex | `codex/release-hardening` | Current-unlock build constraints: bridge rejection for locked building/production/belt recipes in `companion/lib/actions.mjs`; exact `AFGRecipeManager::IsRecipeAvailable` gate for `place_belt` in `AIFactoryActions.cpp`; deterministic unlock fingerprint and replan/optimization provenance in `companion/lib/megabase.mjs` / tool output; focused tests, header verification, build/package/deploy, and planning docs. This is a narrow extension of the deployed belt executor, not a routing rewrite. | complete; see 2026-08-09 current-unlock handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | complete |
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
@@ -2079,3 +2079,48 @@ carry explicit early-game/standard-recipe/tier constraints. Do not weaken the
 measured-geometry rule to force a preview. The separately deployed exact
 conveyor endpoint build (`7fc67f3`) still awaits the owner's next live 46-step
 Wire retry; this documentation/preview work did not touch it.
+
+**Codex, 2026-08-09 - current-unlock optimization gates compiled, packaged,
+deployed, and handed off.** Every fresh plan can now carry an exact SHA-256
+fingerprint of the recipe classes the current `AFGRecipeManager` capture marked
+available. It deliberately excludes the noisy global world revision. The
+contract requires a new capture and production/site/routing/placement/part
+replan before action compilation, and `megabase.design/v1` reports exactly which
+objectives were recalculated; full transport routing remains false and a named
+construction blocker.
+
+The aimed Mk.1 Wire planner now refuses when authoritative availability is not
+captured and selects production recipes and its Foundation (1 m) support only
+from explicit `available: true` entries. It records its unlock fingerprint,
+recipe candidate count, and production/placement/routing objectives. The generic
+production solver no longer optimizes through a missing availability value when
+the current capture claims availability is authoritative. The bridge rejects
+locked or unproven building, manufacturer, and conveyor recipes before emitting
+a plan. The game was already rechecking buildings and manufacturer recipes; it
+now also calls the exact public `AFGRecipeManager::IsRecipeAvailable()` API for
+the selected conveyor recipe before spawning the belt hologram. A state change
+between capture and execution therefore refuses and rolls back instead of
+substituting another tier or recipe.
+
+Exact SML 3.12.0 / FactoryGame 491125 header validation and all 604 companion
+tests pass. FactoryGameSteam Shipping and FactoryEditor Development compiled;
+UAT built, cooked, archived, and deployed while the game was closed. Archive:
+15,130,563 bytes, SHA-256
+`4C763DAB83FEE17B7B53DDEF92D6E46A34BF071FFF2507FE03326E5F01E54BAA`.
+Deployed DLL: 667,136 bytes, SHA-256
+`075B4D176AC6D5964090B835BF3623B7F06C0607336A5E5C5D45E2E2D2D6AF75`.
+The clean companion install verifies 26 runtime files and `/health` is ready on
+port 8142 with hybrid local/Anthropic providers. Key installed hashes:
+`actions.mjs` `E37224062C37BC301ED43CD3A3FBA845E7D81E4A394C40334C65BD2ED16AF37E`,
+`solvers.mjs` `726357E109F556FD390A2099B624069807F984535C8FF997B2540FB5327F2435`,
+`resource-factory.mjs` `1D4E76C5DEE73DFC2195411FDE8DF4651BB6EB3B5604B2CB4EA8A58298FABD92`,
+`megabase.mjs` `CF1CBF346B206F5DF923B460B6E87BC60DB07C372AC5894D67E27CF54121E08A`,
+and `unlock-constraints.mjs`
+`777F0F54FF9B62CB60893487E4EB402CD6C306DDD752B6703552EB34CC28BA9A`.
+
+Claude coordination check: `origin/master` and `origin/claude/belt-routing`
+both remain at `390ab2b`; there was no newer overlapping Claude change to merge.
+The remaining live evidence is the same owner retry of “build a wire factory
+using all mk1 parts on this node,” now with both exact conveyor-endpoint and
+current-unlock enforcement deployed. Do not claim completed belt construction
+until `latest-bridge-response.json` proves the transaction in the loaded save.

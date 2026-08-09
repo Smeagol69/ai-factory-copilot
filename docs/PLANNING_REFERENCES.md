@@ -20,6 +20,26 @@ Lower levels never overwrite higher ones. In particular, vanilla ratios from a
 guide are examples—not constants—when a save contains modded miners,
 generators, extractors, belts, or pipes.
 
+## Fresh unlock-constrained optimization
+
+Each Send is a new planning boundary. The companion hashes the exact set of
+recipe classes the current save's `AFGRecipeManager` marked available and uses
+only explicit `available: true` candidates when that authoritative field is
+present. Production chains, machine counts, selected tiers, architectural part
+candidates, site/placement geometry, and transport topology must be recomputed
+from that same capture. Inventory cost and every exact recipe are then checked
+again by the game before construction. A changed or missing unlock fact fails
+closed; the planner does not keep an older choice or silently use a locked
+alternate.
+
+"Optimal" always names its constraints and objectives. Throughput correctness,
+requested tier limits, current unlocks, captured transport capacity, exact XYZ,
+and hologram acceptance are hard constraints. Shorter and cleaner routing,
+smaller footprint, service access, expansion, independent commissioning, and
+visual cohesion are ordered soft objectives. A subsystem that has not yet
+solved one of those objectives reports it as a construction blocker rather than
+claiming the whole design is optimal.
+
 ## Belts and connectors
 
 - [Factory connectors](https://docs.ficsit.app/satisfactory-modding/latest/Development/Satisfactory/FactoryConnectors.html)

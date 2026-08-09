@@ -12,6 +12,9 @@
  */
 
 import { createHash } from "node:crypto";
+import { captureUnlockConstraints } from "./unlock-constraints.mjs";
+
+export { captureUnlockConstraints } from "./unlock-constraints.mjs";
 
 import { FOUNDATION_CM } from "./designer.mjs";
 
@@ -689,6 +692,14 @@ export function validateMegabaseManifest(manifest) {
   if (!manifest?.design_family?.family_id || !manifest?.design_family?.fingerprint) {
     issues.push("design_family_identity_is_missing");
   }
+  if (
+    manifest?.unlock_constraints?.availability_known === true &&
+    !/^sha256:[0-9a-f]{64}$/.test(
+      String(manifest.unlock_constraints.availability_fingerprint ?? ""),
+    )
+  ) {
+    issues.push("authoritative_unlock_fingerprint_is_missing");
+  }
 
   const ids = new Set();
   for (const element of manifest?.elements ?? []) {
@@ -945,6 +956,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
   }));
 
   const parts = resolveSemanticRoles(graph, options.part_selections);
+  const unlockConstraints = captureUnlockConstraints(graph);
   const designFamily = designFamilyIdentity(
     style,
     normalizedFamily.family_id,
@@ -984,6 +996,33 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       matched_required_fingerprint: requiredFamilyFingerprint || null,
     },
     commissioning,
+    unlock_constraints: unlockConstraints,
+    optimization: {
+      method: "unlock_constrained_lexicographic_feasibility_then_multi_objective_scoring",
+      hard_constraints: [
+        "every_selected_recipe_is_proven_available_in_the_current_capture",
+        "requested_output_and_explicit_tier_limits_are_preserved",
+        "captured_machine_and_transport_capacities_are_not_exceeded",
+        "no_unknown_coordinate_or_machine_dimension_is_invented",
+        "the_game_must_accept_every_hologram_and_read_back_every_connection",
+      ],
+      soft_objectives_in_order: [
+        "minimize_total_transport_length_bends_lifts_and_crossings",
+        "minimize_footprint_without_removing_service_clearance",
+        "minimize_machine_and_logistics_complexity",
+        "preserve_independent_commissioning_and_expansion_space",
+        "maximize_design_family_cohesion",
+      ],
+      recalculated_from_this_capture: {
+        production_recipe_selection: true,
+        machine_counts: true,
+        architectural_part_candidates: true,
+        placement_geometry: true,
+        transport_routing: false,
+      },
+      transport_routing_effect:
+        "Transport routing remains a construction blocker and must be recalculated from current connector occupancy, unlocked transports, capacities, terrain, and obstructions immediately before action compilation.",
+    },
     program: {
       source: "measured_factory_layout",
       groups: program.groups,
@@ -995,6 +1034,9 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     actions: [],
     construction_ready: false,
     construction_blockers: [
+      ...(!unlockConstraints.availability_known
+        ? ["complete_current_recipe_availability_was_not_captured"]
+        : []),
       "semantic_parts_must_resolve_to_available_captured_build_recipes",
       "complete_footprint_terrain_and_collision_preflight_has_not_run",
       "machine_logistics_power_and_circulation_are_not_routed",

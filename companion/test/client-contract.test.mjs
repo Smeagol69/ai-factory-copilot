@@ -152,6 +152,26 @@ test("conveyor snap gates name the exact expected endpoint buildables", () => {
   assert.ok(destinationGate >= 0 && destinationGate < validate);
 });
 
+test("the game rejects a locked belt recipe before spawning its hologram", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const beltStart = actions.indexOf("FAIFactoryActionResult PlaceBelt(");
+  const beltEnd = actions.indexOf("FAIFactoryActionResult DismantleActor(", beltStart);
+  const belt = actions.slice(beltStart, beltEnd);
+
+  assert.match(belt, /AFGRecipeManager::Get\(Context\.World\)/);
+  assert.match(belt, /RecipeManager->IsRecipeAvailable\(BeltRecipeClass\)/);
+  assert.match(belt, /belt_recipe_is_not_unlocked/);
+  const unlockGate = belt.indexOf("RecipeManager->IsRecipeAvailable(BeltRecipeClass)");
+  const hologramSpawn = belt.indexOf("AFGHologram::SpawnHologramFromRecipe");
+  assert.ok(unlockGate >= 0 && unlockGate < hologramSpawn);
+});
+
 test("new manufacturers receive only a compatible unlocked recipe with empty inventories", () => {
   const actions = fs.readFileSync(
     new URL(

@@ -136,6 +136,27 @@ test("rejects an explicitly requested recipe locked in the loaded save", () => {
   assert.equal(plan.unresolved[0].recipe_class, "Recipe_Alternate_IronRod");
 });
 
+test("current captures never optimize through a recipe without a proven unlock", () => {
+  const snapshot = buildFactorySnapshot();
+  const standard = snapshot.content.recipes.find(
+    (recipe) => recipe.class_path === "Recipe_IronRod",
+  );
+  delete standard.available;
+
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    recipe_class: "Recipe_IronRod",
+    use_existing_surplus: false,
+  });
+  assert.equal(plan.planned, false);
+  assert.equal(
+    plan.unresolved[0].reason,
+    "requested_recipe_is_not_proven_available_in_the_current_capture",
+  );
+  assert.equal(plan.unresolved[0].recipe_class, "Recipe_IronRod");
+});
+
 test("reads power off the player's own machines, not a table", () => {
   const plan = solveProductionPlan(graphWithoutSurplus(), {
     item_name: "Iron Rod",

@@ -23,6 +23,8 @@ dimension or world coordinate.
 ```text
 authoritative snapshot + captured mod catalog + measured site/grid
         |
+exact AFGRecipeManager unlock fingerprint (current capture only)
+        |
 production and logistics program (deterministic solvers)
         |
 creative brief (style, massing, hierarchy, facade intent)
@@ -44,6 +46,32 @@ semantic roles such as `production_hall`, `logistics_deck`, `support_pylon`,
 map a role to a recipe only when that recipe was captured from the current save
 and is available. Missing roles stay missing and are listed in the manifest.
 
+## Current-unlock replan boundary
+
+Every design records an `unlock_constraints` block derived from the complete
+recipe catalog in the latest request. Its SHA-256 fingerprint contains only
+recipe class paths for which the captured `AFGRecipeManager` returned
+`available: true`; world revision is recorded as provenance but is deliberately
+not part of that fingerprint because moving conveyor items advance it. A build
+must capture again and rerun production choice, machine sizing, site scoring,
+routing, placement, and semantic-part selection before action compilation. If
+the available-recipe fingerprint changed, the older plan is discarded.
+
+Availability is a hard constraint, not a score. Locked or unknown production,
+building, transport, and architectural recipes can be listed as unavailable
+candidates but cannot be selected. The game checks the exact build recipe,
+manufacturer recipe, and conveyor recipe again immediately before spawning its
+hologram. A mid-request unlock change therefore causes a refusal and rollback,
+never a substitution.
+
+Optimization is lexicographic: first satisfy exact unlocks, requested tiers,
+throughput/capacity, authoritative coordinates and game placement; then score
+route length/bends/crossings, compactness, machine/logistics complexity,
+service access, expansion, commissioning isolation, and design-family cohesion.
+The manifest reports which objectives were actually recalculated. It currently
+marks full transport routing false and keeps construction blocked until current
+connector occupancy, capacities, terrain and obstructions have been solved.
+
 ## Preview manifest
 
 `companion/lib/megabase.mjs` emits `megabase.design/v1`. A manifest contains:
@@ -55,6 +83,7 @@ and is available. Missing roles stay missing and are listed in the manifest.
 - integer grid-local origins and extents for every element;
 - deterministic world-space XYZ and yaw for every element;
 - captured part resolutions and unresolved semantic roles;
+- the current unlock fingerprint and explicit optimization/replan provenance;
 - bounded captured Build Gun recipe candidates per role, including mod ownership,
   availability and an explicit `behavior_verified: false` caveat;
 - validation issues, provenance and a permanent `actions: []` field.

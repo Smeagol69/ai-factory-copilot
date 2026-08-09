@@ -2306,6 +2306,20 @@ FAIFactoryActionResult PlaceBelt(
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("recipe_class_did_not_resolve_to_a_recipe"));
     }
+    AFGRecipeManager* RecipeManager = AFGRecipeManager::Get(Context.World);
+    if (!IsValid(RecipeManager))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_recipe_manager"));
+    }
+    const TSubclassOf<UFGRecipe> BeltRecipeClass = RecipeClass;
+    if (!RecipeManager->IsRecipeAvailable(BeltRecipeClass))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("belt_recipe_is_not_unlocked:%s"),
+                *RecipeClass->GetName()));
+    }
 
     AFGBuildableSubsystem* Buildables = AFGBuildableSubsystem::Get(Context.World);
     if (!IsValid(Buildables))
@@ -2325,6 +2339,8 @@ FAIFactoryActionResult PlaceBelt(
     Predicted->SetNumberField(
         TEXT("straight_line_length_cm"),
         FVector::Dist(From->GetConnectorLocation(false), To->GetConnectorLocation(false)));
+    Predicted->SetStringField(TEXT("recipe_class"), RecipeClass->GetPathName());
+    Predicted->SetBoolField(TEXT("recipe_unlocked"), true);
 
     AActor* HologramOwner = Context.Player;
     if (AFGBuildGun* BuildGun = Context.Player->GetBuildGun();

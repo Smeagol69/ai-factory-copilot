@@ -10,6 +10,7 @@
 
 import { findBestAvailableBelt, findBuildRecipeForBuilding } from "./base-build.mjs";
 import { normalizeResourcePurity, solveProductionPlan } from "./solvers.mjs";
+import { captureUnlockConstraints } from "./unlock-constraints.mjs";
 
 const PURITY_MULTIPLIER = { impure: 0.5, normal: 1, pure: 2 };
 const EPSILON = 1e-6;
@@ -112,13 +113,22 @@ export function planAimedMk1WireFactory(graph, {
     return { planned: false, reason: "no build-recipe lookup was provided" };
   }
 
+  const unlockConstraints = captureUnlockConstraints(graph);
+  if (!unlockConstraints.availability_known) {
+    return {
+      planned: false,
+      reason: "the current AFGRecipeManager unlock state was not captured, so no build recipe may be assumed available",
+      unlock_constraints: unlockConstraints,
+    };
+  }
+
   const miner = lookup(graph, { building: "miner mk1" });
   const splitter = lookup(graph, { building: "conveyor splitter" });
   const merger = lookup(graph, { building: "conveyor merger" });
   const storage = lookup(graph, { building: "storage container" });
   const belt = findBestAvailableBelt(graph, { tier: 1 });
   const foundation = [...(graph?.recipesByClass?.values?.() ?? [])].find((recipe) =>
-    recipe?.available !== false &&
+    recipe?.available === true &&
     /Recipe_Foundation_8x1_01(?:\.|_C|$)/i.test(String(recipe.class_path ?? "")),
   );
   if (!miner?.resolved || !splitter?.resolved || !merger?.resolved || !storage?.resolved || !belt || !foundation) {
@@ -158,7 +168,7 @@ export function planAimedMk1WireFactory(graph, {
   const lineInputPerMinute = Math.min(extractedPerMinute, beltCapacity.items_per_minute);
 
   const candidatePlans = [...(graph?.recipesByClass?.values?.() ?? [])]
-    .filter((recipe) => recipe?.available !== false)
+    .filter((recipe) => recipe?.available === true)
     .filter((recipe) => recipeProduces(recipe, item.class_path))
     .filter(isMk1ConstructorRecipe)
     .map((recipe) => {
@@ -381,6 +391,16 @@ export function planAimedMk1WireFactory(graph, {
     storage_lanes: storageLanes.length,
     foundations: actions.filter((action) => action.recipe_class === foundation.class_path).length,
     production,
+    unlock_constraints: unlockConstraints,
+    optimization: {
+      recalculated_from_current_capture: true,
+      recipe_candidates_considered: candidatePlans.length,
+      recipe_objective: "maximize output from the aimed resource subject to the requested Mk.1 transport and machine constraints",
+      selected_raw_input_per_output: round(selected.raw_per_output, 6),
+      placement_objective: "grow away from the captured player and keep production stages compact on supported grid-aligned rows",
+      routing_objective: "use the fewest deterministic splitter/merger fan-out stages without reusing a single-port endpoint",
+      final_authority: "the game recalculates connector endpoints and validates every hologram immediately before each construction",
+    },
     actions,
     notes: [
       `The ${purity} node and Miner Mk.1 can produce ${round(extractedPerMinute)} ore/min, but one Mk.1 belt carries ${round(beltCapacity.items_per_minute)}/min; this line is capped at ${round(lineInputPerMinute)}/min and uses ${round((lineInputPerMinute / extractedPerMinute) * 100, 1)}% of the node.`,
