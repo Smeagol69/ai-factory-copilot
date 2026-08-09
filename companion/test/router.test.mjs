@@ -9,6 +9,7 @@ import {
   parseAimedMk1FactoryRequest,
   parseClearRequest,
   parseExactBeltSolverRequest,
+  parseAimedFactoryRequest,
   parseBlueprintListRequest,
   parseShowRequest,
   parseStructureRequest,
@@ -515,4 +516,43 @@ test("a library the bridge cannot read is reported, not guessed at", () => {
   const answer = answerLocally("list blueprints", buildGraph(buildFactorySnapshot()), {});
   assert.ok(answer);
   assert.match(answer.reply, /can't read your blueprint folder/i);
+});
+
+/* ---------------- a factory from the aimed node, phrased naturally ---------------- */
+
+// The anchored route requires "using mk1 parts on this node". The owner types
+// "build me a wire factory from this node", which matched nothing and reached a
+// model. The strict form is untouched; this is a second door onto the same
+// planner, and the reply still names the Mk.1 tier it built.
+test("a factory request routes without the tier spelled out", () => {
+  for (const question of [
+    "build me a wire factory from this node",
+    "build a wire factory on this node",
+    "buld me a copper sheet factory from this node",
+    "set up a wire plant off this node",
+  ]) {
+    const parsed = parseAimedFactoryRequest(question);
+    assert.ok(parsed, `should route: ${question}`);
+    assert.ok(parsed.item.length >= 2);
+    assert.equal(parsed.tier_was_stated, false);
+  }
+  assert.equal(parseAimedFactoryRequest("build me a wire factory from this node").item, "wire");
+});
+
+test("the anchored tier route keeps its own phrasing", () => {
+  // Both must not fire on the same sentence, or the request is planned twice.
+  const explicit = "build a wire factory using all mk1 parts on this node";
+  assert.ok(parseAimedMk1FactoryRequest(explicit));
+  assert.equal(parseAimedFactoryRequest(explicit), null);
+});
+
+test("neighbouring routes are not swallowed by the wider pattern", () => {
+  for (const question of [
+    "build a 4x3 modular base here",
+    "build me a storage hub here",
+    "coal power from this node",
+    "what is a wire factory",
+  ]) {
+    assert.equal(parseAimedFactoryRequest(question), null, `should not build a factory: ${question}`);
+  }
 });

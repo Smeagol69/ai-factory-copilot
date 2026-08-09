@@ -765,12 +765,43 @@ export function parseBaseDesignRequest(question) {
 const AIMED_MK1_FACTORY =
   /^(?:can you |could you |please )?(?:build|make|construct|spawn)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(.+?)\s+factory\s+using\s+(?:all\s+)?(?:mk\.?\s*1|mark\s*1)\s+parts\s+(?:on|from)\s+this\s+node$/i;
 
+/**
+ * The same request without the tier spelled out: "build me a wire factory from
+ * this node".
+ *
+ * The anchored pattern above requires "using mk1 parts", and the owner does not
+ * type that. The strict form stays exactly as it is; this is a second, wider
+ * door onto the same planner.
+ *
+ * Leaving the tier unsaid is not the same as the tier being unknown. There is
+ * only one factory planner and it builds the Mk.1 chain, so the honest handling
+ * is to build that and *say* it was Mk.1 — the reply names the tier, which is
+ * what "do not assume" actually requires. Silently picking a tier the player
+ * cannot see would be the thing to avoid.
+ */
+const AIMED_FACTORY_LOOSE =
+  /^(?:can you |could you |please )?(?:build|buld|biuld|make|construct|spawn|set\s*up)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(.+?)\s+(?:factory|plant|line)\s+(?:on|from|at|off(?:\s+of)?|using)\s+(?:this|the|that)\s+(?:node|resource|ore|deposit|one)$/i;
+
 export function parseAimedMk1FactoryRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   const match = text.match(AIMED_MK1_FACTORY);
   if (!match) return null;
   const item = match[1].replace(/\s+/g, " ").trim();
   return item.length >= 2 ? { item, commit: true, raw_text: text } : null;
+}
+
+export function parseAimedFactoryRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  // The strict route owns anything that already names the tier.
+  if (AIMED_MK1_FACTORY.test(text)) return null;
+  const match = text.match(AIMED_FACTORY_LOOSE);
+  if (!match) return null;
+
+  const item = match[1].replace(/\s+/g, " ").replace(/\b(?:mk\.?\s*\d|mark\s*\d)\b/gi, "").trim();
+  if (item.length < 2) return null;
+  // "modular" belongs to the blueprint tiler, not the production planner.
+  if (/\bmodular\b/i.test(item)) return null;
+  return { item, commit: true, tier_was_stated: false, raw_text: text };
 }
 
 /**
@@ -1945,7 +1976,11 @@ export function answerLocally(question, graph, services) {
   // The exact live request that previously missed every route and spent 1.2M
   // tokens before returning a generic diagnostic. This is a fixed arithmetic
   // and topology problem: aimed node + explicit Mk.1 tier + catalog item.
-  const aimedMk1Factory = parseAimedMk1FactoryRequest(question);
+  // The same planner, reached by the phrasing players actually use. The strict
+  // route above keeps anything that already names a tier; this catches the rest
+  // and the reply states the tier it built rather than leaving it implied.
+  const aimedMk1Factory = parseAimedMk1FactoryRequest(question)
+    ?? parseAimedFactoryRequest(question);
   if (aimedMk1Factory && graph) {
     const started = Date.now();
     const item = findItemByName(graph, aimedMk1Factory.item);
