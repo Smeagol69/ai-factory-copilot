@@ -126,6 +126,32 @@ test("a successful conveyor snap is not erased by a second placement update", ()
   );
 });
 
+test("conveyor snap gates name the exact expected endpoint buildables", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /Belt->GetAnyConnectedBuildables\(\)/);
+  assert.match(
+    actions,
+    /IsValid\(FromBuildable\) && SourceSnappedBuildables\.Contains\(FromBuildable\)/,
+  );
+  assert.match(
+    actions,
+    /IsValid\(ToBuildable\) && DestinationSnappedBuildables\.Contains\(ToBuildable\)/,
+  );
+  const sourceGate = actions.indexOf("if (!bExpectedSourceBuildableSnapped)");
+  const firstAdvance = actions.indexOf("Belt->DoMultiStepPlacement(false)", sourceGate);
+  const destinationGate = actions.indexOf("if (!bExpectedDestinationBuildableSnapped)");
+  const validate = actions.indexOf("Belt->ValidatePlacementAndCost", destinationGate);
+  assert.ok(sourceGate >= 0 && sourceGate < firstAdvance);
+  assert.ok(destinationGate >= 0 && destinationGate < validate);
+});
+
 test("new manufacturers receive only a compatible unlocked recipe with empty inventories", () => {
   const actions = fs.readFileSync(
     new URL(

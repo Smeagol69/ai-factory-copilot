@@ -1999,3 +1999,17 @@ away from the captured player, keeping every relative spacing and belt edge
 unchanged. A regression will prove the first and every later support are
 farther from the player than the node. This is companion-only and does not
 overlap Claude's unchanged August 3 branch.
+
+**Codex, 2026-08-09 11:35 - claiming exact conveyor endpoint-buildable
+readback.** Flying clear proved the rotated companion plan: the first support
+moved to the far side of `BP_ResourceNode213`, all 29 building steps committed,
+and rollback remained complete. Step 30 still returned the old
+`belt_hologram_snapped_but_recorded_no_source_connection`, so the engine's
+`IsConnectionSnapped(false)` selector is not a reliable claim about the exact
+source component at this build step. The exact public conveyor-hologram API
+provides `GetAnyConnectedBuildables()`. I am changing the source gate to require
+the selected source component's `GetOuterBuildable()` in that set and the
+destination gate to require the destination owner after the second snap. The
+existing post-construction component readback remains the final, stricter proof
+that the exact selected ports connect to the created belt. Both ambiguous
+`IsConnectionSnapped` readings will be retained as diagnostics, not authority.

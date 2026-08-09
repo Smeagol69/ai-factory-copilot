@@ -2381,18 +2381,39 @@ FAIFactoryActionResult PlaceBelt(
         Belt->UpdateHologramPlacement(FromHit);
     }
     Predicted->SetBoolField(TEXT("source_snap_accepted"), bSnappedSource);
+    Predicted->SetBoolField(
+        TEXT("source_connection_snapped_false"),
+        Belt->IsConnectionSnapped(false));
+    Predicted->SetBoolField(
+        TEXT("source_connection_snapped_true"),
+        Belt->IsConnectionSnapped(true));
 
-    if (!Belt->IsConnectionSnapped(false))
+    // IsConnectionSnapped's boolean selects an internal spline endpoint; it is
+    // not a statement about the exact component passed above. The conveyor
+    // hologram exposes the authoritative actor-level answer directly. Require
+    // the owner of the selected source component to be among its current
+    // snapped buildables, then keep the final component-to-component readback
+    // after construction as the stricter proof.
+    AFGBuildable* FromBuildable = From->GetOuterBuildable();
+    const TArray<AFGBuildable*> SourceSnappedBuildables =
+        Belt->GetAnyConnectedBuildables();
+    const bool bExpectedSourceBuildableSnapped =
+        IsValid(FromBuildable) && SourceSnappedBuildables.Contains(FromBuildable);
+    Predicted->SetBoolField(
+        TEXT("expected_source_buildable_snapped"),
+        bExpectedSourceBuildableSnapped);
+
+    if (!bExpectedSourceBuildableSnapped)
     {
-        Belt->Destroy();
-        return FAIFactoryActionResult::Refuse(
-            Action,
+        Result.Predicted = Predicted;
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason =
             bSnappedSource
-                // The hologram accepted the hit but did not record a connection,
-                // which is a different fault from rejecting the hit outright and
-                // wants a different fix.
-                ? TEXT("belt_hologram_snapped_but_recorded_no_source_connection")
-                : TEXT("belt_hologram_did_not_accept_the_source_connection"));
+                ? TEXT("belt_hologram_accepted_source_hit_but_not_expected_buildable")
+                : TEXT("belt_hologram_did_not_accept_the_source_connection");
+        Belt->Destroy();
+        return Result;
     }
 
     const ESplineHologramBuildStep SourceStep = Belt->GetCurrentBuildStep();
@@ -2416,12 +2437,28 @@ FAIFactoryActionResult PlaceBelt(
         Belt->UpdateHologramPlacement(ToHit);
     }
     Predicted->SetBoolField(TEXT("destination_snap_accepted"), bSnappedDestination);
-    if (!Belt->IsConnectionSnapped(true))
+    Predicted->SetBoolField(
+        TEXT("destination_connection_snapped_false"),
+        Belt->IsConnectionSnapped(false));
+    Predicted->SetBoolField(
+        TEXT("destination_connection_snapped_true"),
+        Belt->IsConnectionSnapped(true));
+    AFGBuildable* ToBuildable = To->GetOuterBuildable();
+    const TArray<AFGBuildable*> DestinationSnappedBuildables =
+        Belt->GetAnyConnectedBuildables();
+    const bool bExpectedDestinationBuildableSnapped =
+        IsValid(ToBuildable) && DestinationSnappedBuildables.Contains(ToBuildable);
+    Predicted->SetBoolField(
+        TEXT("expected_destination_buildable_snapped"),
+        bExpectedDestinationBuildableSnapped);
+    if (!bExpectedDestinationBuildableSnapped)
     {
+        Result.Predicted = Predicted;
+        Result.bAccepted = false;
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("belt_hologram_did_not_snap_to_expected_destination_buildable");
         Belt->Destroy();
-        return FAIFactoryActionResult::Refuse(
-            Action,
-            TEXT("belt_hologram_did_not_accept_the_destination_connection"));
+        return Result;
     }
 
     Belt->ResetConstructDisqualifiers();
