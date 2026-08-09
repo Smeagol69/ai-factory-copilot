@@ -381,7 +381,19 @@ export function validateAction(graph, proposal) {
     // to a rock, so it never bound to the node and never finished initialising.
     // A trace finds a surface; it does not find a target.
     const targetActorId = String(proposal.target_actor_id ?? "").trim();
+    const hasTargetStep = proposal.target_step !== undefined && proposal.target_step !== null;
+    const targetStepValue = finite(proposal.target_step);
+    if (targetActorId && hasTargetStep) {
+      return reject(kind, "placement_target_must_use_actor_or_step_not_both");
+    }
+    if (
+      hasTargetStep &&
+      (targetStepValue === null || !Number.isInteger(targetStepValue) || targetStepValue < 1)
+    ) {
+      return reject(kind, "target_step_must_be_a_positive_whole_step_number");
+    }
     if (targetActorId) checks.placement_target_actor_id = targetActorId;
+    if (targetStepValue !== null) checks.placement_target_step = targetStepValue;
 
     return {
       valid: true,
@@ -394,6 +406,7 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
         ...(targetActorId ? { target_actor_id: targetActorId } : {}),
+        ...(targetStepValue !== null ? { target_step: targetStepValue } : {}),
         ...(requestedProductionRecipe
           ? {
               production_recipe_class:
@@ -744,6 +757,38 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
           });
           return;
         }
+      }
+    }
+    if (result.action.action === "place_building" && result.action.target_step !== undefined) {
+      const referencedStep = result.action.target_step;
+      if (referencedStep >= index + 1) {
+        rejected.push({
+          step: index + 1,
+          ...reject("place_building", "target_step_must_refer_to_an_earlier_step", {
+            referenced_step: referencedStep,
+          }),
+        });
+        return;
+      }
+      const referencedProposal = list[referencedStep - 1];
+      if (referencedProposal?.action !== "place_building") {
+        rejected.push({
+          step: index + 1,
+          ...reject("place_building", "target_step_must_refer_to_a_building_placement", {
+            referenced_step: referencedStep,
+            referenced_action: referencedProposal?.action ?? null,
+          }),
+        });
+        return;
+      }
+      if (result.action.commit && referencedProposal.commit !== true) {
+        rejected.push({
+          step: index + 1,
+          ...reject("place_building", "target_step_cannot_commit_from_a_preview_step", {
+            referenced_step: referencedStep,
+          }),
+        });
+        return;
       }
     }
     actions.push(result.action);

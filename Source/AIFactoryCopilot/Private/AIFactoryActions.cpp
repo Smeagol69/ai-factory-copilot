@@ -2667,6 +2667,7 @@ namespace
         static const TCHAR* StepFields[][2] = {
             { TEXT("from_step"), TEXT("from_actor_id") },
             { TEXT("to_step"), TEXT("to_actor_id") },
+            { TEXT("target_step"), TEXT("target_actor_id") },
         };
 
         for (const auto& Pair : StepFields)
@@ -2964,6 +2965,54 @@ FString ExecutePlan(
             Item.bDeferredStepReferences = FromStep > 0 || ToStep > 0;
         }
 
+        if (Item.Kind == TEXT("place_building") && Item.Spec->HasField(TEXT("target_step")))
+        {
+            FString TargetActorId;
+            Item.Spec->TryGetStringField(TEXT("target_actor_id"), TargetActorId);
+            FString TargetError;
+            double StepNumber = 0.0;
+            int32 TargetStep = 0;
+            if (!TargetActorId.IsEmpty())
+            {
+                TargetError = TEXT("placement_target_must_use_actor_or_step_not_both");
+            }
+            else if (!Item.Spec->TryGetNumberField(TEXT("target_step"), StepNumber) ||
+                !FMath::IsFinite(StepNumber) ||
+                StepNumber != FMath::RoundToDouble(StepNumber) ||
+                StepNumber < 1.0 ||
+                StepNumber > static_cast<double>(MAX_int32))
+            {
+                TargetError = TEXT("target_step_must_be_a_positive_whole_step_number");
+            }
+            else
+            {
+                TargetStep = static_cast<int32>(StepNumber);
+                if (TargetStep >= ActionIndex + 1)
+                {
+                    TargetError = TEXT("target_step_must_refer_to_an_earlier_step");
+                }
+                else if (Prepared[TargetStep - 1].Kind != TEXT("place_building"))
+                {
+                    TargetError = TEXT("target_step_must_refer_to_a_building_placement");
+                }
+                else if (Item.bRequestedCommit && !Prepared[TargetStep - 1].bRequestedCommit)
+                {
+                    TargetError = TEXT("target_step_cannot_commit_from_a_preview_step");
+                }
+            }
+
+            if (!TargetError.IsEmpty())
+            {
+                Item.Preflight = FAIFactoryActionResult::Refuse(Item.Kind, TargetError);
+                Item.bStaticValidationFailed = true;
+                if (PlanRefusal.IsEmpty())
+                {
+                    PlanRefusal = TEXT("one_or_more_actions_failed_preflight");
+                }
+            }
+            Item.bDeferredStepReferences = TargetStep > 0;
+        }
+
         Item.bWillCommitWrite =
             bAllowCommit &&
             Item.bRequestedCommit &&
@@ -3018,13 +3067,14 @@ FString ExecutePlan(
             continue;
         }
 
-        // An endpoint that names a prior step does not exist until that step is
-        // committed. Running the belt hologram here therefore guarantees a
-        // false refusal for every generated whole-base plan. Its static shape,
-        // ordering, creator kind, and commit dependency were checked above; the
-        // real belt hologram runs after reference resolution during execution.
-        // If it refuses geometry, cost, or connectivity, the transaction rolls
-        // every earlier reversible write back.
+        // A target or endpoint that names a prior step does not exist until
+        // that step is committed. Running its hologram here would therefore
+        // guarantee a false refusal for generated supported layouts. Its static
+        // shape, ordering, creator kind, and commit dependency were checked
+        // above; the real building or belt hologram runs after reference
+        // resolution during execution. If it refuses geometry, cost, or
+        // connectivity, the transaction rolls every earlier reversible write
+        // back.
         if (Item.bDeferredStepReferences)
         {
             Item.Preflight.Action = Item.Kind;
@@ -3032,7 +3082,7 @@ FString ExecutePlan(
             Item.Preflight.bDryRun = true;
             Item.Preflight.Status = TEXT("preflight_deferred_until_step_references_resolve");
             Item.Preflight.Warnings.Add(
-                TEXT("Belt hologram validation is deferred until its earlier-step actors exist; a refusal rolls the transaction back."));
+                TEXT("Hologram validation is deferred until its earlier-step actor exists; a refusal rolls the transaction back."));
             continue;
         }
 

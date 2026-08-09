@@ -1926,7 +1926,9 @@ export function answerLocally(question, graph, services) {
         `Building a deterministic **${plan.output_per_minute} Wire/min Mk.1 factory** ` +
           `from **${plan.node}**: 1 Miner Mk.1, ${plan.smelters} Smelters, ` +
           `${plan.constructors} Constructors, splitter/merger fan-out, and ` +
-          `${plan.storage_lanes} separate Mk.1 output storage lanes. Recipe: **${plan.recipe}**.${capped}${partialMachine}\n\n` +
+          `${plan.storage_lanes} separate Mk.1 output storage lanes, with ${plan.foundations} Foundation (1 m) supports. Recipe: **${plan.recipe}**.${capped}${partialMachine}\n\n` +
+          "Each support is checked by Satisfactory's real hologram against the terrain first. " +
+          "Each dependent machine is then checked against the foundation that was actually created; any refusal rolls the whole transaction back.\n\n" +
           "Every Smelter and Constructor receives its captured selected recipe during placement, " +
           "and the game reads it back before accepting the action. The complete transaction rolls " +
           "back if any building, recipe, or belt fails.\n\n" +

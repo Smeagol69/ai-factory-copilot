@@ -33,7 +33,7 @@ test("the game refuses stale or oversized action plans whole", () => {
   assert.doesNotMatch(subsystem, /Requested\.SetNum\(/);
 });
 
-test("the game defers step-referenced belt preflight until its actors exist", () => {
+test("the game defers step-referenced building and belt preflight until actors exist", () => {
   const actions = fs.readFileSync(
     new URL(
       "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
@@ -43,6 +43,8 @@ test("the game defers step-referenced belt preflight until its actors exist", ()
   );
 
   assert.match(actions, /bDeferredStepReferences/);
+  assert.match(actions, /\{ TEXT\("target_step"\), TEXT\("target_actor_id"\) \}/);
+  assert.match(actions, /target_step_must_refer_to_a_building_placement/);
   assert.match(actions, /must_refer_to_an_earlier_step/);
   assert.match(actions, /must_refer_to_an_actor_creating_step/);
   assert.match(actions, /preflight_deferred_until_step_references_resolve/);

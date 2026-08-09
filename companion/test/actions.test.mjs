@@ -245,6 +245,56 @@ test("belt step endpoints are unambiguous and point to earlier actor creators", 
   assert.equal(previewDependency.rejected[0].reason, "from_step_cannot_commit_from_a_preview_step");
 });
 
+test("a building can target an earlier committed foundation step only", () => {
+  const graph = graphOf();
+  const foundation = {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+    commit: true,
+  };
+  const supported = {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+    target_step: 1,
+    commit: true,
+  };
+
+  const accepted = validatePlan(graph, [foundation, supported]);
+  assert.equal(accepted.valid, true, accepted.reason);
+  assert.equal(accepted.actions[1].target_step, 1);
+
+  const both = validateAction(graph, {
+    ...supported,
+    target_actor_id: CONSTRUCTOR,
+  });
+  assert.equal(both.valid, false);
+  assert.equal(both.reason, "placement_target_must_use_actor_or_step_not_both");
+
+  const malformed = validateAction(graph, { ...supported, target_step: "first" });
+  assert.equal(malformed.valid, false);
+  assert.equal(malformed.reason, "target_step_must_be_a_positive_whole_step_number");
+
+  const future = validatePlan(graph, [supported, foundation]);
+  assert.equal(future.valid, false);
+  assert.equal(future.rejected[0].reason, "target_step_must_refer_to_an_earlier_step");
+
+  const nonBuilding = validatePlan(graph, [
+    { action: "teleport_player", target: HERE, commit: true },
+    supported,
+  ]);
+  assert.equal(nonBuilding.valid, false);
+  assert.equal(nonBuilding.rejected[0].reason, "target_step_must_refer_to_a_building_placement");
+
+  const previewParent = validatePlan(graph, [
+    { ...foundation, commit: false },
+    supported,
+  ]);
+  assert.equal(previewParent.valid, false);
+  assert.equal(previewParent.rejected[0].reason, "target_step_cannot_commit_from_a_preview_step");
+});
+
 test("a committed dismantle cannot be mixed into a reversible transaction", () => {
   const plan = validatePlan(graphOf(), [
     { action: "teleport_player", target: HERE, commit: true },

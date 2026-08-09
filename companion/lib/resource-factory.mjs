@@ -113,13 +113,18 @@ export function planAimedMk1WireFactory(graph, {
   const merger = lookup(graph, { building: "conveyor merger" });
   const storage = lookup(graph, { building: "storage container" });
   const belt = findBestAvailableBelt(graph, { tier: 1 });
-  if (!miner?.resolved || !splitter?.resolved || !merger?.resolved || !storage?.resolved || !belt) {
+  const foundation = [...(graph?.recipesByClass?.values?.() ?? [])].find((recipe) =>
+    recipe?.available !== false &&
+    /Recipe_Foundation_8x1_01(?:\.|_C|$)/i.test(String(recipe.class_path ?? "")),
+  );
+  if (!miner?.resolved || !splitter?.resolved || !merger?.resolved || !storage?.resolved || !belt || !foundation) {
     const missing = [
       !miner?.resolved && "Miner Mk.1",
       !splitter?.resolved && "Conveyor Splitter",
       !merger?.resolved && "Conveyor Merger",
       !storage?.resolved && "Storage Container",
       !belt && "Conveyor Belt Mk.1",
+      !foundation && "Foundation (1 m)",
     ].filter(Boolean);
     return { planned: false, reason: `required unlocked Mk.1 parts are missing: ${missing.join(", ")}` };
   }
@@ -255,6 +260,13 @@ export function planAimedMk1WireFactory(graph, {
     actions.push(action);
     return actions.length;
   };
+  const addSupportedPlacement = (action) => {
+    const foundationStep = addPlacement({
+      ...place(foundation.class_path, action.location),
+      yaw: action.yaw,
+    });
+    return addPlacement({ ...action, target_step: foundationStep });
+  };
   const connect = (fromStep, toStep) => beltEdges.push([fromStep, toStep]);
   const centredLaterals = (count, spacing = 1_800) =>
     Array.from({ length: count }, (_, index) => (index - (count - 1) / 2) * spacing);
@@ -278,7 +290,7 @@ export function planAimedMk1WireFactory(graph, {
     let previous = null;
     let mergerIndex = 0;
     while (cursor < sourceSteps.length) {
-      const mergerStep = addPlacement(
+      const mergerStep = addSupportedPlacement(
         place(merger.recipe_class, at(forwardCm + mergerIndex * 900, lateralCm)),
       );
       const inputs = previous
@@ -301,21 +313,21 @@ export function planAimedMk1WireFactory(graph, {
   const smelterCount = ingotStep.machines_required;
   const rawSplitterSteps = smelterCount > 1
     ? Array.from({ length: Math.ceil(smelterCount / 2) }, (_, index) =>
-        addPlacement(place(splitter.recipe_class, at(1_500 + index * 850, 0))))
+        addSupportedPlacement(place(splitter.recipe_class, at(1_500 + index * 850, 0))))
     : [];
   const smelterSteps = centredLaterals(smelterCount).map((lateral) =>
-    addPlacement(place(smelterBuild.recipe_class, at(3_800, lateral), ingotStep.recipe_class)));
+    addSupportedPlacement(place(smelterBuild.recipe_class, at(3_800, lateral), ingotStep.recipe_class)));
   connectFanOut(minerStep, rawSplitterSteps, smelterSteps);
   const ingotSourceStep = addMergerChain(smelterSteps, 5_200);
 
   const constructorCount = wireStep.machines_required;
   const ingotSplitterSteps = constructorCount > 1
     ? Array.from({ length: Math.ceil(constructorCount / 2) }, (_, index) =>
-        addPlacement(place(splitter.recipe_class, at(6_400 + index * 800, 0))))
+        addSupportedPlacement(place(splitter.recipe_class, at(6_400 + index * 800, 0))))
     : [];
   const constructorLaterals = centredLaterals(constructorCount);
   const constructorSteps = constructorLaterals.map((lateral) =>
-    addPlacement(place(constructorBuild.recipe_class, at(9_400, lateral), wireStep.recipe_class)));
+    addSupportedPlacement(place(constructorBuild.recipe_class, at(9_400, lateral), wireStep.recipe_class)));
   connectFanOut(ingotSourceStep, ingotSplitterSteps, constructorSteps);
 
   const constructorsPerLane = Math.max(
@@ -328,7 +340,7 @@ export function planAimedMk1WireFactory(graph, {
     const groupLaterals = constructorLaterals.slice(start, start + constructorsPerLane);
     const lateral = groupLaterals.reduce((sum, value) => sum + value, 0) / groupLaterals.length;
     const outputStep = addMergerChain(group, 11_200, lateral);
-    const storageStep = addPlacement(place(storage.recipe_class, at(12_900, lateral)));
+    const storageStep = addSupportedPlacement(place(storage.recipe_class, at(12_900, lateral)));
     connect(outputStep, storageStep);
     storageLanes.push(storageStep);
   }
@@ -363,6 +375,7 @@ export function planAimedMk1WireFactory(graph, {
     constructors: constructorCount,
     last_constructor_utilisation_percent: wireStep.utilisation_of_last_machine_percent,
     storage_lanes: storageLanes.length,
+    foundations: actions.filter((action) => action.recipe_class === foundation.class_path).length,
     production,
     actions,
     notes: [

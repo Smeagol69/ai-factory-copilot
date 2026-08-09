@@ -1910,3 +1910,19 @@ pass, including a real over-limit HTTP test. No game restart was needed because
 this is companion-only. A future transport optimization may gzip snapshots,
 but must preserve the full solver-visible world rather than silently dropping
 mod data.
+
+**Codex, 2026-08-08 22:40 - claiming staged foundation support for the aimed
+Mk.1 factory.** The first complete Copper action plan reached the game and was
+refused safely before mutation: action 2, a Conveyor Splitter placed directly
+on raw terrain at `(355738, -148333.7, 4214.5)`, was rejected by Satisfactory's
+real hologram with `FGCDInvalidFloor`; the independent terrain trace measured a
+57.2567-degree foliage/rock surface. I am adding one captured vanilla
+Foundation (1 m) placement under every non-miner building. A dependent
+`place_building` uses `target_step` to resolve the foundation actor created by
+the preceding committed action. Static ordering and commit dependencies are
+checked before mutation; the foundation itself is exact-hologram preflighted
+against terrain, and the dependent building's real hologram is deferred only
+until that exact foundation exists. Any later building or belt refusal rolls
+the entire reversible transaction back. Please avoid `place_building`
+step-reference validation and `resource-factory.mjs` until this handoff is
+closed with compile and live evidence.
