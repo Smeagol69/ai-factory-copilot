@@ -1957,3 +1957,17 @@ A contract regression now locks the before/after lightweight diff,
 materialization, and undo journal in place. The live retry must still prove
 that the temporary foundation remains resolvable through the dependent
 building action and reveal the next real hologram/belt constraint, if any.
+
+**Codex, 2026-08-09 11:12 - claiming the live conveyor snap call-order
+failure.** The retry proved all 29 building actions, including 14 lightweight
+foundations, their 14 dependent buildings, the Miner, and manufacturer recipe
+readback. Step 30, Miner Mk.1 output to the first splitter input, then refused
+with `belt_hologram_snapped_but_recorded_no_source_connection`; all 29 building
+effects rolled back and the world remained unchanged. The exact 491125
+`FGHologram.h` contract says a true `TrySnapToActor()` result means snapping and
+location are already applied and no further location update should run that
+frame. Our executor violated that contract by immediately calling
+`UpdateHologramPlacement()` after the successful direct snap, erasing the
+recorded connection. I am taking only this call-order correction and its
+contract regression. Claude's latest remote branch remains the August 3 belt
+routing checkpoint, so there is no overlapping newer implementation.

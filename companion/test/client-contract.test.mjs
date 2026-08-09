@@ -99,6 +99,33 @@ test("server holograms clear the initialization sentinel before validation", () 
   );
 });
 
+test("a successful conveyor snap is not erased by a second placement update", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    actions,
+    /const bool bSnappedSource = Belt->TrySnapToActor\(FromHit\);\s*if \(!bSnappedSource\)\s*\{\s*Belt->UpdateHologramPlacement\(FromHit\);\s*\}/,
+  );
+  assert.match(
+    actions,
+    /const bool bSnappedDestination = Belt->TrySnapToActor\(ToHit\);\s*if \(!bSnappedDestination\)\s*\{\s*Belt->UpdateHologramPlacement\(ToHit\);\s*\}/,
+  );
+  assert.doesNotMatch(
+    actions,
+    /TrySnapToActor\(FromHit\);\s*Belt->UpdateHologramPlacement\(FromHit\)/,
+  );
+  assert.doesNotMatch(
+    actions,
+    /TrySnapToActor\(ToHit\);\s*Belt->UpdateHologramPlacement\(ToHit\)/,
+  );
+});
+
 test("new manufacturers receive only a compatible unlocked recipe with empty inventories", () => {
   const actions = fs.readFileSync(
     new URL(

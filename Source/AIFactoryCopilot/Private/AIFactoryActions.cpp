@@ -2355,11 +2355,9 @@ FAIFactoryActionResult PlaceBelt(
 
     Belt->SetConstructionInstigator(Context.Player);
 
-    // Multi-step placement, exactly as the build gun drives it: update from the
-    // source hit, lock it, update from the destination hit, finish. Calling
-    // SetHologramLocationAndRotation directly skips AFGHologram's snap path:
-    // the official header says it is called only after TrySnapToActor did not
-    // snap. UpdateHologramPlacement owns that sequence and must receive the hit.
+    // Multi-step placement, exactly as the build gun drives it: snap from the
+    // source hit, lock it, snap from the destination hit, finish. Calling
+    // SetHologramLocationAndRotation directly skips AFGHologram's snap path.
     // Ask the hologram to snap, and use its own answer rather than inferring one.
     //
     // `UpdateHologramPlacement` alone was not snapping to the source connector
@@ -2370,11 +2368,18 @@ FAIFactoryActionResult PlaceBelt(
     // overridden by the conveyor hologram specifically to find connections near
     // the hit. Calling it directly turns a silent non-snap into a fact.
     //
-    // Both are called: the snap establishes the connection, the placement
-    // update positions the spline from it.
+    // The exact 491125 AFGHologram header is explicit about the call contract:
+    // a true TrySnapToActor result means the transform and snap are already
+    // applied, so no further location update runs that frame. A live factory
+    // attempt proved why: calling UpdateHologramPlacement after a successful
+    // source snap cleared the just-recorded connection. Only fall back to the
+    // complete update path when the direct snap declines the hit.
     const FHitResult FromHit = MakeActionConnectionHit(From);
     const bool bSnappedSource = Belt->TrySnapToActor(FromHit);
-    Belt->UpdateHologramPlacement(FromHit);
+    if (!bSnappedSource)
+    {
+        Belt->UpdateHologramPlacement(FromHit);
+    }
     Predicted->SetBoolField(TEXT("source_snap_accepted"), bSnappedSource);
 
     if (!Belt->IsConnectionSnapped(false))
@@ -2406,7 +2411,10 @@ FAIFactoryActionResult PlaceBelt(
 
     const FHitResult ToHit = MakeActionConnectionHit(To);
     const bool bSnappedDestination = Belt->TrySnapToActor(ToHit);
-    Belt->UpdateHologramPlacement(ToHit);
+    if (!bSnappedDestination)
+    {
+        Belt->UpdateHologramPlacement(ToHit);
+    }
     Predicted->SetBoolField(TEXT("destination_snap_accepted"), bSnappedDestination);
     if (!Belt->IsConnectionSnapped(true))
     {
