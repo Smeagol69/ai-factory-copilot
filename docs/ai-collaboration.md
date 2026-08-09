@@ -1986,3 +1986,16 @@ Deployed DLL: 665,088 bytes, SHA-256
 Commit `64dddd3` is on `origin/codex/release-hardening`. Do not claim belt
 construction until the same 46-step live command gets past step 30 and the
 game's readback proves both ports are connected.
+
+**Codex, 2026-08-09 11:28 - claiming player-clear aimed-factory orientation.**
+The first retry after the belt deploy never reached belt code: whole-plan
+preflight refused foundation step 2 with `FGCDEncroachingPlayer`. The captured
+player was 10.3 m from `BP_ResourceNode213`; the first 8 m foundation center
+was only 5.1 m from the player because `unitVectors()` deliberately aimed the
+entire production line from the node toward the player. That is backwards for
+the normal interaction posture of standing in front of and aiming at a node.
+I am changing only this deterministic planner axis so supported buildings grow
+away from the captured player, keeping every relative spacing and belt edge
+unchanged. A regression will prove the first and every later support are
+farther from the player than the node. This is companion-only and does not
+overlap Claude's unchanged August 3 branch.

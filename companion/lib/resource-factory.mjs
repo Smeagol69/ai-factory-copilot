@@ -48,8 +48,12 @@ function observedMk1BeltCapacity(graph, belt) {
 }
 
 function unitVectors(nodeLocation, playerLocation) {
-  const dx = Number(playerLocation?.x) - Number(nodeLocation?.x);
-  const dy = Number(playerLocation?.y) - Number(nodeLocation?.y);
+  // The usual interaction pose has the player standing in front of and aiming
+  // at the node. Grow the factory through the far side of the node, not back
+  // through the player's collision capsule. Relative machine spacing and belt
+  // lengths are unchanged; only the world-facing axis is reversed.
+  const dx = Number(nodeLocation?.x) - Number(playerLocation?.x);
+  const dy = Number(nodeLocation?.y) - Number(playerLocation?.y);
   const length = Math.hypot(dx, dy);
   const forward = length > EPSILON ? { x: dx / length, y: dy / length } : { x: 1, y: 0 };
   return {

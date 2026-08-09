@@ -179,6 +179,31 @@ test("Pure Copper is capped by observed Mk.1 transport and uses standard recipes
   assert.match(plan.notes.join(" "), /Power is not wired/);
 });
 
+test("the supported factory grows away from the captured player", () => {
+  const graph = graphOf();
+  const plan = planAimedMk1WireFactory(graph, {
+    target,
+    item,
+    build_recipe_lookup: solveBuildRecipeLookup,
+  });
+  assert.equal(plan.planned, true, plan.reason);
+
+  const player = graph.snapshot.interaction_context.player.pawn_location;
+  const distanceToPlayer = (location) => Math.hypot(
+    Number(location.x) - Number(player.x),
+    Number(location.y) - Number(player.y),
+  );
+  const nodeDistance = distanceToPlayer(target.location);
+  const foundations = plan.actions.filter((action) =>
+    /Recipe_Foundation_8x1_01/i.test(action.recipe_class ?? ""),
+  );
+  assert.equal(foundations.length, 14);
+  assert.ok(
+    foundations.every((action) => distanceToPlayer(action.location) > nodeDistance),
+    "no support may be placed between the captured player and the aimed node",
+  );
+});
+
 test("the complete fan-out never asks one machine port for two belts", () => {
   const plan = planAimedMk1WireFactory(graphOf(), {
     target,
