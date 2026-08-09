@@ -1763,6 +1763,7 @@ export function solveProductionPlan(
     recipe_class = null,
     max_depth = DEFAULT_PLAN_DEPTH,
     use_existing_surplus = true,
+    prefer_standard_recipes = false,
   } = {},
 ) {
   const targetRate = finitePositive(target_rate_per_minute);
@@ -1926,10 +1927,39 @@ export function solveProductionPlan(
       return;
     }
 
-    // Prefer an explicitly requested recipe, then one already used in this
-    // world, then the highest-yield option.
+    // "All Mk.1 parts" means the ordinary early-game chain, not an alternate
+    // recipe that happens to have higher yield or is already running elsewhere
+    // in a heavily modded save. The standard recipe's display name is exactly
+    // the product's item name. This preference applies recursively so Wire does
+    // not quietly become Caterium Wire or Pure Copper Ingot downstream.
+    const itemDisplayName = String(graph.itemsByClass.get(itemClass)?.name ?? "").trim();
+    const isStandardRecipe = (candidate) =>
+      itemDisplayName &&
+      String(candidate?.name ?? "").trim().toLowerCase() ===
+        itemDisplayName.toLowerCase();
+    const registeredStandardRecipe = prefer_standard_recipes
+      ? recipeOptions.all.find(isStandardRecipe)
+      : null;
+    if (registeredStandardRecipe?.available === false) {
+      unresolved.push({
+        item_class: itemClass,
+        item_name: itemDisplayName || null,
+        display_units_per_minute: round(remaining),
+        reason: "standard_recipe_is_unavailable_in_this_save",
+        recipe_class: registeredStandardRecipe.class_path,
+        chain,
+      });
+      return;
+    }
+    const standardRecipe = prefer_standard_recipes
+      ? options.find(isStandardRecipe)
+      : null;
+
+    // Prefer an explicitly requested recipe, then the standard recipe when
+    // requested, then one already used in this world, then highest yield.
     const chosen =
       requestedRecipe ||
+      standardRecipe ||
       options.find((r) => inUseRecipeClasses.has(r.class_path)) ||
       options.slice().sort((a, b) => (recipeOutputRate(graph, b, itemClass) ?? 0) - (recipeOutputRate(graph, a, itemClass) ?? 0))[0];
 
@@ -2072,7 +2102,9 @@ export function solveProductionPlan(
     step_budget_hit: stepBudgetHit,
     caveats: {
       recipe_choice:
-        "Unavailable recipes are excluded. Among usable recipes, ones already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
+        prefer_standard_recipes
+          ? "Unavailable recipes are excluded. The recipe whose name exactly matches each product is preferred recursively; existing-use and yield only break a missing standard match."
+          : "Unavailable recipes are excluded. Among usable recipes, ones already used in this world are preferred, then the highest-yield option. Pass recipe_class to force one.",
       unlocks:
         graph.snapshot?.content?.availability_known === true
           ? "Recipe choices use the loaded save's authoritative AFGRecipeManager availability state."

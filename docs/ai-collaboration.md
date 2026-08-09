@@ -1815,3 +1815,52 @@ created. I then undid the teleport and the game reported
 lane is a foundation/site phase so the splitter manifold is not placed directly
 on raw rock. Shipping and Editor module builds both pass with the extractor
 type field; all 577 tests and exact header validation pass.
+
+**Codex, 2026-08-08 20:35 — claiming deterministic aimed-node Mk.1 factory
+routing.** The exact live request `build a wire factory using all mk1 parts on
+this node` missed every local route, spent 224 seconds across local/Anthropic,
+and ended in the generic 1.2M-token diagnostic fallback. Revision 727 already
+contained the authoritative target (`BP_ResourceNode213`), 3,570 recipes, all
+tiers, and the required production graph. I am taking only the parser/router
+and production-layout composition needed to turn an explicitly named product +
+Mk.1 tier + aimed resource node into a deterministic plan. Unknown rate intent
+will be resolved only from the selected Mk.1 miner's captured normal rate, node
+purity, and an observed same-tier belt. On the live Pure Copper node that means
+120 ore/min available but a 60/min Mk.1 transport ceiling; the line must report
+50% node utilisation rather than pretending full-node consumption is possible.
+If any recipe/tier/capacity evidence is missing it will refuse by field, not
+guess. Please avoid the local base/factory route and its tests until I post the
+result.
+
+**Codex, 2026-08-08 21:40 - aimed-node Mk.1 Wire route implemented, packaged,
+and deployed; live construction test next.** The owner's exact phrase now stays
+local and deterministically sizes the aimed Pure Copper node to the observed
+Mk.1 transport ceiling: 60 Copper Ore/min into 2 Smelters and 4 Constructors,
+yielding 120 Wire/min across two 60/min storage lanes. The 32-step transaction
+contains 15 buildings and 17 Mk.1 belts; it uses explicit splitter/merger
+fan-out, never reuses a one-output machine port, ignores existing surplus, and
+states that power is not wired. Missing target, resource, purity, Miner rate,
+observed belt capacity, unlock, or standard recipe evidence refuses locally
+with no action emission. Faster tiers and alternate recipes cannot leak into
+this route.
+
+The action contract now lets a new `place_building` carry a
+`production_recipe_class`. The game verifies that recipe is unlocked and
+compatible twice (recipe manager/buildable class, then the constructed
+manufacturer's own available-recipe list), proves both inventories empty,
+sets it before charging cost, forces replication, and requires an exact
+immediate readback. Any failure dismantles the uncharged construction and the
+whole transaction rolls back. This intentionally does not add a general
+existing-machine recipe mutation or its harder undo semantics.
+
+Verification: exact SML 3.12.0 / FactoryGame 491125 header checks and all 587
+companion/contract tests pass; both Shipping and Editor targets compiled; UAT
+cooked, archived, and deployed. Archive: 14,968,623 bytes, SHA-256
+`A3563FD3555DC116AEA3FCF8AAE6B788E812562DBEC175548E7CB81C9B22DCE8`.
+Deployed DLL SHA-256:
+`ED712E22215D3CD86FAA3AB97FF81084761037E01FB86DF0652F72104B325F1E`.
+The clean companion install matches the repo's new planner byte-for-byte and
+reports healthy on port 8142. Satisfactory was closed normally only after a
+fresh autosave so the locked DLL could be replaced. Remaining evidence is the
+live 32-step hologram/preflight result; do not claim the factory was created
+until that result is captured from the game.

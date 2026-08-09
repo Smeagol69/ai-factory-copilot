@@ -159,6 +159,47 @@ test("a valid plan counts its commits and says how it will run", () => {
   assert.match(plan.execution, /rolled back as one transaction/);
 });
 
+test("a production recipe is normalized into the same building placement", () => {
+  const result = validateAction(graphOf(), {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    production_recipe_class: "Recipe_IronRod",
+    location: HERE,
+    commit: true,
+  });
+  assert.equal(result.valid, true, result.reason);
+  assert.equal(result.action.production_recipe_class, "Recipe_IronRod");
+  assert.equal(result.checks.production_recipe_name, "Iron Rod");
+});
+
+test("a missing or locked production recipe refuses the whole placement", () => {
+  const missing = validateAction(graphOf(), {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    production_recipe_class: "Recipe_WireTypo",
+    location: HERE,
+  });
+  assert.equal(missing.valid, false);
+  assert.equal(missing.reason, "production_recipe_not_in_catalog");
+
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_LockedWire",
+    name: "Wire",
+    available: false,
+    products: [{ item_class: "Desc_Wire", item_name: "Wire", amount: 2 }],
+    produced_in: ["Build_ConstructorMk1_C"],
+  });
+  const locked = validateAction(buildGraph(snapshot), {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    production_recipe_class: "Recipe_LockedWire",
+    location: HERE,
+  });
+  assert.equal(locked.valid, false);
+  assert.equal(locked.reason, "production_recipe_is_not_unlocked");
+});
+
 test("belt step endpoints are unambiguous and point to earlier actor creators", () => {
   const graph = graphOf();
   const recipe = "Recipe_ConveyorBeltMk1";

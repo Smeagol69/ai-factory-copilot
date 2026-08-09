@@ -6,6 +6,7 @@ import { buildGraph } from "../lib/graph.mjs";
 import {
   answerLocally,
   describePlanRejection,
+  parseAimedMk1FactoryRequest,
   parseClearRequest,
   parseExactBeltSolverRequest,
   parseShowRequest,
@@ -15,6 +16,24 @@ import {
 import { buildFactorySnapshot, MINER, SMELTER } from "./fixtures/factory.mjs";
 
 const graphOf = () => buildGraph(buildFactorySnapshot());
+
+test("parses only an explicit aimed Mk.1 factory write", () => {
+  for (const question of [
+    "build a wire factory using all mk1 parts on this node",
+    "please construct me a Wire factory using Mk.1 parts from this node",
+  ]) {
+    assert.equal(parseAimedMk1FactoryRequest(question)?.item.toLowerCase(), "wire", question);
+  }
+  for (const question of [
+    "build a wire factory on this node",
+    "build a wire factory using mk2 parts on this node",
+    "design a wire factory using mk1 parts on this node",
+    "build a wire factory using mk1 parts here",
+    "build a wire factory using mk1 parts on this node and dismantle that miner",
+  ]) {
+    assert.equal(parseAimedMk1FactoryRequest(question), null, question);
+  }
+});
 
 test("oversized plan refusals report the requested count", () => {
   const reply = describePlanRejection({ reason: "too_many_actions", requested: 513, limit: 512 });

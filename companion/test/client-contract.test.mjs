@@ -97,6 +97,27 @@ test("server holograms clear the initialization sentinel before validation", () 
   );
 });
 
+test("new manufacturers receive only a compatible unlocked recipe with empty inventories", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /production_recipe_is_not_unlocked/);
+  assert.match(actions, /UFGRecipe::IsProducedIn\(ProductionRecipeClass, BuildableClass\)/);
+  assert.match(actions, /Input->IsEmpty\(\) && Output->IsEmpty\(\)/);
+  assert.match(actions, /Manufacturer->GetAvailableRecipes\(AvailableRecipes\)/);
+  assert.match(actions, /Manufacturer->SetRecipe\(ProductionRecipeClass\)/);
+  assert.match(actions, /Manufacturer->GetCurrentRecipe\(\) != ProductionRecipeClass/);
+
+  const setRecipe = actions.indexOf("Manufacturer->SetRecipe(ProductionRecipeClass)");
+  const charge = actions.indexOf("ChargeActionCost(Cost, Inventory)", setRecipe);
+  assert.ok(setRecipe >= 0 && setRecipe < charge, "recipe readback must precede charging the build cost");
+});
+
 test("extractors report the current extractable interface, not deprecated node state", () => {
   const snapshot = fs.readFileSync(
     new URL(

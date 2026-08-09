@@ -149,7 +149,8 @@ namespace AIFactoryActions
         const FString& RecipeClassPath,
         const FTransform& Target,
         bool bCheckClearance,
-        const FString& PlacementTargetActorId = FString());
+        const FString& PlacementTargetActorId = FString(),
+        const FString& ProductionRecipeClassPath = FString());
 
     /**
      * Places a saved blueprint through AFGBlueprintHologram, so Satisfactory

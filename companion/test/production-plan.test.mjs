@@ -94,6 +94,20 @@ test("prefers a recipe already used in this world over a higher-yield one", () =
   assert.equal(rod.alternate_recipes_available, 1);
 });
 
+test("standard-recipes mode overrides an in-use alternate recursively", () => {
+  const snapshot = buildFactorySnapshot();
+  const constructor = snapshot.actors.find((actor) => actor.actor_id === CONSTRUCTOR);
+  constructor.manufacturer.recipe_class = "Recipe_Alternate_IronRod";
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+    prefer_standard_recipes: true,
+  });
+  assert.equal(plan.steps[0].recipe_class, "Recipe_IronRod");
+  assert.match(plan.caveats.recipe_choice, /exactly matches/i);
+});
+
 test("an explicitly requested recipe overrides the in-use preference", () => {
   const plan = solveProductionPlan(graphWithoutSurplus(), {
     item_name: "Iron Rod",
