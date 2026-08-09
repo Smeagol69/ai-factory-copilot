@@ -2177,6 +2177,49 @@ UFGFactoryConnectionComponent* FindActionFactoryConnection(const FString& Compon
  * the machine primitive it hit. Preserve that part of the contract with an
  * actual UPrimitiveComponent owned by the connection's buildable.
  */
+/**
+ * Snaps a belt endpoint the way the build gun does, so the hologram records an
+ * aim as well as a connection.
+ *
+ * Three shapes were tried live and each failed differently:
+ *
+ *   - `UpdateHologramPlacement` alone did not snap to the source connector.
+ *   - `TrySnapToActor` then `UpdateHologramPlacement` snapped, then the second
+ *     call cleared the connection it had just recorded.
+ *   - `TrySnapToActor` alone kept the connection and refused with
+ *     `FGCDInvalidAimLocation` — 15 buildings placed and rolled back at the
+ *     first belt.
+ *
+ * The headers say why the third fails. `OnInvalidHitResult` is documented as
+ * firing when `IsValidHitResult` returns false, "e.g. aiming up in the sky",
+ * and `PreHologramPlacement`/`PostHologramPlacement` are documented as running
+ * before and after *all* the placement logic. `UpdateHologramPlacement` is the
+ * wrapper that calls them, and calling `TrySnapToActor` on its own runs the
+ * snap outside that envelope — so the connection is recorded and the aim never
+ * is.
+ *
+ * This reassembles the documented sequence from its public parts: the envelope
+ * from the wrapper, and the explicit snap that is already known to work.
+ * `SetHologramLocationAndRotation` is the fallback the header names for when a
+ * snap declines ("this handles snapping etc."), which keeps the non-snap path
+ * on the same lifecycle instead of re-entering the wrapper and snapping twice.
+ */
+bool SnapBeltEndpointWithAim(AFGHologram* Hologram, const FHitResult& Hit)
+{
+    if (!IsValid(Hologram))
+    {
+        return false;
+    }
+    Hologram->PreHologramPlacement(Hit, true);
+    const bool bSnapped = Hologram->TrySnapToActor(Hit);
+    if (!bSnapped)
+    {
+        Hologram->SetHologramLocationAndRotation(Hit);
+    }
+    Hologram->PostHologramPlacement(Hit, true);
+    return bSnapped;
+}
+
 FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
 {
     FHitResult Hit;
@@ -2401,11 +2444,9 @@ FAIFactoryActionResult PlaceBelt(
     // source snap cleared the just-recorded connection. Only fall back to the
     // complete update path when the direct snap declines the hit.
     const FHitResult FromHit = MakeActionConnectionHit(From);
-    const bool bSnappedSource = Belt->TrySnapToActor(FromHit);
-    if (!bSnappedSource)
-    {
-        Belt->UpdateHologramPlacement(FromHit);
-    }
+    const bool bSourceHitValid = Belt->IsValidHitResult(FromHit);
+    Predicted->SetBoolField(TEXT("source_hit_valid"), bSourceHitValid);
+    const bool bSnappedSource = SnapBeltEndpointWithAim(Belt, FromHit);
     Predicted->SetBoolField(TEXT("source_snap_accepted"), bSnappedSource);
     Predicted->SetBoolField(
         TEXT("source_connection_snapped_false"),
@@ -2459,11 +2500,9 @@ FAIFactoryActionResult PlaceBelt(
     }
 
     const FHitResult ToHit = MakeActionConnectionHit(To);
-    const bool bSnappedDestination = Belt->TrySnapToActor(ToHit);
-    if (!bSnappedDestination)
-    {
-        Belt->UpdateHologramPlacement(ToHit);
-    }
+    const bool bDestinationHitValid = Belt->IsValidHitResult(ToHit);
+    Predicted->SetBoolField(TEXT("destination_hit_valid"), bDestinationHitValid);
+    const bool bSnappedDestination = SnapBeltEndpointWithAim(Belt, ToHit);
     Predicted->SetBoolField(TEXT("destination_snap_accepted"), bSnappedDestination);
     Predicted->SetBoolField(
         TEXT("destination_connection_snapped_false"),
