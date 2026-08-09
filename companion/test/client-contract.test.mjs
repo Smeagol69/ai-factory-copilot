@@ -96,3 +96,18 @@ test("server holograms clear the initialization sentinel before validation", () 
     reset >= 0 && reset < firstValidation && firstValidation < constructCheck,
   );
 });
+
+test("extractors report the current extractable interface, not deprecated node state", () => {
+  const snapshot = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(snapshot, /Extractor->GetExtractableResource\(\)/);
+  assert.match(snapshot, /Extractor->GetExtractorTypeName\(\)/);
+  assert.match(snapshot, /ExtractableInterface->GetResourceClass\(\)/);
+  assert.doesNotMatch(snapshot, /Extractor->GetResourceNode\(\)/);
+});

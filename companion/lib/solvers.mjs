@@ -2340,6 +2340,40 @@ export function solvePlacementTarget(graph, args = {}) {
         actor_id: snapshotOfActor.actor_id ?? target.actor_id ?? null,
       };
     }
+
+    // A placed extractor physically covers the node it mines, so the camera
+    // normally hits the machine rather than the node underneath it. Current
+    // snapshots carry the game's GetExtractableResource() relation. Follow
+    // that exact actor id back to the complete graph instead of inferring a
+    // resource from an inventory stack or nearest-neighbour geometry.
+    const extractor = snapshotOfActor.extractor;
+    if (extractor) {
+      const resourceActorId = String(extractor.extractable_resource_actor_id ?? "").trim();
+      const capturedResource = resourceActorId
+        ? graph?.nodes?.get?.(resourceActorId)?.raw ?? null
+        : null;
+      const resourceClass = capturedResource?.resource_class ?? extractor.resource_class ?? null;
+      const resourceName = capturedResource?.resource_name ?? extractor.resource_name ?? null;
+      if (resourceActorId && (resourceClass || resourceName)) {
+        return {
+          resolved: true,
+          location: capturedResource?.location ?? snapshotOfActor.location ?? target.hit_location,
+          on: capturedResource?.name ?? resourceActorId,
+          node_type: capturedResource?.node_type ?? null,
+          occupied: true,
+          purity: capturedResource?.purity ?? null,
+          resource_class: resourceClass,
+          resource_name: resourceName,
+          actor_id: resourceActorId,
+          existing_extractor_actor_id: snapshotOfActor.actor_id ?? target.actor_id ?? null,
+          existing_extractor_name: snapshotOfActor.name ?? target.actor_name ?? "existing extractor",
+          extraction_per_minute: Number.isFinite(Number(extractor.extraction_per_minute))
+            ? Number(extractor.extraction_per_minute)
+            : null,
+          resource_relation_source: "authoritative_extractor_interface",
+        };
+      }
+    }
     if (target.hit_location) {
       return { resolved: true, location: target.hit_location, on: target.actor_name ?? "the ground" };
     }

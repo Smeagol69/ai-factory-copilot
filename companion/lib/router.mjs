@@ -1995,8 +1995,11 @@ export function answerLocally(question, graph, services) {
     const emitted = emitValidatedPlan(graph, services, plan.actions);
     if (emitted) {
       const sizing = plan.sizing
-        ? `Captured rates: ${plan.sizing.mined_per_minute}/min from this ${plan.sizing.purity} node ` +
-          `(${plan.sizing.purity_multiplier}× purity) ÷ ${plan.sizing.burn_per_minute}/min per generator ` +
+        ? `Captured rates: ${plan.sizing.mined_per_minute}/min ` +
+          `${plan.sizing.rate_source === "authoritative_live_extractor_rate"
+            ? "from the existing extractor"
+            : `from this ${plan.sizing.purity} node (${plan.sizing.purity_multiplier}× purity)`} ` +
+          `÷ ${plan.sizing.burn_per_minute}/min per generator ` +
           `= **${plan.generator_count} generators**.\n\n`
         : "";
       const chain =
@@ -2007,7 +2010,9 @@ export function answerLocally(question, graph, services) {
             `rather than belted four ways off one connector`
           : `one **${plan.generator}** belted straight off it`;
       return localAnswer(
-        `Coal power off **${plan.node}**: one **${plan.miner}** on the node, ${chain}.\n\n${sizing}` +
+        `Coal power off **${plan.node}**: ` +
+          `${plan.reused_existing_extractor ? `reusing your existing **${plan.miner}**` : `one **${plan.miner}** on the node`}, ` +
+          `${chain}.\n\n${sizing}` +
           `**${plan.missing.water}**\n\n` +
           `Spacing is stated, not measured — no generator exists here to measure one from. ` +
           `The game refuses anything that does not fit and names it. Say "undo" to reverse it all.`,

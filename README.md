@@ -269,8 +269,8 @@ the sources that are actually authoritative for Satisfactory:
 
 `satisfactorygame.com`, `questions.satisfactorygame.com`, `docs.ficsit.app`,
 `ficsit.app`, `satisfactory.wiki.gg`, `satisfactory.fandom.com`,
-`satisfactory-calculator.com`, `satisfactorytools.com`, `reddit.com`,
-`steamcommunity.com`
+`satisfactory-calculator.com`, `satisfactorytools.com`,
+`factoriolab.github.io`, `manifolder.app`, `steamcommunity.com`
 
 On Anthropic this is enforced by the API through the search tool's
 `allowed_domains`, so an answer cannot cite anything off the list while the
@@ -336,3 +336,4 @@ npm test
 - [Compatibility contract](docs/COMPATIBILITY.md)
 - [Current boundaries and roadmap](docs/ROADMAP.md)
 - [Official documentation references](docs/OFFICIAL_REFERENCES.md)
+- [Planning and transport references](docs/PLANNING_REFERENCES.md)

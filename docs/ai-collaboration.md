@@ -1763,3 +1763,55 @@ The deployed DLL is 649,216 bytes, SHA-256
 `46B68FC6D938E0761D3C905CC229D39C9D4C7D1C0021A207765D51E1675173FA`.
 Exact header validation and all 574 companion/contract tests pass. Miner
 placement and undo are now production evidence, not a compile-only claim.
+
+**Codex, 2026-08-08 19:43 — claiming aimed-extractor coal-power resolution.**
+The live command `coal power from this node` is correctly refusing to guess,
+but the missing field is our bug. The crosshair is on MkPlus
+`Build_Miner_Mk4_C_2147451100`; its authoritative output contains Coal and
+`BP_ResourceNode617` is the occupied Normal Coal node at the same placement.
+The scanner records an empty `extractable_resource_actor_id` because it calls
+the deprecated `GetResourceNode()`, while the exact 491125 header says current
+extractors expose `GetExtractableResource()` and keeps the deprecated pointer
+only for old-save support. I am taking the narrow scanner/resolver/planner lane:
+capture the current extractable interface, resolve an aimed extractor to its
+captured node, and reuse that existing extractor as the coal source rather than
+placing a second miner. Unknown resources will still refuse. Please avoid these
+functions until I post tests/build/live evidence: `BuildableJson`,
+`solvePlacementTarget`, and `planCoalPower`.
+
+**Codex, 2026-08-08 20:16 — second live coal-sizing defect found and fixed;
+reference lane documented.** The new packaged scanner proved the original
+resource-relation fix: the planner moved past "resource is missing." A bare
+Normal Coal node then produced `3750 generators`. The fuel rate was correct;
+`resolveBestMiner` had sorted every `AFGBuildableResourceExtractor` together
+and selected the unlocked MkPlus Resource Well Extractor Mk.2 at 450,000 raw
+fluid inventory units/min instead of a solid miner. The snapshot now records
+the engine's public `GetExtractorTypeName()` and the planner requires `Miner`,
+with a narrow name fallback for pre-field snapshots. A regression includes
+water and fracking extractors whose larger raw rates must never win. Exact
+header validation and all 577 tests pass. The companion fix is clean-installed
+and healthy; the C++ discriminator still needs a game-close compile/package.
+
+The owner also supplied the Pipeline Manual, maintained wiki, FactorioLab, and
+Manifolder. I added `docs/PLANNING_REFERENCES.md` and the two planning sites to
+the restricted source policy. It explicitly keeps live modded data above
+vanilla ratios and treats FactorioLab/Manifolder as algorithm and UX references,
+not numeric authority. I have not claimed pipe actions yet; coordinate here
+before changing `power.mjs`, extractor class stats, pipe snapshot capture, or
+pipeline hologram execution.
+
+**Codex, 2026-08-08 20:28 — coal sizing is live-verified; terrain is the next
+blocker.** I used the game UI to teleport reversibly back to
+`BP_ResourceNode617`, then sent the owner's exact command,
+`coal power from this node`. The clean-installed companion selected the MkPlus
+Miner Mk.4 and Coal-Powered Generator Mk.3 from the live catalog and reported
+the checkable arithmetic: 720 Coal/min on this Normal node divided by 120/min
+per generator equals 6 generators. It emitted 23 actions. Whole-plan preflight
+refused action 8, the first Conveyor Splitter, with
+`FGCDInvalidFloor` / "Surface is too uneven!" at 50.6763 degrees. Every other
+action was skipped, `game_world_was_mutated` was false, and no factory actor was
+created. I then undid the teleport and the game reported
+`player_restored: true`. Do not re-open the rate-selection bug; the next coal
+lane is a foundation/site phase so the splitter manifold is not placed directly
+on raw rock. Shipping and Editor module builds both pass with the extractor
+type field; all 577 tests and exact header validation pass.

@@ -290,6 +290,16 @@ namespace
         if (const AFGBuildableResourceExtractor* Extractor =
                 Cast<AFGBuildableResourceExtractor>(BuildableClass->GetDefaultObject()))
         {
+            // A water pump, oil pump, fracking extractor, and solid miner all
+            // derive from AFGBuildableResourceExtractor. Their raw cycle
+            // amounts are not interchangeable (fluids use inventory units),
+            // so the companion must be able to select the correct family
+            // before comparing rates. This public engine discriminator also
+            // keeps modded miner tiers working without relying on their names.
+            Stats->SetStringField(TEXT("extractor_type_name"),
+                Extractor->GetExtractorTypeName().ToString());
+            bAnything = true;
+
             const int32 PerCycle = Extractor->GetNumExtractedItemsPerCycle();
             const float CycleSeconds = Extractor->GetDefaultExtractCycleTime();
             if (PerCycle > 0 && FMath::IsFinite(CycleSeconds) && CycleSeconds > 0.0f)
@@ -1014,12 +1024,25 @@ namespace
                 TEXT("items_per_cycle_converted"),
                 Extractor->GetNumExtractedItemsPerCycleConverted());
             ExtractorState->SetNumberField(TEXT("extraction_per_minute"), Extractor->GetExtractionPerMinute());
-            // Only solid-resource extractors expose a node here; fluid extractors
-            // leave this empty and the resource stays unknown until observed.
-            const AFGResourceNode* ResourceNode = Extractor->GetResourceNode();
+            // GetResourceNode() is deprecated old-save state and is legitimately
+            // null on current and modded extractors even while they are mining.
+            // The public interface is the authoritative relation used by the
+            // game now; keep its actor and descriptor together so a player
+            // aiming at an existing extractor can still mean "this node".
+            const TScriptInterface<IFGExtractableResourceInterface> Extractable =
+                Extractor->GetExtractableResource();
+            const AActor* ExtractableActor = Cast<AActor>(Extractable.GetObject());
+            const IFGExtractableResourceInterface* ExtractableInterface = Extractable.GetInterface();
+            const TSubclassOf<UFGResourceDescriptor> ResourceClass = ExtractableInterface
+                ? ExtractableInterface->GetResourceClass()
+                : nullptr;
             ExtractorState->SetStringField(
                 TEXT("extractable_resource_actor_id"),
-                IsValid(ResourceNode) ? ResourceNode->GetPathName() : TEXT(""));
+                IsValid(ExtractableActor) ? ExtractableActor->GetPathName() : TEXT(""));
+            ExtractorState->SetStringField(TEXT("resource_class"), ClassPath(ResourceClass.Get()));
+            ExtractorState->SetStringField(
+                TEXT("resource_name"),
+                ResourceClass ? UFGItemDescriptor::GetItemName(ResourceClass).ToString() : TEXT(""));
             Result->SetObjectField(TEXT("extractor"), ExtractorState);
         }
 
