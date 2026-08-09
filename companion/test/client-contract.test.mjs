@@ -120,6 +120,40 @@ test("new manufacturers receive only a compatible unlocked recipe with empty inv
   assert.ok(setRecipe >= 0 && setRecipe < charge, "recipe readback must precede charging the build cost");
 });
 
+test("lightweight foundations are detected exactly, materialized for dependent steps, and journalled", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const actionTypes = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Public/AIFactoryActions.h",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /GetAllLightweightBuildableInstances\(\)/);
+  assert.match(actions, /GetRuntimeDataForBuildableClassAndIndex/);
+  assert.match(actions, /Data->BuiltWithRecipe != Ref\.BuiltWithRecipe/);
+  assert.match(actions, /SpawnTemporaryBuildable\(\)/);
+  assert.match(actions, /DismantleLightweightWithRefund/);
+  assert.match(actions, /Step\.LightweightBuildables/);
+  assert.match(actionTypes, /struct FAIFactoryLightweightUndoRef/);
+  assert.match(actionTypes, /TArray<FAIFactoryLightweightUndoRef> LightweightBuildables/);
+
+  const before = actions.indexOf("LightweightIndicesBefore");
+  const construct = actions.indexOf("Hologram->Construct", before);
+  const after = actions.indexOf("NewLightweightMatches", construct);
+  assert.ok(
+    before >= 0 && before < construct && construct < after,
+    "the exact lightweight index set must be captured before construction and diffed afterward",
+  );
+});
+
 test("extractors report the current extractable interface, not deprecated node state", () => {
   const snapshot = fs.readFileSync(
     new URL(

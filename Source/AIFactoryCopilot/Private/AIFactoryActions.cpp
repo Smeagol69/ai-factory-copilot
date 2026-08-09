@@ -21,6 +21,7 @@
 #include "FGDismantleInterface.h"
 #include "FGFactoryConnectionComponent.h"
 #include "FGInventoryComponent.h"
+#include "FGLightweightBuildableSubsystem.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
 #include "Hologram/FGBlueprintHologram.h"
@@ -218,6 +219,63 @@ namespace
         return Delivery;
     }
 
+    bool ResolveLightweightUndoRef(
+        const FAIFactoryLightweightUndoRef& Ref,
+        UWorld* World,
+        FLightweightBuildableInstanceRef& OutInstance)
+    {
+        if (!IsValid(World) ||
+            !Ref.BuildableClass ||
+            Ref.RuntimeIndex == INDEX_NONE)
+        {
+            return false;
+        }
+        AFGLightweightBuildableSubsystem* Lightweight =
+            AFGLightweightBuildableSubsystem::Get(World);
+        if (!IsValid(Lightweight))
+        {
+            return false;
+        }
+        const FRuntimeBuildableInstanceData* Data =
+            Lightweight->GetRuntimeDataForBuildableClassAndIndex(
+                Ref.BuildableClass,
+                Ref.RuntimeIndex);
+        if (!Data ||
+            !Data->IsValid() ||
+            Data->BuiltWithRecipe != Ref.BuiltWithRecipe ||
+            !Data->Transform.Equals(Ref.Transform, 0.1))
+        {
+            return false;
+        }
+        OutInstance.Initialize(
+            Lightweight,
+            Ref.BuildableClass,
+            Ref.RuntimeIndex);
+        return OutInstance.IsValid();
+    }
+
+    bool DismantleLightweightWithRefund(
+        const FAIFactoryLightweightUndoRef& Ref,
+        AFGCharacterPlayer* Player,
+        FAIFactoryRefundDelivery& OutDelivery)
+    {
+        FLightweightBuildableInstanceRef Instance;
+        if (!ResolveLightweightUndoRef(
+                Ref,
+                IsValid(Player) ? Player->GetWorld() : nullptr,
+                Instance))
+        {
+            return false;
+        }
+        AFGBuildable* Temporary = Instance.SpawnTemporaryBuildable();
+        if (!IsValid(Temporary))
+        {
+            return false;
+        }
+        OutDelivery = DismantleWithRefund(Temporary, Player);
+        return !Instance.IsValid();
+    }
+
     TSharedPtr<FJsonObject> RefundDeliveryJson(
         const FAIFactoryRefundDelivery& Delivery)
     {
@@ -336,6 +394,17 @@ namespace
                     }
                 }
             }
+            for (const FAIFactoryLightweightUndoRef& Ref : Step.LightweightBuildables)
+            {
+                FAIFactoryRefundDelivery IgnoredRefund;
+                if (DismantleLightweightWithRefund(
+                        Ref,
+                        Step.Player.Get(),
+                        IgnoredRefund))
+                {
+                    ++Reversed;
+                }
+            }
             // Items handed over are taken back, capped at what is still held
             // so undo can never confiscate a stack the player earned.
             for (const TPair<TSubclassOf<UFGItemDescriptor>, int32>& Granted : Step.GrantedItems)
@@ -389,6 +458,7 @@ namespace
             const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
             Batch.DismantleActors.Append(Step.DismantleActors);
             Batch.SpawnedBuildables.Append(Step.SpawnedBuildables);
+            Batch.LightweightBuildables.Append(Step.LightweightBuildables);
             Batch.GrantedItems.Append(Step.GrantedItems);
             if (!Batch.Player.IsValid() && Step.Player.IsValid())
             {
@@ -1458,6 +1528,29 @@ FAIFactoryActionResult PlaceBuilding(
         return Result;
     }
 
+    // Foundations and walls are commonly stored as lightweight instances, not
+    // persistent AFGBuildable actors. Snapshot the valid indices for this
+    // exact class before construction so the newly created instance can be
+    // identified without guessing from nearby geometry.
+    AFGLightweightBuildableSubsystem* Lightweight =
+        AFGLightweightBuildableSubsystem::Get(Context.World);
+    TSet<int32> LightweightIndicesBefore;
+    if (IsValid(Lightweight))
+    {
+        const TArray<FRuntimeBuildableInstanceData>* Instances =
+            Lightweight->GetAllLightweightBuildableInstances().Find(BuildableClass);
+        if (Instances)
+        {
+            for (int32 Index = 0; Index < Instances->Num(); ++Index)
+            {
+                if ((*Instances)[Index].IsValid())
+                {
+                    LightweightIndicesBefore.Add(Index);
+                }
+            }
+        }
+    }
+
     TArray<AActor*> ConstructedChildren;
     AActor* Constructed = Hologram->Construct(
         ConstructedChildren,
@@ -1468,6 +1561,45 @@ FAIFactoryActionResult PlaceBuilding(
     }
 
     AFGBuildable* RootBuildable = Cast<AFGBuildable>(Constructed);
+    TOptional<FAIFactoryLightweightUndoRef> ConstructedLightweight;
+    TArray<FAIFactoryLightweightUndoRef> NewLightweightMatches;
+    if (!IsValid(RootBuildable) && IsValid(Lightweight))
+    {
+        const TArray<FRuntimeBuildableInstanceData>* Instances =
+            Lightweight->GetAllLightweightBuildableInstances().Find(BuildableClass);
+        if (Instances)
+        {
+            for (int32 Index = 0; Index < Instances->Num(); ++Index)
+            {
+                const FRuntimeBuildableInstanceData& Data = (*Instances)[Index];
+                if (LightweightIndicesBefore.Contains(Index) ||
+                    !Data.IsValid() ||
+                    Data.BuiltWithRecipe != RecipeClass)
+                {
+                    continue;
+                }
+                FAIFactoryLightweightUndoRef Ref;
+                Ref.BuildableClass = BuildableClass;
+                Ref.BuiltWithRecipe = RecipeClass;
+                Ref.RuntimeIndex = Index;
+                Ref.Transform = Data.Transform;
+                NewLightweightMatches.Add(Ref);
+            }
+        }
+        // One single-building action must produce one exact new instance. More
+        // than one is ambiguous and every new match is cleaned up below.
+        if (NewLightweightMatches.Num() == 1)
+        {
+            ConstructedLightweight = NewLightweightMatches[0];
+
+            FLightweightBuildableInstanceRef Instance;
+            Instance.Initialize(
+                Lightweight,
+                BuildableClass,
+                ConstructedLightweight->RuntimeIndex);
+            RootBuildable = Instance.SpawnTemporaryBuildable();
+        }
+    }
     TArray<AFGBuildable*> ConstructedBuildables;
     if (IsValid(RootBuildable))
     {
@@ -1497,6 +1629,17 @@ FAIFactoryActionResult PlaceBuilding(
         if (IsValid(Constructed) && !IsValid(RootBuildable))
         {
             Constructed->Destroy();
+        }
+        for (const FAIFactoryLightweightUndoRef& Ref : NewLightweightMatches)
+        {
+            FLightweightBuildableInstanceRef Instance;
+            if (ResolveLightweightUndoRef(
+                    Ref,
+                    Context.World,
+                    Instance))
+            {
+                Instance.Remove();
+            }
         }
         Result.Status = TEXT("failed");
         Result.Reason = TEXT("hologram_constructed_no_matching_buildable");
@@ -1606,10 +1749,17 @@ FAIFactoryActionResult PlaceBuilding(
 
     FAIFactoryUndoStep Step;
     Step.Action = Action;
-    for (AFGBuildable* Buildable : ConstructedBuildables)
+    if (ConstructedLightweight.IsSet())
     {
-        Step.DismantleActors.Add(Buildable);
-        Step.SpawnedBuildables.Add(Buildable);
+        Step.LightweightBuildables.Add(ConstructedLightweight.GetValue());
+    }
+    else
+    {
+        for (AFGBuildable* Buildable : ConstructedBuildables)
+        {
+            Step.DismantleActors.Add(Buildable);
+            Step.SpawnedBuildables.Add(Buildable);
+        }
     }
     Step.Player = Context.Player;
     Step.Description = FString::Printf(
@@ -2454,7 +2604,9 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     TSharedPtr<FJsonObject> Predicted = MakeShared<FJsonObject>();
     Predicted->SetStringField(TEXT("undoes_action"), Step.Action);
     Predicted->SetStringField(TEXT("description"), Step.Description);
-    Predicted->SetNumberField(TEXT("buildings_to_remove"), Step.SpawnedBuildables.Num());
+    Predicted->SetNumberField(
+        TEXT("buildings_to_remove"),
+        Step.SpawnedBuildables.Num() + Step.LightweightBuildables.Num());
     Result.Predicted = Predicted;
 
     if (Context.bDryRun)
@@ -2469,6 +2621,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     int32 RefundedToInventory = 0;
     int32 RefundDropped = 0;
     TArray<AFGBuildable*> LiveBuildables;
+    TArray<AFGBuildable*> LiveLightweightBuildables;
     for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
     {
         AFGBuildable* Buildable = Weak.Get();
@@ -2480,6 +2633,28 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
         }
         Result.RemovedActorIds.Add(Buildable->GetPathName());
         LiveBuildables.Add(Buildable);
+    }
+
+    // Resolve every lightweight target before dismantling anything persistent.
+    // A foundation has no durable actor; the subsystem creates a temporary
+    // AFGBuildable solely so the normal dismantle/refund path can own removal.
+    for (const FAIFactoryLightweightUndoRef& Ref : Step.LightweightBuildables)
+    {
+        FLightweightBuildableInstanceRef Instance;
+        if (!ResolveLightweightUndoRef(Ref, Context.World, Instance))
+        {
+            ++AlreadyGone;
+            continue;
+        }
+        AFGBuildable* Temporary = Instance.SpawnTemporaryBuildable();
+        if (!IsValid(Temporary))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("could_not_materialize_lightweight_buildable_for_undo"));
+        }
+        Result.RemovedActorIds.Add(Temporary->GetPathName());
+        LiveLightweightBuildables.Add(Temporary);
     }
 
     int32 DismantleTargets = 0;
@@ -2519,7 +2694,20 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
             ++DismantleTargets;
         }
     }
-    Removed = LiveBuildables.Num();
+    for (AFGBuildable* Temporary : LiveLightweightBuildables)
+    {
+        if (!IsValid(Temporary))
+        {
+            continue;
+        }
+        const FAIFactoryRefundDelivery Refund =
+            DismantleWithRefund(Temporary, Context.Player);
+        RefundedItemUnits += Refund.ItemUnits;
+        RefundedToInventory += Refund.AddedToInventory;
+        RefundDropped += Refund.DroppedOnGround;
+        ++DismantleTargets;
+    }
+    Removed = LiveBuildables.Num() + LiveLightweightBuildables.Num();
 
     // Items granted by the step are handed back, capped at what is still held
     // so undo can never confiscate a stack the player earned separately.

@@ -1926,3 +1926,34 @@ until that exact foundation exists. Any later building or belt refusal rolls
 the entire reversible transaction back. Please avoid `place_building`
 step-reference validation and `resource-factory.mjs` until this handoff is
 closed with compile and live evidence.
+
+**Codex, 2026-08-08 23:16 - lightweight foundation construction fixed,
+packaged, and deployed; live retry is the remaining evidence.** The staged
+foundation plan compiled and passed all tests, but the first live 46-step run
+exposed an engine representation boundary: the Miner committed, then action 2
+reported `hologram_constructed_no_matching_buildable` even though the
+Foundation 1 m hologram had no disqualifiers and `CanConstruct()` was true. The
+transaction correctly rolled the Miner back and left the world unchanged.
+
+The exact 491125 `FGLightweightBuildableSubsystem.h` explains the result:
+foundations and walls are lightweight runtime instances and do not retain an
+`AFGBuildable` actor. Placement now captures the exact valid runtime indices
+for the expected class before `Construct()`, diffs the same class afterward,
+and accepts only one newly valid instance whose `BuiltWithRecipe` is the exact
+requested build recipe. It never selects by proximity. That instance is
+materialized through the public `SpawnTemporaryBuildable()` API so the next
+step can target the real foundation in the same synchronous transaction. Undo
+and rollback journal class, recipe, runtime index, and transform, revalidate all
+four, materialize the instance, dismantle through the standard refund path, and
+verify removal. Ambiguous or changed instances fail closed.
+
+The Shipping target compiled before packaging; UAT then built the Editor
+target, cooked, archived, and deployed while the game was closed. Archive:
+15,124,584 bytes, SHA-256
+`29D4EFE3B3B434CD362A68EB6EB70F2E983A23E8F5F77CF90B7DD2C8F6E1BD60`.
+Deployed DLL: 665,088 bytes, SHA-256
+`AB430C83FCC426B4F2BC9D67CFFD03C4A0AC0DEC8268DFD862022705626D9803`.
+A contract regression now locks the before/after lightweight diff,
+materialization, and undo journal in place. The live retry must still prove
+that the temporary foundation remains resolvable through the dependent
+building action and reveal the next real hologram/belt constraint, if any.
