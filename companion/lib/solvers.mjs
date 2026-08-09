@@ -1764,6 +1764,7 @@ export function solveProductionPlan(
     max_depth = DEFAULT_PLAN_DEPTH,
     use_existing_surplus = true,
     prefer_standard_recipes = false,
+    stop_at_item_classes = [],
   } = {},
 ) {
   const targetRate = finitePositive(target_rate_per_minute);
@@ -1817,6 +1818,16 @@ export function solveProductionPlan(
       certainty: "unknown",
     };
   }
+
+  // Callers that own an authoritative source (for example, an aimed resource
+  // node) can declare it as a terminal input. This prevents late-game
+  // Converter recipes from expanding Iron Ore into SAM/Limestone merely
+  // because the catalog says Iron Ore can also be manufactured.
+  const terminalInputs = new Set(
+    Array.isArray(stop_at_item_classes)
+      ? stop_at_item_classes.map((value) => String(value)).filter(Boolean)
+      : [],
+  );
 
   const surplusByItem = new Map();
   if (use_existing_surplus) {
@@ -1873,6 +1884,19 @@ export function solveProductionPlan(
     }
     const remaining = rate - fromSurplus;
     if (remaining <= 1e-9) return;
+
+    if (terminalInputs.has(itemClass)) {
+      const scale = itemUnitScale(graph, itemClass);
+      rawInputs.set(itemClass, {
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round((rawInputs.get(itemClass)?.raw ?? 0) + remaining),
+        raw: (rawInputs.get(itemClass)?.raw ?? 0) + remaining,
+        display_unit: scale.display_unit,
+        supplied_by: "the caller's authoritative source; recipe expansion stops here",
+      });
+      return;
+    }
 
     const recipeOptions = recipesProducing(itemClass);
     if (recipeOptions.all.length === 0) {
@@ -2113,6 +2137,10 @@ export function solveProductionPlan(
         "Per-machine draw is read off your own machines of that type. Steps with no such machine report power as unknown rather than estimating it.",
       layout:
         "This is a bill of materials and machine count, not a physical layout. Placement still needs find_best_site for ground and the game's own hologram check.",
+      terminal_inputs:
+        terminalInputs.size > 0
+          ? [...terminalInputs]
+          : "none supplied; catalog recipes may expand resources that can also be manufactured",
     },
     source: "deterministic_recipe_expansion_over_the_authoritative_catalog",
     certainty: "calculated",

@@ -1915,20 +1915,23 @@ export function answerLocally(question, graph, services) {
     const emitted = emitValidatedPlan(graph, services, plan.actions);
     if (emitted) {
       const capped = plan.extracted_per_minute > plan.line_input_per_minute
-        ? ` The Pure node and Miner Mk.1 can supply ${plan.extracted_per_minute}/min, ` +
+        ? ` The ${plan.purity} node and Miner Mk.1 can supply ${plan.extracted_per_minute}/min, ` +
           `but Mk.1 belt capacity is ${plan.belt_capacity_per_minute}/min, so the ` +
           `line uses ${plan.node_utilisation_percent}% of the node and the miner will back up.`
+        : "";
+      const partialMachine = plan.last_constructor_utilisation_percent < 100
+        ? ` The last Constructor is supply-limited to ${plan.last_constructor_utilisation_percent}% utilisation.`
         : "";
       return localAnswer(
         `Building a deterministic **${plan.output_per_minute} Wire/min Mk.1 factory** ` +
           `from **${plan.node}**: 1 Miner Mk.1, ${plan.smelters} Smelters, ` +
           `${plan.constructors} Constructors, splitter/merger fan-out, and ` +
-          `${plan.storage_lanes} separate Mk.1 output storage lanes.${capped}\n\n` +
-          "Every Smelter and Constructor receives its captured standard recipe during placement, " +
+          `${plan.storage_lanes} separate Mk.1 output storage lanes. Recipe: **${plan.recipe}**.${capped}${partialMachine}\n\n` +
+          "Every Smelter and Constructor receives its captured selected recipe during placement, " +
           "and the game reads it back before accepting the action. The complete transaction rolls " +
           "back if any building, recipe, or belt fails.\n\n" +
           "**Power is not wired yet**, so this builds and configures the material line but does not " +
-          "claim it is running. Connect the six machines to your circuit; say \"undo\" to reverse " +
+          `claim it is running. Connect the ${plan.smelters + plan.constructors} machines to your circuit; say undo to reverse ` +
           "the whole placement.",
         "aimed_mk1_wire_factory",
         started,

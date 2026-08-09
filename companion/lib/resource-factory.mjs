@@ -67,10 +67,12 @@ function translate(origin, axes, forwardCm, lateralCm) {
   };
 }
 
-function exactlyWholeMachines(production) {
-  return production.steps.every((step) =>
-    Math.abs(Number(step.machines_exact) - Math.round(Number(step.machines_exact))) < EPSILON,
-  );
+function recipeProduces(recipe, itemClass) {
+  return (recipe?.products ?? []).some((product) => sameItem(product.item_class, itemClass));
+}
+
+function isMk1ConstructorRecipe(recipe) {
+  return (recipe?.produced_in ?? []).some((value) => /Build_ConstructorMk1/i.test(String(value)));
 }
 
 export function planAimedMk1WireFactory(graph, {
@@ -146,53 +148,73 @@ export function planAimedMk1WireFactory(graph, {
   const extractedPerMinute = normalRate * multiplier;
   const lineInputPerMinute = Math.min(extractedPerMinute, beltCapacity.items_per_minute);
 
-  const unitPlan = solveProductionPlan(graph, {
-    item_class: item.class_path,
-    target_rate_per_minute: 1,
-    use_existing_surplus: false,
-    prefer_standard_recipes: true,
-  });
-  const matchingRaw = unitPlan.raw_inputs_required?.find((raw) =>
-    sameItem(raw.item_class, target.resource_class),
-  );
-  const otherRaw = (unitPlan.raw_inputs_required ?? []).filter((raw) =>
-    !sameItem(raw.item_class, target.resource_class),
-  );
-  const rawPerOutput = Number(matchingRaw?.display_units_per_minute);
-  if (!unitPlan.planned || !Number.isFinite(rawPerOutput) || rawPerOutput <= 0 || otherRaw.length > 0) {
+  const candidatePlans = [...(graph?.recipesByClass?.values?.() ?? [])]
+    .filter((recipe) => recipe?.available !== false)
+    .filter((recipe) => recipeProduces(recipe, item.class_path))
+    .filter(isMk1ConstructorRecipe)
+    .map((recipe) => {
+      const plan = solveProductionPlan(graph, {
+        item_class: item.class_path,
+        target_rate_per_minute: 1,
+        recipe_class: recipe.class_path,
+        use_existing_surplus: false,
+        prefer_standard_recipes: true,
+        stop_at_item_classes: [target.resource_class],
+      });
+      const matchingRaw = plan.raw_inputs_required?.find((raw) =>
+        sameItem(raw.item_class, target.resource_class),
+      );
+      const otherRaw = (plan.raw_inputs_required ?? []).filter((raw) =>
+        !sameItem(raw.item_class, target.resource_class),
+      );
+      return {
+        recipe,
+        plan,
+        raw_per_output: Number(matchingRaw?.display_units_per_minute),
+        other_raw: otherRaw,
+      };
+    })
+    .filter(({ plan, raw_per_output: rawPerOutput, other_raw: otherRaw }) =>
+      plan.planned &&
+      !plan.unresolved?.length &&
+      Number.isFinite(rawPerOutput) &&
+      rawPerOutput > 0 &&
+      otherRaw.length === 0,
+    )
+    .sort((left, right) =>
+      left.raw_per_output - right.raw_per_output ||
+      String(left.recipe.class_path).localeCompare(String(right.recipe.class_path)),
+    );
+  const selected = candidatePlans[0];
+  if (!selected) {
     return {
       planned: false,
       reason:
-        "the standard Wire chain is not proven to use only the aimed node's captured resource",
-      other_raw_inputs: otherRaw,
+        "no unlocked Mk.1 Constructor Wire recipe has a complete dependency chain rooted only in the aimed node's captured resource",
     };
   }
 
-  const outputPerMinute = lineInputPerMinute / rawPerOutput;
+  const outputPerMinute = lineInputPerMinute / selected.raw_per_output;
   const production = solveProductionPlan(graph, {
     item_class: item.class_path,
     target_rate_per_minute: outputPerMinute,
+    recipe_class: selected.recipe.class_path,
     use_existing_surplus: false,
     prefer_standard_recipes: true,
+    stop_at_item_classes: [target.resource_class],
   });
   if (!production.planned || production.unresolved?.length || production.steps.length !== 2) {
-    return { planned: false, reason: "the standard two-stage Wire production chain did not resolve", production };
-  }
-  if (!exactlyWholeMachines(production)) {
-    return {
-      planned: false,
-      reason: "the Mk.1 transport rate would require underclocking, which the action contract cannot yet set safely",
-    };
+    return { planned: false, reason: "the selected two-stage Wire production chain did not resolve", production };
   }
 
   const wireStep = production.steps.find((step) => sameItem(step.produces?.item_class, item.class_path));
   const ingotStep = production.steps.find((step) =>
     (wireStep?.inputs_required ?? []).some((input) => sameItem(input.item_class, step.produces?.item_class)),
   );
-  if (!wireStep || !ingotStep || ingotStep.machines_required !== 2 || wireStep.machines_required !== 4) {
+  if (!wireStep || !ingotStep || ingotStep.machines_required < 1 || wireStep.machines_required < 1) {
     return {
       planned: false,
-      reason: "the captured standard recipes do not size to the verified 2-Smelter/4-Constructor Mk.1 topology",
+      reason: "the captured recipes did not produce a usable Smelter/Constructor topology",
       production,
     };
   }
@@ -203,6 +225,12 @@ export function planAimedMk1WireFactory(graph, {
   const constructorBuild = findBuildRecipeForBuilding(graph, constructorClass);
   if (!smelterBuild?.available || !constructorBuild?.available) {
     return { planned: false, reason: "the exact Smelter Mk.1 or Constructor Mk.1 build recipe is unavailable" };
+  }
+  if (wireStep.per_machine_display_units_per_minute > beltCapacity.items_per_minute + EPSILON) {
+    return {
+      planned: false,
+      reason: "one Constructor's selected-recipe output exceeds a Mk.1 belt and clock-speed actions are not implemented",
+    };
   }
 
   const player = graph.snapshot?.interaction_context?.player?.pawn_location;
@@ -217,53 +245,103 @@ export function planAimedMk1WireFactory(graph, {
     commit: true,
   });
 
-  // One-based step numbers are intentionally named. Belts only ever reference
-  // earlier actor-creating steps, which the game resolves after construction.
-  const actions = [
-    {
-      ...place(miner.recipe_class, target.location),
-      target_actor_id: target.actor_id,
-      yaw: 0,
-    }, // 1 miner
-    place(splitter.recipe_class, at(1_600, 0)), // 2 ore splitter
-    place(smelterBuild.recipe_class, at(3_200, -900), ingotStep.recipe_class), // 3
-    place(smelterBuild.recipe_class, at(3_200, 900), ingotStep.recipe_class), // 4
-    place(merger.recipe_class, at(4_900, 0)), // 5 ingot merger
-    place(splitter.recipe_class, at(6_300, 0)), // 6 ingot splitter A
-    place(splitter.recipe_class, at(7_700, 0)), // 7 ingot splitter B
-    place(constructorBuild.recipe_class, at(9_400, -2_700), wireStep.recipe_class), // 8
-    place(constructorBuild.recipe_class, at(9_400, -900), wireStep.recipe_class), // 9
-    place(constructorBuild.recipe_class, at(9_400, 900), wireStep.recipe_class), // 10
-    place(constructorBuild.recipe_class, at(9_400, 2_700), wireStep.recipe_class), // 11
-    place(merger.recipe_class, at(11_200, -1_800)), // 12 wire merger A
-    place(merger.recipe_class, at(11_200, 1_800)), // 13 wire merger B
-    place(storage.recipe_class, at(12_800, -1_800)), // 14 storage A
-    place(storage.recipe_class, at(12_800, 1_800)), // 15 storage B
-  ];
-  const beltBetween = (fromStep, toStep) => actions.push({
-    action: "place_belt",
-    recipe_class: belt.recipe_class,
-    from_step: fromStep,
-    to_step: toStep,
-    commit: true,
+  // All building placements come first, so every later belt references an
+  // earlier actor-creating step. Splitter manifolds fan out two consumers per
+  // splitter and use their third output for the next splitter. Merger chains
+  // combine three sources first, then add two sources per additional merger.
+  const actions = [];
+  const beltEdges = [];
+  const addPlacement = (action) => {
+    actions.push(action);
+    return actions.length;
+  };
+  const connect = (fromStep, toStep) => beltEdges.push([fromStep, toStep]);
+  const centredLaterals = (count, spacing = 1_800) =>
+    Array.from({ length: count }, (_, index) => (index - (count - 1) / 2) * spacing);
+  const connectFanOut = (sourceStep, splitterSteps, consumerSteps) => {
+    if (consumerSteps.length === 1) {
+      connect(sourceStep, consumerSteps[0]);
+      return;
+    }
+    connect(sourceStep, splitterSteps[0]);
+    for (let index = 0; index < splitterSteps.length; index += 1) {
+      const splitterStep = splitterSteps[index];
+      for (const consumer of consumerSteps.slice(index * 2, index * 2 + 2)) {
+        connect(splitterStep, consumer);
+      }
+      if (splitterSteps[index + 1]) connect(splitterStep, splitterSteps[index + 1]);
+    }
+  };
+  const addMergerChain = (sourceSteps, forwardCm, lateralCm = 0) => {
+    if (sourceSteps.length === 1) return sourceSteps[0];
+    let cursor = 0;
+    let previous = null;
+    let mergerIndex = 0;
+    while (cursor < sourceSteps.length) {
+      const mergerStep = addPlacement(
+        place(merger.recipe_class, at(forwardCm + mergerIndex * 900, lateralCm)),
+      );
+      const inputs = previous
+        ? [previous, ...sourceSteps.slice(cursor, cursor + 2)]
+        : sourceSteps.slice(cursor, cursor + 3);
+      cursor += previous ? 2 : 3;
+      for (const input of inputs) connect(input, mergerStep);
+      previous = mergerStep;
+      mergerIndex += 1;
+    }
+    return previous;
+  };
+
+  const minerStep = addPlacement({
+    ...place(miner.recipe_class, target.location),
+    target_actor_id: target.actor_id,
+    yaw: 0,
   });
-  beltBetween(1, 2);
-  beltBetween(2, 3);
-  beltBetween(2, 4);
-  beltBetween(3, 5);
-  beltBetween(4, 5);
-  beltBetween(5, 6);
-  beltBetween(6, 8);
-  beltBetween(6, 9);
-  beltBetween(6, 7);
-  beltBetween(7, 10);
-  beltBetween(7, 11);
-  beltBetween(8, 12);
-  beltBetween(9, 12);
-  beltBetween(10, 13);
-  beltBetween(11, 13);
-  beltBetween(12, 14);
-  beltBetween(13, 15);
+
+  const smelterCount = ingotStep.machines_required;
+  const rawSplitterSteps = smelterCount > 1
+    ? Array.from({ length: Math.ceil(smelterCount / 2) }, (_, index) =>
+        addPlacement(place(splitter.recipe_class, at(1_500 + index * 850, 0))))
+    : [];
+  const smelterSteps = centredLaterals(smelterCount).map((lateral) =>
+    addPlacement(place(smelterBuild.recipe_class, at(3_800, lateral), ingotStep.recipe_class)));
+  connectFanOut(minerStep, rawSplitterSteps, smelterSteps);
+  const ingotSourceStep = addMergerChain(smelterSteps, 5_200);
+
+  const constructorCount = wireStep.machines_required;
+  const ingotSplitterSteps = constructorCount > 1
+    ? Array.from({ length: Math.ceil(constructorCount / 2) }, (_, index) =>
+        addPlacement(place(splitter.recipe_class, at(6_400 + index * 800, 0))))
+    : [];
+  const constructorLaterals = centredLaterals(constructorCount);
+  const constructorSteps = constructorLaterals.map((lateral) =>
+    addPlacement(place(constructorBuild.recipe_class, at(9_400, lateral), wireStep.recipe_class)));
+  connectFanOut(ingotSourceStep, ingotSplitterSteps, constructorSteps);
+
+  const constructorsPerLane = Math.max(
+    1,
+    Math.min(3, Math.floor(beltCapacity.items_per_minute / wireStep.per_machine_display_units_per_minute + EPSILON)),
+  );
+  const storageLanes = [];
+  for (let start = 0; start < constructorSteps.length; start += constructorsPerLane) {
+    const group = constructorSteps.slice(start, start + constructorsPerLane);
+    const groupLaterals = constructorLaterals.slice(start, start + constructorsPerLane);
+    const lateral = groupLaterals.reduce((sum, value) => sum + value, 0) / groupLaterals.length;
+    const outputStep = addMergerChain(group, 11_200, lateral);
+    const storageStep = addPlacement(place(storage.recipe_class, at(12_900, lateral)));
+    connect(outputStep, storageStep);
+    storageLanes.push(storageStep);
+  }
+
+  for (const [fromStep, toStep] of beltEdges) {
+    actions.push({
+      action: "place_belt",
+      recipe_class: belt.recipe_class,
+      from_step: fromStep,
+      to_step: toStep,
+      commit: true,
+    });
+  }
 
   return {
     solver: "aimed_mk1_wire_factory",
@@ -279,15 +357,18 @@ export function planAimedMk1WireFactory(graph, {
     output_per_minute: round(outputPerMinute),
     node_utilisation_percent: round((lineInputPerMinute / extractedPerMinute) * 100, 1),
     capacity_evidence_actor_id: beltCapacity.actor_id,
-    smelters: 2,
-    constructors: 4,
-    storage_lanes: 2,
+    recipe: selected.recipe.name,
+    recipe_class: selected.recipe.class_path,
+    smelters: smelterCount,
+    constructors: constructorCount,
+    last_constructor_utilisation_percent: wireStep.utilisation_of_last_machine_percent,
+    storage_lanes: storageLanes.length,
     production,
     actions,
     notes: [
       `The ${purity} node and Miner Mk.1 can produce ${round(extractedPerMinute)} ore/min, but one Mk.1 belt carries ${round(beltCapacity.items_per_minute)}/min; this line is capped at ${round(lineInputPerMinute)}/min and uses ${round((lineInputPerMinute / extractedPerMinute) * 100, 1)}% of the node.`,
       "Production recipes are assigned and read back during each machine placement.",
-      "Power is not wired because the action contract does not yet place power lines; connect the six machines to a circuit before expecting production.",
+      `Power is not wired because the action contract does not yet place power lines; connect the ${smelterCount + constructorCount} machines to a circuit before expecting production.`,
     ],
   };
 }

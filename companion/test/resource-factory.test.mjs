@@ -9,6 +9,8 @@ import { solveBuildRecipeLookup } from "../lib/solvers.mjs";
 const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
 const COPPER = "Desc_OreCopper_C";
 const INGOT = "Desc_CopperIngot_C";
+const IRON = "Desc_OreIron_C";
+const IRON_INGOT = "Desc_IronIngot_C";
 const WIRE = "Desc_Wire_C";
 
 const buildRecipe = (key, descriptor, name, extra = {}) => ({
@@ -41,6 +43,26 @@ function graphOf(mutator = null) {
       duration_seconds: 4,
       ingredients: [{ item_class: INGOT, item_name: "Copper Ingot", amount: 1 }],
       products: [{ item_class: WIRE, item_name: "Wire", amount: 2 }],
+      produced_in: ["/Game/Build_ConstructorMk1.Build_ConstructorMk1_C"],
+    },
+    {
+      class_path: "Recipe_IngotIron_C",
+      name: "Iron Ingot",
+      owner_mod: "FactoryGame",
+      available: true,
+      duration_seconds: 2,
+      ingredients: [{ item_class: IRON, item_name: "Iron Ore", amount: 1 }],
+      products: [{ item_class: IRON_INGOT, item_name: "Iron Ingot", amount: 1 }],
+      produced_in: ["/Game/Build_SmelterMk1.Build_SmelterMk1_C"],
+    },
+    {
+      class_path: "Recipe_IronWire_C",
+      name: "Alternate: Iron Wire",
+      owner_mod: "FactoryGame",
+      available: true,
+      duration_seconds: 24,
+      ingredients: [{ item_class: IRON_INGOT, item_name: "Iron Ingot", amount: 5 }],
+      products: [{ item_class: WIRE, item_name: "Wire", amount: 9 }],
       produced_in: ["/Game/Build_ConstructorMk1.Build_ConstructorMk1_C"],
     },
     // Faster unlocked alternates are traps: "all Mk.1" must stay on the
@@ -91,6 +113,8 @@ function graphOf(mutator = null) {
       items: [
         { class_path: COPPER, name: "Copper Ore", form: "RF_SOLID" },
         { class_path: INGOT, name: "Copper Ingot", form: "RF_SOLID" },
+        { class_path: IRON, name: "Iron Ore", form: "RF_SOLID" },
+        { class_path: IRON_INGOT, name: "Iron Ingot", form: "RF_SOLID" },
         { class_path: WIRE, name: "Wire", form: "RF_SOLID" },
         { class_path: "Desc_CateriumIngot_C", name: "Caterium Ingot", form: "RF_SOLID" },
       ],
@@ -152,13 +176,50 @@ test("the complete fan-out never asks one machine port for two belts", () => {
   for (const belt of belts) {
     fromCounts.set(belt.from_step, (fromCounts.get(belt.from_step) ?? 0) + 1);
   }
+  const splitterSteps = new Set(plan.actions
+    .map((action, index) => ({ action, step: index + 1 }))
+    .filter(({ action }) => action.action === "place_building" && /Splitter/i.test(action.recipe_class))
+    .map(({ step }) => step));
   // Only splitters legitimately have several output connections.
   for (const [step, count] of fromCounts) {
-    if (count > 1) assert.ok([2, 6, 7].includes(step), `step ${step} reuses one-output machinery`);
+    if (count > 1) assert.ok(splitterSteps.has(step), `step ${step} reuses one-output machinery`);
   }
-  for (const consumer of [3, 4, 8, 9, 10, 11, 14, 15]) {
+  const singleInputConsumers = plan.actions
+    .map((action, index) => ({ action, step: index + 1 }))
+    .filter(({ action }) =>
+      action.action === "place_building" &&
+      /(Smelter|Constructor|Storage)/i.test(action.recipe_class))
+    .map(({ step }) => step);
+  for (const consumer of singleInputConsumers) {
     assert.equal(belts.filter((belt) => belt.to_step === consumer).length, 1);
   }
+});
+
+test("an Iron node selects the unlocked Iron Wire chain and sizes its partial last constructor", () => {
+  const plan = planAimedMk1WireFactory(graphOf(), {
+    target: {
+      ...target,
+      actor_id: "BP_ResourceNodeIron",
+      on: "BP_ResourceNodeIron",
+      resource_class: IRON,
+      resource_name: "Iron Ore",
+    },
+    item,
+    build_recipe_lookup: solveBuildRecipeLookup,
+  });
+  assert.equal(plan.planned, true, plan.reason);
+  assert.equal(plan.recipe, "Alternate: Iron Wire");
+  assert.equal(plan.output_per_minute, 108);
+  assert.equal(plan.smelters, 2);
+  assert.equal(plan.constructors, 5);
+  assert.equal(plan.last_constructor_utilisation_percent, 96);
+  assert.equal(plan.storage_lanes, 3);
+  assert.equal(plan.actions.length, 38);
+  assert.equal(plan.actions.filter((action) => action.action === "place_belt").length, 20);
+  assert.equal(
+    plan.actions.filter((action) => action.production_recipe_class === "Recipe_IronWire_C").length,
+    5,
+  );
 });
 
 test("missing authoritative evidence refuses instead of guessing", () => {
@@ -205,7 +266,7 @@ test("a locked standard recipe does not silently switch to an alternate", () => 
     build_recipe_lookup: solveBuildRecipeLookup,
   });
   assert.equal(plan.planned, false);
-  assert.match(plan.reason, /standard Wire chain/);
+  assert.match(plan.reason, /complete dependency chain rooted only in the aimed node/);
 });
 
 test("the owner's exact command stays local and revision-stamps the whole write", () => {

@@ -174,6 +174,29 @@ test("stops at raw inputs and names them", () => {
   assert.match(ore.supplied_by, /extraction/);
 });
 
+test("an authoritative source can stop recipe expansion at a manufacturable resource", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_ConvertIronOre",
+    name: "Iron Ore (Limestone)",
+    available: true,
+    duration_seconds: 6,
+    ingredients: [{ item_class: "Desc_Stone", item_name: "Limestone", amount: 1 }],
+    products: [{ item_class: "Desc_OreIron", item_name: "Iron Ore", amount: 12 }],
+    produced_in: ["Build_Converter_C"],
+  });
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Rod",
+    target_rate_per_minute: 15,
+    use_existing_surplus: false,
+    stop_at_item_classes: ["Desc_OreIron"],
+  });
+  assert.equal(plan.steps.length, 2);
+  assert.deepEqual(plan.steps.map((step) => step.recipe_name), ["Iron Rod", "Iron Ingot"]);
+  assert.equal(plan.raw_inputs_required[0].item_class, "Desc_OreIron");
+  assert.match(plan.raw_inputs_required[0].supplied_by, /authoritative source/);
+});
+
 test("bounds recursion and reports what it did not expand", () => {
   const plan = solveProductionPlan(graphWithoutSurplus(), {
     item_name: "Iron Rod",
