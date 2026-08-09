@@ -27,6 +27,8 @@
 #include "EngineUtils.h"
 #include "FGFactoryConnectionComponent.h"
 #include "FGCharacterPlayer.h"
+#include "Equipment/FGBuildGun.h"
+#include "Equipment/FGBuildGunDismantle.h"
 #include "FGGamePhase.h"
 #include "FGGamePhaseManager.h"
 #include "FGGameState.h"
@@ -1337,6 +1339,53 @@ namespace
             PreferredTarget->SetObjectField(TEXT("actor_snapshot"), FocusActorJson(PreferredActor, Settings, World, TerrainBudget));
         }
         Result->SetObjectField(TEXT("preferred_target"), PreferredTarget);
+
+        // What the player has marked with the dismantle tool.
+        //
+        // The owner wanted to pick things out by hand and save exactly those,
+        // rather than everything inside a radius. The dismantle state is
+        // already a multi-selection UI with a highlight, and it exposes what is
+        // in it: GetPendingDismantleActors is the set built up with the tool,
+        // and GetSelectedActor is the one currently under the crosshair.
+        //
+        // Reading it changes nothing. Nothing here dismantles; the selection is
+        // borrowed as a way of pointing at several things at once, which the
+        // game already does well and a chat line does badly.
+        const TSharedRef<FJsonObject> Selection = MakeShared<FJsonObject>();
+        TArray<TSharedPtr<FJsonValue>> SelectedIds;
+        bool bDismantleStateFound = false;
+        if (AFGCharacterPlayer* PlayerCharacter = Cast<AFGCharacterPlayer>(Pawn); IsValid(PlayerCharacter))
+        {
+            if (AFGBuildGun* BuildGun = PlayerCharacter->GetBuildGun(); IsValid(BuildGun))
+            {
+                if (UFGBuildGunStateDismantle* Dismantle = Cast<UFGBuildGunStateDismantle>(
+                        BuildGun->GetBuildGunStateFor(EBuildGunState::BGS_DISMANTLE)))
+                {
+                    bDismantleStateFound = true;
+                    for (AActor* Pending : Dismantle->GetPendingDismantleActors())
+                    {
+                        if (IsValid(Pending))
+                        {
+                            SelectedIds.Add(MakeShared<FJsonValueString>(Pending->GetPathName()));
+                        }
+                    }
+                    // The aimed-at actor is highlighted but not yet added to the
+                    // pending list, and a player who has aimed at one thing and
+                    // marked none plainly means that one.
+                    if (AActor* Aimed = Dismantle->GetSelectedActor(); IsValid(Aimed))
+                    {
+                        Selection->SetStringField(TEXT("aimed_actor_id"), Aimed->GetPathName());
+                    }
+                }
+            }
+        }
+        Selection->SetBoolField(TEXT("available"), bDismantleStateFound);
+        Selection->SetArrayField(TEXT("actor_ids"), SelectedIds);
+        Selection->SetNumberField(TEXT("count"), SelectedIds.Num());
+        Selection->SetStringField(
+            TEXT("note"),
+            TEXT("Actors marked with the dismantle tool. Read only: this capture never dismantles them."));
+        Result->SetObjectField(TEXT("dismantle_selection"), Selection);
         return Result;
     }
 

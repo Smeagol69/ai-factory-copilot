@@ -54,6 +54,7 @@ import {
 import { planCoalPower } from "./power.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
+import { captureDesign, findDesign, listDesigns, planDesignPlacement, writeDesign } from "./designs.mjs";
 import { planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
@@ -886,6 +887,44 @@ export function parseModularShellRequest(question) {
     depth_modules: size ? Number(size[2]) : null,
     at_aim: MODULAR_HERE.test(text),
   };
+}
+
+/**
+ * "save this as mk1 copper node blueprint", "place mk1 copper node here".
+ *
+ * A design is what is standing near the crosshair, remembered by name and
+ * replayable somewhere else. Not a `.sbp` — see designs.mjs for why that would
+ * be more work for less.
+ */
+const DESIGN_SAVE =
+  /^(?:can you |could you |please )?(?:save|remember|store|record)\s+(?:this|these|it|everything(?:\s+here)?|the\s+\w+)?\s*(?:as|called|named)\s+(?:a\s+|the\s+)?["']?(.+?)["']?(?:\s+blue\s?print)?$/i;
+const DESIGN_PLACE =
+  /^(?:can you |could you |please )?(?:place|build|put|spawn|stamp|drop)\s+(?:down\s+)?(?:the\s+|a\s+|my\s+)?["']?(.+?)["']?(?:\s+design|\s+blue\s?print)?\s+(?:here|down|on this (?:node|spot|foundation)|at this|where i(?:'m|m| am)?\s+(?:looking|standing|aiming))$/i;
+const DESIGN_LIST = /\b(?:list|show|what)\b[^?]*\b(?:designs?|saved builds?)\b/i;
+const DESIGN_RADIUS = /\bwithin\s+(\d{1,4})\s*m\b/i;
+
+export function parseDesignSaveRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const radius = text.match(DESIGN_RADIUS);
+  const withoutRadius = text.replace(DESIGN_RADIUS, "").replace(/\s{2,}/g, " ").trim();
+  const match = withoutRadius.match(DESIGN_SAVE);
+  if (!match) return null;
+  const name = match[1].replace(/\s+/g, " ").trim();
+  if (name.length < 2) return null;
+  return { name, radius_cm: radius ? Number(radius[1]) * 100 : null };
+}
+
+export function parseDesignPlaceRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(DESIGN_PLACE);
+  if (!match) return null;
+  const name = match[1].replace(/\s+/g, " ").replace(/\b(?:design|blue\s?print)\b/i, "").trim();
+  return name.length >= 2 ? { name } : null;
+}
+
+export function parseDesignListRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return DESIGN_LIST.test(text) ? {} : null;
 }
 
 /**
@@ -2315,6 +2354,151 @@ export function answerLocally(question, graph, services) {
     const refusal = describePlanRejection();
     if (refusal) {
       return localAnswer(refusal, "modular_shell_refused", started, "Refused by validation before anything ran.");
+    }
+  }
+
+  // "list designs" / "save this as X" / "place X here" — remembered builds.
+  if (parseDesignListRequest(question)) {
+    const started = Date.now();
+    const designs = listDesigns();
+    if (designs.length === 0) {
+      return localAnswer(
+        'You have no saved designs. Stand by something you have built and say ' +
+          '"save this as <name>" to remember it.',
+        "design_library",
+        started,
+        "Read from the design folder on disk.",
+      );
+    }
+    return localAnswer(
+      `You have **${designs.length}** saved design(s):\n\n` +
+        designs
+          .map((design) => `- **${design.name}** — ${design.building_count} buildings`)
+          .join("\n") +
+        '\n\nSay "place <name> here" to build one.',
+      "design_library",
+      started,
+      "Read from the design folder on disk.",
+    );
+  }
+
+  const designSave = parseDesignSaveRequest(question);
+  if (designSave && graph) {
+    const started = Date.now();
+    const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
+    const origin = aim ?? graph.snapshot?.interaction_context?.player?.pawn_location;
+    if (!origin) {
+      return localAnswer(
+        "I don't know what to save — the game didn't report where you are or what you're aiming at.",
+        "design_save_refused",
+        started,
+        "No anchor in the snapshot.",
+      );
+    }
+
+    // What the player marked with the dismantle tool, if anything. That is an
+    // explicit selection and beats a radius, which only guesses at the same
+    // question and sweeps up whatever else is standing nearby.
+    const selection = graph.snapshot?.interaction_context?.dismantle_selection;
+    const selectedIds = Array.isArray(selection?.actor_ids) ? selection.actor_ids : [];
+    const aimedSelected = selection?.aimed_actor_id;
+    const chosenIds = selectedIds.length > 0
+      ? selectedIds
+      : (aimedSelected ? [aimedSelected] : []);
+
+    // Anchor on the selection's own first building rather than the crosshair,
+    // so the saved offsets are relative to the thing being saved.
+    const anchorNode = chosenIds.length > 0 ? graph.nodes?.get(String(chosenIds[0])) : null;
+    const anchor = anchorNode?.raw?.location ?? origin;
+
+    const captured = captureDesign(graph, {
+      name: designSave.name,
+      origin: anchor,
+      ...(chosenIds.length > 0 ? { actor_ids: chosenIds } : {}),
+      ...(designSave.radius_cm ? { radius_cm: designSave.radius_cm } : {}),
+    });
+    if (!captured.saved) {
+      return localAnswer(
+        `I can't save that: ${captured.reason}.`,
+        "design_save_refused",
+        started,
+        "Nothing was written.",
+      );
+    }
+    const written = writeDesign(captured.design);
+    if (!written.written) {
+      return localAnswer(
+        `I captured it but could not write it: ${written.reason}.`,
+        "design_save_refused",
+        started,
+        "Nothing was written.",
+      );
+    }
+
+    const skipped = captured.skipped.length > 0
+      ? `\n\n${captured.skipped.length} building(s) were left out because the capture ` +
+        "does not say what recipe built them."
+      : "";
+    const how = captured.design.selected_by === "dismantle_selection"
+      ? "the ones you marked with the dismantle tool"
+      : `everything within ${captured.design.radius_cm / 100} m`;
+    return localAnswer(
+      `Saved **${captured.design.name}** — ${captured.design.building_count} buildings ` +
+        `(${how}), with the exact distances between them, their facings, and their ` +
+        `recipes.${skipped}\n\n` +
+        `Say "place ${captured.design.name} here" anywhere to build it again. ` +
+        "It keeps the spacing and the direction it was saved with.",
+      "design_save",
+      started,
+      captured.design.selected_by === "dismantle_selection"
+        ? "Selection read from the dismantle tool; nothing was dismantled."
+        : "Read from the capture and written to the design folder.",
+    );
+  }
+
+  const designPlace = parseDesignPlaceRequest(question);
+  if (designPlace && graph) {
+    const started = Date.now();
+    const { matches } = findDesign(designPlace.name);
+    // No match means this was never a design request; let the phrase reach the
+    // planner that owns it.
+    if (matches.length > 1) {
+      return localAnswer(
+        `"${designPlace.name}" matches ${matches.length} designs:\n` +
+          matches.slice(0, 6).map((design) => `- ${design.name}`).join("\n") +
+          "\n\nSay the full name.",
+        "design_place_refused",
+        started,
+        "Ambiguous name; nothing was sent to the game.",
+      );
+    }
+    if (matches.length === 1) {
+      const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
+      const origin = aim ?? graph.snapshot?.interaction_context?.player?.pawn_location;
+      const plan = planDesignPlacement(matches[0], { origin, commit: true });
+      if (!plan.planned) {
+        return localAnswer(
+          `I can't place that design: ${plan.reason}.`,
+          "design_place_refused",
+          started,
+          "Nothing was sent to the game.",
+        );
+      }
+      const emitted = emitValidatedPlan(graph, services, plan.actions);
+      if (emitted) {
+        return localAnswer(
+          `Building **${plan.name}** — ${plan.count} buildings, each with the recipe ` +
+            `it was saved with, keeping the facing it was saved at. ` +
+            `Say "undo" to reverse the whole thing.`,
+          "design_place",
+          started,
+          "Replayed from the saved design; the game validates every placement.",
+        );
+      }
+      const refusal = describePlanRejection();
+      if (refusal) {
+        return localAnswer(refusal, "design_place_refused", started, "Refused by validation before anything ran.");
+      }
     }
   }
 
