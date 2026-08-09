@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor source-owner failure at aimed Wire step 30: audit exact 491125 conveyor hologram/connection APIs; minimally correct `PlaceBelt` endpoint identity/readback in `AIFactoryActions.cpp`; retain existing exact post-construction port proof, rollback, unlock gates, and all working routing; add contract regression, compile/package/deploy, and record live retry boundary. | source complete: 605 tests and both native targets pass; package/deploy/live retry pending game shutdown; see handoff below |
+| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor source-owner failure at aimed Wire step 30: audit exact 491125 conveyor hologram/connection APIs; minimally correct `PlaceBelt` endpoint identity/readback in `AIFactoryActions.cpp`; retain existing exact post-construction port proof, rollback, unlock gates, and all working routing; add contract regression, compile/package/deploy, and record live retry boundary. | package ready: 605 tests, native targets, cook and archive pass; deploy/live retry pending game shutdown; see handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Current-unlock build constraints: bridge rejection for locked building/production/belt recipes in `companion/lib/actions.mjs`; exact `AFGRecipeManager::IsRecipeAvailable` gate for `place_belt` in `AIFactoryActions.cpp`; deterministic unlock fingerprint and replan/optimization provenance in `companion/lib/megabase.mjs` / tool output; focused tests, header verification, build/package/deploy, and planning docs. This is a narrow extension of the deployed belt executor, not a routing rewrite. | complete; see 2026-08-09 current-unlock handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | complete |
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
@@ -2147,11 +2147,16 @@ journal entry. A successful exact readback now charges the hologram's normalized
 inventory cost, closing the pre-existing free-belt path without weakening
 no-build-cost behavior or rollback.
 
-Exact header validation and all 605 tests pass. FactoryGameSteam Shipping and
-FactoryEditor Development both compile against the synced Starter Project.
+Exact header validation and all 605 tests pass. FactoryGameSteam Shipping,
+FactoryGameEGS Shipping, and FactoryEditor Development compile against the
+synced Starter Project; UAT build/cook/stage/archive succeeds. The ready archive
+is 30,264,425 bytes with SHA-256
+`C8C718D7AA8134AD56CF5ADC81EE452EDFFCBCEB633ACC07C0C9527EE4A5E76E`;
+its Steam DLL is 670,208 bytes with SHA-256
+`9823D53EB14B80A459A5AB1F8C43632869B4025D9111BD91F0F36818E0AAABCE`.
 `origin/master` remains `390ab2b` and `origin/claude/belt-routing` remains
 `fb5fb5c`; no newer Claude work overlaps this fix. The owner currently has
-Satisfactory running, so UAT packaging/deployment and the next live Wire retry
-remain pending. Do not claim this source fix is live until the DLL is replaced
-after shutdown and `latest-bridge-response.json` proves the first belt advances
-past step 30.
+Satisfactory running, so only deployment and the next live Wire retry remain
+pending. Do not claim this source fix is live until the DLL is replaced after
+shutdown and `latest-bridge-response.json` proves the first belt advances past
+step 30.
