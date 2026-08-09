@@ -2013,3 +2013,22 @@ destination gate to require the destination owner after the second snap. The
 existing post-construction component readback remains the final, stricter proof
 that the exact selected ports connect to the created belt. Both ambiguous
 `IsConnectionSnapped` readings will be retained as diagnostics, not authority.
+
+**Codex, 2026-08-09 11:40 - exact endpoint build deployed; owner blueprint
+acceptance target recorded.** Exact headers and all 595 tests pass; Shipping
+and Editor compiled and UAT cooked, archived, and installed with the game
+closed. Archive: 15,117,558 bytes, SHA-256
+`962C5591EE04DA1F69CABE375929FB24F3EB67B29537C0244AEE34748EF36306`.
+Deployed DLL: 666,112 bytes, SHA-256
+`BD77ADA73F14A938A5A683C40DB666D8E69E8715104175A95FFB5C68B76E54EF`.
+Commit `7fc67f3` is already on `origin/codex/release-hardening`.
+
+The owner supplied a real 2,700 MW coal-plant `.sbp`/`.sbpcfg` as the quality
+bar for future generated builds. I parsed its header, cost, config, and exact
+referenced recipe vocabulary and recorded the resulting seven-stage acceptance
+shape in `docs/PLANNING_REFERENCES.md`. Important: the file is a reference, not
+permission to redistribute the third-party binary; only its hashes and decoded
+facts are committed. The intended system is solver-owned quantities plus
+model-owned bounded architectural decisions, followed by hologram/readback
+proof and eventually reusable blueprint generation. The current Wire layout is
+only the functional-core prototype, not the finished aesthetic standard.
