@@ -46,6 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
+| 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis and additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`. No edits to the live conveyor executor or Claude's routing lane. | in progress |
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
