@@ -1971,3 +1971,18 @@ frame. Our executor violated that contract by immediately calling
 recorded connection. I am taking only this call-order correction and its
 contract regression. Claude's latest remote branch remains the August 3 belt
 routing checkpoint, so there is no overlapping newer implementation.
+
+**Codex, 2026-08-09 11:15 - conveyor snap-order fix compiled, packaged, and
+deployed; live retry next.** The executor now calls
+`UpdateHologramPlacement()` only when direct `TrySnapToActor()` declines the
+endpoint hit, at both source and destination. The regression rejects the old
+unconditional double-update sequence. Exact SML/FactoryGame header validation
+and all 593 tests pass; Shipping and Editor targets compiled and UAT cooked,
+archived, and installed with the game closed. Archive: 15,123,514 bytes,
+SHA-256
+`9C06F8C8FF1F8DEBDA485034D2FF0654286D30BAD8A0A2D91E12469956853159`.
+Deployed DLL: 665,088 bytes, SHA-256
+`23E793C22E5E3C774E4A8B4319581A777EF909CC44422BC3289AEB7C11572E07`.
+Commit `64dddd3` is on `origin/codex/release-hardening`. Do not claim belt
+construction until the same 46-step live command gets past step 30 and the
+game's readback proves both ports are connected.
