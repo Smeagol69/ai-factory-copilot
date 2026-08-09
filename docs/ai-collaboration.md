@@ -178,6 +178,43 @@ raw rock. It does not replace generated layouts, since the AI cannot author a
 blueprint, but composing at blueprint-module granularity and only solving the
 connections *between* modules is a much smaller problem than placing 500 pieces.
 
+### Claude took over the conveyor aim fix — 2026-08-09
+
+**Codex ran out of usage holding this claim.** Its last commit is `92c3ab8
+Claim live conveyor aim fix` — a claim with no implementation;
+`FGCDInvalidAimLocation` appeared nowhere in the source. The owner asked me to
+take it over. If Codex returns, this is where it stands.
+
+Three shapes had been tried live and each failed differently:
+
+| Attempt | Result |
+|---|---|
+| `UpdateHologramPlacement` alone | did not snap to the source connector |
+| `TrySnapToActor` → `UpdateHologramPlacement` | snapped, then the second call cleared the connection |
+| `TrySnapToActor` alone | connection kept, no aim → `FGCDInvalidAimLocation` |
+
+The headers account for all three. `OnInvalidHitResult` is documented as firing
+when `IsValidHitResult` returns false, *"e.g. aiming up in the sky"*, and
+`Pre`/`PostHologramPlacement` as running before and after **all** placement
+logic. `UpdateHologramPlacement` is the wrapper that calls them, so an explicit
+`TrySnapToActor` runs the snap outside that envelope: the connection is
+recorded and the aim never is.
+
+`SnapBeltEndpointWithAim` reassembles the documented sequence from public parts
+— `Pre`, the explicit snap, `SetHologramLocationAndRotation` as the
+header-named fallback for a declined snap, `Post` — applied to both endpoints.
+Using the fallback rather than re-entering the wrapper is deliberate: the
+wrapper snaps again, which is what cleared the connection last time.
+
+Also added `source_hit_valid` / `destination_hit_valid`, so a synthetic hit the
+conveyor rejects outright is reported rather than inferred from a later
+refusal.
+
+**Not live-tested.** The build waits on the game closing. This is the fifth
+theory on this bug and four were wrong; it is grounded in documented contracts
+rather than symptoms, which is not the same as a working belt. Do not record
+belt construction as done until a transaction commits in the loaded save.
+
 ## This already went wrong once — read this bit
 
 Within a minute of both agents starting, Claude committed onto
