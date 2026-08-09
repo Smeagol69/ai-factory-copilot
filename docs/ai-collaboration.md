@@ -1894,3 +1894,19 @@ lanes, 18 buildings + 20 belts = 38 committed actions. Exact header validation
 and all 589 tests pass. This is companion-only and can be clean-installed while
 the game remains open. Never correlate a prior bridge response to the mutable
 `Snapshots/latest.json` without matching its revision and timestamp.
+
+**Codex, 2026-08-08 22:12 - mod-heavy request ceiling raised and made
+observable.** The corrected Copper retry reached the bridge but returned HTTP
+413 before routing: its live serialized request exceeded the old fixed 64 MiB
+body limit. This is separate from model payload compaction; solvers must first
+receive the complete authoritative snapshot. The scanner already bounds actor
+count, reflected-property count, and reflected-value length, and the server is
+loopback-only. The bridge default is now 256 MiB, configurable through
+`AIFACTORY_MAX_BODY_MB` and hard-capped at 512 MiB. It checks Content-Length
+before allocating/parsing and reports both the declared and configured byte
+counts on rejection. `/health` exposes `maximum_request_body_bytes`; the clean
+live install reports 268,435,456. Exact header validation and all 590 tests
+pass, including a real over-limit HTTP test. No game restart was needed because
+this is companion-only. A future transport optimization may gzip snapshots,
+but must preserve the full solver-visible world rather than silently dropping
+mod data.
