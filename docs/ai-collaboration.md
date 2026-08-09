@@ -46,6 +46,10 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
+| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor `FGCDInvalidAimLocation` failure exposed after the source-step fix advanced aimed Wire step 30: audit exact 491125 spline/conveyor hologram aim lifecycle and hit construction; minimally correct `PlaceBelt` without weakening exact endpoint, cost, unlock, rollback, or current routing gates; add regression, compile/package/deploy, and live retry. | in progress |
+| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor source-owner failure at aimed Wire step 30: audit exact 491125 conveyor hologram/connection APIs; minimally correct `PlaceBelt` endpoint identity/readback in `AIFactoryActions.cpp`; retain existing exact post-construction port proof, rollback, unlock gates, and all working routing; add contract regression, compile/package/deploy, and record live retry boundary. | complete and deployed; 605 tests, exact headers, native targets, UAT and installed-DLL hash pass; live retry superseded by the next exact `FGCDInvalidAimLocation` boundary above; see handoff below |
+| 2026-08-09 | Codex | `codex/release-hardening` | Current-unlock build constraints: bridge rejection for locked building/production/belt recipes in `companion/lib/actions.mjs`; exact `AFGRecipeManager::IsRecipeAvailable` gate for `place_belt` in `AIFactoryActions.cpp`; deterministic unlock fingerprint and replan/optimization provenance in `companion/lib/megabase.mjs` / tool output; focused tests, header verification, build/package/deploy, and planning docs. This is a narrow extension of the deployed belt executor, not a routing rewrite. | complete; see 2026-08-09 current-unlock handoff below |
+| 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | complete |
 | 2026-07-29 | Codex | `codex/release-hardening` | **Merged to master and resumed 2026-08-03.** Release hardening in the primary checkout: local-write route validation in `companion/lib/router.mjs` and its tests; provider/config/install/release scripts; descriptor, README/docs, CI, and packaging checks. Will not edit Claude's belt-routing files (`companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs`, or `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`). | in progress |
 | 2026-07-29 | Claude | `claude/belt-routing` | Belt/conveyor routing in the layout designer: `companion/lib/designer.mjs`, new `companion/lib/routing.mjs`, `companion/lib/actions.mjs` (a `place_belt` action kind), and the matching C++ in `Source/AIFactoryCopilot/Private/AIFactoryActions.cpp`. Works in a separate worktree at `%USERPROFILE%\Documents\satisfactory-claude`. | in progress |
 
@@ -1948,3 +1952,256 @@ pass, including a real over-limit HTTP test. No game restart was needed because
 this is companion-only. A future transport optimization may gzip snapshots,
 but must preserve the full solver-visible world rather than silently dropping
 mod data.
+
+**Codex, 2026-08-08 22:40 - claiming staged foundation support for the aimed
+Mk.1 factory.** The first complete Copper action plan reached the game and was
+refused safely before mutation: action 2, a Conveyor Splitter placed directly
+on raw terrain at `(355738, -148333.7, 4214.5)`, was rejected by Satisfactory's
+real hologram with `FGCDInvalidFloor`; the independent terrain trace measured a
+57.2567-degree foliage/rock surface. I am adding one captured vanilla
+Foundation (1 m) placement under every non-miner building. A dependent
+`place_building` uses `target_step` to resolve the foundation actor created by
+the preceding committed action. Static ordering and commit dependencies are
+checked before mutation; the foundation itself is exact-hologram preflighted
+against terrain, and the dependent building's real hologram is deferred only
+until that exact foundation exists. Any later building or belt refusal rolls
+the entire reversible transaction back. Please avoid `place_building`
+step-reference validation and `resource-factory.mjs` until this handoff is
+closed with compile and live evidence.
+
+**Codex, 2026-08-08 23:16 - lightweight foundation construction fixed,
+packaged, and deployed; live retry is the remaining evidence.** The staged
+foundation plan compiled and passed all tests, but the first live 46-step run
+exposed an engine representation boundary: the Miner committed, then action 2
+reported `hologram_constructed_no_matching_buildable` even though the
+Foundation 1 m hologram had no disqualifiers and `CanConstruct()` was true. The
+transaction correctly rolled the Miner back and left the world unchanged.
+
+The exact 491125 `FGLightweightBuildableSubsystem.h` explains the result:
+foundations and walls are lightweight runtime instances and do not retain an
+`AFGBuildable` actor. Placement now captures the exact valid runtime indices
+for the expected class before `Construct()`, diffs the same class afterward,
+and accepts only one newly valid instance whose `BuiltWithRecipe` is the exact
+requested build recipe. It never selects by proximity. That instance is
+materialized through the public `SpawnTemporaryBuildable()` API so the next
+step can target the real foundation in the same synchronous transaction. Undo
+and rollback journal class, recipe, runtime index, and transform, revalidate all
+four, materialize the instance, dismantle through the standard refund path, and
+verify removal. Ambiguous or changed instances fail closed.
+
+The Shipping target compiled before packaging; UAT then built the Editor
+target, cooked, archived, and deployed while the game was closed. Archive:
+15,124,584 bytes, SHA-256
+`29D4EFE3B3B434CD362A68EB6EB70F2E983A23E8F5F77CF90B7DD2C8F6E1BD60`.
+Deployed DLL: 665,088 bytes, SHA-256
+`AB430C83FCC426B4F2BC9D67CFFD03C4A0AC0DEC8268DFD862022705626D9803`.
+A contract regression now locks the before/after lightweight diff,
+materialization, and undo journal in place. The live retry must still prove
+that the temporary foundation remains resolvable through the dependent
+building action and reveal the next real hologram/belt constraint, if any.
+
+**Codex, 2026-08-09 11:12 - claiming the live conveyor snap call-order
+failure.** The retry proved all 29 building actions, including 14 lightweight
+foundations, their 14 dependent buildings, the Miner, and manufacturer recipe
+readback. Step 30, Miner Mk.1 output to the first splitter input, then refused
+with `belt_hologram_snapped_but_recorded_no_source_connection`; all 29 building
+effects rolled back and the world remained unchanged. The exact 491125
+`FGHologram.h` contract says a true `TrySnapToActor()` result means snapping and
+location are already applied and no further location update should run that
+frame. Our executor violated that contract by immediately calling
+`UpdateHologramPlacement()` after the successful direct snap, erasing the
+recorded connection. I am taking only this call-order correction and its
+contract regression. Claude's latest remote branch remains the August 3 belt
+routing checkpoint, so there is no overlapping newer implementation.
+
+**Codex, 2026-08-09 11:15 - conveyor snap-order fix compiled, packaged, and
+deployed; live retry next.** The executor now calls
+`UpdateHologramPlacement()` only when direct `TrySnapToActor()` declines the
+endpoint hit, at both source and destination. The regression rejects the old
+unconditional double-update sequence. Exact SML/FactoryGame header validation
+and all 593 tests pass; Shipping and Editor targets compiled and UAT cooked,
+archived, and installed with the game closed. Archive: 15,123,514 bytes,
+SHA-256
+`9C06F8C8FF1F8DEBDA485034D2FF0654286D30BAD8A0A2D91E12469956853159`.
+Deployed DLL: 665,088 bytes, SHA-256
+`23E793C22E5E3C774E4A8B4319581A777EF909CC44422BC3289AEB7C11572E07`.
+Commit `64dddd3` is on `origin/codex/release-hardening`. Do not claim belt
+construction until the same 46-step live command gets past step 30 and the
+game's readback proves both ports are connected.
+
+**Codex, 2026-08-09 11:28 - claiming player-clear aimed-factory orientation.**
+The first retry after the belt deploy never reached belt code: whole-plan
+preflight refused foundation step 2 with `FGCDEncroachingPlayer`. The captured
+player was 10.3 m from `BP_ResourceNode213`; the first 8 m foundation center
+was only 5.1 m from the player because `unitVectors()` deliberately aimed the
+entire production line from the node toward the player. That is backwards for
+the normal interaction posture of standing in front of and aiming at a node.
+I am changing only this deterministic planner axis so supported buildings grow
+away from the captured player, keeping every relative spacing and belt edge
+unchanged. A regression will prove the first and every later support are
+farther from the player than the node. This is companion-only and does not
+overlap Claude's unchanged August 3 branch.
+
+**Codex, 2026-08-09 11:35 - claiming exact conveyor endpoint-buildable
+readback.** Flying clear proved the rotated companion plan: the first support
+moved to the far side of `BP_ResourceNode213`, all 29 building steps committed,
+and rollback remained complete. Step 30 still returned the old
+`belt_hologram_snapped_but_recorded_no_source_connection`, so the engine's
+`IsConnectionSnapped(false)` selector is not a reliable claim about the exact
+source component at this build step. The exact public conveyor-hologram API
+provides `GetAnyConnectedBuildables()`. I am changing the source gate to require
+the selected source component's `GetOuterBuildable()` in that set and the
+destination gate to require the destination owner after the second snap. The
+existing post-construction component readback remains the final, stricter proof
+that the exact selected ports connect to the created belt. Both ambiguous
+`IsConnectionSnapped` readings will be retained as diagnostics, not authority.
+
+**Codex, 2026-08-09 11:40 - exact endpoint build deployed; owner blueprint
+acceptance target recorded.** Exact headers and all 595 tests pass; Shipping
+and Editor compiled and UAT cooked, archived, and installed with the game
+closed. Archive: 15,117,558 bytes, SHA-256
+`962C5591EE04DA1F69CABE375929FB24F3EB67B29537C0244AEE34748EF36306`.
+Deployed DLL: 666,112 bytes, SHA-256
+`BD77ADA73F14A938A5A683C40DB666D8E69E8715104175A95FFB5C68B76E54EF`.
+Commit `7fc67f3` is already on `origin/codex/release-hardening`.
+
+The owner supplied a real 2,700 MW coal-plant `.sbp`/`.sbpcfg` as the quality
+bar for future generated builds. I parsed its header, cost, config, and exact
+referenced recipe vocabulary and recorded the resulting seven-stage acceptance
+shape in `docs/PLANNING_REFERENCES.md`. Important: the file is a reference, not
+permission to redistribute the third-party binary; only its hashes and decoded
+facts are committed. The intended system is solver-owned quantities plus
+model-owned bounded architectural decisions, followed by hologram/readback
+proof and eventually reusable blueprint generation. The current Wire layout is
+only the functional-core prototype, not the finished aesthetic standard.
+
+**Codex, 2026-08-09 - staged steel reference and design-family handoff.** The
+owner supplied a second real reference blueprint: an early-game Steel Pipe and
+Steel Beam factory. Its binary/header SHA-256 is
+`9490C36C74F887D6929D7A1793EC3B6292DDCE3BC5253650336A650E0BDBF0CE`;
+its config SHA-256 is
+`2E4A2B6A44FA5A21BDEE8084D75234B337565729CDABED8AB22C10C147033A5D`.
+The parser authoritatively read save version 2, changelist 211839, a 12 x 12 x
+6 Designer envelope, 11 cost classes, and 34 referenced build-recipe classes.
+The author separately declares the 7 x 12 finished footprint, two identical
+floors, per-floor 267 Coal + 267 Iron Ore input, 80 Pipe + 70 Beam output,
+separate power/I/O, Mk.3 transport, and no mods. Counts and transforms remain
+unknown until the object graph is fully decoded; the third-party binary was not
+added to the public repo.
+
+`megabase.design/v1` now carries an additive `design_family` and
+`commissioning` contract. A family fingerprint binds its human id, style,
+creative parameters, and exact captured recipe for every semantic role. A
+caller may require a previous fingerprint; any drift is refused with zero
+actions. Commissioning divides every measured machine group across 1-8 phases,
+preserves totals, and refuses a phase count that would omit a production stage.
+It deliberately does not invent per-phase rates, floors/wings, I/O, belt/pipe
+routes, or power isolation; those remain named construction blockers. Both the
+full strong-provider schema and Qwen's compact schema expose the shallow family
+and phase controls.
+
+Exact headers and all 598 tests pass. The clean companion install verifies 25
+runtime hashes and is healthy on port 8142 with both local Qwen and Anthropic
+ready. Installed hashes match the repo: `megabase.mjs`
+`23D2A435E4B69044FD970C3251BAD5C1CCCD3A6D0DD239194F8C2CA2BFA079EF`,
+`providers.mjs`
+`0CD90FB1998259BC44366E215B679A05BC34288131FE1505D2B40188D48CF4DA`,
+and `tools.mjs`
+`C97E0AA2F60DE5D0B1971494B493C8A2389FD2C46406CDE2933772862CD18BE1`.
+No mod code or package changed.
+
+A read-only smoke test against the last real revision 12 snapshot refused
+`no_step_could_be_placed`: that capture contains no owned samples of the
+required machine classes from which the general layout tool can measure exact
+footprints. Its unconstrained production solver also preferred a late-game
+alternate Wire chain, which confirms that future aesthetic generation must
+carry explicit early-game/standard-recipe/tier constraints. Do not weaken the
+measured-geometry rule to force a preview. The separately deployed exact
+conveyor endpoint build (`7fc67f3`) still awaits the owner's next live 46-step
+Wire retry; this documentation/preview work did not touch it.
+
+**Codex, 2026-08-09 - current-unlock optimization gates compiled, packaged,
+deployed, and handed off.** Every fresh plan can now carry an exact SHA-256
+fingerprint of the recipe classes the current `AFGRecipeManager` capture marked
+available. It deliberately excludes the noisy global world revision. The
+contract requires a new capture and production/site/routing/placement/part
+replan before action compilation, and `megabase.design/v1` reports exactly which
+objectives were recalculated; full transport routing remains false and a named
+construction blocker.
+
+The aimed Mk.1 Wire planner now refuses when authoritative availability is not
+captured and selects production recipes and its Foundation (1 m) support only
+from explicit `available: true` entries. It records its unlock fingerprint,
+recipe candidate count, and production/placement/routing objectives. The generic
+production solver no longer optimizes through a missing availability value when
+the current capture claims availability is authoritative. The bridge rejects
+locked or unproven building, manufacturer, and conveyor recipes before emitting
+a plan. The game was already rechecking buildings and manufacturer recipes; it
+now also calls the exact public `AFGRecipeManager::IsRecipeAvailable()` API for
+the selected conveyor recipe before spawning the belt hologram. A state change
+between capture and execution therefore refuses and rolls back instead of
+substituting another tier or recipe.
+
+Exact SML 3.12.0 / FactoryGame 491125 header validation and all 604 companion
+tests pass. FactoryGameSteam Shipping and FactoryEditor Development compiled;
+UAT built, cooked, archived, and deployed while the game was closed. Archive:
+15,130,563 bytes, SHA-256
+`4C763DAB83FEE17B7B53DDEF92D6E46A34BF071FFF2507FE03326E5F01E54BAA`.
+Deployed DLL: 667,136 bytes, SHA-256
+`075B4D176AC6D5964090B835BF3623B7F06C0607336A5E5C5D45E2E2D2D6AF75`.
+The clean companion install verifies 26 runtime files and `/health` is ready on
+port 8142 with hybrid local/Anthropic providers. Key installed hashes:
+`actions.mjs` `E37224062C37BC301ED43CD3A3FBA845E7D81E4A394C40334C65BD2ED16AF37E`,
+`solvers.mjs` `726357E109F556FD390A2099B624069807F984535C8FF997B2540FB5327F2435`,
+`resource-factory.mjs` `1D4E76C5DEE73DFC2195411FDE8DF4651BB6EB3B5604B2CB4EA8A58298FABD92`,
+`megabase.mjs` `CF1CBF346B206F5DF923B460B6E87BC60DB07C372AC5894D67E27CF54121E08A`,
+and `unlock-constraints.mjs`
+`777F0F54FF9B62CB60893487E4EB402CD6C306DDD752B6703552EB34CC28BA9A`.
+
+Claude coordination check: `origin/master` and `origin/claude/belt-routing`
+both remain at `390ab2b`; there was no newer overlapping Claude change to merge.
+The remaining live evidence is the same owner retry of “build a wire factory
+using all mk1 parts on this node,” now with both exact conveyor-endpoint and
+current-unlock enforcement deployed. Do not claim completed belt construction
+until `latest-bridge-response.json` proves the transaction in the loaded save.
+
+**Codex, 2026-08-09 - conveyor source-step fix deployed.** The live
+Wire retry reached all 29 building placements, then refused the first belt with
+`belt_hologram_accepted_source_hit_but_not_expected_buildable`. This was not a
+layout, unlock, or target-owner failure. The exact FactoryGame 491125
+implementation records the source component during `TrySnapToActor`, but
+`GetAnyConnectedBuildables()` deliberately returns no actors while the spline
+hologram remains at `SHBS_FindStart`. The old gate read that array before the
+first `DoMultiStepPlacement(false)`, so the reported refusal was guaranteed on
+a valid source snap.
+
+`PlaceBelt` now advances and verifies the source build step before actor-level
+readback, uses the component owner in the same way as the engine implementation,
+and requires both endpoint owners to remain present after destination snapping.
+After the final build step it re-runs Satisfactory's placement/cost validation.
+After construction it accepts only an unordered, bidirectional exact match
+between the constructed conveyor's public `GetConnection0/1()` ports and the
+requested components. A mismatch is raw-dismantled before any charge or undo
+journal entry. A successful exact readback now charges the hologram's normalized
+inventory cost, closing the pre-existing free-belt path without weakening
+no-build-cost behavior or rollback.
+
+Exact header validation and all 605 tests pass. FactoryGameSteam Shipping,
+FactoryGameEGS Shipping, and FactoryEditor Development compile against the
+synced Starter Project; UAT build/cook/stage/archive succeeds. The ready archive
+is 30,264,425 bytes with SHA-256
+`C8C718D7AA8134AD56CF5ADC81EE452EDFFCBCEB633ACC07C0C9527EE4A5E76E`;
+its Steam DLL is 670,208 bytes with SHA-256
+`9823D53EB14B80A459A5AB1F8C43632869B4025D9111BD91F0F36818E0AAABCE`.
+`origin/master` remains `390ab2b` and `origin/claude/belt-routing` remains
+`fb5fb5c`; no newer Claude work overlaps this fix. Satisfactory was then closed
+and the canonical UAT command rebuilt, cooked,
+archived, and copied the Steam package into the game successfully. The final
+Steam archive is 15,135,518 bytes with SHA-256
+`CF0EF995E767EF78C95647E4D0EDB6DB2B0944DC35B70206158EB4A27DD4CD22`.
+The installed DLL is 670,208 bytes and exactly matches the built DLL at SHA-256
+`9823D53EB14B80A459A5AB1F8C43632869B4025D9111BD91F0F36818E0AAABCE`.
+Post-deployment exact headers and all 605 tests pass again. The code is live on
+disk; only the loaded-save retry remains. Do not claim completed belt
+construction until `latest-bridge-response.json` proves the first belt advances
+past step 30 and the whole transaction commits.

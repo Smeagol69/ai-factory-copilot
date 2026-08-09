@@ -389,7 +389,7 @@ export const SOLVER_TOOLS = [
   {
     name: "design_megabase_concept",
     description:
-      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, or skybridges rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. It never emits actions and never claims construction will succeed. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
+      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, skybridges, a repeatable visual theme, or independently commissionable build phases rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. It never emits actions and never claims construction will succeed. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
     parameters: {
       type: "object",
       properties: {
@@ -414,6 +414,25 @@ export const SOLVER_TOOLS = [
             "curvilinear_future_campus",
           ],
           description: "Architectural grammar to compile. It changes massing, not game facts.",
+        },
+        design_family_id: {
+          type: "string",
+          maxLength: 80,
+          description:
+            "Stable human-readable identity shared by buildings that must use the same style parameters and exact captured role recipes. Defaults to the style grammar.",
+        },
+        match_design_family_fingerprint: {
+          type: "string",
+          pattern: "^sha256:[0-9a-f]{64}$",
+          description:
+            "Optional fingerprint from an earlier manifest. The preview is refused if its style parameters or exact captured role recipes differ, preventing a reused family name from silently changing theme.",
+        },
+        commissioning_phases: {
+          type: "integer",
+          minimum: 1,
+          maximum: 8,
+          description:
+            "Requested number of independently operable build phases. Machine totals are split deterministically, but phase rates, floors/wings, logistics, and power isolation remain explicit construction blockers until their dedicated solvers run.",
         },
         recipe_class: { type: "string", description: "Optional captured production recipe for the target." },
         use_existing_surplus: {
@@ -483,6 +502,9 @@ export const SOLVER_TOOLS = [
       }
       const manifest = compileMegabaseConcept(graph, layout, {
         style: args.style,
+        design_family_id: args.design_family_id,
+        match_design_family_fingerprint: args.match_design_family_fingerprint,
+        commissioning_phases: args.commissioning_phases,
         floor_height_cm: vertical.floor_height_cm,
         creative_parameters: args.creative_parameters,
         part_selections: args.part_selections,

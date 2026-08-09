@@ -1648,9 +1648,10 @@ function namedSolverTools(text) {
 
 /**
  * Qwen 3 through Ollama emits an empty stop turn for the megabase tool's full
- * deeply nested schema, even with an explicit tool_choice. Its four core inputs
- * are sufficient for the deterministic compiler; advanced optional selections
- * retain their safe defaults. Strong providers still receive the full schema.
+ * deeply nested schema, even with an explicit tool_choice. Its four required
+ * inputs plus the shallow design-family/commissioning controls are enough
+ * for the deterministic compiler; deeply nested optional selections retain
+ * their safe defaults. Strong providers still receive the full schema.
  */
 function localSolverToolDefinitions(explicitlyNamedSolver) {
   const definitions = chatCompletionsToolDefinitions();
@@ -1661,7 +1662,13 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
 
   return selected.map((tool) => {
     const parameters = tool.function.parameters;
-    const coreNames = ["item_name", "target_rate_per_minute", "origin", "style"];
+    const requiredNames = ["item_name", "target_rate_per_minute", "origin", "style"];
+    const compactNames = [
+      ...requiredNames,
+      "design_family_id",
+      "match_design_family_fingerprint",
+      "commissioning_phases",
+    ];
     return {
       ...tool,
       function: {
@@ -1672,9 +1679,9 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
         parameters: {
           type: "object",
           properties: Object.fromEntries(
-            coreNames.map((name) => [name, parameters.properties[name]]),
+            compactNames.map((name) => [name, parameters.properties[name]]),
           ),
-          required: coreNames,
+          required: requiredNames,
           additionalProperties: false,
         },
       },

@@ -33,7 +33,7 @@ test("the game refuses stale or oversized action plans whole", () => {
   assert.doesNotMatch(subsystem, /Requested\.SetNum\(/);
 });
 
-test("the game defers step-referenced belt preflight until its actors exist", () => {
+test("the game defers step-referenced building and belt preflight until actors exist", () => {
   const actions = fs.readFileSync(
     new URL(
       "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
@@ -43,6 +43,8 @@ test("the game defers step-referenced belt preflight until its actors exist", ()
   );
 
   assert.match(actions, /bDeferredStepReferences/);
+  assert.match(actions, /\{ TEXT\("target_step"\), TEXT\("target_actor_id"\) \}/);
+  assert.match(actions, /target_step_must_refer_to_a_building_placement/);
   assert.match(actions, /must_refer_to_an_earlier_step/);
   assert.match(actions, /must_refer_to_an_actor_creating_step/);
   assert.match(actions, /preflight_deferred_until_step_references_resolve/);
@@ -97,6 +99,122 @@ test("server holograms clear the initialization sentinel before validation", () 
   );
 });
 
+test("a successful conveyor snap is not erased by a second placement update", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    actions,
+    /const bool bSnappedSource = Belt->TrySnapToActor\(FromHit\);\s*if \(!bSnappedSource\)\s*\{\s*Belt->UpdateHologramPlacement\(FromHit\);\s*\}/,
+  );
+  assert.match(
+    actions,
+    /const bool bSnappedDestination = Belt->TrySnapToActor\(ToHit\);\s*if \(!bSnappedDestination\)\s*\{\s*Belt->UpdateHologramPlacement\(ToHit\);\s*\}/,
+  );
+  assert.doesNotMatch(
+    actions,
+    /TrySnapToActor\(FromHit\);\s*Belt->UpdateHologramPlacement\(FromHit\)/,
+  );
+  assert.doesNotMatch(
+    actions,
+    /TrySnapToActor\(ToHit\);\s*Belt->UpdateHologramPlacement\(ToHit\)/,
+  );
+});
+
+test("conveyor snap gates name the exact expected endpoint buildables", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /Belt->GetAnyConnectedBuildables\(\)/);
+  assert.match(
+    actions,
+    /FromBuildable = Cast<AFGBuildable>\(From->GetOwner\(\)\)/,
+  );
+  assert.match(
+    actions,
+    /ToBuildable = Cast<AFGBuildable>\(To->GetOwner\(\)\)/,
+  );
+  assert.match(
+    actions,
+    /DestinationSnappedBuildables\.Contains\(FromBuildable\)/,
+  );
+  const firstAdvance = actions.indexOf("Belt->DoMultiStepPlacement(false)");
+  const sourceReadback = actions.indexOf("const TArray<AFGBuildable*> SourceSnappedBuildables");
+  const sourceGate = actions.indexOf("if (!bExpectedSourceBuildableSnapped)");
+  const destinationSnap = actions.indexOf("Belt->TrySnapToActor(ToHit)");
+  const destinationGate = actions.indexOf(
+    "if (!bExpectedSourceBuildableStillSnapped || !bExpectedDestinationBuildableSnapped)",
+  );
+  const validate = actions.indexOf("Belt->ValidatePlacementAndCost", destinationGate);
+  assert.ok(firstAdvance >= 0 && firstAdvance < sourceReadback);
+  assert.ok(sourceReadback < sourceGate && sourceGate < destinationSnap);
+  assert.ok(destinationGate >= 0 && destinationGate < validate);
+});
+
+test("a conveyor is revalidated, charged, and accepted only after exact endpoint readback", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const beltStart = actions.indexOf("FAIFactoryActionResult PlaceBelt(");
+  const beltEnd = actions.indexOf("FAIFactoryActionResult DismantleActor(", beltStart);
+  const belt = actions.slice(beltStart, beltEnd);
+
+  assert.match(belt, /AFGBuildableConveyorBase/);
+  assert.match(belt, /ConstructedBelt->GetConnection0\(\)/);
+  assert.match(belt, /ConstructedBelt->GetConnection1\(\)/);
+  assert.match(
+    belt,
+    /Left->GetConnection\(\) == Right &&\s*Right->GetConnection\(\) == Left/,
+  );
+  assert.match(belt, /constructed_belt_endpoints_did_not_match_requested_components/);
+  assert.match(belt, /IFGDismantleInterface::Execute_Dismantle\(Buildable\)/);
+
+  const finalStep = belt.indexOf("Belt->DoMultiStepPlacement(true)");
+  const finalRevalidation = belt.indexOf("hologram_revalidated_after_final_build_step");
+  const cost = belt.indexOf("NormalizeActionCost(Belt->GetCost(true))");
+  const exactReadback = belt.indexOf("const bool bExactEndpoints");
+  const exactGate = belt.indexOf("if (!bExactEndpoints)");
+  const charge = belt.indexOf("ChargeActionCost(Cost, Inventory)");
+  const journal = belt.indexOf("RecordActionUndo(MoveTemp(Step))");
+  assert.ok(finalStep >= 0 && finalStep < finalRevalidation && finalRevalidation < cost);
+  assert.ok(cost < exactReadback && exactReadback < exactGate);
+  assert.ok(exactGate < charge && charge < journal);
+});
+
+test("the game rejects a locked belt recipe before spawning its hologram", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const beltStart = actions.indexOf("FAIFactoryActionResult PlaceBelt(");
+  const beltEnd = actions.indexOf("FAIFactoryActionResult DismantleActor(", beltStart);
+  const belt = actions.slice(beltStart, beltEnd);
+
+  assert.match(belt, /AFGRecipeManager::Get\(Context\.World\)/);
+  assert.match(belt, /RecipeManager->IsRecipeAvailable\(BeltRecipeClass\)/);
+  assert.match(belt, /belt_recipe_is_not_unlocked/);
+  const unlockGate = belt.indexOf("RecipeManager->IsRecipeAvailable(BeltRecipeClass)");
+  const hologramSpawn = belt.indexOf("AFGHologram::SpawnHologramFromRecipe");
+  assert.ok(unlockGate >= 0 && unlockGate < hologramSpawn);
+});
+
 test("new manufacturers receive only a compatible unlocked recipe with empty inventories", () => {
   const actions = fs.readFileSync(
     new URL(
@@ -116,6 +234,40 @@ test("new manufacturers receive only a compatible unlocked recipe with empty inv
   const setRecipe = actions.indexOf("Manufacturer->SetRecipe(ProductionRecipeClass)");
   const charge = actions.indexOf("ChargeActionCost(Cost, Inventory)", setRecipe);
   assert.ok(setRecipe >= 0 && setRecipe < charge, "recipe readback must precede charging the build cost");
+});
+
+test("lightweight foundations are detected exactly, materialized for dependent steps, and journalled", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const actionTypes = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Public/AIFactoryActions.h",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(actions, /GetAllLightweightBuildableInstances\(\)/);
+  assert.match(actions, /GetRuntimeDataForBuildableClassAndIndex/);
+  assert.match(actions, /Data->BuiltWithRecipe != Ref\.BuiltWithRecipe/);
+  assert.match(actions, /SpawnTemporaryBuildable\(\)/);
+  assert.match(actions, /DismantleLightweightWithRefund/);
+  assert.match(actions, /Step\.LightweightBuildables/);
+  assert.match(actionTypes, /struct FAIFactoryLightweightUndoRef/);
+  assert.match(actionTypes, /TArray<FAIFactoryLightweightUndoRef> LightweightBuildables/);
+
+  const before = actions.indexOf("LightweightIndicesBefore");
+  const construct = actions.indexOf("Hologram->Construct", before);
+  const after = actions.indexOf("NewLightweightMatches", construct);
+  assert.ok(
+    before >= 0 && before < construct && construct < after,
+    "the exact lightweight index set must be captured before construction and diffed afterward",
+  );
 });
 
 test("extractors report the current extractable interface, not deprecated node state", () => {

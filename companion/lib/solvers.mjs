@@ -1838,6 +1838,7 @@ export function solveProductionPlan(
     }
   }
 
+  const availabilityKnown = graph.snapshot?.content?.availability_known === true;
   const recipesProducing = (itemClass) => {
     const all = [];
     for (const recipe of graph.recipesByClass.values()) {
@@ -1847,8 +1848,15 @@ export function solveProductionPlan(
     }
     return {
       all,
-      usable: all.filter((recipe) => recipe?.available !== false),
+      // A current snapshot carries an exact AFGRecipeManager decision for every
+      // registered recipe. In that case only an explicit true is selectable;
+      // missing availability is unknown, not an unlocked recipe. The looser
+      // legacy rule remains only for snapshots predating that field.
+      usable: all.filter((recipe) =>
+        availabilityKnown ? recipe?.available === true : recipe?.available !== false,
+      ),
       locked: all.filter((recipe) => recipe?.available === false),
+      unknown: all.filter((recipe) => typeof recipe?.available !== "boolean"),
     };
   };
 
@@ -1917,8 +1925,11 @@ export function solveProductionPlan(
         item_class: itemClass,
         item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
         display_units_per_minute: round(remaining),
-        reason: "all_catalog_recipes_are_unavailable_in_this_save",
+        reason: availabilityKnown && recipeOptions.unknown.length > 0
+          ? "no_recipe_is_proven_available_in_the_current_capture"
+          : "all_catalog_recipes_are_unavailable_in_this_save",
         locked_recipe_classes: recipeOptions.locked.map((recipe) => recipe.class_path),
+        unknown_recipe_classes: recipeOptions.unknown.map((recipe) => recipe.class_path),
         chain,
       });
       return;
@@ -1939,12 +1950,18 @@ export function solveProductionPlan(
       depth === max_depth && recipe_class
         ? recipeOptions.all.find((recipe) => recipe.class_path === recipe_class)
         : null;
-    if (requestedRecipe?.available === false) {
+    if (
+      requestedRecipe &&
+      (requestedRecipe.available === false ||
+        (availabilityKnown && requestedRecipe.available !== true))
+    ) {
       unresolved.push({
         item_class: itemClass,
         item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
         display_units_per_minute: round(remaining),
-        reason: "requested_recipe_is_unavailable_in_this_save",
+        reason: requestedRecipe.available === false
+          ? "requested_recipe_is_unavailable_in_this_save"
+          : "requested_recipe_is_not_proven_available_in_the_current_capture",
         recipe_class: requestedRecipe.class_path,
         chain,
       });
@@ -1964,12 +1981,18 @@ export function solveProductionPlan(
     const registeredStandardRecipe = prefer_standard_recipes
       ? recipeOptions.all.find(isStandardRecipe)
       : null;
-    if (registeredStandardRecipe?.available === false) {
+    if (
+      registeredStandardRecipe &&
+      (registeredStandardRecipe.available === false ||
+        (availabilityKnown && registeredStandardRecipe.available !== true))
+    ) {
       unresolved.push({
         item_class: itemClass,
         item_name: itemDisplayName || null,
         display_units_per_minute: round(remaining),
-        reason: "standard_recipe_is_unavailable_in_this_save",
+        reason: registeredStandardRecipe.available === false
+          ? "standard_recipe_is_unavailable_in_this_save"
+          : "standard_recipe_is_not_proven_available_in_the_current_capture",
         recipe_class: registeredStandardRecipe.class_path,
         chain,
       });

@@ -307,6 +307,7 @@ export function validateAction(graph, proposal) {
     // Check the recipe exists before the game is asked to build it, so a typo
     // is caught here with the near-misses named rather than failing in-world.
     const catalog = graph?.recipesByClass ?? new Map();
+    const availabilityKnown = graph?.snapshot?.content?.availability_known === true;
     const known = catalog.get(recipeClass) ?? findRecipeByShortName(catalog, recipeClass);
 
     // A recipe that already built something standing in this world is real
@@ -329,6 +330,16 @@ export function validateAction(graph, proposal) {
       // Emit the exact class path the catalog knows, so a short name the model
       // used resolves to something the game can actually look up.
       if (known.class_path) checks.resolved_recipe_class = known.class_path;
+      if (known.available === false || (availabilityKnown && known.available !== true)) {
+        return reject(kind, known.available === false
+          ? "build_recipe_is_not_unlocked"
+          : "build_recipe_unlock_is_not_proven", {
+          recipe_class: known.class_path ?? recipeClass,
+          building_name: known.name ?? null,
+        });
+      }
+      checks.build_recipe_availability =
+        typeof known.available === "boolean" ? known.available : "game_rechecks";
     }
 
     // Keep recipe assignment inside placement. A newly constructed
@@ -349,8 +360,14 @@ export function validateAction(graph, proposal) {
           did_you_mean: nearestRecipeNames(catalog, requestedProductionRecipe),
         });
       }
-      if (resolvedProductionRecipe?.available === false) {
-        return reject(kind, "production_recipe_is_not_unlocked", {
+      if (
+        resolvedProductionRecipe &&
+        (resolvedProductionRecipe.available === false ||
+          (availabilityKnown && resolvedProductionRecipe.available !== true))
+      ) {
+        return reject(kind, resolvedProductionRecipe.available === false
+          ? "production_recipe_is_not_unlocked"
+          : "production_recipe_unlock_is_not_proven", {
           production_recipe_class:
             resolvedProductionRecipe.class_path ?? requestedProductionRecipe,
         });
@@ -381,7 +398,19 @@ export function validateAction(graph, proposal) {
     // to a rock, so it never bound to the node and never finished initialising.
     // A trace finds a surface; it does not find a target.
     const targetActorId = String(proposal.target_actor_id ?? "").trim();
+    const hasTargetStep = proposal.target_step !== undefined && proposal.target_step !== null;
+    const targetStepValue = finite(proposal.target_step);
+    if (targetActorId && hasTargetStep) {
+      return reject(kind, "placement_target_must_use_actor_or_step_not_both");
+    }
+    if (
+      hasTargetStep &&
+      (targetStepValue === null || !Number.isInteger(targetStepValue) || targetStepValue < 1)
+    ) {
+      return reject(kind, "target_step_must_be_a_positive_whole_step_number");
+    }
     if (targetActorId) checks.placement_target_actor_id = targetActorId;
+    if (targetStepValue !== null) checks.placement_target_step = targetStepValue;
 
     return {
       valid: true,
@@ -394,6 +423,7 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
         ...(targetActorId ? { target_actor_id: targetActorId } : {}),
+        ...(targetStepValue !== null ? { target_step: targetStepValue } : {}),
         ...(requestedProductionRecipe
           ? {
               production_recipe_class:
@@ -524,6 +554,34 @@ export function validateAction(graph, proposal) {
     const hasTo = Boolean(toComponent || toActor) || toStep !== null;
 
     if (!recipeClass) return reject(kind, "recipe_class_is_required");
+
+    const catalog = graph?.recipesByClass ?? new Map();
+    const availabilityKnown = graph?.snapshot?.content?.availability_known === true;
+    const known = catalog.get(recipeClass) ?? findRecipeByShortName(catalog, recipeClass);
+    const builtSomethingHere = recipeIsInUse(graph, recipeClass);
+    if (catalog.size > 0 && !known && !builtSomethingHere) {
+      return reject(kind, "belt_recipe_not_in_catalog", {
+        recipe_class: recipeClass,
+        did_you_mean: nearestRecipeNames(catalog, recipeClass),
+      });
+    }
+    if (
+      known &&
+      (known.available === false || (availabilityKnown && known.available !== true))
+    ) {
+      return reject(kind, known.available === false
+        ? "belt_recipe_is_not_unlocked"
+        : "belt_recipe_unlock_is_not_proven", {
+        recipe_class: known.class_path ?? recipeClass,
+        recipe_name: known.name ?? null,
+      });
+    }
+    const resolvedRecipeClass = known?.class_path ?? recipeClass;
+    checks.belt_recipe_availability = known?.available === true
+      ? true
+      : "game_rechecks";
+    if (known?.name) checks.belt_recipe_name = known.name;
+
     if (!hasFrom || !hasTo) {
       return reject(kind, "each_end_needs_a_component_actor_or_step");
     }
@@ -561,7 +619,7 @@ export function validateAction(graph, proposal) {
         graph,
         {
           action: kind,
-          recipe_class: recipeClass,
+          recipe_class: resolvedRecipeClass,
           // Only the endpoint forms that were actually given travel onward, so
           // the executor is never handed an empty string to resolve.
           ...(fromComponent ? { from_component: fromComponent } : {}),
@@ -744,6 +802,38 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
           });
           return;
         }
+      }
+    }
+    if (result.action.action === "place_building" && result.action.target_step !== undefined) {
+      const referencedStep = result.action.target_step;
+      if (referencedStep >= index + 1) {
+        rejected.push({
+          step: index + 1,
+          ...reject("place_building", "target_step_must_refer_to_an_earlier_step", {
+            referenced_step: referencedStep,
+          }),
+        });
+        return;
+      }
+      const referencedProposal = list[referencedStep - 1];
+      if (referencedProposal?.action !== "place_building") {
+        rejected.push({
+          step: index + 1,
+          ...reject("place_building", "target_step_must_refer_to_a_building_placement", {
+            referenced_step: referencedStep,
+            referenced_action: referencedProposal?.action ?? null,
+          }),
+        });
+        return;
+      }
+      if (result.action.commit && referencedProposal.commit !== true) {
+        rejected.push({
+          step: index + 1,
+          ...reject("place_building", "target_step_cannot_commit_from_a_preview_step", {
+            referenced_step: referencedStep,
+          }),
+        });
+        return;
       }
     }
     actions.push(result.action);

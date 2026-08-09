@@ -90,6 +90,11 @@ function graphOf(mutator = null) {
     buildRecipe("Recipe_ConveyorSplitter_C", "Desc_ConveyorSplitter_C", "Conveyor Splitter"),
     buildRecipe("Recipe_ConveyorMerger_C", "Desc_ConveyorMerger_C", "Conveyor Merger"),
     buildRecipe("Recipe_StorageContainerMk1_C", "Desc_StorageContainerMk1_C", "Storage Container"),
+    buildRecipe(
+      "/Game/FactoryGame/Buildable/Building/Foundation/Recipe_Foundation_8x1_01.Recipe_Foundation_8x1_01_C",
+      "Desc_Foundation_8x1_01_C",
+      "Foundation (1 m)",
+    ),
   ];
   const snapshot = {
     world_revision: 727,
@@ -152,7 +157,12 @@ test("Pure Copper is capped by observed Mk.1 transport and uses standard recipes
   assert.equal(plan.node_utilisation_percent, 50);
   assert.equal(plan.smelters, 2);
   assert.equal(plan.constructors, 4);
+  assert.equal(plan.foundations, 14);
   assert.equal(plan.production.covered_by_existing_surplus.length, 0);
+  assert.equal(plan.unlock_constraints.availability_known, true);
+  assert.match(plan.unlock_constraints.availability_fingerprint, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(plan.optimization.recalculated_from_current_capture, true);
+  assert.ok(plan.optimization.recipe_candidates_considered >= 1);
 
   const belts = plan.actions.filter((action) => action.action === "place_belt");
   assert.equal(belts.length, 17);
@@ -161,8 +171,41 @@ test("Pure Copper is capped by observed Mk.1 transport and uses standard recipes
   assert.equal(configured.filter((action) => action.production_recipe_class === "Recipe_IngotCopper_C").length, 2);
   assert.equal(configured.filter((action) => action.production_recipe_class === "Recipe_Wire_C").length, 4);
   assert.equal(plan.actions[0].target_actor_id, target.actor_id);
+  const foundationSteps = new Set(plan.actions
+    .map((action, index) => ({ action, step: index + 1 }))
+    .filter(({ action }) => /Recipe_Foundation_8x1_01/i.test(action.recipe_class ?? ""))
+    .map(({ step }) => step));
+  const supportedPlacements = plan.actions.filter((action) => action.target_step !== undefined);
+  assert.equal(supportedPlacements.length, 14);
+  assert.ok(supportedPlacements.every((action) => foundationSteps.has(action.target_step)));
+  assert.ok(supportedPlacements.every((action) => action.target_step < plan.actions.indexOf(action) + 1));
   assert.ok(plan.actions.every((action) => action.commit === true));
   assert.match(plan.notes.join(" "), /Power is not wired/);
+});
+
+test("the supported factory grows away from the captured player", () => {
+  const graph = graphOf();
+  const plan = planAimedMk1WireFactory(graph, {
+    target,
+    item,
+    build_recipe_lookup: solveBuildRecipeLookup,
+  });
+  assert.equal(plan.planned, true, plan.reason);
+
+  const player = graph.snapshot.interaction_context.player.pawn_location;
+  const distanceToPlayer = (location) => Math.hypot(
+    Number(location.x) - Number(player.x),
+    Number(location.y) - Number(player.y),
+  );
+  const nodeDistance = distanceToPlayer(target.location);
+  const foundations = plan.actions.filter((action) =>
+    /Recipe_Foundation_8x1_01/i.test(action.recipe_class ?? ""),
+  );
+  assert.equal(foundations.length, 14);
+  assert.ok(
+    foundations.every((action) => distanceToPlayer(action.location) > nodeDistance),
+    "no support may be placed between the captured player and the aimed node",
+  );
 });
 
 test("the complete fan-out never asks one machine port for two belts", () => {
@@ -214,7 +257,8 @@ test("an Iron node selects the unlocked Iron Wire chain and sizes its partial la
   assert.equal(plan.constructors, 5);
   assert.equal(plan.last_constructor_utilisation_percent, 96);
   assert.equal(plan.storage_lanes, 3);
-  assert.equal(plan.actions.length, 38);
+  assert.equal(plan.foundations, 17);
+  assert.equal(plan.actions.length, 55);
   assert.equal(plan.actions.filter((action) => action.action === "place_belt").length, 20);
   assert.equal(
     plan.actions.filter((action) => action.production_recipe_class === "Recipe_IronWire_C").length,
@@ -242,6 +286,22 @@ test("missing authoritative evidence refuses instead of guessing", () => {
       graph: graphOf(),
       target: { ...target, occupied: true },
       pattern: /already occupied/,
+    },
+    {
+      name: "unlock availability",
+      graph: graphOf((snapshot) => { snapshot.content.availability_known = false; }),
+      target,
+      pattern: /unlock state was not captured/,
+    },
+    {
+      name: "foundation unlock",
+      graph: graphOf((snapshot) => {
+        snapshot.content.recipes.find((recipe) =>
+          /Recipe_Foundation_8x1_01/i.test(recipe.class_path),
+        ).available = false;
+      }),
+      target,
+      pattern: /Foundation \(1 m\)/,
     },
   ];
   for (const entry of cases) {
@@ -299,6 +359,6 @@ test("the owner's exact command stays local and revision-stamps the whole write"
   assert.equal(answer.local.solver, "aimed_mk1_wire_factory");
   assert.match(answer.reply, /120 Wire\/min/);
   assert.match(answer.reply, /Power is not wired/);
-  assert.equal(emitted.length, 32);
+  assert.equal(emitted.length, 46);
   assert.ok(emitted.every((action) => action.expect_world_revision === "727"));
 });

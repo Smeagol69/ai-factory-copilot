@@ -23,6 +23,8 @@ dimension or world coordinate.
 ```text
 authoritative snapshot + captured mod catalog + measured site/grid
         |
+exact AFGRecipeManager unlock fingerprint (current capture only)
+        |
 production and logistics program (deterministic solvers)
         |
 creative brief (style, massing, hierarchy, facade intent)
@@ -44,6 +46,32 @@ semantic roles such as `production_hall`, `logistics_deck`, `support_pylon`,
 map a role to a recipe only when that recipe was captured from the current save
 and is available. Missing roles stay missing and are listed in the manifest.
 
+## Current-unlock replan boundary
+
+Every design records an `unlock_constraints` block derived from the complete
+recipe catalog in the latest request. Its SHA-256 fingerprint contains only
+recipe class paths for which the captured `AFGRecipeManager` returned
+`available: true`; world revision is recorded as provenance but is deliberately
+not part of that fingerprint because moving conveyor items advance it. A build
+must capture again and rerun production choice, machine sizing, site scoring,
+routing, placement, and semantic-part selection before action compilation. If
+the available-recipe fingerprint changed, the older plan is discarded.
+
+Availability is a hard constraint, not a score. Locked or unknown production,
+building, transport, and architectural recipes can be listed as unavailable
+candidates but cannot be selected. The game checks the exact build recipe,
+manufacturer recipe, and conveyor recipe again immediately before spawning its
+hologram. A mid-request unlock change therefore causes a refusal and rollback,
+never a substitution.
+
+Optimization is lexicographic: first satisfy exact unlocks, requested tiers,
+throughput/capacity, authoritative coordinates and game placement; then score
+route length/bends/crossings, compactness, machine/logistics complexity,
+service access, expansion, commissioning isolation, and design-family cohesion.
+The manifest reports which objectives were actually recalculated. It currently
+marks full transport routing false and keeps construction blocked until current
+connector occupancy, capacities, terrain and obstructions have been solved.
+
 ## Preview manifest
 
 `companion/lib/megabase.mjs` emits `megabase.design/v1`. A manifest contains:
@@ -55,6 +83,7 @@ and is available. Missing roles stay missing and are listed in the manifest.
 - integer grid-local origins and extents for every element;
 - deterministic world-space XYZ and yaw for every element;
 - captured part resolutions and unresolved semantic roles;
+- the current unlock fingerprint and explicit optimization/replan provenance;
 - bounded captured Build Gun recipe candidates per role, including mod ownership,
   availability and an explicit `behavior_verified: false` caveat;
 - validation issues, provenance and a permanent `actions: []` field.
@@ -62,6 +91,32 @@ and is available. Missing roles stay missing and are listed in the manifest.
 The manifest is not a list of build actions. `concept_only` means exactly that.
 It cannot claim that terrain is suitable, that a hologram will place, that the
 player can afford the design, or that a modded part behaves like a vanilla one.
+
+## Design families and staged commissioning
+
+Every manifest carries a `design_family`. Its human-readable `family_id` is not
+authority by itself: the compiler also hashes that id, the exact style grammar,
+creative parameters, and captured recipe selected for every semantic role. Related
+buildings match only when that signature matches. An unresolved role stays null
+and makes the family provisional; the model cannot fill the gap with a plausible
+class path. A later request can pass `match_design_family_fingerprint`; the
+compiler refuses the preview if any style parameter or exact role recipe drifted,
+even when the human-readable family id was reused.
+
+The optional `commissioning_phases` request splits every measured production
+group across one to eight phases and proves that all machine totals are
+preserved. It refuses a phase count that would leave any phase without a
+required production stage. Equal machine allocations are reported as identical;
+unequal allocations are reported honestly. It does not infer phase throughput
+from machine counts because a final machine may be supply-limited or underclocked.
+Each phase must be re-solved from the production graph.
+
+This is still a preview contract, not a claim that floors or wings are isolated.
+Spatial phase assignment, input/output trunks, belt and pipe topology, separate
+power switching, and post-build connectivity readback remain construction gates.
+That distinction comes directly from the owner's two-floor steel reference: a
+factory is independently commissionable only when each floor has a complete
+material and power path, not merely half of every machine row.
 
 ## Trust boundaries
 
@@ -86,6 +141,8 @@ Before a concept can become a base, all of these must exist and pass together:
 - exact foundation, wall, roof, support and machine hologram preflight;
 - deferred connection preflight for machines created earlier in one plan;
 - splitter, merger, belt, pipe, hypertube and power topology;
+- deterministic per-phase rate solving, spatial isolation, dedicated I/O and
+  separately switchable power when staged commissioning was requested;
 - chunked transactions with rollback and a resumable build journal;
 - post-build world read-back against the manifest;
 - repair planning for only the observed differences;

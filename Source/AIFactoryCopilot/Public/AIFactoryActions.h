@@ -4,6 +4,7 @@
 
 class AFGBuildable;
 class AFGCharacterPlayer;
+class UFGRecipe;
 class UWorld;
 
 /**
@@ -68,6 +69,15 @@ struct FAIFactoryActionResult
     }
 };
 
+/** Stable identity for a wall/foundation stored without a persistent actor. */
+struct FAIFactoryLightweightUndoRef
+{
+    TSubclassOf<AFGBuildable> BuildableClass;
+    TSubclassOf<UFGRecipe> BuiltWithRecipe;
+    int32 RuntimeIndex = INDEX_NONE;
+    FTransform Transform;
+};
+
 /** One reversible action or consolidated transaction recorded in the journal. */
 struct FAIFactoryUndoStep
 {
@@ -79,6 +89,8 @@ struct FAIFactoryUndoStep
     TArray<TWeakObjectPtr<AActor>> DismantleActors;
     /** Buildables to remove to undo a placement. */
     TArray<TWeakObjectPtr<AFGBuildable>> SpawnedBuildables;
+    /** Foundations/walls stored by Satisfactory's lightweight subsystem. */
+    TArray<FAIFactoryLightweightUndoRef> LightweightBuildables;
     /**
      * Items handed to the player, to be taken back on undo.
      *

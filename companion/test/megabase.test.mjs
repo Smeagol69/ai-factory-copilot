@@ -6,11 +6,13 @@ import {
   MEGABASE_SCHEMA,
   MEGABASE_STYLES,
   assessMegabaseSite,
+  captureUnlockConstraints,
   compileMegabaseConcept,
   deriveMegabaseFloorHeight,
   findMegabasePartCandidates,
   gridPointToWorld,
   megabaseFootprint,
+  planCommissioningPhases,
   validateMegabaseManifest,
 } from "../lib/megabase.mjs";
 import { runSolverTool } from "../lib/tools.mjs";
@@ -55,7 +57,10 @@ const layout = {
 
 const graph = {
   snapshot: {
+    world_revision: 71,
+    interaction_context: { captured_at_utc: "2026-08-09T12:00:00.000Z" },
     content: {
+      availability_known: true,
       recipes: [
         {
           class_path: "/Game/FactoryGame/Recipes/Buildings/Recipe_Foundation.Recipe_Foundation_C",
@@ -217,6 +222,14 @@ test("all reference style grammars compile as valid preview-only manifests", () 
     assert.equal(concept.construction_ready, false);
     assert.deepEqual(concept.actions, []);
     assert.equal(concept.program.groups.length, 3);
+    assert.equal(concept.commissioning.requested_phases, 1);
+    assert.equal(concept.commissioning.exact_total_preserved, true);
+    assert.equal(concept.design_family.family_id, style);
+    assert.match(concept.design_family.fingerprint, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(concept.unlock_constraints.availability_known, true);
+    assert.match(concept.unlock_constraints.availability_fingerprint, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(concept.optimization.recalculated_from_this_capture.placement_geometry, true);
+    assert.equal(concept.optimization.recalculated_from_this_capture.transport_routing, false);
     assert.equal(concept.elements.filter((entry) => entry.kind === "production_zone").length, 3);
     assert.ok(concept.elements.some((entry) => entry.kind === "vertical_landmark"));
     assert.ok(concept.elements.some((entry) => entry.kind === "skybridge"));
@@ -224,6 +237,116 @@ test("all reference style grammars compile as valid preview-only manifests", () 
     assert.ok(concept.footprint.size_meters.y > 0);
     assert.equal(concept.site_assessment.game_validation_pending, true);
   }
+});
+
+test("unlock fingerprint changes only with the proven available recipe set", () => {
+  const first = captureUnlockConstraints(graph);
+  assert.equal(first.availability_known, true);
+  assert.equal(first.captured_world_revision, 71);
+  assert.match(first.replan_rule, /fresh snapshot/);
+
+  const changed = structuredClone(graph);
+  changed.snapshot.content.recipes[0].available = false;
+  const second = captureUnlockConstraints(changed);
+  assert.notEqual(first.availability_fingerprint, second.availability_fingerprint);
+  assert.equal(second.available_recipe_count, first.available_recipe_count - 1);
+
+  const movedWorld = structuredClone(graph);
+  movedWorld.snapshot.world_revision = 99;
+  const sameUnlocks = captureUnlockConstraints(movedWorld);
+  assert.equal(
+    first.availability_fingerprint,
+    sameUnlocks.availability_fingerprint,
+    "moving items may change world revision but must not fake an unlock change",
+  );
+});
+
+test("splits measured production into exact independently commissionable phases", () => {
+  const groups = compile("terraced_megafactory").program.groups;
+  const plan = planCommissioningPhases(groups, 2);
+
+  assert.equal(plan.planned, true);
+  assert.equal(plan.requested_phases, 2);
+  assert.equal(plan.balanced_identical_machine_allocations, true);
+  assert.equal(plan.exact_total_preserved, true);
+  assert.deepEqual(
+    plan.phases.map((phase) => phase.machine_groups.map((group) => group.machines)),
+    [[1, 2, 1], [1, 2, 1]],
+  );
+  assert.equal(plan.rate_allocation, "not_calculated_from_machine_counts");
+  assert.equal(plan.spatial_layout, "not_compiled");
+  assert.ok(plan.independence_requirements.some((entry) => /power/.test(entry)));
+});
+
+test("refuses to call a phase independent when it would omit a production stage", () => {
+  const groups = compile("terraced_megafactory").program.groups;
+  const plan = planCommissioningPhases(groups, 3);
+  assert.equal(plan.planned, false);
+  assert.equal(plan.reason, "commissioning_phases_exceed_the_smallest_machine_group");
+  assert.match(plan.effect, /omit a production stage/);
+
+  const concept = compile("terraced_megafactory", { commissioning_phases: 3 });
+  assert.equal(concept.compiled, false);
+  assert.equal(concept.status, "concept_refused");
+  assert.deepEqual(concept.actions, []);
+});
+
+test("design family identity locks style parameters and exact captured role recipes", () => {
+  const first = compile("terraced_megafactory", {
+    design_family_id: "owner-industrial-family-v1",
+    commissioning_phases: 2,
+  });
+  const same = compile("terraced_megafactory", {
+    design_family_id: "owner-industrial-family-v1",
+    commissioning_phases: 2,
+  });
+  const renamed = compile("terraced_megafactory", {
+    design_family_id: "different-family-name",
+    commissioning_phases: 2,
+  });
+  const changed = compile("terraced_megafactory", {
+    design_family_id: "owner-industrial-family-v1",
+    commissioning_phases: 2,
+    part_selections: {
+      ...partSelections,
+      window: "/ExampleMod/Recipe_GlassWallSteel.Recipe_GlassWallSteel_C",
+    },
+  });
+
+  assert.equal(first.design_family.family_id, "owner-industrial-family-v1");
+  assert.equal(first.design_family.fingerprint, same.design_family.fingerprint);
+  assert.notEqual(first.design_family.fingerprint, renamed.design_family.fingerprint);
+  assert.notEqual(first.design_family.fingerprint, changed.design_family.fingerprint);
+  assert.equal(first.design_family.signature.exact_role_recipes.foundation, partSelections.foundation);
+  assert.match(first.design_family.reuse_contract, /exact signature/);
+  assert.equal(first.design_family.complete, false, "unselected roles keep a theme explicitly provisional");
+
+  const locked = compile("terraced_megafactory", {
+    design_family_id: "owner-industrial-family-v1",
+    commissioning_phases: 2,
+    match_design_family_fingerprint: first.design_family.fingerprint,
+  });
+  assert.equal(locked.compiled, true);
+  assert.equal(
+    locked.design_family.matched_required_fingerprint,
+    first.design_family.fingerprint,
+  );
+
+  const refusedDrift = compile("terraced_megafactory", {
+    design_family_id: "owner-industrial-family-v1",
+    commissioning_phases: 2,
+    part_selections: {
+      ...partSelections,
+      window: "/ExampleMod/Recipe_GlassWallSteel.Recipe_GlassWallSteel_C",
+    },
+    match_design_family_fingerprint: first.design_family.fingerprint,
+  });
+  assert.equal(refusedDrift.compiled, false);
+  assert.equal(
+    refusedDrift.reason,
+    "design_family_signature_does_not_match_the_requested_family",
+  );
+  assert.deepEqual(refusedDrift.actions, []);
 });
 
 test("computes exact concept bounds and refuses to stretch a small terrain probe", () => {

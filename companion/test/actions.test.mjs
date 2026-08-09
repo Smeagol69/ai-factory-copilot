@@ -45,6 +45,44 @@ test("a mistyped recipe is caught here with the near misses named", () => {
   assert.ok(Array.isArray(result.did_you_mean));
 });
 
+test("a locked building recipe is refused before the game is asked", () => {
+  const snapshot = buildFactorySnapshot();
+  const recipe = {
+    class_path: "/Game/Recipes/Recipe_LockedConstructor.Recipe_LockedConstructor_C",
+    name: "Locked Constructor",
+    available: false,
+    products: [{ item_class: "/Game/Desc_LockedConstructor.Desc_LockedConstructor_C" }],
+    produced_in: ["/Script/FactoryGame.FGBuildGun"],
+  };
+  snapshot.content.recipes.push(recipe);
+
+  const result = validateAction(buildGraph(snapshot), {
+    action: "place_building",
+    recipe_class: recipe.class_path,
+    location: HERE,
+    commit: true,
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "build_recipe_is_not_unlocked");
+  assert.equal(result.recipe_class, recipe.class_path);
+});
+
+test("a current capture treats missing recipe availability as unknown, never unlocked", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.availability_known = true;
+  const recipe = snapshot.content.recipes[0];
+  delete recipe.available;
+
+  const result = validateAction(buildGraph(snapshot), {
+    action: "place_building",
+    recipe_class: recipe.class_path,
+    location: HERE,
+    commit: true,
+  });
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "build_recipe_unlock_is_not_proven");
+});
+
 test("an implausibly distant teleport is refused", () => {
   const result = validateAction(graphOf(), {
     action: "teleport_player",
@@ -243,6 +281,84 @@ test("belt step endpoints are unambiguous and point to earlier actor creators", 
   ]);
   assert.equal(previewDependency.valid, false);
   assert.equal(previewDependency.rejected[0].reason, "from_step_cannot_commit_from_a_preview_step");
+});
+
+test("a missing or locked belt recipe is refused before endpoint execution", () => {
+  const missing = validateAction(graphOf(), {
+    action: "place_belt",
+    recipe_class: "Recipe_ConveyorBeltTypo",
+    from_actor_id: "Build_A",
+    to_actor_id: "Build_B",
+  });
+  assert.equal(missing.valid, false);
+  assert.equal(missing.reason, "belt_recipe_not_in_catalog");
+
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_ConveyorBeltLocked",
+    name: "Conveyor Belt Mk. 99",
+    available: false,
+    products: [{ item_class: "Desc_ConveyorBeltMk99", item_name: "Conveyor Belt Mk. 99" }],
+    produced_in: ["BP_BuildGun_C"],
+  });
+  const locked = validateAction(buildGraph(snapshot), {
+    action: "place_belt",
+    recipe_class: "Recipe_ConveyorBeltLocked",
+    from_actor_id: "Build_A",
+    to_actor_id: "Build_B",
+  });
+  assert.equal(locked.valid, false);
+  assert.equal(locked.reason, "belt_recipe_is_not_unlocked");
+});
+
+test("a building can target an earlier committed foundation step only", () => {
+  const graph = graphOf();
+  const foundation = {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+    commit: true,
+  };
+  const supported = {
+    action: "place_building",
+    recipe_class: "Recipe_ConstructorMk1",
+    location: HERE,
+    target_step: 1,
+    commit: true,
+  };
+
+  const accepted = validatePlan(graph, [foundation, supported]);
+  assert.equal(accepted.valid, true, accepted.reason);
+  assert.equal(accepted.actions[1].target_step, 1);
+
+  const both = validateAction(graph, {
+    ...supported,
+    target_actor_id: CONSTRUCTOR,
+  });
+  assert.equal(both.valid, false);
+  assert.equal(both.reason, "placement_target_must_use_actor_or_step_not_both");
+
+  const malformed = validateAction(graph, { ...supported, target_step: "first" });
+  assert.equal(malformed.valid, false);
+  assert.equal(malformed.reason, "target_step_must_be_a_positive_whole_step_number");
+
+  const future = validatePlan(graph, [supported, foundation]);
+  assert.equal(future.valid, false);
+  assert.equal(future.rejected[0].reason, "target_step_must_refer_to_an_earlier_step");
+
+  const nonBuilding = validatePlan(graph, [
+    { action: "teleport_player", target: HERE, commit: true },
+    supported,
+  ]);
+  assert.equal(nonBuilding.valid, false);
+  assert.equal(nonBuilding.rejected[0].reason, "target_step_must_refer_to_a_building_placement");
+
+  const previewParent = validatePlan(graph, [
+    { ...foundation, commit: false },
+    supported,
+  ]);
+  assert.equal(previewParent.valid, false);
+  assert.equal(previewParent.rejected[0].reason, "target_step_cannot_commit_from_a_preview_step");
 });
 
 test("a committed dismantle cannot be mixed into a reversible transaction", () => {
