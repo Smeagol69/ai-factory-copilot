@@ -15,6 +15,39 @@ import { captureUnlockConstraints } from "./unlock-constraints.mjs";
 const PURITY_MULTIPLIER = { impure: 0.5, normal: 1, pure: 2 };
 const EPSILON = 1e-6;
 
+/**
+ * Where each stage sits, in centimetres out from the node.
+ *
+ * The first live build put storage 129 m from the miner and strung the whole
+ * line across open rock; the owner's verdict was "placement is very bad", and
+ * looking at it, fair. Every machine also sat on its own separate foundation,
+ * so the line climbed and dropped with the terrain instead of reading as one
+ * factory.
+ *
+ * These are the distances between stages, gathered here rather than left as
+ * literals down the layout so the shape can be changed in one place. They are
+ * spacings, not machine sizes: a Constructor's real footprint is not in the
+ * snapshot, so the gaps are deliberately larger than the biggest machine any
+ * stage places rather than fitted to it.
+ *
+ * Roughly two thirds of the original run, which keeps belt runs short without
+ * crowding machines into each other.
+ */
+const STAGE = {
+  raw_splitter: 1_200,
+  raw_splitter_step: 800,
+  smelter: 2_600,
+  ingot_merger: 3_900,
+  ingot_merger_step: 800,
+  ingot_splitter: 4_900,
+  ingot_splitter_step: 800,
+  constructor: 6_400,
+  output_merger: 7_900,
+  storage: 9_200,
+  /** Sideways gap between machines in the same row. */
+  lateral: 1_400,
+};
+
 function round(value, places = 3) {
   const factor = 10 ** places;
   return Math.round(Number(value) * factor) / factor;
@@ -282,7 +315,7 @@ export function planAimedMk1WireFactory(graph, {
     return addPlacement({ ...action, target_step: foundationStep });
   };
   const connect = (fromStep, toStep) => beltEdges.push([fromStep, toStep]);
-  const centredLaterals = (count, spacing = 1_800) =>
+  const centredLaterals = (count, spacing = STAGE.lateral) =>
     Array.from({ length: count }, (_, index) => (index - (count - 1) / 2) * spacing);
   const connectFanOut = (sourceStep, splitterSteps, consumerSteps) => {
     if (consumerSteps.length === 1) {
@@ -298,14 +331,14 @@ export function planAimedMk1WireFactory(graph, {
       if (splitterSteps[index + 1]) connect(splitterStep, splitterSteps[index + 1]);
     }
   };
-  const addMergerChain = (sourceSteps, forwardCm, lateralCm = 0) => {
+  const addMergerChain = (sourceSteps, forwardCm, lateralCm = 0, stepCm = 800) => {
     if (sourceSteps.length === 1) return sourceSteps[0];
     let cursor = 0;
     let previous = null;
     let mergerIndex = 0;
     while (cursor < sourceSteps.length) {
       const mergerStep = addSupportedPlacement(
-        place(merger.recipe_class, at(forwardCm + mergerIndex * 900, lateralCm)),
+        place(merger.recipe_class, at(forwardCm + mergerIndex * stepCm, lateralCm)),
       );
       const inputs = previous
         ? [previous, ...sourceSteps.slice(cursor, cursor + 2)]
@@ -327,21 +360,21 @@ export function planAimedMk1WireFactory(graph, {
   const smelterCount = ingotStep.machines_required;
   const rawSplitterSteps = smelterCount > 1
     ? Array.from({ length: Math.ceil(smelterCount / 2) }, (_, index) =>
-        addSupportedPlacement(place(splitter.recipe_class, at(1_500 + index * 850, 0))))
+        addSupportedPlacement(place(splitter.recipe_class, at(STAGE.raw_splitter + index * STAGE.raw_splitter_step, 0))))
     : [];
   const smelterSteps = centredLaterals(smelterCount).map((lateral) =>
-    addSupportedPlacement(place(smelterBuild.recipe_class, at(3_800, lateral), ingotStep.recipe_class)));
+    addSupportedPlacement(place(smelterBuild.recipe_class, at(STAGE.smelter, lateral), ingotStep.recipe_class)));
   connectFanOut(minerStep, rawSplitterSteps, smelterSteps);
-  const ingotSourceStep = addMergerChain(smelterSteps, 5_200);
+  const ingotSourceStep = addMergerChain(smelterSteps, STAGE.ingot_merger, 0, STAGE.ingot_merger_step);
 
   const constructorCount = wireStep.machines_required;
   const ingotSplitterSteps = constructorCount > 1
     ? Array.from({ length: Math.ceil(constructorCount / 2) }, (_, index) =>
-        addSupportedPlacement(place(splitter.recipe_class, at(6_400 + index * 800, 0))))
+        addSupportedPlacement(place(splitter.recipe_class, at(STAGE.ingot_splitter + index * STAGE.ingot_splitter_step, 0))))
     : [];
   const constructorLaterals = centredLaterals(constructorCount);
   const constructorSteps = constructorLaterals.map((lateral) =>
-    addSupportedPlacement(place(constructorBuild.recipe_class, at(9_400, lateral), wireStep.recipe_class)));
+    addSupportedPlacement(place(constructorBuild.recipe_class, at(STAGE.constructor, lateral), wireStep.recipe_class)));
   connectFanOut(ingotSourceStep, ingotSplitterSteps, constructorSteps);
 
   const constructorsPerLane = Math.max(
@@ -353,8 +386,8 @@ export function planAimedMk1WireFactory(graph, {
     const group = constructorSteps.slice(start, start + constructorsPerLane);
     const groupLaterals = constructorLaterals.slice(start, start + constructorsPerLane);
     const lateral = groupLaterals.reduce((sum, value) => sum + value, 0) / groupLaterals.length;
-    const outputStep = addMergerChain(group, 11_200, lateral);
-    const storageStep = addSupportedPlacement(place(storage.recipe_class, at(12_900, lateral)));
+    const outputStep = addMergerChain(group, STAGE.output_merger, lateral);
+    const storageStep = addSupportedPlacement(place(storage.recipe_class, at(STAGE.storage, lateral)));
     connect(outputStep, storageStep);
     storageLanes.push(storageStep);
   }
@@ -470,6 +503,18 @@ export function findResourceNodeUnderPlan(graph, actions, target) {
     if (!location) continue;
     // The node being mined is where the miner goes; it is not an obstruction.
     if (targetId && String(node.actor_id ?? node.raw?.actor_id ?? "") === targetId) continue;
+
+    // Deposits are not nodes. The snapshot files both under kind
+    // "resource_node" and separates them by node_type, and the clearance here
+    // was calibrated against a full node — applying it to a hand-minable rock
+    // refused a whole factory over BP_ResourceDeposit539 at 0.56 m, which is
+    // close enough to be under the miner itself.
+    //
+    // Only a node is refused, because a node is the only thing observed to
+    // block a foundation. Guessing that deposits behave the same way would be
+    // inventing a second rule from the evidence for the first.
+    if (String(node.raw?.node_type ?? node.node_type ?? "") === "Deposit") continue;
+
     nodes.push({ name: node.raw?.name ?? node.display_name ?? node.actor_id, location });
   }
   if (nodes.length === 0) return null;

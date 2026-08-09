@@ -53,6 +53,7 @@ import {
 } from "./architecture.mjs";
 import { planCoalPower } from "./power.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
+import { describeCloneSource, planClone } from "./clone.mjs";
 import { planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
@@ -884,6 +885,33 @@ export function parseModularShellRequest(question) {
     width_modules: size ? Number(size[1]) : null,
     depth_modules: size ? Number(size[2]) : null,
     at_aim: MODULAR_HERE.test(text),
+  };
+}
+
+/**
+ * "clone this 5 times", "copy this smelter 3 more times".
+ *
+ * Stamping out what is already built, which is how a manifold gets made. The
+ * crosshair is the selection: the snapshot reports what the player is aiming
+ * at, and that building's own capture supplies the recipe, the facing, and the
+ * measured footprint the copies are spaced by.
+ */
+const CLONE_VERB = /\b(?:clone|copy|duplicate|repeat|stamp|mirror)\b/i;
+const CLONE_COUNT = /\b(\d{1,2})\s*(?:more\s*)?(?:times|copies|more|x)\b|\bx\s*(\d{1,2})\b/i;
+const CLONE_FORWARD = /\b(?:in front|forward|ahead|in a line forward|behind)\b/i;
+
+export function parseCloneRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  if (!CLONE_VERB.test(text)) return null;
+  if (/^(?:what|which|how|why|is|are|does|do|can)\b/i.test(text)) return null;
+  // A blueprint is copied by placing it, not by cloning an actor.
+  if (/\bblue\s?print\b/i.test(text)) return null;
+
+  const count = text.match(CLONE_COUNT);
+  return {
+    count: count ? Number(count[1] ?? count[2]) : null,
+    direction: CLONE_FORWARD.test(text) ? "forward" : "side",
   };
 }
 
@@ -2287,6 +2315,59 @@ export function answerLocally(question, graph, services) {
     const refusal = describePlanRejection();
     if (refusal) {
       return localAnswer(refusal, "modular_shell_refused", started, "Refused by validation before anything ran.");
+    }
+  }
+
+  // "clone this 5 times" — stamp out what is already standing.
+  const cloneRequest = parseCloneRequest(question);
+  if (cloneRequest && graph) {
+    const started = Date.now();
+    const aimedId = graph.snapshot?.interaction_context?.preferred_target?.actor_id;
+    if (!aimedId) {
+      return localAnswer(
+        "Aim at the building you want copied and say it again — the crosshair is the selection.",
+        "clone_refused",
+        started,
+        "The game reported nothing under the crosshair.",
+      );
+    }
+    if (!cloneRequest.count) {
+      const source = describeCloneSource(graph, aimedId);
+      return localAnswer(
+        `**How many copies?** Say "clone this 5 times". ` +
+          (source ? `You are aiming at a **${source.display_name}**.` : ""),
+        "clone_refused",
+        started,
+        "Count is the player's call.",
+      );
+    }
+
+    const plan = planClone(graph, {
+      actor_id: aimedId,
+      count: cloneRequest.count,
+      direction: cloneRequest.direction,
+    });
+    if (!plan.planned) {
+      return localAnswer(`I can't copy that: ${plan.reason}.`, "clone_refused", started, "Nothing was sent to the game.");
+    }
+
+    const emitted = emitValidatedPlan(graph, services, plan.actions);
+    if (emitted) {
+      return localAnswer(
+        `Placing **${plan.count} more ${plan.source.name}**` +
+          (plan.source.recipe ? ` set to **${plan.source.recipe}**` : "") +
+          `, in a row ${plan.pitch_cm / 100} m apart` +
+          `${plan.direction === "forward" ? " ahead of" : " beside"} the one you are aiming at.\n\n` +
+          `The spacing is that building's own measured footprint plus a gap, not a guess. ` +
+          `The game refuses any copy that does not fit. Say "undo" to reverse it.`,
+        "clone",
+        started,
+        "Recipe, facing and footprint all read from the captured building.",
+      );
+    }
+    const refusal = describePlanRejection();
+    if (refusal) {
+      return localAnswer(refusal, "clone_refused", started, "Refused by validation before anything ran.");
     }
   }
 
