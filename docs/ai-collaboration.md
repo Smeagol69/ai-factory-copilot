@@ -1865,11 +1865,13 @@ fresh autosave so the locked DLL could be replaced. Remaining evidence is the
 live 32-step hologram/preflight result; do not claim the factory was created
 until that result is captured from the game.
 
-**Codex, 2026-08-08 21:58 - Iron Wire follow-up fixed after live evidence.**
-The first live route correctly stayed local/free but refused because the
-planner was hard-wired to the standard Copper Wire chain. The owner's crosshair
-evidence was Iron, and the loaded save authoritatively reports unlocked
-`Alternate: Iron Wire` on `Build_ConstructorMk1`. The planner now evaluates
+**Codex, 2026-08-08 21:58 - resource-root follow-up fixed after live evidence.**
+The first live route correctly stayed local/free but refused on the owner's
+actual `BP_ResourceNode213`, a Pure Copper Ore node. I briefly misattributed the
+request to Iron because `Snapshots/latest.json` had already been overwritten by
+a later crosshair capture; the screenshot and request-time UI are the correct
+evidence. The loaded save also authoritatively reports unlocked `Alternate:
+Iron Wire` on `Build_ConstructorMk1`, so the planner now evaluates
 every unlocked Wire recipe that runs in a Mk.1 Constructor, expands its
 dependencies using standard intermediate recipes, and keeps only chains whose
 complete raw input is the aimed resource. It chooses the best raw-per-output
@@ -1878,10 +1880,10 @@ Wire; Iron selects Iron Wire. Multi-input Fused Wire cannot leak into a
 single-node plan.
 
 `solveProductionPlan` now accepts `stop_at_item_classes`. This is essential on
-late-game saves: Iron Ore has unlocked Converter recipes, so the generic graph
-previously expanded *past* the mined node into SAM/Limestone instead of treating
-the aimed node as the authoritative terminal source. The new boundary is
-explicit in solver output and defaults to empty for all existing callers.
+late-game saves: Copper Ore and Iron Ore have unlocked Converter recipes, so the
+generic graph previously expanded *past* the aimed node instead of treating its
+resource as the authoritative terminal source. The new boundary is explicit in
+solver output and defaults to empty for all existing callers.
 
 The physical topology is now machine-count driven rather than fixed at 2+4:
 splitter manifolds feed any verified Smelter/Constructor count, merger chains
@@ -1890,6 +1892,5 @@ exceeds captured Mk.1 capacity. The verified Pure Iron plan is 60 Ore/min, 2
 Smelters, 5 Constructors (last supply-limited to 96%), 108 Wire/min, 3 storage
 lanes, 18 buildings + 20 belts = 38 committed actions. Exact header validation
 and all 589 tests pass. This is companion-only and can be clean-installed while
-the game remains open. Current observed crosshair later moved onto
-`BP_ResourceDeposit524`, which is a hand-mined Deposit and must still refuse a
-Miner; the live retry must aim at an actual resource Node.
+the game remains open. Never correlate a prior bridge response to the mutable
+`Snapshots/latest.json` without matching its revision and timestamp.
