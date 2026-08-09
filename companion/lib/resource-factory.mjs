@@ -369,6 +369,29 @@ export function planAimedMk1WireFactory(graph, {
     });
   }
 
+  // A foundation cannot be laid across a resource node, and the layout runs
+  // along an axis without looking at what else is on it. A live plan put a
+  // Foundation (1 m) five metres from BP_ResourceNode206 and the game refused
+  // it with FGCDInvalidPlacement at step 16, after fifteen other placements had
+  // already been validated.
+  //
+  // The refusal is cheap and the whole plan is thrown away either way, so it
+  // belongs here where the reason can be named. Only the node being mined is
+  // exempt: the miner is supposed to be on that one.
+  const blockingNode = findResourceNodeUnderPlan(graph, actions, target);
+  if (blockingNode) {
+    return {
+      solver: "aimed_mk1_wire_factory",
+      planned: false,
+      reason:
+        `the factory's foundations would cross ${blockingNode.name}, ` +
+        `${blockingNode.distance_m} m away, and a foundation cannot be laid over a ` +
+        "resource node. Stand so the space behind the node is clear and ask again — " +
+        "the layout runs away from where you are standing",
+      blocked_by: blockingNode,
+    };
+  }
+
   return {
     solver: "aimed_mk1_wire_factory",
     planned: true,
@@ -408,4 +431,62 @@ export function planAimedMk1WireFactory(graph, {
       `Power is not wired because the action contract does not yet place power lines; connect the ${smelterCount + constructorCount} machines to a circuit before expecting production.`,
     ],
   };
+}
+
+/**
+ * The first resource node a planned placement would sit on top of, or null.
+ *
+ * Foundations and machines cannot occupy a resource node, and the game says so
+ * only when it reaches that action — a live plan validated fifteen placements
+ * before refusing the sixteenth with FGCDInvalidPlacement, five metres from
+ * BP_ResourceNode206.
+ *
+ * The radius is stated, not measured, and the reply says so. A resource node
+ * reports no `bounds` in the snapshot — only a centre — so its true extent is
+ * not knowable here.
+ *
+ * It is calibrated against the one real observation available: a Foundation
+ * (1 m) centred 5 m from BP_ResourceNode206 was refused. A foundation is 8 m
+ * square, so its own half-width is 4 m, which alone would not have reached a
+ * node centre 5 m away — the node therefore has an extent of its own. 8 m is
+ * four metres of foundation plus four of node, the smallest value consistent
+ * with what the game actually rejected.
+ *
+ * Being cautious costs a few metres of siting. Being optimistic costs the
+ * whole transaction, which is what happened.
+ *
+ * Capturing `bounds` for resource nodes would replace this with a measurement.
+ * That is a snapshot change and a rebuild; this is the honest version until
+ * then.
+ */
+const NODE_CLEARANCE_CM = 800;
+
+export function findResourceNodeUnderPlan(graph, actions, target) {
+  const targetId = String(target?.actor_id ?? "");
+  const nodes = [];
+  for (const node of graph?.nodes?.values() ?? []) {
+    if (node.kind !== "resource_node") continue;
+    const location = node.raw?.location ?? node.location;
+    if (!location) continue;
+    // The node being mined is where the miner goes; it is not an obstruction.
+    if (targetId && String(node.actor_id ?? node.raw?.actor_id ?? "") === targetId) continue;
+    nodes.push({ name: node.raw?.name ?? node.display_name ?? node.actor_id, location });
+  }
+  if (nodes.length === 0) return null;
+
+  for (const action of actions ?? []) {
+    const at = action?.location;
+    if (!at) continue;
+    for (const node of nodes) {
+      const distance = Math.hypot(node.location.x - at.x, node.location.y - at.y);
+      if (distance <= NODE_CLEARANCE_CM) {
+        return {
+          name: node.name,
+          distance_m: Math.round(distance) / 100,
+          clearance_used_cm: NODE_CLEARANCE_CM,
+        };
+      }
+    }
+  }
+  return null;
 }
