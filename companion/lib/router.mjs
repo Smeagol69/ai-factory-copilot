@@ -52,6 +52,7 @@ import {
   surveyStructuralPieces,
 } from "./architecture.mjs";
 import { planCoalPower } from "./power.mjs";
+import { modularShellActions, planModularShell } from "./modular.mjs";
 import { planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
@@ -796,6 +797,37 @@ const STRUCTURE_HERE =
   // bare "m" is an alternative rather than a typo to be tolerated. Same reason
   // as the verb list: this pattern is matched against what players type.
   /\b(?:here|at this|on this|same level|this foundation|where i(?:'m|m| am)?\s+(?:looking|standing|aiming|pointing)|what i(?:'m|m| am)?\s+(?:looking at|aiming at)|my crosshair)\b/i;
+
+/**
+ * "build me a 4x3 modular base here".
+ *
+ * The owner's library holds a real tileset — C corners, M middles, IN/IC inner
+ * parts, all 5x5 — and each piece is a blueprint. A blueprint is placed as one
+ * hologram, so the game resolves its internals itself and it brings its own
+ * foundations. That is why this route exists: the piece-by-piece path loses to
+ * uneven ground, and this one does not care what the rock underneath looks
+ * like.
+ */
+const MODULAR_VERB = /\b(?:build|buld|biuld|make|lay|place|put|start|design)\b/i;
+const MODULAR_SUBJECT = /\bmodular\b|\bmodules?\b/i;
+const MODULAR_SIZE = /\b(\d{1,2})\s*(?:x|by)\s*(\d{1,2})\b/i;
+const MODULAR_HERE =
+  /\b(?:here|at this|on this|where i(?:'m|m| am)?\s+(?:looking|standing|aiming)|my crosshair)\b/i;
+
+export function parseModularShellRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  if (!MODULAR_SUBJECT.test(text)) return null;
+  if (/^(?:what|which|how|why|is|are|does|do|can)\b/i.test(text)) return null;
+  if (!MODULAR_VERB.test(text)) return null;
+
+  const size = text.match(MODULAR_SIZE);
+  return {
+    width_modules: size ? Number(size[1]) : null,
+    depth_modules: size ? Number(size[2]) : null,
+    at_aim: MODULAR_HERE.test(text),
+  };
+}
 
 /**
  * "list blueprints", "what blueprints do i have".
@@ -2082,6 +2114,65 @@ export function answerLocally(question, graph, services) {
   // "teleport me to <thing>" is a lookup followed by a move. Both halves are
   // mechanical, so the whole request is: resolve the name against the complete
   // snapshot, then emit the move at the coordinates that came back.
+  // "build me a 4x3 modular base here" — tile the player's own blueprint set.
+  const modularRequest = parseModularShellRequest(question);
+  if (modularRequest && graph) {
+    const started = Date.now();
+    const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
+    const origin = (modularRequest.at_aim && aim)
+      ? aim
+      : graph.snapshot?.interaction_context?.player?.pawn_location;
+    const structural = surveyStructuralPieces(graph);
+    const library = typeof services?.listBlueprints === "function" ? services.listBlueprints() : [];
+
+    if (!modularRequest.width_modules) {
+      return localAnswer(
+        "**How many modules across and deep?** Say it like \"build a 4x3 modular " +
+          "base here\". Each module is 5 foundations square, so 4x3 is 160 m x 120 m.",
+        "modular_shell_refused",
+        started,
+        "Size is the player's call; nothing else here is.",
+      );
+    }
+
+    const shell = planModularShell(graph, {
+      width_modules: modularRequest.width_modules,
+      depth_modules: modularRequest.depth_modules,
+      origin_cm: origin,
+      blueprints: library,
+      cell_size_cm: structural?.cell_size_cm ?? null,
+    });
+
+    if (!shell.planned) {
+      return localAnswer(
+        `I can't lay that out: ${shell.reason}.`,
+        "modular_shell_refused",
+        started,
+        "Nothing was sent to the game.",
+      );
+    }
+
+    const emitted = emitValidatedPlan(graph, services, modularShellActions(shell, { commit: true }));
+    if (emitted) {
+      const counts = shell.counts;
+      return localAnswer(
+        `Laying out a **${shell.width_modules} × ${shell.depth_modules} modular base** ` +
+          `(${shell.footprint_m.x} m × ${shell.footprint_m.y} m) from your own tileset: ` +
+          `${counts.corner ?? 0} corner, ${counts.middle ?? 0} middle and ` +
+          `${counts.inner ?? 0} inner module(s), each placed as a whole blueprint.\n\n` +
+          `**${shell.power}**\n\n` +
+          `${shell.assumptions.rotation} Say "undo" to reverse it.`,
+        "modular_shell",
+        started,
+        "Modules came from your blueprint folder; the pitch from this save's foundation grid.",
+      );
+    }
+    const refusal = describePlanRejection();
+    if (refusal) {
+      return localAnswer(refusal, "modular_shell_refused", started, "Refused by validation before anything ran.");
+    }
+  }
+
   // "list blueprints" — read the folder rather than asking a model about it.
   const blueprintList = parseBlueprintListRequest(question);
   if (blueprintList && graph) {
