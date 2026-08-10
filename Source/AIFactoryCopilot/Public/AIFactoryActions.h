@@ -162,7 +162,22 @@ namespace AIFactoryActions
         const FTransform& Target,
         bool bCheckClearance,
         const FString& PlacementTargetActorId = FString(),
-        const FString& ProductionRecipeClassPath = FString());
+        const FString& ProductionRecipeClassPath = FString(),
+        /**
+         * Waive overlap objections only.
+         *
+         * A factory built with clearance switched off legitimately has
+         * foundations intersecting a machine, and replaying such a design meets
+         * a check the player's own build gun was not applying. When true, a
+         * placement whose *only* remaining objections are clearance overlaps is
+         * constructed anyway, and the reply records what was overridden.
+         *
+         * Everything else still refuses: no ground, over water, unaffordable,
+         * unknown recipe. So does encroaching a player, creature or vehicle --
+         * turning clearance off for foundations is not consent to build into
+         * something that can move.
+         */
+        bool bIgnoreClearance = false);
 
     /**
      * Places a saved blueprint through AFGBlueprintHologram, so Satisfactory

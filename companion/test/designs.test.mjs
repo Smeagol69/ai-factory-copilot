@@ -128,3 +128,29 @@ test("a design written to disk reads back identically", () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("placing on a node keeps the arrangement rigid", () => {
+  // The first live run sheared: the miner jumped to the node while everything
+  // else stayed at offsets from the design's original anchor, which put a
+  // smelter far away. Re-anchoring on the extractor is what holds it together,
+  // and this design is deliberately anchored on the smelter, not the miner.
+  const design = {
+    schema: "aifactory.design/v1",
+    name: "anchored on the smelter",
+    buildings: [
+      { recipe_class: "/G/Recipe_SmelterBasicMk1_C", class_path: "/G/Build_SmelterMk1_C", offset_cm: { x: 0, y: 0, z: 0 }, yaw: 0 },
+      { recipe_class: "/G/Recipe_MinerMk1_C", class_path: "/G/Build_MinerMk1_C", offset_cm: { x: -1_500, y: 0, z: 0 }, yaw: 0 },
+      { recipe_class: "/G/Recipe_ConstructorMk1_C", class_path: "/G/Build_ConstructorMk1_C", offset_cm: { x: 1_500, y: 0, z: 0 }, yaw: 0 },
+    ],
+  };
+  const node = { actor_id: "N9", location: { x: 50_000, y: 60_000, z: 400 } };
+  const placed = planDesignPlacement(design, { origin: node.location, node });
+
+  const at = (needle) =>
+    placed.actions.find((action) => action.recipe_class.includes(needle)).location;
+
+  // The miner is on the node, and every gap survives unchanged.
+  assert.deepEqual(at("Miner"), { x: 50_000, y: 60_000, z: 400 });
+  assert.equal(at("Smelter").x - at("Miner").x, 1_500);
+  assert.equal(at("Constructor").x - at("Smelter").x, 1_500);
+});

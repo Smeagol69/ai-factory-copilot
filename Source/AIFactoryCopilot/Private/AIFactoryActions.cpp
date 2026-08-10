@@ -532,6 +532,58 @@ namespace
             Params);
     }
 
+    /**
+     * Whether every remaining objection is only about things being in the way.
+     *
+     * The owner builds with clearance off, so their factories legitimately have
+     * foundations intersecting a miner. Replaying such a design through this
+     * path hit the clearance check their build gun was not applying, and one
+     * foundation refused the whole 25-building transaction.
+     *
+     * This does not disable the check or touch the hologram's clearance data.
+     * It asks a narrower question: are the objections *only* about overlap? If
+     * a placement is also underground, unaffordable, on water, or missing its
+     * recipe, that is a real fault and it still refuses. Overlap alone is the
+     * one the player has already decided they do not want enforced.
+     *
+     * Encroaching a player, a creature or a vehicle is deliberately not in the
+     * list. Building into something that can move is how you trap or kill it,
+     * and "I turned clearance off for foundations" is not consent to that.
+     */
+    bool OnlyClearanceObjectionsRemain(AFGHologram* Hologram)
+    {
+        if (!IsValid(Hologram))
+        {
+            return false;
+        }
+        TArray<TSubclassOf<UFGConstructDisqualifier>> Disqualifiers;
+        Hologram->GetConstructDisqualifiers(Disqualifiers);
+        if (Disqualifiers.Num() == 0)
+        {
+            return false;
+        }
+        for (const TSubclassOf<UFGConstructDisqualifier>& Disqualifier : Disqualifiers)
+        {
+            if (!Disqualifier)
+            {
+                return false;
+            }
+            if (UFGConstructDisqualifier::GetIsSoftDisqualifier(Disqualifier))
+            {
+                continue;
+            }
+            const bool bIsClearance =
+                Disqualifier->IsChildOf(UFGCDEncroachingClearance::StaticClass())
+                || Disqualifier->IsChildOf(UFGCDEncroachingSoftClearance::StaticClass())
+                || Disqualifier->IsChildOf(UFGCDIdenticalOverlappingBuildable::StaticClass());
+            if (!bIsClearance)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     FString DescribeHologramDisqualifiers(
         AFGHologram* Hologram,
         const TSharedPtr<FJsonObject>& Predicted)
@@ -608,6 +660,7 @@ namespace
         UFGInventoryComponent* Inventory,
         const FTransform& Requested,
         AActor* PlacementTarget,
+        bool bIgnoreClearance,
         const TSharedPtr<FJsonObject>& Predicted,
         FString& OutFailure)
     {
@@ -789,10 +842,20 @@ namespace
         FString HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
         if (!Hologram->CanConstruct())
         {
-            OutFailure = HardReason.IsEmpty()
-                ? TEXT("hologram_refused_placement_or_cost")
-                : TEXT("hologram_disqualified:") + HardReason;
-            return false;
+            // Overlap is the one objection the player may have already decided
+            // against, by building with clearance off. Anything else stands.
+            if (bIgnoreClearance && OnlyClearanceObjectionsRemain(Hologram))
+            {
+                Predicted->SetBoolField(TEXT("clearance_overridden"), true);
+                Predicted->SetStringField(TEXT("clearance_overridden_reason"), HardReason);
+            }
+            else
+            {
+                OutFailure = HardReason.IsEmpty()
+                    ? TEXT("hologram_refused_placement_or_cost")
+                    : TEXT("hologram_disqualified:") + HardReason;
+                return false;
+            }
         }
 
         // A single-point machine completes on the first call. Some holograms do
@@ -826,7 +889,8 @@ namespace
         Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
         HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
-        if (!Hologram->CanConstruct())
+        if (!Hologram->CanConstruct()
+            && !(bIgnoreClearance && OnlyClearanceObjectionsRemain(Hologram)))
         {
             OutFailure = HardReason.IsEmpty()
                 ? TEXT("hologram_refused_after_final_build_step")
@@ -1304,7 +1368,8 @@ FAIFactoryActionResult PlaceBuilding(
     const FTransform& Target,
     bool bCheckClearance,
     const FString& PlacementTargetActorId,
-    const FString& ProductionRecipeClassPath)
+    const FString& ProductionRecipeClassPath,
+    bool bIgnoreClearance)
 {
     const FString Action = TEXT("place_building");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -1513,6 +1578,7 @@ FAIFactoryActionResult PlaceBuilding(
         Inventory,
         Target,
         PlacementTarget,
+        bIgnoreClearance,
         Predicted,
         HologramFailure);
     const TArray<FItemAmount> Cost =
@@ -1921,6 +1987,7 @@ FAIFactoryActionResult PlaceBlueprint(
         // A blueprint is placed on ground, not onto a named actor, so it keeps
         // the downward trace.
         nullptr,
+        false,
         Predicted,
         HologramFailure);
     const TArray<FItemAmount> Cost =
@@ -3158,13 +3225,20 @@ namespace
             Spec->TryGetStringField(
                 TEXT("production_recipe_class"),
                 ProductionRecipeClassPath);
+            // Opt in, per action. A design built with clearance switched off
+            // legitimately has foundations intersecting a machine, and replaying
+            // it here otherwise meets a check the player's build gun was not
+            // applying. Only overlap is waived -- see OnlyClearanceObjectionsRemain.
+            bool bIgnoreClearance = false;
+            Spec->TryGetBoolField(TEXT("ignore_clearance"), bIgnoreClearance);
             return PlaceBuilding(
                 Context,
                 RecipeClass,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location),
                 bCheck,
                 PlacementTargetActorId,
-                ProductionRecipeClassPath);
+                ProductionRecipeClassPath,
+                bIgnoreClearance);
         }
         if (Kind == TEXT("place_blueprint"))
         {

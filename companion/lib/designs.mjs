@@ -188,12 +188,25 @@ function isExtractorRecipe(recipeClass) {
 }
 
 /** A saved design as placements at a new anchor. */
-export function planDesignPlacement(design, { origin, commit = true, node = null } = {}) {
+export function planDesignPlacement(design, { origin, commit = true, node = null, ignore_clearance: ignoreClearance = true } = {}) {
   if (!origin || ![origin.x, origin.y, origin.z].every((v) => Number.isFinite(Number(v)))) {
     return { planned: false, reason: "no anchor point with a finite x, y and z" };
   }
   const buildings = Array.isArray(design?.buildings) ? design.buildings : [];
   if (buildings.length === 0) return { planned: false, reason: "that design has no buildings in it" };
+
+  // Placing on a node pins the extractor to the node, so every other building
+  // has to be measured from the extractor — not from whatever the design
+  // happened to be anchored on when it was saved.
+  //
+  // Without this the layout shears: the miner jumps to the node while the rest
+  // stay at offsets from the old anchor, which put a smelter far away on the
+  // first live run. Re-anchoring keeps the arrangement rigid, which is the one
+  // thing a saved design has to guarantee.
+  const extractor = node ? buildings.find((entry) => isExtractorRecipe(entry.recipe_class)) : null;
+  const shift = extractor
+    ? { x: extractor.offset_cm.x, y: extractor.offset_cm.y, z: extractor.offset_cm.z }
+    : { x: 0, y: 0, z: 0 };
 
   return {
     planned: true,
@@ -208,6 +221,12 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
       return {
         action: "place_building",
         recipe_class: entry.recipe_class,
+        // A saved design already stood somewhere. If it was built with
+        // clearance off, its foundations intersect its machines on purpose,
+        // and re-imposing the check here refuses a layout the player has
+        // already seen work. Only overlap is waived; the game still refuses
+        // no ground, water, cost and the rest.
+        ...(ignoreClearance ? { ignore_clearance: true } : {}),
         ...(entry.production_recipe_class
           ? { production_recipe_class: entry.production_recipe_class }
           : {}),
@@ -215,9 +234,9 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
         location: onNode
           ? { x: node.location.x, y: node.location.y, z: node.location.z }
           : {
-              x: Math.round((Number(origin.x) + entry.offset_cm.x) * 10) / 10,
-              y: Math.round((Number(origin.y) + entry.offset_cm.y) * 10) / 10,
-              z: Math.round((Number(origin.z) + entry.offset_cm.z) * 10) / 10,
+              x: Math.round((Number(origin.x) + entry.offset_cm.x - shift.x) * 10) / 10,
+              y: Math.round((Number(origin.y) + entry.offset_cm.y - shift.y) * 10) / 10,
+              z: Math.round((Number(origin.z) + entry.offset_cm.z - shift.z) * 10) / 10,
             },
         yaw: entry.yaw,
         commit,

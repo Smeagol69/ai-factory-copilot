@@ -422,6 +422,9 @@ export function validateAction(graph, proposal) {
         location,
         yaw: finite(proposal.yaw) ?? 0,
         check_clearance: proposal.check_clearance !== false,
+        // Waives overlap objections only, and only when asked. A design built
+        // with clearance off has foundations intersecting machines by intent.
+        ...(proposal.ignore_clearance === true ? { ignore_clearance: true } : {}),
         ...(targetActorId ? { target_actor_id: targetActorId } : {}),
         ...(targetStepValue !== null ? { target_step: targetStepValue } : {}),
         ...(requestedProductionRecipe

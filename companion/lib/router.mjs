@@ -55,7 +55,7 @@ import { planCoalPower } from "./power.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
 import { captureDesign, findDesign, listDesigns, planDesignPlacement, writeDesign } from "./designs.mjs";
-import { planAimedMk1WireFactory } from "./resource-factory.mjs";
+import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
   measureConnectors,
@@ -2490,6 +2490,21 @@ export function answerLocally(question, graph, services) {
         node: aimedNode,
         commit: true,
       });
+
+      // A nearby node is worth mentioning and is NOT worth refusing over.
+      //
+      // I added a hard refusal here after a foundation failed 7.3 m from a
+      // node, and the owner then pointed out they had built foundations near
+      // that node by hand — so the game plainly permits it and my rule was
+      // inferred from one failure I had misread. An 8x4 foundation reaches 4 m
+      // from its centre, so a node 7.3 m away is not even underneath it.
+      //
+      // The game is the authority on what it will accept. Guessing its rules
+      // and refusing first turns a buildable design into an unbuildable one and
+      // hides the real cause. Say what is nearby, then let it decide.
+      const nearbyNode = plan.planned
+        ? findResourceNodeUnderPlan(graph, plan.actions, aimedNode ?? {})
+        : null;
       if (!plan.planned) {
         return localAnswer(
           `I can't place that design: ${plan.reason}.`,
