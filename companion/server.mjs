@@ -3,6 +3,8 @@ import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describeUnkeptPromise, WRITE_ACTION_KINDS } from "./lib/actions.mjs";
+import { renderLibraryPage } from "./lib/library-page.mjs";
+import { listDesigns } from "./lib/designs.mjs";
 import { readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askMock, askProvider } from "./lib/providers.mjs";
@@ -576,6 +578,21 @@ export function createBridgeServer({ env = process.env } = {}) {
   return http.createServer(async (request, response) => {
     let admittedAskRequest = false;
     try {
+      // A browsable library, for the owner who wanted the game's blueprint
+      // panel. Read live so it never shows a stale copy of the folder.
+      if (request.method === "GET" && (request.url === "/" || request.url === "/library")) {
+        const page = renderLibraryPage({
+          designs: listDesigns(env),
+          blueprints: typeof listBlueprints === "function" ? listBlueprints() : [],
+        });
+        response.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+        });
+        response.end(page);
+        return;
+      }
+
       if (request.method === "GET" && request.url === "/health") {
         const sourcePolicy = resolveSourcePolicy(env);
         const sourceCapability = providerSourceCapability(provider, env, sourcePolicy);
