@@ -28,6 +28,12 @@ public:
     virtual void Deinitialize() override;
 
     void TogglePanel();
+
+    /**
+     * The bridge's library page, derived from the configured BridgeUrl so a
+     * moved bridge still gets a working button.
+     */
+    static FString ResolveLibraryUrl();
     void HidePanel();
     bool IsPanelVisible() const { return bPanelVisible; }
 

@@ -927,6 +927,15 @@ export function parseDesignListRequest(question) {
   return DESIGN_LIST.test(text) ? {} : null;
 }
 
+/** "open the library", "show me the library page". */
+const LIBRARY_PAGE =
+  /\b(?:open|show|launch|bring up|where(?:'s| is))\b[^?]*\b(?:librar(?:y|ies)|web ?page|ui|dashboard|browser)\b/i;
+
+export function parseLibraryPageRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return LIBRARY_PAGE.test(text) ? {} : null;
+}
+
 /**
  * "clone this 5 times", "copy this smelter 3 more times".
  *
