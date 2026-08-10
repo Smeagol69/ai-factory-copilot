@@ -215,6 +215,44 @@ theory on this bug and four were wrong; it is grounded in documented contracts
 rather than symptoms, which is not the same as a working belt. Do not record
 belt construction as done until a transaction commits in the loaded save.
 
+### Saved designs and real blueprints do different jobs — 2026-08-09
+
+Worth writing down before anyone tries to replace one with the other.
+
+**A real `.sbp` can be produced without a serialiser.** `SaveBlueprint(record,
+controller)` on an `AFGBuildableBlueprintDesigner` writes one from whatever is
+standing inside it, and we can place buildings inside a designer. So: replay a
+design in the designer, call `SaveBlueprint`, dismantle the copies, and the
+result is a genuine build-gun blueprint with move, rotate and snap. All three
+APIs are confirmed public.
+
+**But a Blueprint Designer will not accept a miner** — the owner's point, and it
+matches vanilla, since an extractor has to sit on a node and a blueprint has no
+way to guarantee one. `UFGBlueprintDescriptor` is metadata only
+(`FBlueprintRecord` carries a name, description and priority — no buildings), so
+there is no way around it from the descriptor side either.
+
+That splits the two cleanly, and neither is a substitute:
+
+| | real `.sbp` | saved design |
+|---|---|---|
+| Extractors | **refused by the designer** | placed, and attached via `target_actor_id` |
+| Size | capped by designer volume | 400 buildings |
+| Hologram | full build-gun preview | none; placed directly |
+| Belts inside | preserved | not captured |
+
+So anything with a miner stays a saved design; anything that fits a designer and
+has no extractor is a candidate for promotion to a real blueprint. Do not build
+the designer path expecting it to replace the design library.
+
+**Known next fault, with evidence.** A 25-building design refused at its first
+action with `FGCDMustSnapWall` on a `Conveyor Wall Hole`, while a 3-building
+design committed on the same node. Attachments need their host, exactly as a
+miner needs its node. The fix is to record each attachment's host at capture
+time and point it at that building's step on replay; `target_step` already
+resolves to `target_actor_id`. The missing piece is inferring the host from
+captured bounds.
+
 ## This already went wrong once — read this bit
 
 Within a minute of both agents starting, Claude committed onto
