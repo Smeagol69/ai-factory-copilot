@@ -37,7 +37,18 @@ test("a waypoint is classified as a write, and only drawings are exempt", () => 
     assert.ok(!OVERLAY_ACTION_KINDS.includes(kind), `${kind} must not be draw-only`);
     assert.ok(ACTION_KINDS.includes(kind));
   }
-  assert.deepEqual(OVERLAY_ACTION_KINDS, ["highlight", "clear_highlight"]);
+  // The rule, not the roster: an overlay action must leave nothing behind once
+  // it is gone. Highlights are drawn, and a hologram is a preview that was
+  // never built or saved — removing either costs the player nothing. A waypoint
+  // is a SaveGame property and survives a reload, which is exactly why it is
+  // not on this list.
+  assert.deepEqual(
+    [...OVERLAY_ACTION_KINDS].sort(),
+    ["clear_highlight", "clear_holograms", "highlight"],
+  );
+  for (const kind of OVERLAY_ACTION_KINDS) {
+    assert.ok(!WRITE_ACTION_KINDS.includes(kind), `${kind} cannot be both draw-only and a write`);
+  }
 });
 
 test("a committed waypoint carries the world revision stamp the mod requires", () => {

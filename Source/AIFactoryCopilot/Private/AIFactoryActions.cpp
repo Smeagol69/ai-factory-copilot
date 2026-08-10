@@ -1231,6 +1231,42 @@ namespace
         FString OverlayName = TEXT("overlay");
         Spec->TryGetStringField(TEXT("overlay"), OverlayName);
 
+        // Sweep up any hologram left in the world.
+        //
+        // A refused blueprint left a wireframe box stuck to the owner's cursor,
+        // and it survived the fix for the cause because it was already there.
+        // A leak is a bug to fix each time it appears; being unable to clear
+        // one without reloading the save is a worse problem, and this is the
+        // escape hatch for it.
+        //
+        // Only holograms are touched. They are previews by definition — nothing
+        // built, nothing saved — so removing them cannot cost the player
+        // anything, which is why this needs no confirmation.
+        if (Kind == TEXT("clear_holograms"))
+        {
+            TArray<AFGHologram*> Stray;
+            for (TActorIterator<AFGHologram> It(Context.World); It; ++It)
+            {
+                if (IsValid(*It)) Stray.Add(*It);
+            }
+            int32 Removed = 0;
+            for (AFGHologram* Hologram : Stray)
+            {
+                // Children go with their parent, so one may already be gone.
+                if (IsValid(Hologram))
+                {
+                    DestroyHologramTree(Hologram);
+                    ++Removed;
+                }
+            }
+            TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
+            Observed->SetNumberField(TEXT("holograms_removed"), Removed);
+            Result.Observed = Observed;
+            Result.bAccepted = true;
+            Result.Status = Removed > 0 ? TEXT("committed") : TEXT("no_change");
+            return Result;
+        }
+
         if (Kind == TEXT("clear_highlight"))
         {
             bool bAll = false;

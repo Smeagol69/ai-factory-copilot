@@ -2544,6 +2544,19 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "clear holograms" — sweep up any preview left stuck to the cursor.
+  if (/^(?:can you |please )?(?:clear|remove|delete|get rid of)s+(?:thes+|anys+|alls+)?(?:stucks+|strays+)?holo(?:gram)?s?$/i.test(String(question ?? "").trim().replace(/[?!.]+$/, ""))) {
+    const started = Date.now();
+    if (emitValidatedPlan(graph, services, [{ action: "clear_holograms", commit: true }])) {
+      return localAnswer(
+        "Clearing any hologram left in the world. They are previews, so nothing built is touched.",
+        "clear_holograms",
+        started,
+        "Holograms only; no buildable is affected.",
+      );
+    }
+  }
+
   // "clone this 5 times" — stamp out what is already standing.
   const cloneRequest = parseCloneRequest(question);
   if (cloneRequest && graph) {

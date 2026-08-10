@@ -60,7 +60,9 @@ export const WRITE_ACTION_KINDS = [
  * Actions that only draw. These change nothing, so they are never gated behind
  * the write switch and never need confirming.
  */
-export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight"];
+// Removing a hologram costs nothing: it is a preview, never built and never
+// saved. So it is not write-gated and needs no confirmation.
+export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight", "clear_holograms"];
 
 /** Everything the mod knows how to execute. */
 export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
