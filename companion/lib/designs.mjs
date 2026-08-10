@@ -174,8 +174,21 @@ export function findDesign(name, env = process.env) {
   return { matches: all.filter((design) => String(design.name).toLowerCase().includes(needle)) };
 }
 
+/**
+ * A miner in a saved design has to be told which node it is going on.
+ *
+ * Everything else in a design is positioned by offset, but an extractor is not
+ * placed on a coordinate — it is placed *on a node*, and the game refuses it
+ * otherwise. Replaying a saved miner by translation alone lands it near the new
+ * node rather than attached to it, which is the failure that took several
+ * builds to work out the first time.
+ */
+function isExtractorRecipe(recipeClass) {
+  return /Miner|Extractor|WaterPump|OilPump|FrackingExtractor/i.test(String(recipeClass ?? ""));
+}
+
 /** A saved design as placements at a new anchor. */
-export function planDesignPlacement(design, { origin, commit = true } = {}) {
+export function planDesignPlacement(design, { origin, commit = true, node = null } = {}) {
   if (!origin || ![origin.x, origin.y, origin.z].every((v) => Number.isFinite(Number(v)))) {
     return { planned: false, reason: "no anchor point with a finite x, y and z" };
   }
@@ -186,20 +199,30 @@ export function planDesignPlacement(design, { origin, commit = true } = {}) {
     planned: true,
     name: design.name,
     count: buildings.length,
-    actions: buildings.map((entry) => ({
-      action: "place_building",
-      recipe_class: entry.recipe_class,
-      ...(entry.production_recipe_class
-        ? { production_recipe_class: entry.production_recipe_class }
-        : {}),
-      location: {
-        x: Math.round((Number(origin.x) + entry.offset_cm.x) * 10) / 10,
-        y: Math.round((Number(origin.y) + entry.offset_cm.y) * 10) / 10,
-        z: Math.round((Number(origin.z) + entry.offset_cm.z) * 10) / 10,
-      },
-      yaw: entry.yaw,
-      commit,
-    })),
+    extractors_snapped: node ? buildings.filter((e) => isExtractorRecipe(e.recipe_class)).length : 0,
+    actions: buildings.map((entry) => {
+      // An extractor goes on the node, not at an offset from it. Given a node,
+      // the miner is placed at its centre and told which actor it sits on --
+      // the same target_actor_id that made single miner placement work.
+      const onNode = node && isExtractorRecipe(entry.recipe_class);
+      return {
+        action: "place_building",
+        recipe_class: entry.recipe_class,
+        ...(entry.production_recipe_class
+          ? { production_recipe_class: entry.production_recipe_class }
+          : {}),
+        ...(onNode && node.actor_id ? { target_actor_id: node.actor_id } : {}),
+        location: onNode
+          ? { x: node.location.x, y: node.location.y, z: node.location.z }
+          : {
+              x: Math.round((Number(origin.x) + entry.offset_cm.x) * 10) / 10,
+              y: Math.round((Number(origin.y) + entry.offset_cm.y) * 10) / 10,
+              z: Math.round((Number(origin.z) + entry.offset_cm.z) * 10) / 10,
+            },
+        yaw: entry.yaw,
+        commit,
+      };
+    }),
     unverified:
       "Offsets are replayed in world axes, so the design keeps the facing it was " +
       "saved with. The game validates every placement and refuses the ones that " +

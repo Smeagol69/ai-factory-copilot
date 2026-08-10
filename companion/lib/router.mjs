@@ -2475,7 +2475,21 @@ export function answerLocally(question, graph, services) {
     if (matches.length === 1) {
       const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
       const origin = aim ?? graph.snapshot?.interaction_context?.player?.pawn_location;
-      const plan = planDesignPlacement(matches[0], { origin, commit: true });
+
+      // Aiming at a resource node means the design goes *on* that node: any
+      // extractor in it attaches to this one, and the rest of the layout is
+      // anchored on the node's centre so the offsets still line up.
+      const aimedTarget = solvePlacementTarget(graph, { kind: "aim" });
+      const aimedNode = aimedTarget?.resolved && aimedTarget.actor_id && aimedTarget.node_type
+        && aimedTarget.node_type !== "Deposit"
+        ? { actor_id: aimedTarget.actor_id, location: aimedTarget.location }
+        : null;
+
+      const plan = planDesignPlacement(matches[0], {
+        origin: aimedNode?.location ?? origin,
+        node: aimedNode,
+        commit: true,
+      });
       if (!plan.planned) {
         return localAnswer(
           `I can't place that design: ${plan.reason}.`,
@@ -2486,9 +2500,13 @@ export function answerLocally(question, graph, services) {
       }
       const emitted = emitValidatedPlan(graph, services, plan.actions);
       if (emitted) {
+        const snapped = plan.extractors_snapped > 0
+          ? ` The ${plan.extractors_snapped} extractor(s) in it are attached to the node ` +
+            `you are aiming at, not just placed near it.`
+          : "";
         return localAnswer(
           `Building **${plan.name}** — ${plan.count} buildings, each with the recipe ` +
-            `it was saved with, keeping the facing it was saved at. ` +
+            `it was saved with, keeping the spacing and facing it was saved at.${snapped} ` +
             `Say "undo" to reverse the whole thing.`,
           "design_place",
           started,
