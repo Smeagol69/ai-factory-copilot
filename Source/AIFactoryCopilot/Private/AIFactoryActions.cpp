@@ -533,6 +533,32 @@ namespace
     }
 
     /**
+     * Tears a hologram down along with everything it spawned.
+     *
+     * A refused placement left a wireframe box stuck to the owner's cursor.
+     * `Destroy()` was being called, but a blueprint hologram calls
+     * `SpawnChildren` and those children are separate actors — destroying the
+     * parent leaves them in the world with nothing driving them.
+     *
+     * Children first, so none is orphaned by the parent going away mid-walk,
+     * and the array is copied because destroying a child mutates it.
+     */
+    void DestroyHologramTree(AFGHologram* Hologram)
+    {
+        if (!IsValid(Hologram))
+        {
+            return;
+        }
+        const TArray<AFGHologram*> Children = Hologram->GetHologramChildren();
+        for (AFGHologram* Child : Children)
+        {
+            DestroyHologramTree(Child);
+        }
+        // The actor itself, not the tree — recursing here would never return.
+        Hologram->Destroy();
+    }
+
+    /**
      * Whether every remaining objection is only about things being in the way.
      *
      * The owner builds with clearance off, so their factories legitimately have
@@ -881,11 +907,33 @@ namespace
             ++BuildSteps;
         }
         Predicted->SetNumberField(TEXT("hologram_build_steps"), BuildSteps);
-        if (!bPlacementFinished)
+
+        // "Finished" is not the only way to be ready, and treating it as such
+        // refused a blueprint the game had already approved:
+        //
+        //   placement_disqualifiers = []
+        //   hologram_can_construct  = true
+        //   hologram_build_steps    = 8      (the loop bound, never "finished")
+        //
+        // AFGBlueprintHologram simply does not report finished the way a single
+        // building does. CanConstruct is the game's own answer to "may this be
+        // built", and it said yes while this code was still waiting for a
+        // different signal.
+        //
+        // So the gate becomes: finished, or the game says it can construct and
+        // wants no further points. A belt handed no endpoints still fails it —
+        // that hologram cannot construct and asks to advance — which is the
+        // case the original single call was protecting.
+        const bool bReadyWithoutFinishing =
+            Hologram->CanConstruct() && !Hologram->CanTakeNextBuildStep();
+        if (!bPlacementFinished && !bReadyWithoutFinishing)
         {
             OutFailure = TEXT("hologram_requires_additional_placement_points");
             return false;
         }
+        Predicted->SetBoolField(
+            TEXT("constructed_without_finishing_placement"),
+            !bPlacementFinished && bReadyWithoutFinishing);
         Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
         HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
@@ -1598,7 +1646,7 @@ FAIFactoryActionResult PlaceBuilding(
     {
         if (IsValid(Hologram))
         {
-            Hologram->Destroy();
+            DestroyHologramTree(Hologram);
         }
         Result.bAccepted = false;
         Result.Status = TEXT("refused");
@@ -1610,7 +1658,7 @@ FAIFactoryActionResult PlaceBuilding(
 
     if (Context.bDryRun)
     {
-        Hologram->Destroy();
+        DestroyHologramTree(Hologram);
         Result.Status = TEXT("dry_run");
         return Result;
     }
@@ -1644,7 +1692,7 @@ FAIFactoryActionResult PlaceBuilding(
         Buildables->GetNewNetConstructionID());
     if (IsValid(Hologram))
     {
-        Hologram->Destroy();
+        DestroyHologramTree(Hologram);
     }
 
     AFGBuildable* RootBuildable = Cast<AFGBuildable>(Constructed);
@@ -1968,7 +2016,7 @@ FAIFactoryActionResult PlaceBlueprint(
     {
         if (IsValid(SpawnedHologram))
         {
-            SpawnedHologram->Destroy();
+            DestroyHologramTree(SpawnedHologram);
         }
         Result.Predicted = Predicted;
         Result.bAccepted = false;
@@ -2010,7 +2058,7 @@ FAIFactoryActionResult PlaceBlueprint(
 
     if (!bHologramValid || !bCanAfford || !bCostsMatch)
     {
-        Hologram->Destroy();
+        DestroyHologramTree(Hologram);
         Result.bAccepted = false;
         Result.Status = TEXT("refused");
         if (!HologramFailure.IsEmpty())
@@ -2030,7 +2078,7 @@ FAIFactoryActionResult PlaceBlueprint(
 
     if (Context.bDryRun)
     {
-        Hologram->Destroy();
+        DestroyHologramTree(Hologram);
         Result.Status = TEXT("dry_run");
         return Result;
     }
@@ -2041,7 +2089,7 @@ FAIFactoryActionResult PlaceBlueprint(
         Buildables->GetNewNetConstructionID());
     if (IsValid(Hologram))
     {
-        Hologram->Destroy();
+        DestroyHologramTree(Hologram);
     }
 
     AFGBlueprintProxy* Proxy = Cast<AFGBlueprintProxy>(Constructed);
@@ -2548,7 +2596,7 @@ FAIFactoryActionResult PlaceBelt(
     {
         // DoMultiStepPlacement returns true only when placement is finished.
         // At the source it must instead advance to the destination step.
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         return FAIFactoryActionResult::Refuse(
             Action,
             bFinishedAtSource
@@ -2582,7 +2630,7 @@ FAIFactoryActionResult PlaceBelt(
             bSnappedSource
                 ? TEXT("belt_source_step_advanced_but_expected_buildable_was_absent")
                 : TEXT("belt_hologram_did_not_accept_the_source_connection");
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         return Result;
     }
 
@@ -2618,7 +2666,7 @@ FAIFactoryActionResult PlaceBelt(
         Result.Reason = !bExpectedSourceBuildableStillSnapped
             ? TEXT("belt_hologram_lost_expected_source_while_snapping_destination")
             : TEXT("belt_hologram_did_not_snap_to_expected_destination_buildable");
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         return Result;
     }
 
@@ -2642,13 +2690,13 @@ FAIFactoryActionResult PlaceBelt(
         Result.Reason = HardReason.IsEmpty()
             ? TEXT("belt_hologram_refused_placement_or_cost")
             : TEXT("belt_hologram_disqualified:") + HardReason;
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         return Result;
     }
 
     if (!Belt->DoMultiStepPlacement(true))
     {
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("belt_hologram_wants_more_placement_points"));
@@ -2678,13 +2726,13 @@ FAIFactoryActionResult PlaceBelt(
                 ? TEXT("belt_hologram_refused_after_final_build_step")
                 : TEXT("belt_hologram_disqualified_after_final_build_step:") + HardReason)
             : TEXT("player_cannot_afford_hologram_cost");
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         return Result;
     }
 
     if (Context.bDryRun)
     {
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
         Result.Predicted = Predicted;
         Result.bAccepted = true;
         Result.Status = TEXT("dry_run");
@@ -2697,7 +2745,7 @@ FAIFactoryActionResult PlaceBelt(
         Buildables->GetNewNetConstructionID());
     if (IsValid(Belt))
     {
-        Belt->Destroy();
+        DestroyHologramTree(Belt);
     }
 
     TArray<AFGBuildable*> Built;
