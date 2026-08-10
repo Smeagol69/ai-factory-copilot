@@ -53,7 +53,7 @@ function designFileName(name) {
  * build recipe is unknown would come back as some other building, so it is
  * reported as skipped rather than approximated.
  */
-export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_000, actor_ids: actorIds = null } = {}) {
+export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_000, actor_ids: actorIds = null, exclude_extractors: excludeExtractors = false } = {}) {
   const trimmed = String(name ?? "").trim();
   if (!trimmed) return { saved: false, reason: "the design needs a name" };
   if (!designFileName(trimmed)) {
@@ -83,6 +83,14 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
     }
 
     const recipeClass = String(raw.built_with_recipe ?? "").trim();
+    // A design with no extractor is one a Blueprint Designer will accept, which
+    // is the difference between a saved design and a real placeable blueprint.
+    // One miner is placed on the node; everything downstream is the reusable
+    // part.
+    if (excludeExtractors && isExtractorRecipe(recipeClass)) {
+      skipped.push({ name: raw.name, why: "left out so the design has no extractor" });
+      continue;
+    }
     if (!recipeClass) {
       skipped.push({ name: raw.name, why: "the capture does not say what recipe built it" });
       continue;
@@ -129,6 +137,7 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
       saved_at_utc: new Date().toISOString(),
       world_revision: graph?.world_revision ?? null,
       selected_by: chosen ? "dismantle_selection" : "radius",
+      extractor_free: excludeExtractors,
       radius_cm: chosen ? null : radiusCm,
       building_count: buildings.length,
       buildings,

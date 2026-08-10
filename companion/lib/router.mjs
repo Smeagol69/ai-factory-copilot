@@ -2424,6 +2424,7 @@ export function answerLocally(question, graph, services) {
       name: designSave.name,
       origin: anchor,
       ...(chosenIds.length > 0 ? { actor_ids: chosenIds } : {}),
+      ...(designSave.exclude_extractors ? { exclude_extractors: true } : {}),
       ...(designSave.radius_cm ? { radius_cm: designSave.radius_cm } : {}),
     });
     if (!captured.saved) {

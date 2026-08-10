@@ -99,6 +99,19 @@ export function planClone(graph, args = {}) {
       reason: "that is not a captured building, or the snapshot does not say what recipe built it",
     };
   }
+  // An extractor is bound to a resource node, so copies of one have nowhere to
+  // stand. The game says FGCDNeedsResourceNode and refuses the whole plan;
+  // saying it here costs nothing and points at what the player probably meant.
+  if (/Miner|Extractor|WaterPump|OilPump|FrackingExtractor/i.test(source.recipe_class)) {
+    return {
+      solver: "clone",
+      planned: false,
+      reason:
+        `a ${source.display_name} has to sit on a resource node, so copies of it ` +
+        "have nowhere to go. Aim at a machine instead — a Smelter or Constructor " +
+        "clones fine",
+    };
+  }
   if (!source.extent) {
     // Without a measured footprint the pitch would be a guess, and a guessed
     // pitch either overlaps the copies or scatters them.
