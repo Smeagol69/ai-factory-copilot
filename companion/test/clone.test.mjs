@@ -60,16 +60,20 @@ test("a copy keeps the recipe that built it and the recipe it runs", () => {
 });
 
 test("spacing is measured from the building's own bounds", () => {
-  // extent.y is a half-size, so the footprint across the row is 900, plus the
-  // 200 gap. Nothing here knows or needs to know what a Smelter is.
+  // extent.y is a half-size, so the footprint across the row is 900 plus the
+  // 200 gap = 1100, then snapped up to the next half foundation. Nothing here
+  // knows or needs to know what a Smelter is.
   const result = clone();
-  assert.equal(result.pitch_cm, 1_100);
+  assert.equal(result.pitch_cm, 1_200);
   assert.equal(result.measured_from_bounds, true);
 
   const wider = clone({
     actors: [{ ...SMELTER, bounds: { ...SMELTER.bounds, extent: { x: 300, y: 900, z: 400 } } }],
   });
   assert.equal(wider.pitch_cm, 2_000);
+
+  // A bigger machine still lands on a grid line rather than on its own width.
+  assert.equal(clone().pitch_cm % 400, 0, "the pitch must sit on a half foundation");
 });
 
 test("copies are evenly spaced and none lands on the original", () => {
@@ -77,7 +81,7 @@ test("copies are evenly spaced and none lands on the original", () => {
   const offsets = result.actions.map((action) =>
     Math.round(Math.hypot(action.location.x - SMELTER.location.x, action.location.y - SMELTER.location.y)),
   );
-  assert.deepEqual(offsets, [1_100, 2_200, 3_300]);
+  assert.deepEqual(offsets, [1_200, 2_400, 3_600]);
 });
 
 test("without measured bounds the pitch is unknown and it says so", () => {

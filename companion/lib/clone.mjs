@@ -84,6 +84,7 @@ export function planClone(graph, args = {}) {
     count = null,
     gap_cm: gapCm = DEFAULT_GAP_CM,
     direction = "side",
+    grid_cm: gridCm = 800,
   } = args;
 
   const wanted = Number(count);
@@ -129,7 +130,19 @@ export function planClone(graph, args = {}) {
   const acrossExtent = direction === "forward"
     ? Math.abs(Number(source.extent.x))
     : Math.abs(Number(source.extent.y));
-  const pitch = Math.round(acrossExtent * 2 + Number(gapCm));
+
+  // Snap the pitch to the building grid.
+  //
+  // Footprint plus a gap gave 11.04 m between Smelters, which fits but lands on
+  // no particular line — the owner's word was "wonky", and it is, because
+  // nothing in Satisfactory lines up with 11.04 m. Rounding up to the next half
+  // foundation puts every copy on a grid line, so a row of machines reads as
+  // deliberate and sits square on foundations laid later.
+  //
+  // Half a cell rather than a whole one: a full cell would round 11.04 m up to
+  // 16 m and waste half a foundation between every pair.
+  const step = Math.max(100, Math.round(Number(gridCm) / 2));
+  const pitch = Math.ceil((acrossExtent * 2 + Number(gapCm)) / step) * step;
 
   const actions = [];
   for (let index = 1; index <= wanted; index += 1) {
@@ -160,6 +173,7 @@ export function planClone(graph, args = {}) {
     },
     count: wanted,
     pitch_cm: pitch,
+    grid_cm: gridCm,
     direction,
     measured_from_bounds: true,
     actions,
