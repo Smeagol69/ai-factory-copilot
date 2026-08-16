@@ -785,7 +785,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, teleport_player, dismantle, undo_last. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). Use undo_last to reverse the previous action.",
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -797,7 +797,7 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "teleport_player", "dismantle", "undo_last"],
+                enum: ["place_building", "place_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
@@ -806,9 +806,12 @@ export const SOLVER_TOOLS = [
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
               blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
               actor_id: { type: "string", description: "dismantle: the actor_id to remove." },
+              name: { type: "string", description: "waypoint: the label shown on the map and compass." },
+              item_class: { type: "string", description: "give_item: exact item class_path or display name." },
+              amount: { type: "number", description: "give_item: how many." },
               location: {
                 type: "object",
-                description: "Where, in centimetres. place_building and place_blueprint need an explicit z.",
+                description: "Where, in centimetres. place_building and place_blueprint need an explicit z; waypoint uses it as the marker position.",
                 properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
                 additionalProperties: false,
               },
