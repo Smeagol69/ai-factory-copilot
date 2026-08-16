@@ -46,8 +46,12 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
+<<<<<<< HEAD
 | 2026-08-16 | Codex | `codex/native-blueprint-designer` | Owner-corrected native-blueprint direction: audit and extend the actual Satisfactory Blueprint Designer / `.sbp` workflow so large whole-factory captures and valid extractors/miners are not rejected merely by the current modular-design policy. Preserve existing `place_blueprint`, saved-design, and blueprint-library behavior; first prove every engine constraint and hook against the matching CL 502094 headers, then add only an authoritative extension plus tests, package, and live save evidence. | in progress |
 | 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | in progress |
+=======
+| 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | complete; 654 companion tests pass; C++ executor and a live export test remain required before deployment |
+>>>>>>> 3ccb4df (Add native whole-factory export contract)
 | 2026-08-16 | Codex | `codex/release-hardening` | Version-match recovery after the live snapshot crash: use a fresh official SML Starter Project at FactoryGame CL 502094 (the installed game version), preserve the old project's local Wwise patch without mutating it, update `scripts/validate.ps1` and `scripts/package-local.ps1` to validate the Starter/Game changelist relationship, then rebuild/package/deploy and live-test save load before any further placement work. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Live-load crash repair in `AIFactorySnapshot.cpp` plus an additive source-contract regression: the deployed startup self-test called `AFGBuildableManufacturer::GetProductionCycleTime()` for a loaded modded manufacturer with no valid current recipe, which crashed before the panel opened. Capture recipe state first and keep production-cycle fields explicitly unknown instead of calling recipe-dependent engine accessors without a valid recipe. Recompile/package/deploy and rerun the save-load boundary. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Additive live-reliability follow-up after the shared-master audit: exact Mk.1 `without belts` parser coverage in `router.mjs` / tests; change the unmeasured nearby-resource-node center-distance refusal in `resource-factory.mjs` into an explicit advisory; append game-enriched action outcomes in `AIFactorySubsystem.cpp` so later questions cannot overwrite belt diagnostics. Existing C++ conveyor and contract-test work remains intact. | complete; compiled, packaged, deployed, and companion-installed; live save retry still required |
@@ -2390,6 +2394,7 @@ the journal. Attachment replay (for example, a Conveyor Wall Hole needing a
 wall host) remains a separate open issue and was not weakened or disguised by
 this change.
 
+<<<<<<< HEAD
 ### Claude fixed the discarded Z — 2026-08-17
 
 The bug written up under "The requested Z is discarded" above is fixed, along
@@ -3107,3 +3112,44 @@ foundations should land flat at the requested Z, and the machines should follow
 without any further change. If a foundation still drifts, read
 `requested_z_reached`; if a machine drifts while its foundations are flat,
 the machine's own height resolution is the next thing to look at, not the snap.
+=======
+### Codex — 2026-08-16 native whole-factory export companion contract
+
+Branch `codex/native-blueprint-export-contract` adds the bridge half only; it
+does **not** touch C++ or claim that the current package can export a file.
+
+`export this factory as blueprint <name>` now emits one
+`export_native_blueprint` action only from the exact actor set currently marked
+in `interaction_context.dismantle_selection`. The bridge rejects an unavailable
+or empty selection, duplicate/subset/invented ids, non-buildable members,
+missing captured actors, and missing/invalid bounds. It canonicalises the
+action to these fields:
+
+```text
+action = export_native_blueprint
+blueprint_name = raw requested name
+selection_source = dismantle_selection
+selected_actor_ids = exact current marked ids, in capture order
+selected_actor_count = length of that list
+captured_selection_bounds_cm = { minimum, maximum, units: unreal_centimeters }
+commit / expect_world_revision / require_unchanged_world = normal write fields
+```
+
+The bounds are an evidence witness, **not** authority: the C++ executor must
+re-resolve all ids and recompute its native origin/dimensions immediately before
+archive writing. There is deliberately no blueprint-size or selected-actor cap
+in the companion; memory, archive, native proxy, and serializer constraints must
+be measured and returned by the game. A committed export is one standalone,
+durable-file action and cannot be represented as `undo_last`.
+
+The local reply says only that it submitted an export request, never that an
+`.sbp` exists. It explicitly names game-side rechecks for proxy/lightweight
+members, resource anchors, and archive output. Existing saved-design and
+`place_blueprint` routes are untouched. The complete executor/readback contract
+is in `docs/NATIVE_BLUEPRINT_EXPORT.md` (linked from `docs/ROADMAP.md`).
+
+Verification: `cd companion; npm test` passes **654/654**. Do not deploy the
+companion alone: `AIFactoryActions.cpp` must add the corresponding authoritative
+executor/action-kind handling and then a real selected-factory export must be
+run in a loaded save before calling this feature working.
+>>>>>>> 3ccb4df (Add native whole-factory export contract)
