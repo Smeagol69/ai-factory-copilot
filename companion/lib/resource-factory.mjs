@@ -34,18 +34,18 @@ const EPSILON = 1e-6;
  * crowding machines into each other.
  */
 const STAGE = {
-  raw_splitter: 1_200,
-  raw_splitter_step: 800,
-  smelter: 2_600,
-  ingot_merger: 3_900,
-  ingot_merger_step: 800,
-  ingot_splitter: 4_900,
-  ingot_splitter_step: 800,
-  constructor: 6_400,
-  output_merger: 7_900,
-  storage: 9_200,
+  raw_splitter: 800,
+  raw_splitter_step: 600,
+  smelter: 1_800,
+  ingot_merger: 2_800,
+  ingot_merger_step: 600,
+  ingot_splitter: 3_600,
+  ingot_splitter_step: 600,
+  constructor: 4_600,
+  output_merger: 5_600,
+  storage: 6_400,
   /** Sideways gap between machines in the same row. */
-  lateral: 1_400,
+  lateral: 1_200,
 };
 
 function round(value, places = 3) {

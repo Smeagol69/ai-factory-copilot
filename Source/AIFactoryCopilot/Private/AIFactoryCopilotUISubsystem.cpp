@@ -191,10 +191,14 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                             // the phrase to say. The panel is Slate and draws
                             // plain text, so a link inside the transcript would
                             // not be clickable — a button is.
+                            // No tooltip. The one that was here outlived the
+                            // panel and followed the cursor around the world
+                            // with no way to dismiss it -- a Slate tooltip does
+                            // not go away just because the widget that owned it
+                            // was hidden. "Library" says what the button does,
+                            // so the tooltip was buying nothing anyway.
                             SNew(SButton)
                             .Text(FText::FromString(TEXT("Library")))
-                            .ToolTipText(FText::FromString(
-                                TEXT("Open the saved design and blueprint library in your browser.")))
                             .OnClicked_Lambda([this]()
                             {
                                 FPlatformProcess::LaunchURL(
