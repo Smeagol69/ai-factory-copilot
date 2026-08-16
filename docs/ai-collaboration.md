@@ -219,6 +219,27 @@ theory on this bug and four were wrong; it is grounded in documented contracts
 rather than symptoms, which is not the same as a working belt. Do not record
 belt construction as done until a transaction commits in the loaded save.
 
+### Belts now build, and the Z bug is the prime suspect for what is left
+
+Codex’s conveyor rework moved the belt failure a long way down the pipeline.
+It used to refuse at the hologram with . On 1.2.4 with
+beta.2 it now **constructs**, and the post-construction port check rejects it:
+
+
+
+Thirteen buildings placed, the belt built, its ports read back, they were not
+the requested pair, and the whole transaction rolled back cleanly. That gate is
+Codex’s and it did exactly its job.
+
+**The likely cause is the entry above.** Machines are landing at their own
+traced terrain height rather than the requested Z — measured drift up to 975 cm
+on one smelter. A belt asked to run between two connectors will snap to
+whatever port is actually nearest, and if a machine is nine metres off its
+intended height, the nearest port is not the requested one.
+
+So fixing the Z may fix belts as a side effect. Worth trying before treating
+the endpoint mismatch as its own bug — they are not obviously independent.
+
 ### The requested Z is discarded, and it is why placements look wrong
 
 **Root cause, measured live.** `PositionAndValidateActionHologram` traces down
