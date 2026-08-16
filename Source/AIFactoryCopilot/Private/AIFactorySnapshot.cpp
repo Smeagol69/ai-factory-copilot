@@ -984,6 +984,17 @@ namespace
         }
         Result->SetArrayField(TEXT("inventories"), InventoryEntries);
 
+        // A modded or partially loaded manufacturer can exist before its
+        // replicated current recipe does. FactoryGame implements both cycle
+        // accessors by dereferencing that recipe, so asking it for a cycle at
+        // this point crashes the save instead of reporting an unknown rate.
+        // Capture the recipe once before the generic factory block and only
+        // call those recipe-dependent accessors when it is a valid class.
+        const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Buildable);
+        const TSubclassOf<UFGRecipe> Recipe =
+            Manufacturer ? Manufacturer->GetCurrentRecipe() : nullptr;
+        const bool bProductionCycleKnown = !Manufacturer || IsValid(Recipe.Get());
+
         if (const AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Buildable))
         {
             const TSharedRef<FJsonObject> FactoryState = MakeShared<FJsonObject>();
@@ -993,8 +1004,18 @@ namespace
                     static_cast<int64>(Factory->GetProductionIndicatorStatus())));
             FactoryState->SetNumberField(TEXT("productivity"), Factory->GetProductivity());
             FactoryState->SetNumberField(TEXT("production_progress"), Factory->GetProductionProgress());
-            FactoryState->SetNumberField(TEXT("production_cycle_seconds"), Factory->GetProductionCycleTime());
-            FactoryState->SetNumberField(TEXT("default_production_cycle_seconds"), Factory->GetDefaultProductionCycleTime());
+            FactoryState->SetBoolField(TEXT("production_cycle_known"), bProductionCycleKnown);
+            if (bProductionCycleKnown)
+            {
+                FactoryState->SetNumberField(TEXT("production_cycle_seconds"), Factory->GetProductionCycleTime());
+                FactoryState->SetNumberField(TEXT("default_production_cycle_seconds"), Factory->GetDefaultProductionCycleTime());
+            }
+            else
+            {
+                FactoryState->SetStringField(
+                    TEXT("production_cycle_unavailable_reason"),
+                    TEXT("manufacturer_has_no_valid_current_recipe"));
+            }
             FactoryState->SetNumberField(TEXT("current_potential"), Factory->GetCurrentPotential());
             FactoryState->SetNumberField(TEXT("pending_potential"), Factory->GetPendingPotential());
             FactoryState->SetNumberField(TEXT("max_potential"), Factory->GetMaxPotential());
@@ -1005,9 +1026,8 @@ namespace
             Result->SetObjectField(TEXT("factory"), FactoryState);
         }
 
-        if (const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Buildable))
+        if (Manufacturer)
         {
-            const TSubclassOf<UFGRecipe> Recipe = Manufacturer->GetCurrentRecipe();
             const TSharedRef<FJsonObject> ManufacturerState = MakeShared<FJsonObject>();
             ManufacturerState->SetStringField(TEXT("recipe_class"), ClassPath(Recipe.Get()));
             ManufacturerState->SetStringField(TEXT("recipe_name"),

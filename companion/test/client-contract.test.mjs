@@ -347,6 +347,38 @@ test("extractors report the current extractable interface, not deprecated node s
   assert.doesNotMatch(snapshot, /Extractor->GetResourceNode\(\)/);
 });
 
+test("an unconfigured manufacturer stays an unknown cycle rate instead of crashing the snapshot", () => {
+  const snapshot = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  const recipe = snapshot.indexOf(
+    "const TSubclassOf<UFGRecipe> Recipe =",
+  );
+  const validRecipeGuard = snapshot.indexOf(
+    "const bool bProductionCycleKnown = !Manufacturer || IsValid(Recipe.Get());",
+  );
+  const cycleGuard = snapshot.indexOf("if (bProductionCycleKnown)");
+  const cycle = snapshot.indexOf("Factory->GetProductionCycleTime()", cycleGuard);
+  const defaultCycle = snapshot.indexOf("Factory->GetDefaultProductionCycleTime()", cycleGuard);
+  const unknown = snapshot.indexOf("manufacturer_has_no_valid_current_recipe", cycleGuard);
+  assert.ok(
+    recipe >= 0 &&
+      recipe < validRecipeGuard &&
+      validRecipeGuard < cycleGuard &&
+      cycleGuard < cycle &&
+      cycle < defaultCycle &&
+      unknown > defaultCycle,
+    "cycle accessors must be guarded by the captured current-recipe validity",
+  );
+  assert.match(snapshot, /production_cycle_known/);
+  assert.match(snapshot, /production_cycle_unavailable_reason/);
+});
+
 test("game action outcomes are append-only diagnostics after authoritative execution", () => {
   const subsystem = fs.readFileSync(
     new URL(
