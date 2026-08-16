@@ -418,6 +418,7 @@ void AAIFactorySubsystem::AskBridge(
     {
         EffectiveRequest.PlayerController = Sender->GetPlayer();
     }
+    const FString SnapshotWorldRevision = LexToString(GetWorldRevision());
     const FAIFactorySnapshotResult Snapshot = BuildSnapshot(EffectiveRequest);
     TSharedPtr<FJsonObject> SnapshotObject;
     const TSharedRef<TJsonReader<>> SnapshotReader = TJsonReaderFactory<>::Create(Snapshot.Json);
@@ -432,12 +433,14 @@ void AAIFactorySubsystem::AskBridge(
         return;
     }
 
+    const FString BridgeSessionId = GetBridgeSessionId(Sender);
+    const FString RequestSentAtUtc = FDateTime::UtcNow().ToIso8601();
     const TSharedRef<FJsonObject> Payload = MakeShared<FJsonObject>();
     Payload->SetStringField(TEXT("schema"), TEXT("aifactory.ask"));
     Payload->SetNumberField(TEXT("schema_version"), 1);
-    Payload->SetStringField(TEXT("session_id"), GetBridgeSessionId(Sender));
+    Payload->SetStringField(TEXT("session_id"), BridgeSessionId);
     Payload->SetStringField(TEXT("question_received_at_game_utc"), QuestionReceivedAtUtc);
-    Payload->SetStringField(TEXT("request_sent_at_game_utc"), FDateTime::UtcNow().ToIso8601());
+    Payload->SetStringField(TEXT("request_sent_at_game_utc"), RequestSentAtUtc);
     Payload->SetStringField(TEXT("question"), Question);
     Payload->SetObjectField(TEXT("world_snapshot"), SnapshotObject.ToSharedRef());
     Payload->SetStringField(TEXT("response_policy"),
@@ -464,7 +467,14 @@ void AAIFactorySubsystem::AskBridge(
         ExpectedBridgeVersion = CopilotPlugin->GetDescriptor().VersionName;
     }
     HttpRequest->OnProcessRequestComplete().BindLambda(
-        [WeakSender, WeakThis, bEchoToGameChat, ExpectedBridgeVersion](
+        [WeakSender,
+         WeakThis,
+         bEchoToGameChat,
+         ExpectedBridgeVersion,
+         BridgeSessionId,
+         QuestionReceivedAtUtc,
+         RequestSentAtUtc,
+         SnapshotWorldRevision](
             FHttpRequestPtr RequestPtr,
             FHttpResponsePtr Response,
             const bool bConnectedSuccessfully)
@@ -660,6 +670,58 @@ void AAIFactorySubsystem::AskBridge(
                 ResponseJson->SetStringField(
                     TEXT("game_world_revision_after"),
                     LexToString(WeakThis->GetWorldRevision()));
+
+                // `latest-bridge-response.json` deliberately stays a convenient
+                // overwriteable view of the most recent response. Action
+                // outcomes need a history instead: a later read-only question
+                // must not erase the exact game readback that explains a failed
+                // or rolled-back build. This is diagnostics only; it never
+                // participates in undo or changes the reply on a write failure.
+                if (Actions->Num() > 0)
+                {
+                    const TSharedRef<FJsonObject> Outcome = MakeShared<FJsonObject>();
+                    Outcome->SetStringField(TEXT("schema"), TEXT("aifactory.action-outcome"));
+                    Outcome->SetNumberField(TEXT("schema_version"), 1);
+                    Outcome->SetStringField(TEXT("recorded_at_game_utc"), FDateTime::UtcNow().ToIso8601());
+                    Outcome->SetStringField(TEXT("session_id"), BridgeSessionId);
+                    Outcome->SetStringField(TEXT("question_received_at_game_utc"), QuestionReceivedAtUtc);
+                    Outcome->SetStringField(TEXT("request_sent_at_game_utc"), RequestSentAtUtc);
+                    Outcome->SetStringField(TEXT("bridge_version"), BridgeVersion);
+                    Outcome->SetStringField(TEXT("provider"), Provider);
+                    Outcome->SetStringField(TEXT("model"), Model);
+                    Outcome->SetStringField(TEXT("snapshot_world_revision"), SnapshotWorldRevision);
+                    Outcome->SetStringField(
+                        TEXT("game_world_revision_after"),
+                        LexToString(WeakThis->GetWorldRevision()));
+                    Outcome->SetStringField(TEXT("game_action_summary"), ActionSummary);
+                    Outcome->SetBoolField(
+                        TEXT("game_write_actions_enabled"),
+                        ActionSettings.bAllowWriteActions);
+                    Outcome->SetBoolField(TEXT("game_world_was_mutated"), bCommittedWorldWrite);
+                    Outcome->SetBoolField(TEXT("game_actions_refused"), bActionsRefused);
+                    Outcome->SetStringField(TEXT("game_actions_refusal_reason"), ActionsRefusalReason);
+                    Outcome->SetNumberField(TEXT("game_actions_requested_count"), Actions->Num());
+                    Outcome->SetNumberField(TEXT("game_actions_executed_count"), ActionResults.Num());
+                    Outcome->SetArrayField(TEXT("game_action_results"), ActionResults);
+
+                    FString OutcomeJson;
+                    const TSharedRef<TJsonWriter<>> OutcomeWriter =
+                        TJsonWriterFactory<>::Create(&OutcomeJson);
+                    const FString OutcomePath =
+                        FPaths::Combine(DiagnosticsDirectory, TEXT("action-outcomes.jsonl"));
+                    if (!FJsonSerializer::Serialize(Outcome, OutcomeWriter) ||
+                        !FFileHelper::SaveStringToFile(
+                            OutcomeJson + TEXT("\n"),
+                            *OutcomePath,
+                            FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,
+                            &IFileManager::Get(),
+                            EFileWrite::FILEWRITE_Append))
+                    {
+                        UE_LOG(LogAIFactoryCopilot, Warning,
+                            TEXT("Could not append game action outcome diagnostic to %s"),
+                            *OutcomePath);
+                    }
+                }
                 UE_LOG(LogAIFactoryCopilot, Display,
                     TEXT("AI bridge actions: requested=%d executed=%d writes_enabled=%d"),
                     Actions->Num(),

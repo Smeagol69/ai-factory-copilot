@@ -31,6 +31,7 @@
 #include "Resources/FGBuildingDescriptor.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Dom/JsonObject.h"
+#include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
 
 namespace
@@ -2348,49 +2349,6 @@ UFGFactoryConnectionComponent* FindActionFactoryConnection(const FString& Compon
  * the machine primitive it hit. Preserve that part of the contract with an
  * actual UPrimitiveComponent owned by the connection's buildable.
  */
-/**
- * Snaps a belt endpoint the way the build gun does, so the hologram records an
- * aim as well as a connection.
- *
- * Three shapes were tried live and each failed differently:
- *
- *   - `UpdateHologramPlacement` alone did not snap to the source connector.
- *   - `TrySnapToActor` then `UpdateHologramPlacement` snapped, then the second
- *     call cleared the connection it had just recorded.
- *   - `TrySnapToActor` alone kept the connection and refused with
- *     `FGCDInvalidAimLocation` — 15 buildings placed and rolled back at the
- *     first belt.
- *
- * The headers say why the third fails. `OnInvalidHitResult` is documented as
- * firing when `IsValidHitResult` returns false, "e.g. aiming up in the sky",
- * and `PreHologramPlacement`/`PostHologramPlacement` are documented as running
- * before and after *all* the placement logic. `UpdateHologramPlacement` is the
- * wrapper that calls them, and calling `TrySnapToActor` on its own runs the
- * snap outside that envelope — so the connection is recorded and the aim never
- * is.
- *
- * This reassembles the documented sequence from its public parts: the envelope
- * from the wrapper, and the explicit snap that is already known to work.
- * `SetHologramLocationAndRotation` is the fallback the header names for when a
- * snap declines ("this handles snapping etc."), which keeps the non-snap path
- * on the same lifecycle instead of re-entering the wrapper and snapping twice.
- */
-bool SnapBeltEndpointWithAim(AFGHologram* Hologram, const FHitResult& Hit)
-{
-    if (!IsValid(Hologram))
-    {
-        return false;
-    }
-    Hologram->PreHologramPlacement(Hit, true);
-    const bool bSnapped = Hologram->TrySnapToActor(Hit);
-    if (!bSnapped)
-    {
-        Hologram->SetHologramLocationAndRotation(Hit);
-    }
-    Hologram->PostHologramPlacement(Hit, true);
-    return bSnapped;
-}
-
 FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
 {
     FHitResult Hit;
@@ -2409,6 +2367,50 @@ FHitResult MakeActionConnectionHit(UFGFactoryConnectionComponent* Connection)
         Hit.Component = Owner->FindComponentByClass<UPrimitiveComponent>();
     }
     return Hit;
+}
+
+/**
+ * Admit only the two exact endpoint-owner classes to this hologram's normal
+ * hit-validation lifecycle.
+ *
+ * AFGHologram intentionally rejects buildables unless their class is in its
+ * transient mValidHitClasses list. AddValidHitClass is protected in C++, but
+ * the exact 491125 header exposes it as BlueprintCallable and UHT registers a
+ * one-parameter native UFunction. Calling that reflected public contract lets
+ * UpdateHologramPlacement own visibility, Pre/TrySnap/Post and conveyor spline
+ * generation instead of partially reimplementing the build gun. Fail closed if
+ * the reflected signature ever changes, and broaden only to the two classes
+ * whose exact free connection components were already resolved server-side.
+ */
+bool AIFactoryAllowConveyorEndpointOwners(
+    AFGConveyorBeltHologram* Belt,
+    AFGBuildable* FromBuildable,
+    AFGBuildable* ToBuildable)
+{
+    if (!IsValid(Belt) || !IsValid(FromBuildable) || !IsValid(ToBuildable))
+    {
+        return false;
+    }
+
+    struct FAddValidHitClassParams
+    {
+        TSubclassOf<AActor> hitClass;
+    };
+
+    static const FName FunctionName(TEXT("AddValidHitClass"));
+    UFunction* Function = Belt->FindFunction(FunctionName);
+    if (!IsValid(Function) ||
+        Function->NumParms != 1 ||
+        Function->ParmsSize != sizeof(FAddValidHitClassParams))
+    {
+        return false;
+    }
+
+    FAddValidHitClassParams Params{FromBuildable->GetClass()};
+    Belt->ProcessEvent(Function, &Params);
+    Params.hitClass = ToBuildable->GetClass();
+    Belt->ProcessEvent(Function, &Params);
+    return true;
 }
 
 /**
@@ -2525,6 +2527,21 @@ FAIFactoryActionResult PlaceBelt(
         return FAIFactoryActionResult::Refuse(Action, TEXT("to_connection_is_an_output"));
     }
 
+    AFGBuildable* FromBuildable = Cast<AFGBuildable>(From->GetOwner());
+    AFGBuildable* ToBuildable = Cast<AFGBuildable>(To->GetOwner());
+    if (!IsValid(FromBuildable))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("from_connection_owner_is_not_a_buildable"));
+    }
+    if (!IsValid(ToBuildable))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("to_connection_owner_is_not_a_buildable"));
+    }
+
     UClass* RecipeClass = FindActionClassByPath(RecipeClassPath);
     if (!RecipeClass || !RecipeClass->IsChildOf(UFGRecipe::StaticClass()))
     {
@@ -2583,7 +2600,7 @@ FAIFactoryActionResult PlaceBelt(
     {
         if (IsValid(Spawned))
         {
-            Spawned->Destroy();
+            DestroyHologramTree(Spawned);
         }
         // A recipe that is not a belt would otherwise be free-placed at the
         // start connector, which is a building appearing where a belt was asked
@@ -2595,36 +2612,45 @@ FAIFactoryActionResult PlaceBelt(
 
     Belt->SetConstructionInstigator(Context.Player);
 
-    // Multi-step placement, exactly as the build gun drives it: snap from the
-    // source hit, lock it, snap from the destination hit, finish. Calling
-    // SetHologramLocationAndRotation directly skips AFGHologram's snap path.
-    // Ask the hologram to snap, and use its own answer rather than inferring one.
-    //
-    // `UpdateHologramPlacement` alone was not snapping to the source connector
-    // in a live save — the belt refused with
-    // `belt_hologram_did_not_accept_the_source_connection` on a perfectly
-    // ordinary 13 m run. `TrySnapToActor` is the public entry point the build
-    // gun uses for exactly this, it returns whether the snap took, and it is
-    // overridden by the conveyor hologram specifically to find connections near
-    // the hit. Calling it directly turns a silent non-snap into a fact.
-    //
-    // The exact 491125 AFGHologram header is explicit about the call contract:
-    // a true TrySnapToActor result means the transform and snap are already
-    // applied, so no further location update runs that frame. A live factory
-    // attempt proved why: calling UpdateHologramPlacement after a successful
-    // source snap cleared the just-recorded connection. Only fall back to the
-    // complete update path when the direct snap declines the hit.
+    if (!AIFactoryAllowConveyorEndpointOwners(Belt, FromBuildable, ToBuildable))
+    {
+        DestroyHologramTree(Belt);
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_valid_hit_class_contract_unavailable"));
+    }
+    Predicted->SetStringField(
+        TEXT("source_hit_class"),
+        FromBuildable->GetClass()->GetPathName());
+    Predicted->SetStringField(
+        TEXT("destination_hit_class"),
+        ToBuildable->GetClass()->GetPathName());
+
+    // Multi-step placement through AFGHologram's normal update frame. The exact
+    // endpoint classes admitted above make each synthetic machine hit valid, so
+    // UpdateHologramPlacement unhides the hologram and runs Pre, one snap
+    // attempt, and Post. Conveyor Post generates the spline. Lock that source,
+    // repeat the complete frame once for the destination, then finish.
     const FHitResult FromHit = MakeActionConnectionHit(From);
     const bool bSourceHitValid = Belt->IsValidHitResult(FromHit);
     Predicted->SetBoolField(TEXT("source_hit_valid"), bSourceHitValid);
-    const bool bSnappedSource = SnapBeltEndpointWithAim(Belt, FromHit);
-    Predicted->SetBoolField(TEXT("source_snap_accepted"), bSnappedSource);
-    Predicted->SetBoolField(
-        TEXT("source_connection_snapped_false"),
-        Belt->IsConnectionSnapped(false));
-    Predicted->SetBoolField(
-        TEXT("source_connection_snapped_true"),
-        Belt->IsConnectionSnapped(true));
+    if (!bSourceHitValid)
+    {
+        DestroyHologramTree(Belt);
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_rejected_source_hit"));
+    }
+    Belt->UpdateHologramPlacement(FromHit);
+    const bool bSourceHologramVisible = !Belt->IsHidden();
+    Predicted->SetBoolField(TEXT("source_hologram_visible"), bSourceHologramVisible);
+    if (!bSourceHologramVisible)
+    {
+        DestroyHologramTree(Belt);
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_hidden_after_source_update"));
+    }
 
     const ESplineHologramBuildStep SourceStep = Belt->GetCurrentBuildStep();
     const bool bFinishedAtSource = Belt->DoMultiStepPlacement(false);
@@ -2648,7 +2674,6 @@ FAIFactoryActionResult PlaceBelt(
     // engine's own GetAnyConnectedBuildables implementation. The final
     // component-to-component world readback after construction remains the
     // stricter proof.
-    AFGBuildable* FromBuildable = Cast<AFGBuildable>(From->GetOwner());
     const TArray<AFGBuildable*> SourceSnappedBuildables =
         Belt->GetAnyConnectedBuildables();
     const bool bExpectedSourceBuildableSnapped =
@@ -2662,10 +2687,7 @@ FAIFactoryActionResult PlaceBelt(
         Result.Predicted = Predicted;
         Result.bAccepted = false;
         Result.Status = TEXT("refused");
-        Result.Reason =
-            bSnappedSource
-                ? TEXT("belt_source_step_advanced_but_expected_buildable_was_absent")
-                : TEXT("belt_hologram_did_not_accept_the_source_connection");
+        Result.Reason = TEXT("belt_source_step_advanced_but_expected_buildable_was_absent");
         DestroyHologramTree(Belt);
         return Result;
     }
@@ -2673,15 +2695,23 @@ FAIFactoryActionResult PlaceBelt(
     const FHitResult ToHit = MakeActionConnectionHit(To);
     const bool bDestinationHitValid = Belt->IsValidHitResult(ToHit);
     Predicted->SetBoolField(TEXT("destination_hit_valid"), bDestinationHitValid);
-    const bool bSnappedDestination = SnapBeltEndpointWithAim(Belt, ToHit);
-    Predicted->SetBoolField(TEXT("destination_snap_accepted"), bSnappedDestination);
-    Predicted->SetBoolField(
-        TEXT("destination_connection_snapped_false"),
-        Belt->IsConnectionSnapped(false));
-    Predicted->SetBoolField(
-        TEXT("destination_connection_snapped_true"),
-        Belt->IsConnectionSnapped(true));
-    AFGBuildable* ToBuildable = Cast<AFGBuildable>(To->GetOwner());
+    if (!bDestinationHitValid)
+    {
+        DestroyHologramTree(Belt);
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_rejected_destination_hit"));
+    }
+    Belt->UpdateHologramPlacement(ToHit);
+    const bool bDestinationHologramVisible = !Belt->IsHidden();
+    Predicted->SetBoolField(TEXT("destination_hologram_visible"), bDestinationHologramVisible);
+    if (!bDestinationHologramVisible)
+    {
+        DestroyHologramTree(Belt);
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("belt_hologram_hidden_after_destination_update"));
+    }
     const TArray<AFGBuildable*> DestinationSnappedBuildables =
         Belt->GetAnyConnectedBuildables();
     const bool bExpectedSourceBuildableStillSnapped =
@@ -2807,8 +2837,9 @@ FAIFactoryActionResult PlaceBelt(
     // Actor-level snap evidence prevents obviously wrong construction, but a
     // splitter can expose several ports on the same actor. Only the constructed
     // belt's two public connection components can prove that these exact From
-    // and To components were joined, in either belt orientation, with both
-    // sides pointing back to each other.
+    // and To components were joined in the requested output-to-input direction,
+    // with both sides pointing back to each other. FactoryGame declares
+    // mConnection0 as the belt input and mConnection1 as its output.
     const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetBoolField(TEXT("from_connected"), From->IsConnected());
     Observed->SetBoolField(TEXT("to_connected"), To->IsConnected());
@@ -2836,8 +2867,7 @@ FAIFactoryActionResult PlaceBelt(
             Right->GetConnection() == Left;
     };
     const bool bExactEndpoints =
-        (IsExactPair(Belt0, From) && IsExactPair(Belt1, To)) ||
-        (IsExactPair(Belt0, To) && IsExactPair(Belt1, From));
+        IsExactPair(Belt0, To) && IsExactPair(Belt1, From);
     Observed->SetBoolField(TEXT("constructed_root_is_conveyor"), IsValid(ConstructedBelt));
     Observed->SetStringField(
         TEXT("belt_connection_0"),
