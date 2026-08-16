@@ -33,6 +33,10 @@ export const WRITE_ACTION_KINDS = [
   "teleport_player",
   "place_building",
   "place_blueprint",
+  // Exports the exact set the player marked with the game's dismantle tool as
+  // a native .sbp. This writes a durable file, so it is a write even though it
+  // does not place or remove anything in the world.
+  "export_native_blueprint",
   // Runs a conveyor between two existing connection components. `plan_belt_route`
   // chooses and measures the pair; this builds it. Addressed by connection
   // component rather than by actor, because an actor id does not say which of a
@@ -156,6 +160,114 @@ function vector(input) {
   const z = finite(input.z);
   if (x === null || y === null) return null;
   return { x, y, z: z === null ? 0 : z };
+}
+
+/** A bounds vector has three dimensions; silently making its Z zero corrupts a blueprint envelope. */
+function explicitVector(input) {
+  const result = vector(input);
+  return result && finite(input?.z) !== null ? result : null;
+}
+
+/**
+ * The bridge does not get to make up a factory region. The only v1 export
+ * source is the exact set the player has marked in Satisfactory's dismantle
+ * state. It is deliberately a selection rather than a radius: a radius would
+ * sweep in neighbouring factories, power lines, or scenery that the player
+ * did not ask to package.
+ *
+ * The emitted envelope is a capture witness, not an instruction for the game.
+ * The native executor must re-resolve every actor and recompute these bounds
+ * immediately before calling the BlueprintSubsystem; the bridge cannot know
+ * about a proxy, lightweight instance, or resource anchor that changed after
+ * this capture.
+ */
+function resolveNativeBlueprintExportSelection(graph, proposedIds) {
+  const selection = graph?.snapshot?.interaction_context?.dismantle_selection;
+  if (selection?.available !== true) {
+    return { ok: false, reason: "dismantle_selection_is_not_available" };
+  }
+
+  if (!Array.isArray(proposedIds) || proposedIds.length === 0) {
+    return { ok: false, reason: "selected_actor_ids_are_required" };
+  }
+
+  const markedIds = Array.isArray(selection.actor_ids)
+    ? selection.actor_ids.map((id) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+  if (markedIds.length === 0) {
+    return { ok: false, reason: "dismantle_selection_is_empty" };
+  }
+  if (new Set(markedIds).size !== markedIds.length) {
+    return { ok: false, reason: "dismantle_selection_has_duplicate_actor_ids" };
+  }
+
+  const selectionCount = finite(selection.count);
+  if (selectionCount !== null && (!Number.isInteger(selectionCount) || selectionCount !== markedIds.length)) {
+    return {
+      ok: false,
+      reason: "dismantle_selection_count_does_not_match_actor_ids",
+      selection_count: selection.count,
+      actor_id_count: markedIds.length,
+    };
+  }
+
+  const requestedIds = proposedIds.map((id) => String(id ?? "").trim()).filter(Boolean);
+  if (requestedIds.length !== proposedIds.length || new Set(requestedIds).size !== requestedIds.length) {
+    return { ok: false, reason: "selected_actor_ids_must_be_unique_nonempty_strings" };
+  }
+  const markedSet = new Set(markedIds);
+  if (requestedIds.length !== markedIds.length || requestedIds.some((id) => !markedSet.has(id))) {
+    return {
+      ok: false,
+      reason: "selected_actor_ids_must_exactly_match_dismantle_selection",
+      marked_actor_count: markedIds.length,
+      requested_actor_count: requestedIds.length,
+    };
+  }
+
+  const minimum = { x: Infinity, y: Infinity, z: Infinity };
+  const maximum = { x: -Infinity, y: -Infinity, z: -Infinity };
+  const missingActors = [];
+  const nonBuildables = [];
+  const missingBounds = [];
+
+  for (const actorId of markedIds) {
+    const raw = graph?.nodes?.get(actorId)?.raw;
+    if (!raw) {
+      missingActors.push(actorId);
+      continue;
+    }
+    if (raw.kind !== "buildable") {
+      nonBuildables.push(actorId);
+      continue;
+    }
+    const origin = explicitVector(raw.bounds?.origin);
+    const extent = explicitVector(raw.bounds?.extent);
+    if (!origin || !extent || extent.x < 0 || extent.y < 0 || extent.z < 0) {
+      missingBounds.push(actorId);
+      continue;
+    }
+    for (const axis of ["x", "y", "z"]) {
+      minimum[axis] = Math.min(minimum[axis], origin[axis] - extent[axis]);
+      maximum[axis] = Math.max(maximum[axis], origin[axis] + extent[axis]);
+    }
+  }
+
+  if (missingActors.length > 0) {
+    return { ok: false, reason: "selected_actor_is_not_in_the_captured_world", actor_ids: missingActors };
+  }
+  if (nonBuildables.length > 0) {
+    return { ok: false, reason: "native_blueprint_selection_contains_non_buildables", actor_ids: nonBuildables };
+  }
+  if (missingBounds.length > 0) {
+    return { ok: false, reason: "selected_actor_bounds_are_not_captured", actor_ids: missingBounds };
+  }
+
+  return {
+    ok: true,
+    actorIds: markedIds,
+    bounds: { minimum, maximum, units: "unreal_centimeters" },
+  };
 }
 
 /**
@@ -477,6 +589,54 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         commit: proposal.commit === true,
       }, proposal),
+    };
+  }
+
+  if (kind === "export_native_blueprint") {
+    const name = String(proposal.blueprint_name ?? "").trim();
+    if (!name) return reject(kind, "blueprint_name_is_required");
+
+    // Do not accept a model-proposed box, radius, or arbitrary actor list.
+    // The player made this selection in the game's own multi-select tool, and
+    // its captured membership is the only source this action serialises.
+    if (proposal.selection_source !== "dismantle_selection") {
+      return reject(kind, "native_blueprint_export_requires_dismantle_selection");
+    }
+    const selection = resolveNativeBlueprintExportSelection(graph, proposal.selected_actor_ids);
+    if (!selection.ok) return reject(kind, selection.reason, selection);
+
+    warnings.push(
+      "This is a request to the native game-side exporter, not proof that an .sbp was written. " +
+        "The game re-checks every selected actor, proxy group, lightweight instance, resource anchor, " +
+        "and archive write before reporting an outcome.",
+    );
+    return {
+      valid: true,
+      warnings,
+      checks: {
+        ...checks,
+        selection_source: "dismantle_selection",
+        selected_actor_count: selection.actorIds.length,
+        captured_selection_bounds_cm: selection.bounds,
+        bounds_are_capture_evidence_only: true,
+        arbitrary_export_size_cap: "none",
+      },
+      action: bindWorldRevision(
+        graph,
+        {
+          action: kind,
+          blueprint_name: name,
+          selection_source: "dismantle_selection",
+          selected_actor_ids: selection.actorIds,
+          selected_actor_count: selection.actorIds.length,
+          // The executor must recompute this from the live actors. Carrying the
+          // capture's bounds makes a stale or unexpectedly expanded selection
+          // diagnosable without treating bridge geometry as authority.
+          captured_selection_bounds_cm: selection.bounds,
+          commit: proposal.commit === true,
+        },
+        proposal,
+      ),
     };
   }
 
@@ -870,6 +1030,21 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
         "A dismantle cannot be rolled back, so it cannot share a committed transaction with another write.",
     };
   }
+  // A native export writes a durable `.sbp` / `.sbpcfg`, not an undo-journal
+  // entry. Keep it single-step so an archive failure or name collision cannot
+  // be mistaken for a reversible construction transaction.
+  const nativeExports = committedWrites.filter(
+    (action) => action.action === "export_native_blueprint",
+  );
+  if (nativeExports.length > 0 && committedWrites.length > 1) {
+    return {
+      valid: false,
+      reason: "native_blueprint_export_must_be_a_standalone_commit",
+      actions: [],
+      note:
+        "A native blueprint export writes a file and cannot be reversed by undo_last, so it must be the only committed write in its transaction.",
+    };
+  }
   const undoSteps = committedWrites.filter((action) => action.action === "undo_last");
   if (undoSteps.length > 0 && committedWrites.length > 1) {
     return {
@@ -910,6 +1085,9 @@ export function summarizePlan(graph, plan) {
   }
 
   const irreversible = plan.actions.filter((action) => action.action === "dismantle").length;
+  const nativeExports = plan.actions.filter(
+    (action) => action.action === "export_native_blueprint",
+  ).length;
 
   return {
     ...plan,
@@ -918,9 +1096,16 @@ export function summarizePlan(graph, plan) {
       by_kind: byKind,
       irreversible_steps: irreversible,
       reversible:
-        irreversible === 0
+        irreversible === 0 && nativeExports === 0
           ? "Every step in this plan can be undone with undo_last."
-          : `${irreversible} dismantle step(s) cannot be undone by the copilot.`,
+          : [
+              ...(irreversible > 0
+                ? [`${irreversible} dismantle step(s) cannot be undone by the copilot.`]
+                : []),
+              ...(nativeExports > 0
+                ? [`${nativeExports} native blueprint export step(s) write files and cannot be undone with undo_last.`]
+                : []),
+            ].join(" "),
     },
   };
 }
