@@ -785,7 +785,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list, and never say an .sbp was written until the game reports it. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
+      "Executes actions the player asked for: place_building, place_blueprint, preview_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass world-changing actions as one sequence — the game runs them in order and rolls back reversible work after a failure. Set commit=true on each world action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one saved blueprint through Satisfactory's hologram. Use preview_blueprint to arm one saved blueprint in the requesting player's normal Build Gun without placing it; it is client-only, has no cost, and must be the only action in the request. export_native_blueprint packages only the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list, and never say an .sbp was written until the game reports it. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -797,14 +797,14 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
+                enum: ["place_building", "place_blueprint", "preview_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
-                description: "True to actually do it, false to preview. Defaults to false.",
+                description: "True to actually perform a world action, false to preview. preview_blueprint is always a harmless client-only Build Gun handoff.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
-              blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
+              blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact name from list_blueprints. preview_blueprint selects the native Build Gun hologram but does not place it." },
               selection_source: {
                 type: "string",
                 enum: ["dismantle_selection"],

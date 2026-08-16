@@ -11,6 +11,7 @@ import {
   parseExactBeltSolverRequest,
   parseAimedFactoryRequest,
   parseBlueprintListRequest,
+  parseBlueprintPreviewRequest,
   parseShowRequest,
   parseStructureRequest,
   routeQuestion,
@@ -508,6 +509,40 @@ test("placing, pricing or saving a blueprint is not listing them", () => {
   ]) {
     assert.equal(parseBlueprintListRequest(question), null, `should not list: ${question}`);
   }
+});
+
+test("an explicit native Build Gun preview is not mistaken for placement or listing", () => {
+  assert.deepEqual(
+    parseBlueprintPreviewRequest("preview the Coal power plant 2700MW v1.1 blueprint"),
+    { name: "Coal power plant 2700MW v1.1" },
+  );
+  assert.deepEqual(
+    parseBlueprintPreviewRequest("arm my Steel Works in my build gun"),
+    { name: "Steel Works" },
+  );
+  assert.equal(parseBlueprintPreviewRequest("list my blueprints"), null);
+  assert.equal(parseBlueprintPreviewRequest("place the Coal power plant blueprint here"), null);
+});
+
+test("previewing a saved blueprint emits only a client Build Gun handoff", () => {
+  const emitted = [];
+  const answer = answerLocally("preview the Coal power plant blueprint", graphOf(), {
+    listBlueprints: () => [{
+      name: "Coal power plant",
+      designer_dimensions: { x: 12, y: 12, z: 6 },
+      build_cost: [],
+    }],
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.ok(answer);
+  assert.equal(answer.local.solver, "blueprint_preview");
+  assert.match(answer.reply, /Nothing is being placed or charged/i);
+  assert.deepEqual(emitted, [{
+    action: "preview_blueprint",
+    blueprint_name: "Coal power plant",
+    commit: true,
+  }]);
 });
 
 test("an empty library says so plainly rather than inventing a count", () => {

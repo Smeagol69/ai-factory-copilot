@@ -132,6 +132,9 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetConstructDisqualifiers' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGBlueprintHologram.h'; Pattern = 'SetBlueprintDescriptor' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintSettings.h'; Pattern = 'mBlueprintRecipeClass' },
+        @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'void GotoBuildState' },
+        @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'void SetDesiredBlueprint' },
+        @{ Path = 'Source\FactoryGame\Public\FGRemoteCallObject.h'; Pattern = 'GetOwnerPlayerCharacter' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'CollectBuildables' },
         @{ Path = 'Source\FactoryGame\Public\FGBuildableSubsystem.h'; Pattern = 'GetNewNetConstructionID' },
         @{ Path = 'Source\FactoryGame\Public\FGPowerCircuit.h'; Pattern = 'GetPowerProductionCapacity' },
@@ -150,6 +153,7 @@ if ($upstream) {
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Json\Public\Dom\JsonObject.h'; Pattern = 'TryGetNumberField\(FStringView FieldName, int32& OutNumber\)' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Components\LineBatchComponent.h'; Pattern = 'ClearBatch\(uint32 InBatchID\)' }
         @{ Path = 'Mods\SML\Source\SML\Private\ModLoading\ModLoadingLibrary.cpp'; Pattern = 'Resources/Icon128.png' }
+        @{ Path = 'Mods\SML\Source\SML\Public\Module\GameInstanceModule.h'; Pattern = 'TArray<TSubclassOf<class UFGRemoteCallObject>> RemoteCallObjects' }
     )
     foreach ($check in $checks) {
         $path = Join-Path $upstream $check.Path

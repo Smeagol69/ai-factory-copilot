@@ -48,6 +48,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 |---|---|---|---|---|
 | 2026-08-16 | Codex | `codex/native-blueprint-designer` | Owner-corrected native-blueprint direction: audit and extend the actual Satisfactory Blueprint Designer / `.sbp` workflow so large whole-factory captures and valid extractors/miners are not rejected merely by the current modular-design policy. Preserve existing `place_blueprint`, saved-design, and blueprint-library behavior; first prove every engine constraint and hook against the matching CL 502094 headers, then add only an authoritative extension plus tests, package, and live save evidence. | in progress |
 | 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | complete; 654 companion tests pass; C++ executor and a live export test remain required before deployment |
+| 2026-08-16 | Codex | `codex/buildgun-preview` | Additive native Blueprint Build Gun preview handoff: client-owned UI/module/RCO plumbing plus the minimal bridge action/router schema and tests needed to select an existing `.sbp` in the owning player’s real Build Gun via documented `SetDesiredBlueprint` + `GotoBuildState`. This must be non-writing, preserve direct server `place_blueprint`, and must not edit `AIFactoryActions.cpp` (reserved for the native exporter). | complete; native targets compile, live Build Gun handoff still needs one packaged-game check |
 | 2026-08-16 | Codex | `codex/release-hardening` | Version-match recovery after the live snapshot crash: use a fresh official SML Starter Project at FactoryGame CL 502094 (the installed game version), preserve the old project's local Wwise patch without mutating it, update `scripts/validate.ps1` and `scripts/package-local.ps1` to validate the Starter/Game changelist relationship, then rebuild/package/deploy and live-test save load before any further placement work. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Live-load crash repair in `AIFactorySnapshot.cpp` plus an additive source-contract regression: the deployed startup self-test called `AFGBuildableManufacturer::GetProductionCycleTime()` for a loaded modded manufacturer with no valid current recipe, which crashed before the panel opened. Capture recipe state first and keep production-cycle fields explicitly unknown instead of calling recipe-dependent engine accessors without a valid recipe. Recompile/package/deploy and rerun the save-load boundary. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Additive live-reliability follow-up after the shared-master audit: exact Mk.1 `without belts` parser coverage in `router.mjs` / tests; change the unmeasured nearby-resource-node center-distance refusal in `resource-factory.mjs` into an explicit advisory; append game-enriched action outcomes in `AIFactorySubsystem.cpp` so later questions cannot overwrite belt diagnostics. Existing C++ conveyor and contract-test work remains intact. | complete; compiled, packaged, deployed, and companion-installed; live save retry still required |
@@ -2427,3 +2428,40 @@ Verification: `cd companion; npm test` passes **654/654**. Do not deploy the
 companion alone: `AIFactoryActions.cpp` must add the corresponding authoritative
 executor/action-kind handling and then a real selected-factory export must be
 run in a loaded save before calling this feature working.
+### Codex — 2026-08-16 native Blueprint Build Gun preview handoff
+
+`codex/buildgun-preview` adds one deliberately non-writing action,
+`preview_blueprint`. A local request such as `preview the Coal power plant
+blueprint` resolves the exact saved-library name and sends only that name to the
+requesting player's registered `UAIFactoryBlueprintPreviewRCO`. The server
+rechecks that the descriptor exists and that its recipe requirements are met;
+the owning client rechecks its descriptor, then calls the exact documented
+local-player `AFGBuildGun::SetDesiredBlueprint(BlueprintName)` followed by
+`GotoBuildState(BlueprintRecipe)`. It verifies the active descriptor afterward.
+It does **not** spawn a hologram server-side, construct anything, deduct costs,
+alter the undo journal, or call either private `Server_*` Build Gun helper.
+Satisfactory therefore still owns the normal Build Gun hologram, snapping,
+rotation, affordability, and player click-to-place lifecycle.
+
+The bridge refuses ambiguous names and disallows mixing this one-client handoff
+with world writes in a transaction. Game-side response telemetry explicitly
+reports `client_only: true`, `world_mutated: false`, and
+`game_client_blueprint_preview_dispatched`; it says *dispatched*, not armed,
+because client receipt is asynchronous. Existing direct `place_blueprint`
+continues through `AIFactoryActions::ExecutePlan` unchanged. This branch does
+not edit `AIFactoryActions.cpp`, leaving the native exporter lane untouched.
+
+Verification: the exact headers for `FGBuildGun::GotoBuildState`,
+`SetDesiredBlueprint`, `UFGRemoteCallObject::GetOwnerPlayerCharacter`, and SML
+`UGameInstanceModule::RemoteCallObjects` are now checked by `validate.ps1`.
+All **652** companion tests passed, including action/router/source-contract
+regressions. The synced FactoryGame CL 502094 Starter Project compiled both
+`FactoryGameSteam Win64 Shipping` and `FactoryEditor Win64 Development` with
+the new RCO/module. No package, deployment, or running-game files were changed.
+
+Open live check after a normal package/deploy: with an existing blueprint in
+the player library, type `preview the <exact name> blueprint`, verify the build
+gun changes into Satisfactory's native blueprint hologram, then cancel it and
+confirm no inventory/world/undo change. Only after that should this be called
+live-proven. The full native blueprint export/import work (including miners and
+unbounded factory capture) remains a separate lane.

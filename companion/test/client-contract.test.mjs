@@ -33,6 +33,54 @@ test("the game refuses stale or oversized action plans whole", () => {
   assert.doesNotMatch(subsystem, /Requested\.SetNum\(/);
 });
 
+test("native blueprint previews are routed to the requesting client Build Gun, never constructed server-side", () => {
+  const subsystem = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const rcoHeader = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Public/AIFactoryBlueprintPreviewRCO.h",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const rco = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintPreviewRCO.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const gameInstanceModule = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryGameInstanceModule.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(rcoHeader, /UFUNCTION\(Client, Reliable\)\s*void ClientPreviewBlueprint/);
+  assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryBlueprintPreviewRCO::StaticClass\(\)\)/);
+  assert.match(rco, /GetOwnerPlayerCharacter\(\)/);
+  assert.match(rco, /BuildGun->SetDesiredBlueprint\(BlueprintName\)/);
+  assert.match(rco, /BuildGun->GotoBuildState\(BlueprintRecipe\)/);
+  assert.match(rco, /BuildGun->IsBlueprintDescriptorActive\(Descriptor\)/);
+  assert.doesNotMatch(rco, /Server_GotoBuildState|Server_SetDesiredBlueprint/);
+
+  assert.match(subsystem, /DispatchClientBlueprintPreview\(/);
+  assert.match(subsystem, /PreviewRCO->ClientPreviewBlueprint\(BlueprintName\)/);
+  assert.match(subsystem, /client_preview_must_be_a_standalone_action/);
+  assert.match(subsystem, /game_client_blueprint_preview_dispatched/);
+  assert.match(subsystem, /TEXT\("world_mutated"\), false/);
+  const dispatch = subsystem.indexOf("DispatchClientBlueprintPreview(");
+  const normalExecute = subsystem.indexOf("AIFactoryActions::ExecutePlan(", dispatch);
+  assert.ok(dispatch >= 0 && normalExecute > dispatch);
+});
+
 test("the game defers step-referenced building and belt preflight until actors exist", () => {
   const actions = fs.readFileSync(
     new URL(
