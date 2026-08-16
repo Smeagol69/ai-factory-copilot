@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject',
+    [string]$StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject-502094',
     [string]$OutputDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist')
 )
 

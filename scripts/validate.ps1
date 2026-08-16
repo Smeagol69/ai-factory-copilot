@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$StarterProjectPath = $env:AIFACTORY_STARTER_PROJECT
+    [string]$StarterProjectPath = $env:AIFACTORY_STARTER_PROJECT,
+    [string]$GamePath = $env:AIFACTORY_GAME_PATH
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+if (-not $StarterProjectPath) {
+    $StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject-502094'
+}
 
 $descriptorPath = Join-Path $root 'AIFactoryCopilot.uplugin'
 $descriptor = Get-Content -Raw -LiteralPath $descriptorPath | ConvertFrom-Json
@@ -34,9 +38,11 @@ foreach ($urlField in @('CreatedByURL', 'DocsURL', 'SupportURL')) {
         throw "$urlField must point to the AI Factory Copilot GitHub project, found '$url'."
     }
 }
-if ($descriptor.GameVersion -ne '>=491125') {
-    throw "Unexpected FactoryGame range '$($descriptor.GameVersion)'."
+$gameVersionMatch = [regex]::Match([string]$descriptor.GameVersion, '^>=(\d+)$')
+if (-not $gameVersionMatch.Success) {
+    throw "GameVersion '$($descriptor.GameVersion)' must be an explicit minimum FactoryGame changelist."
 }
+$expectedGameChangelist = $gameVersionMatch.Groups[1].Value
 $smlDependency = $descriptor.Plugins | Where-Object Name -eq 'SML'
 if (-not $smlDependency -or $smlDependency.SemVersion -ne '^3.12.0') {
     throw 'The plugin must depend on SML ^3.12.0.'
@@ -94,9 +100,13 @@ $referenceCandidates = @(
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) }
 $upstream = $referenceCandidates | Select-Object -First 1
 if ($upstream) {
+    $starterVersionPath = Join-Path $upstream 'Source\FactoryGame\currentVersion.txt'
+    $starterChangelist = (Get-Content -Raw -LiteralPath $starterVersionPath).Trim()
+    if ($starterChangelist -ne $expectedGameChangelist) {
+        throw "Starter Project FactoryGame CL '$starterChangelist' does not match this mod's GameVersion '$($descriptor.GameVersion)'."
+    }
     $checks = @(
         @{ Path = 'Mods\SML\SML.uplugin'; Pattern = '"SemVersion": "3.12.0"' },
-        @{ Path = 'Source\FactoryGame\currentVersion.txt'; Pattern = '491125' },
         @{ Path = 'Mods\SML\Source\SML\Public\Module\GameWorldModule.h'; Pattern = 'class SML_API UGameWorldModule' },
         @{ Path = 'Mods\SML\Source\SML\Public\Registry\ModContentRegistry.h'; Pattern = 'GetRegisteredRecipes' },
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableManufacturer.h'; Pattern = 'GetCurrentRecipe' },
@@ -150,10 +160,36 @@ if ($upstream) {
             throw "Reference API '$($check.Pattern)' missing from $($check.Path)"
         }
     }
-    Write-Host 'SML 3.12.0 and FactoryGame 491125 header compatibility checks passed.'
+    Write-Host "SML 3.12.0 and FactoryGame $expectedGameChangelist header compatibility checks passed."
 }
 else {
     Write-Warning 'Exact Starter Project headers are absent; skipping SML/FactoryGame symbol checks.'
+}
+
+$defaultGamePath = 'D:\SteamLibrary\steamapps\common\Satisfactory'
+if ($GamePath) {
+    if (-not (Test-Path -LiteralPath $GamePath -PathType Container)) {
+        throw "Requested game directory does not exist: $GamePath"
+    }
+    $gameRoot = (Resolve-Path -LiteralPath $GamePath).Path
+}
+elseif (Test-Path -LiteralPath $defaultGamePath -PathType Container) {
+    $gameRoot = $defaultGamePath
+}
+else {
+    $gameRoot = $null
+}
+if ($gameRoot) {
+    $gameVersionPath = Join-Path $gameRoot 'Engine\Binaries\Win64\FactoryGameSteam-Win64-Shipping.version'
+    if (-not (Test-Path -LiteralPath $gameVersionPath -PathType Leaf)) {
+        throw "Installed-game version manifest is missing: $gameVersionPath"
+    }
+    $gameVersion = Get-Content -Raw -LiteralPath $gameVersionPath | ConvertFrom-Json
+    $gameChangelist = [string]$gameVersion.Changelist
+    if ($gameChangelist -ne $expectedGameChangelist) {
+        throw "Installed Satisfactory CL '$gameChangelist' does not match this mod's GameVersion '$($descriptor.GameVersion)'. Update the Starter Project and rebuild before packaging."
+    }
+    Write-Host "Installed Satisfactory CL $gameChangelist matches the mod and Starter Project target."
 }
 
 Push-Location (Join-Path $root 'companion')

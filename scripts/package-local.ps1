@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$EngineRoot = 'D:\Modding\Satisfactory\UnrealEngine-CSS',
-    [string]$StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject',
+    [string]$StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject-502094',
     [string]$GamePath = 'D:\SteamLibrary\steamapps\common\Satisfactory'
 )
 
@@ -12,11 +12,28 @@ $build = Join-Path $EngineRoot 'Engine\Build\BatchFiles\Build.bat'
 $uproject = Join-Path $StarterProjectPath 'FactoryGame.uproject'
 $plugin = Join-Path $StarterProjectPath 'Mods\AIFactoryCopilot\AIFactoryCopilot.uplugin'
 $gameMods = Join-Path $GamePath 'FactoryGame\Mods'
+$sourceDescriptorPath = Join-Path $PSScriptRoot '..\AIFactoryCopilot.uplugin'
+$starterVersionPath = Join-Path $StarterProjectPath 'Source\FactoryGame\currentVersion.txt'
+$gameVersionPath = Join-Path $GamePath 'Engine\Binaries\Win64\FactoryGameSteam-Win64-Shipping.version'
 
-foreach ($requiredPath in @($runUat, $build, $uproject, $plugin, $gameMods)) {
+foreach ($requiredPath in @($runUat, $build, $uproject, $plugin, $gameMods, $sourceDescriptorPath, $starterVersionPath, $gameVersionPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required packaging path is missing: $requiredPath"
     }
+}
+
+$sourceDescriptor = Get-Content -Raw -LiteralPath $sourceDescriptorPath | ConvertFrom-Json
+$starterChangelist = (Get-Content -Raw -LiteralPath $starterVersionPath).Trim()
+$gameVersion = Get-Content -Raw -LiteralPath $gameVersionPath | ConvertFrom-Json
+$gameChangelist = [string]$gameVersion.Changelist
+if ($starterChangelist -notmatch '^\d+$' -or -not $gameChangelist) {
+    throw "Unable to determine matching FactoryGame changelists from '$starterVersionPath' and '$gameVersionPath'."
+}
+if ($starterChangelist -ne $gameChangelist) {
+    throw "Refusing to package with Starter Project CL $starterChangelist against installed Satisfactory CL $gameChangelist. Update or select the matching Starter Project first."
+}
+if ([string]$sourceDescriptor.GameVersion -ne ">=$gameChangelist") {
+    throw "Refusing to package: source GameVersion '$($sourceDescriptor.GameVersion)' does not exactly target installed Satisfactory CL $gameChangelist."
 }
 
 $runningGame = Get-Process -Name 'FactoryGameSteam-Win64-Shipping' -ErrorAction SilentlyContinue
@@ -68,11 +85,13 @@ if (-not (Test-Path -LiteralPath $installedIcon -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
     throw "Packaging completed but the archive is missing: $archive"
 }
-$sourceDescriptor = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\AIFactoryCopilot.uplugin') | ConvertFrom-Json
 $sourceIcon = Join-Path $PSScriptRoot '..\Resources\Icon128.png'
 $deployedDescriptor = Get-Content -Raw -LiteralPath $installedDescriptor | ConvertFrom-Json
 if ($deployedDescriptor.SemVersion -ne $sourceDescriptor.SemVersion) {
     throw "Deployed version '$($deployedDescriptor.SemVersion)' does not match source version '$($sourceDescriptor.SemVersion)'."
+}
+if ($deployedDescriptor.GameVersion -ne $sourceDescriptor.GameVersion) {
+    throw "Deployed game range '$($deployedDescriptor.GameVersion)' does not match source '$($sourceDescriptor.GameVersion)'."
 }
 if ((Get-FileHash -LiteralPath $installedIcon -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $sourceIcon -Algorithm SHA256).Hash) {

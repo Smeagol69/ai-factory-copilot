@@ -68,7 +68,7 @@ These are the project's spine. Breaking one is a regression even if tests pass.
 |---|---|
 | Repo | `%USERPROFILE%\Documents\satisfactory` |
 | Coffee Stain engine | `D:\Modding\Satisfactory\UnrealEngine-CSS` (registry: `5.6.1-CSS`) |
-| Starter Project | `D:\Modding\Satisfactory\StarterProject` |
+| Starter Project | `D:\Modding\Satisfactory\StarterProject-502094` (FactoryGame CL 502094; the older `StarterProject` is retained as a legacy copy) |
 | Game | `D:\SteamLibrary\steamapps\common\Satisfactory` |
 | Runtime output | `%LOCALAPPDATA%\FactoryGame\Saved\AIFactoryCopilot\` (**not** under the game dir) |
 | Blueprints | `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints` |
@@ -80,18 +80,18 @@ stale independently and must be re-synced.
 
 ```powershell
 # 1. Sync repo source into the Starter Project
-./scripts/install-to-starter.ps1 -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject' -Force
+./scripts/install-to-starter.ps1 -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject-502094' -Force
 
 # 2. Compile just this module (fast; ~3 min incremental)
 D:\Modding\Satisfactory\UnrealEngine-CSS\Engine\Build\BatchFiles\Build.bat `
   FactoryGameSteam Win64 Shipping `
-  -Project="D:\Modding\Satisfactory\StarterProject\FactoryGame.uproject" `
+  -Project="D:\Modding\Satisfactory\StarterProject-502094\FactoryGame.uproject" `
   -Module=AIFactoryCopilot -WaitMutex -NoHotReload
 
 # 3. Package + deploy to the game  (-ScriptsForProject is required, not optional)
 D:\Modding\Satisfactory\UnrealEngine-CSS\Engine\Build\BatchFiles\RunUAT.bat `
-  -ScriptsForProject="D:\Modding\Satisfactory\StarterProject\FactoryGame.uproject" `
-  PackagePlugin -project="D:\Modding\Satisfactory\StarterProject\FactoryGame.uproject" `
+  -ScriptsForProject="D:\Modding\Satisfactory\StarterProject-502094\FactoryGame.uproject" `
+  PackagePlugin -project="D:\Modding\Satisfactory\StarterProject-502094\FactoryGame.uproject" `
   -dlcname=AIFactoryCopilot -clientconfig=Shipping -build `
   -CopyToGameDirectory_Windows="D:\SteamLibrary\steamapps\common\Satisfactory"
 
