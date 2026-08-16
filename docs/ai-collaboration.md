@@ -219,6 +219,36 @@ theory on this bug and four were wrong; it is grounded in documented contracts
 rather than symptoms, which is not the same as a working belt. Do not record
 belt construction as done until a transaction commits in the loaded save.
 
+### The requested Z is discarded, and it is why placements look wrong
+
+**Root cause, measured live.** `PositionAndValidateActionHologram` traces down
+for a build surface and hands the hologram *that* hit. The Z the caller asked
+for is never used, so every building lands on its own patch of terrain
+independently and all relative height is lost.
+
+From one design placement:
+
+| building | requested z | landed at | drift |
+|---|---|---|---|
+| Smelter | 8016 | 8026 | +11 cm |
+| Miner Mk.1 | 8017 | 8219 | +202 cm |
+| Smelter | 8054 | 9028 | **+975 cm** |
+| Power Pole Mk.1 | 8119 | 8056 | −63 cm |
+
+A smelter nearly ten metres above where the design puts it. This is the same
+fault behind the wire factory reading as a staircase over rock, and behind the
+owner's "placement is very bad" and "it's placing everything wonky".
+
+**The fix already exists in miniature.** `MakeActorPlacementHit(Target,
+Location)` builds a hit at a *given* location instead of tracing, and it is what
+made miner-on-node work. It is only used when `target_actor_id` is set. The
+change is to use the requested location whenever the caller supplies an explicit
+Z and asks for it to be honoured — a saved design always does, because its whole
+value is preserving the arrangement.
+
+Worth keeping the trace as the default: a single building dropped on open ground
+should still settle onto terrain. This wants an opt-in, not a reversal.
+
 ### Saved designs and real blueprints do different jobs — 2026-08-09
 
 Worth writing down before anyone tries to replace one with the other.
