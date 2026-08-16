@@ -139,6 +139,12 @@ between rows. What remains:
 
 Placing a blueprint is done. *Writing* one is not:
 
+The additive whole-factory export action contract is documented in
+[Native Blueprint Export](NATIVE_BLUEPRINT_EXPORT.md). It deliberately uses an
+exact dismantle-tool selection rather than a guessed radius and does not impose
+an artificial designer-size or actor-count cap; game-side archive/proxy/resource
+validation remains the required implementation work.
+
 - Blueprint Designer volume and object-limit model
 - modular blueprint partitioning
 - connection boundary ports

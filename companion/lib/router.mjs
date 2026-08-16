@@ -1002,6 +1002,27 @@ export function parseBlueprintPlaceRequest(question) {
 }
 
 /**
+ * "export this factory as blueprint Northern Steel Works".
+ *
+ * This is intentionally not another spelling of "save this as a design".
+ * A saved design is a bridge-side replay list; this asks the game to make a
+ * native `.sbp` through its own BlueprintSubsystem. The source is deliberately
+ * strict as well: the player must mark every member with Satisfactory's
+ * dismantle multi-select first. A radius is a guess at the factory boundary,
+ * and an enormous factory makes that guess more dangerous, not less.
+ */
+const NATIVE_BLUEPRINT_EXPORT =
+  /^(?:can you |could you |please )?(?:export|package)\s+(?:this|the|my|selected)\s+(?:factory|base|build|selection|these|it)(?:\s+as)?\s+(?:a\s+)?(?:native\s+)?blue\s?print(?:\s+(?:called|named))?\s+["']?(.+?)["']?$/i;
+
+export function parseNativeBlueprintExportRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(NATIVE_BLUEPRINT_EXPORT);
+  if (!match) return null;
+  const name = match[1].replace(/\s+/g, " ").trim();
+  return name ? { name } : null;
+}
+
+/**
  * "list blueprints", "what blueprints do i have".
  *
  * Asked this with 55 blueprints on disk, the local model answered "the player
@@ -2396,6 +2417,65 @@ export function answerLocally(question, graph, services) {
       started,
       "Read from the design folder on disk.",
     );
+  }
+
+  // "export this factory as blueprint X" — unlike a saved design, this asks
+  // the game to write a native .sbp. Exact dismantle-tool membership is the
+  // boundary; never substitute the crosshair or a radius for a whole factory.
+  const nativeBlueprintExport = parseNativeBlueprintExportRequest(question);
+  if (nativeBlueprintExport && graph) {
+    const started = Date.now();
+    const selection = graph.snapshot?.interaction_context?.dismantle_selection;
+    if (selection?.available !== true) {
+      return localAnswer(
+        "I need Satisfactory's dismantle selection to export a native blueprint. " +
+          "Switch to the dismantle tool, mark every factory member you want included, then ask again.",
+        "native_blueprint_export_refused",
+        started,
+        "The capture did not expose the game's multi-selection state, so no region was guessed.",
+      );
+    }
+
+    const selectedActorIds = Array.isArray(selection.actor_ids)
+      ? selection.actor_ids.map((id) => String(id ?? "").trim()).filter(Boolean)
+      : [];
+    if (selectedActorIds.length === 0) {
+      return localAnswer(
+        "Mark the factory members with the dismantle tool first. I will export exactly that marked set, " +
+          "not everything near your crosshair.",
+        "native_blueprint_export_refused",
+        started,
+        "The authoritative dismantle selection was empty; no action was emitted.",
+      );
+    }
+
+    const emitted = emitValidatedPlan(graph, services, [{
+      action: "export_native_blueprint",
+      blueprint_name: nativeBlueprintExport.name,
+      selection_source: "dismantle_selection",
+      selected_actor_ids: selectedActorIds,
+      commit: true,
+    }]);
+    if (emitted) {
+      return localAnswer(
+        `Submitted a native blueprint export request for **${nativeBlueprintExport.name}** from ` +
+          `the exact **${selectedActorIds.length}** actor(s) you marked. It has **not** been claimed as ` +
+          "saved yet: only the game-side exporter can re-check the live selection, proxy/lightweight " +
+          "members, resource anchors, and archive write. Its action result will say whether an `.sbp` was written or why it refused.",
+        "native_blueprint_export",
+        started,
+        "Dismantle-tool actor ids and their captured bounds were attached as evidence; the native executor remains authoritative.",
+      );
+    }
+    const refusal = describePlanRejection();
+    if (refusal) {
+      return localAnswer(
+        `I can't submit that native blueprint export: ${refusal}`,
+        "native_blueprint_export_refused",
+        started,
+        "No export action was sent to the game.",
+      );
+    }
   }
 
   const designSave = parseDesignSaveRequest(question);
