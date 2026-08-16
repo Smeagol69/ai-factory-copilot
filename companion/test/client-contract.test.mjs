@@ -332,6 +332,39 @@ test("lightweight foundations are detected exactly, materialized for dependent s
   );
 });
 
+test("native blueprint placement retains a valid lightweight-only proxy", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const blueprintStart = actions.indexOf("FAIFactoryActionResult PlaceBlueprint(");
+  const blueprintEnd = actions.indexOf("FAIFactoryActionResult GiveItem(", blueprintStart);
+  const blueprint = actions.slice(blueprintStart, blueprintEnd);
+
+  assert.match(blueprint, /Proxy->GetLightweightClassAndIndices\(\)/);
+  assert.match(blueprint, /Proxy->AreProxyBuildingsRegisteredAndValid\(\)/);
+  assert.match(blueprint, /blueprint_proxy_lightweight_readback_not_ready/);
+  assert.match(blueprint, /lightweight_buildings_placed/);
+  assert.match(blueprint, /actor_buildings_placed/);
+
+  const lightweightReadback = blueprint.indexOf(
+    "Proxy->AreProxyBuildingsRegisteredAndValid()",
+  );
+  const successGate = blueprint.indexOf("const bool bHasPlacedLightweights");
+  const cleanup = blueprint.indexOf("blueprint_proxy_lightweight_readback_not_ready");
+  const charge = blueprint.indexOf("ChargeActionCost(Cost, Inventory)");
+  assert.ok(
+    lightweightReadback >= 0 &&
+      lightweightReadback < successGate &&
+      successGate < cleanup &&
+      cleanup < charge,
+    "a valid lightweight proxy must pass readback before cost charging; only an unready proxy is cleaned up",
+  );
+});
+
 test("extractors report the current extractable interface, not deprecated node state", () => {
   const snapshot = fs.readFileSync(
     new URL(
