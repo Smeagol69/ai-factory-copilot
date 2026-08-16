@@ -75,7 +75,7 @@ factory arithmetic yourself:
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - a creative elevated, terraced, or campus megabase preview -> design_megabase_concept;
 - a foundation-grid platform, raised deck, walls, supports, or roof shell -> plan_structure;
-- placing, removing, moving, or teleporting -> perform_actions;
+- placing, removing, moving, or teleporting -> perform_actions; to arm a saved blueprint in the player's native Build Gun without constructing it, use the client-only preview_blueprint action through perform_actions;
 - showing the player where things are -> highlight / clear_highlight;
 - the coordinates of a named thing, or whether a node can host a miner -> locate.
 Never rank locations or estimate a distance by reading coordinates yourself;

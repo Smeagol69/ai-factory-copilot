@@ -64,8 +64,23 @@ export const WRITE_ACTION_KINDS = [
 // saved. So it is not write-gated and needs no confirmation.
 export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight", "clear_holograms"];
 
+/**
+ * Actions that affect only the requesting player's local controls.
+ *
+ * `preview_blueprint` deliberately does not construct anything. The server
+ * verifies the requested saved blueprint then sends the owning client a small
+ * RCO message; that client selects the normal Blueprint recipe in its own
+ * Build Gun. The normal Build Gun hologram, snapping, rotation, affordability,
+ * and eventual construction all remain Satisfactory's systems.
+ */
+export const CLIENT_ACTION_KINDS = ["preview_blueprint"];
+
 /** Everything the mod knows how to execute. */
-export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
+export const ACTION_KINDS = [
+  ...WRITE_ACTION_KINDS,
+  ...OVERLAY_ACTION_KINDS,
+  ...CLIENT_ACTION_KINDS,
+];
 
 /** Beyond this the player almost certainly meant something else. */
 const MAX_TELEPORT_METERS = 200_000;
@@ -480,6 +495,43 @@ export function validateAction(graph, proposal) {
     };
   }
 
+  if (kind === "preview_blueprint") {
+    const name = String(proposal.blueprint_name ?? "").trim();
+    if (!name) return reject(kind, "blueprint_name_is_required");
+
+    // This is a client-only selection, not a server construction request. The
+    // bridge normally has the library service and can catch spelling mistakes
+    // here; the game repeats the descriptor lookup immediately before it sends
+    // the owning client's RCO message.
+    const library = graph?.services?.blueprints ?? null;
+    if (Array.isArray(library) && library.length > 0) {
+      const match = library.find((entry) => entry.name === name);
+      if (!match) {
+        const needle = name.toLowerCase();
+        const near = library
+          .filter((entry) => String(entry.name).toLowerCase().includes(needle))
+          .slice(0, 5)
+          .map((entry) => entry.name);
+        return reject(kind, "blueprint_not_in_library", {
+          blueprint_name: name,
+          did_you_mean: near,
+        });
+      }
+      checks.designer_dimensions = match.designer_dimensions;
+      checks.build_cost_entries = match.build_cost?.length ?? 0;
+    }
+
+    return {
+      valid: true,
+      warnings,
+      checks: { ...checks, client_only: true, world_write: false },
+      // This is intentionally always dispatched. It is equivalent to opening
+      // the Build Gun's native blueprint picker, and never performs a world
+      // write, spends items, changes the undo stack, or needs a revision stamp.
+      action: { action: kind, blueprint_name: name, commit: true },
+    };
+  }
+
   if (kind === "dismantle") {
     const actorId = String(proposal.actor_id ?? "").trim();
     if (!actorId) return reject(kind, "actor_id_is_required");
@@ -857,6 +909,25 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
     };
   }
 
+  const clientPreviews = actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action));
+  if (clientPreviews.length > 0 && clientPreviews.length !== actions.length) {
+    return {
+      valid: false,
+      reason: "client_preview_must_be_a_standalone_action",
+      actions: [],
+      note:
+        "A native Build Gun preview is local to one player and cannot share a transaction with world actions.",
+    };
+  }
+  if (clientPreviews.length > 1) {
+    return {
+      valid: false,
+      reason: "only_one_client_blueprint_preview_per_request",
+      actions: [],
+      note: "One Build Gun can display one active blueprint hologram at a time.",
+    };
+  }
+
   const committedWrites = actions.filter(
     (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
   );
@@ -890,8 +961,10 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
       (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
     ).length,
     overlays: actions.filter((action) => OVERLAY_ACTION_KINDS.includes(action.action)).length,
-    execution:
-      "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
+    client_previews: clientPreviews.length,
+    execution: clientPreviews.length > 0
+      ? "Sent to the requesting client's native Build Gun only. It does not construct, spend items, mutate the world, or create an undo transaction."
+      : "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
   };
 }
 
@@ -910,6 +983,7 @@ export function summarizePlan(graph, plan) {
   }
 
   const irreversible = plan.actions.filter((action) => action.action === "dismantle").length;
+  const clientPreviews = plan.actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action)).length;
 
   return {
     ...plan,
@@ -918,9 +992,12 @@ export function summarizePlan(graph, plan) {
       by_kind: byKind,
       irreversible_steps: irreversible,
       reversible:
-        irreversible === 0
+        clientPreviews > 0
+          ? "This only arms the requesting player's normal Blueprint Build Gun; it does not change the world."
+          : irreversible === 0
           ? "Every step in this plan can be undone with undo_last."
           : `${irreversible} dismantle step(s) cannot be undone by the copilot.`,
+      client_preview_steps: clientPreviews,
     },
   };
 }

@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   ACTION_KINDS,
+  CLIENT_ACTION_KINDS,
   describeUnkeptPromise,
   summarizePlan,
   validateAction,
@@ -111,6 +112,41 @@ test("dismantle always warns that it cannot be undone", () => {
   const result = validateAction(graphOf(), { action: "dismantle", actor_id: CONSTRUCTOR });
   assert.equal(result.valid, true);
   assert.ok(result.warnings.some((warning) => /cannot be undone/.test(warning)));
+});
+
+test("a native blueprint preview is client-only and cannot carry a world-revision write stamp", () => {
+  const graph = graphOf();
+  graph.services = {
+    blueprints: [{
+      name: "Copper Module",
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      build_cost: [],
+    }],
+  };
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+    // It is deliberately ignored: this action always means selecting a local
+    // Build Gun hologram, never a server construction preview/commit choice.
+    commit: false,
+  });
+  assert.equal(result.valid, true, result.reason);
+  assert.deepEqual(CLIENT_ACTION_KINDS, ["preview_blueprint"]);
+  assert.equal(result.action.action, "preview_blueprint");
+  assert.equal(result.action.commit, true);
+  assert.equal(result.action.expect_world_revision, undefined);
+  assert.equal(result.checks.client_only, true);
+  assert.equal(result.checks.world_write, false);
+});
+
+test("a client Build Gun preview cannot share a transaction with world actions", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "preview_blueprint", blueprint_name: "Copper Module" },
+    { action: "teleport_player", target: HERE, commit: true },
+  ]);
+  assert.equal(plan.valid, false);
+  assert.equal(plan.reason, "client_preview_must_be_a_standalone_action");
+  assert.deepEqual(plan.actions, []);
 });
 
 /* ---------------- nothing commits unless it was asked for ---------------- */

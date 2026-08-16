@@ -785,7 +785,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each world action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). Use preview_blueprint to arm one saved blueprint in the requesting player's normal Build Gun without placing it; it is client-only, has no cost, and must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -797,14 +797,14 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
+                enum: ["place_building", "place_blueprint", "preview_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
-                description: "True to actually do it, false to preview. Defaults to false.",
+                description: "True to actually perform a world action, false to preview. preview_blueprint is always a harmless client-only Build Gun handoff.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
-              blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
+              blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact name from list_blueprints. preview_blueprint selects the native Build Gun hologram but does not place it." },
               actor_id: { type: "string", description: "dismantle: the actor_id to remove." },
               name: { type: "string", description: "waypoint: the label shown on the map and compass." },
               item_class: { type: "string", description: "give_item: exact item class_path or display name." },
