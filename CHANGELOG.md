@@ -3,6 +3,19 @@
 All notable changes to AI Factory Copilot are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.0-beta.2 - 2026-08-16
+
+- Rebuilt the native mod against Satisfactory 1.2.4 / FactoryGame CL 502094,
+  so native virtual dispatch targets the supported live build instead of the
+  stale CL 491125 headers that crashed snapshot export on save load.
+- Added validation and packaging preflights that refuse a mismatch between the
+  mod descriptor, Starter Project headers, and installed game changelist.
+- Hardened direct conveyor placement, including real engine aim lifecycle,
+  endpoint readback, cost charging, cleanup, and rollback diagnostics.
+- Added an explicit Mk.1 Wire-factory `without belts` option, resource-node
+  clearance advisories instead of unsupported geometric refusals, and a durable
+  game-side action-outcome journal.
+
 ## 1.0.0-beta.1 - 2026-08-03
 
 First public Windows beta.

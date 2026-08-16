@@ -785,11 +785,14 @@ const AIMED_FACTORY_LOOSE =
   /^(?:can you |could you |please )?(?:build|buld|biuld|make|construct|spawn|set\s*up)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(.+?)\s+(?:factory|plant|line)\s+(?:on|from|at|off(?:\s+of)?|using)\s+(?:this|the|that)\s+(?:node|resource|ore|deposit|one)$/i;
 
 export function parseAimedMk1FactoryRequest(question) {
-  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const rawText = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const text = stripBeltClause(rawText);
   const match = text.match(AIMED_MK1_FACTORY);
   if (!match) return null;
   const item = match[1].replace(/\s+/g, " ").trim();
-  return item.length >= 2 ? { item, commit: true, raw_text: text } : null;
+  return item.length >= 2
+    ? { item, commit: true, skip_belts: NO_BELTS.test(rawText), raw_text: rawText }
+    : null;
 }
 
 /**
@@ -803,12 +806,8 @@ export function parseAimedMk1FactoryRequest(question) {
 const NO_BELTS =
   /\b(?:no|without|skip|omit|exclude|minus)\s+(?:the\s+)?(?:belts?|conveyors?)\b|\bbelts?\s+(?:myself|by hand|manually)\b|\bi(?:'ll|ll| will)\s+(?:do|place|add|run)\s+(?:the\s+)?belts?\b/i;
 
-export function parseAimedFactoryRequest(question) {
-  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
-  // The strict route owns anything that already names the tier.
-  if (AIMED_MK1_FACTORY.test(text)) return null;
-  // Strip the belt clause before matching, so the anchored tail still lines up.
-  const withoutBeltClause = text
+function stripBeltClause(text) {
+  return text
     .replace(NO_BELTS, "")
     // "I'll do the belts myself" leaves a trailing "myself" that breaks the
     // anchored tail, so the leftovers of the clause go with it.
@@ -817,6 +816,14 @@ export function parseAimedFactoryRequest(question) {
     .trim()
     .replace(/[,;]+\s*$/, "")
     .trim();
+}
+
+export function parseAimedFactoryRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  // The strict route owns anything that already names the tier.
+  if (parseAimedMk1FactoryRequest(text)) return null;
+  // Strip the belt clause before matching, so the anchored tail still lines up.
+  const withoutBeltClause = stripBeltClause(text);
   const match = withoutBeltClause.match(AIMED_FACTORY_LOOSE);
   if (!match) return null;
 

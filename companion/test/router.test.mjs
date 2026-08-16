@@ -37,6 +37,15 @@ test("parses only an explicit aimed Mk.1 factory write", () => {
   }
 });
 
+test("an explicit aimed Mk.1 factory can leave its belts to the player", () => {
+  const question = "build a wire factory using all mk1 parts on this node without belts";
+  const parsed = parseAimedMk1FactoryRequest(question);
+  assert.equal(parsed?.item, "wire");
+  assert.equal(parsed?.skip_belts, true);
+  assert.equal(parsed?.raw_text, question);
+  assert.equal(parseAimedFactoryRequest(question), null, "the strict route owns tiered no-belt requests");
+});
+
 test("oversized plan refusals report the requested count", () => {
   const reply = describePlanRejection({ reason: "too_many_actions", requested: 513, limit: 512 });
   assert.match(reply, /513 actions/);

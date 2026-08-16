@@ -208,6 +208,45 @@ test("the supported factory grows away from the captured player", () => {
   );
 });
 
+test("a nearby resource-node centre is advisory, not a pre-build refusal", () => {
+  const baseline = planAimedMk1WireFactory(graphOf(), {
+    target,
+    item,
+    build_recipe_lookup: solveBuildRecipeLookup,
+  });
+  const support = baseline.actions.find((action) => /Recipe_Foundation_8x1_01/i.test(action.recipe_class ?? ""));
+  assert.ok(support?.location, "fixture must produce a supported placement");
+
+  const graph = graphOf((snapshot) => {
+    snapshot.actors.push({
+      actor_id: "BP_ResourceNode_Nearby",
+      name: "BP_ResourceNode_Nearby",
+      class_path: "/Game/FactoryGame/Resource/BP_ResourceNode.BP_ResourceNode_C",
+      owner_mod: "FactoryGame",
+      kind: "resource_node",
+      location: { ...support.location },
+      node_type: "Node",
+      resource_class: COPPER,
+      resource_name: "Copper Ore",
+      purity: "RP_Normal",
+      inventories: [],
+      connections: [],
+    });
+  });
+  const plan = planAimedMk1WireFactory(graph, {
+    target,
+    item,
+    build_recipe_lookup: solveBuildRecipeLookup,
+  });
+
+  assert.equal(plan.planned, true, plan.reason);
+  assert.equal(plan.actions.length, baseline.actions.length);
+  assert.equal(plan.nearby_resource_node?.name, "BP_ResourceNode_Nearby");
+  assert.equal(plan.nearby_resource_node?.distance_m, 0);
+  assert.equal(plan.nearby_resource_node?.advisory_distance_cm, 800);
+  assert.match(plan.notes.join(" "), /hologram is the final placement authority/);
+});
+
 test("the complete fan-out never asks one machine port for two belts", () => {
   const plan = planAimedMk1WireFactory(graphOf(), {
     target,
@@ -360,5 +399,41 @@ test("the owner's exact command stays local and revision-stamps the whole write"
   assert.match(answer.reply, /120 Wire\/min/);
   assert.match(answer.reply, /Power is not wired/);
   assert.equal(emitted.length, 46);
+  assert.ok(emitted.every((action) => action.expect_world_revision === "727"));
+});
+
+test("the exact Mk.1 command can retain the machines and omit only belts", () => {
+  const graph = graphOf((snapshot) => {
+    snapshot.interaction_context.preferred_target = {
+      available: true,
+      selected_from: "aim_trace",
+      actor_id: target.actor_id,
+      actor_name: target.on,
+      actor_snapshot: {
+        actor_id: target.actor_id,
+        name: target.on,
+        kind: "resource_node",
+        location: target.location,
+        node_type: target.node_type,
+        occupied: target.occupied,
+        purity: target.purity,
+        resource_class: target.resource_class,
+        resource_name: target.resource_name,
+      },
+    };
+  });
+  let emitted = [];
+  const answer = answerLocally(
+    "build a wire factory using all mk1 parts on this node without belts",
+    graph,
+    { actions: { emit: (actions) => { emitted = actions; } } },
+  );
+
+  assert.equal(answer.provider, "solvers");
+  assert.equal(answer.local.solver, "aimed_mk1_wire_factory");
+  assert.match(answer.reply, /without belts/);
+  assert.match(answer.reply, /17 belts left to you/);
+  assert.equal(emitted.length, 29);
+  assert.equal(emitted.filter((action) => action.action === "place_belt").length, 0);
   assert.ok(emitted.every((action) => action.expect_world_revision === "727"));
 });

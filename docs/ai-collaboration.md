@@ -46,7 +46,11 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor `FGCDInvalidAimLocation` failure exposed after the source-step fix advanced aimed Wire step 30: audit exact 491125 spline/conveyor hologram aim lifecycle and hit construction; minimally correct `PlaceBelt` without weakening exact endpoint, cost, unlock, rollback, or current routing gates; add regression, compile/package/deploy, and live retry. | in progress |
+| 2026-08-16 | Codex | `codex/release-hardening` | Version-match recovery after the live snapshot crash: use a fresh official SML Starter Project at FactoryGame CL 502094 (the installed game version), preserve the old project's local Wwise patch without mutating it, update `scripts/validate.ps1` and `scripts/package-local.ps1` to validate the Starter/Game changelist relationship, then rebuild/package/deploy and live-test save load before any further placement work. | in progress |
+| 2026-08-16 | Codex | `codex/release-hardening` | Live-load crash repair in `AIFactorySnapshot.cpp` plus an additive source-contract regression: the deployed startup self-test called `AFGBuildableManufacturer::GetProductionCycleTime()` for a loaded modded manufacturer with no valid current recipe, which crashed before the panel opened. Capture recipe state first and keep production-cycle fields explicitly unknown instead of calling recipe-dependent engine accessors without a valid recipe. Recompile/package/deploy and rerun the save-load boundary. | in progress |
+| 2026-08-16 | Codex | `codex/release-hardening` | Additive live-reliability follow-up after the shared-master audit: exact Mk.1 `without belts` parser coverage in `router.mjs` / tests; change the unmeasured nearby-resource-node center-distance refusal in `resource-factory.mjs` into an explicit advisory; append game-enriched action outcomes in `AIFactorySubsystem.cpp` so later questions cannot overwrite belt diagnostics. Existing C++ conveyor and contract-test work remains intact. | complete; compiled, packaged, deployed, and companion-installed; live save retry still required |
+| 2026-08-16 | Codex | `codex/release-hardening` | User-requested integration of `origin/master` / Claude's completed design and placement work, then the remaining live conveyor P0 in `AIFactoryActions.cpp` plus `client-contract.test.mjs`: replace the unverified manual belt aim envelope with the exact 491125 valid-hit-class + one full engine placement frame per endpoint; retain every existing source/destination identity, cost, rollback, and post-construction endpoint proof. Compile, package while the game is closed, deploy, and record the live retry boundary. | complete; compiled, packaged, deployed, and companion-installed; live save retry still required |
+| 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor `FGCDInvalidAimLocation` failure exposed after the source-step fix advanced aimed Wire step 30: audit exact 491125 spline/conveyor hologram aim lifecycle and hit construction; minimally correct `PlaceBelt` without weakening exact endpoint, cost, unlock, rollback, or current routing gates; add regression, compile/package/deploy, and live retry. | superseded by the 2026-08-16 full-placement-frame deployment above; live retry still required |
 | 2026-08-09 | Codex | `codex/release-hardening` | Live conveyor source-owner failure at aimed Wire step 30: audit exact 491125 conveyor hologram/connection APIs; minimally correct `PlaceBelt` endpoint identity/readback in `AIFactoryActions.cpp`; retain existing exact post-construction port proof, rollback, unlock gates, and all working routing; add contract regression, compile/package/deploy, and record live retry boundary. | complete and deployed; 605 tests, exact headers, native targets, UAT and installed-DLL hash pass; live retry superseded by the next exact `FGCDInvalidAimLocation` boundary above; see handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Current-unlock build constraints: bridge rejection for locked building/production/belt recipes in `companion/lib/actions.mjs`; exact `AFGRecipeManager::IsRecipeAvailable` gate for `place_belt` in `AIFactoryActions.cpp`; deterministic unlock fingerprint and replan/optimization provenance in `companion/lib/megabase.mjs` / tool output; focused tests, header verification, build/package/deploy, and planning docs. This is a narrow extension of the deployed belt executor, not a routing rewrite. | complete; see 2026-08-09 current-unlock handoff below |
 | 2026-08-09 | Codex | `codex/release-hardening` | Owner-supplied steel Pipe/Beam blueprint reference: read-only `.sbp`/`.sbpcfg` analysis; additive design-corpus requirements in `docs/PLANNING_REFERENCES.md` / `docs/MEGABASE-DESIGN.md`; non-mutating theme/commissioning metadata in `companion/lib/megabase.mjs`, its full and compact provider tool schemas, and focused tests. No edits to the live conveyor executor, action contract, designer, or Claude's routing lane. | complete |
@@ -2280,3 +2284,53 @@ Post-deployment exact headers and all 605 tests pass again. The code is live on
 disk; only the loaded-save retry remains. Do not claim completed belt
 construction until `latest-bridge-response.json` proves the first belt advances
 past step 30 and the whole transaction commits.
+
+### Codex — 2026-08-16 live-reliability integration handoff
+
+I fast-forwarded this branch through shared `origin/master` `9ab57bd` before
+touching the overlapping belt executor. The remaining Wire failure was the
+engine placement lifecycle, not resource planning, unlocks, or the support
+layout. `PlaceBelt` now admits the two already-resolved endpoint-owner classes
+through the exact FactoryGame 491125 reflected `AddValidHitClass` UFunction,
+then drives exactly one full `UpdateHologramPlacement` frame for the source and
+one for the destination. That restores the engine-owned visibility,
+Pre/TrySnap/Post sequence, and conveyor spline generation without reintroducing
+the known direct-snap-then-update reset. It still advances before source actor
+readback, checks both expected owners after destination placement, revalidates
+after the final multi-step transition, charges only after construction, and now
+proves the requested **output-to-input** component direction from the
+constructed belt's public ports. The old manual aim helper is deliberately gone;
+do not combine it with this reflected/full-frame path.
+
+The companion additionally accepts the exact practical fallback
+`build a wire factory using all mk1 parts on this node without belts` and emits
+the 29 supported/configured non-belt steps while truthfully leaving 17 belts to
+the player. A nearby resource-node centre is now advisory rather than an
+invented 8 m collision refusal: snapshots lack node bounds, so Satisfactory's
+per-step hologram remains authoritative. Every non-empty action response now
+also appends its game-enriched outcome (including refusal/rollback reasons and
+exact action readback) to
+`Saved/AIFactoryCopilot/Diagnostics/action-outcomes.jsonl`; the familiar
+`latest-bridge-response.json` remains the overwriteable latest view.
+
+Verification: exact SML 3.12.0 / FactoryGame 491125 header checks and all 645
+companion tests pass. FactoryGameSteam Shipping and FactoryEditor Development
+both compiled against the synced Starter Project. UAT then built, cooked,
+archived, and copied the package with Satisfactory confirmed closed. Archive:
+15,171,424 bytes, SHA-256
+`9EB5ED20E943D2790597B038FF8EA93CC2D6D925A7F547B561112DC8DD48DCCF`.
+Installed Steam Shipping DLL: 684,544 bytes, SHA-256
+`C0AC3E21A835CB8F621518A64BC896D6AF60EA370BAEDD494D0BA0CA9EC301D6`.
+The clean companion install verified 30 runtime file hashes; `/health` is ready
+on port 8142 with the hybrid local/Anthropic provider and a 256 MiB request
+limit.
+
+This is deployed but **not yet live-proven in a loaded save** because the game
+was closed for packaging. The next test should first place one known free,
+compatible output-to-input Mk.1 belt, then rerun the owner’s exact Wire command
+from clear space. Inspect `action-outcomes.jsonl` afterward; it preserves the
+full result even if another Copilot question follows. Do not claim a completed
+Wire factory until that transaction commits and its exact port readback is in
+the journal. Attachment replay (for example, a Conveyor Wall Hole needing a
+wall host) remains a separate open issue and was not weakened or disguised by
+this change.

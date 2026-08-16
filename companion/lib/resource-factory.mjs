@@ -402,28 +402,11 @@ export function planAimedMk1WireFactory(graph, {
     });
   }
 
-  // A foundation cannot be laid across a resource node, and the layout runs
-  // along an axis without looking at what else is on it. A live plan put a
-  // Foundation (1 m) five metres from BP_ResourceNode206 and the game refused
-  // it with FGCDInvalidPlacement at step 16, after fifteen other placements had
-  // already been validated.
-  //
-  // The refusal is cheap and the whole plan is thrown away either way, so it
-  // belongs here where the reason can be named. Only the node being mined is
-  // exempt: the miner is supposed to be on that one.
-  const blockingNode = findResourceNodeUnderPlan(graph, actions, target);
-  if (blockingNode) {
-    return {
-      solver: "aimed_mk1_wire_factory",
-      planned: false,
-      reason:
-        `the factory's foundations would cross ${blockingNode.name}, ` +
-        `${blockingNode.distance_m} m away, and a foundation cannot be laid over a ` +
-        "resource node. Stand so the space behind the node is clear and ask again — " +
-        "the layout runs away from where you are standing",
-      blocked_by: blockingNode,
-    };
-  }
+  // The snapshot captures a resource node centre but no node bounds. A nearby
+  // centre is useful evidence to show the player, but it cannot prove that a
+  // foundation overlaps the node. Keep it as an advisory and let the real
+  // hologram decide every exact placement before the game commits anything.
+  const nearbyResourceNode = findResourceNodeUnderPlan(graph, actions, target);
 
   return {
     solver: "aimed_mk1_wire_factory",
@@ -446,6 +429,7 @@ export function planAimedMk1WireFactory(graph, {
     last_constructor_utilisation_percent: wireStep.utilisation_of_last_machine_percent,
     storage_lanes: storageLanes.length,
     foundations: actions.filter((action) => action.recipe_class === foundation.class_path).length,
+    ...(nearbyResourceNode ? { nearby_resource_node: nearbyResourceNode } : {}),
     production,
     unlock_constraints: unlockConstraints,
     optimization: {
@@ -462,37 +446,22 @@ export function planAimedMk1WireFactory(graph, {
       `The ${purity} node and Miner Mk.1 can produce ${round(extractedPerMinute)} ore/min, but one Mk.1 belt carries ${round(beltCapacity.items_per_minute)}/min; this line is capped at ${round(lineInputPerMinute)}/min and uses ${round((lineInputPerMinute / extractedPerMinute) * 100, 1)}% of the node.`,
       "Production recipes are assigned and read back during each machine placement.",
       `Power is not wired because the action contract does not yet place power lines; connect the ${smelterCount + constructorCount} machines to a circuit before expecting production.`,
+      ...(nearbyResourceNode
+        ? [`${nearbyResourceNode.name} is ${nearbyResourceNode.distance_m} m from a planned support; node bounds were not captured, so Satisfactory's hologram is the final placement authority.`]
+        : []),
     ],
   };
 }
 
 /**
- * The first resource node a planned placement would sit on top of, or null.
+ * The first resource node near a planned placement centre, or null.
  *
- * Foundations and machines cannot occupy a resource node, and the game says so
- * only when it reaches that action — a live plan validated fifteen placements
- * before refusing the sixteenth with FGCDInvalidPlacement, five metres from
- * BP_ResourceNode206.
- *
- * The radius is stated, not measured, and the reply says so. A resource node
- * reports no `bounds` in the snapshot — only a centre — so its true extent is
- * not knowable here.
- *
- * It is calibrated against the one real observation available: a Foundation
- * (1 m) centred 5 m from BP_ResourceNode206 was refused. A foundation is 8 m
- * square, so its own half-width is 4 m, which alone would not have reached a
- * node centre 5 m away — the node therefore has an extent of its own. 8 m is
- * four metres of foundation plus four of node, the smallest value consistent
- * with what the game actually rejected.
- *
- * Being cautious costs a few metres of siting. Being optimistic costs the
- * whole transaction, which is what happened.
- *
- * Capturing `bounds` for resource nodes would replace this with a measurement.
- * That is a snapshot change and a rebuild; this is the honest version until
- * then.
+ * The threshold is a diagnostic radius, not a collision rule. Resource node
+ * bounds are absent from the snapshot, so a centre-distance heuristic cannot
+ * prove overlap. This helper therefore never blocks a plan; the game hologram
+ * remains the final authority and reports any genuine collision exactly.
  */
-const NODE_CLEARANCE_CM = 800;
+const NODE_ADVISORY_DISTANCE_CM = 800;
 
 export function findResourceNodeUnderPlan(graph, actions, target) {
   const targetId = String(target?.actor_id ?? "");
@@ -501,18 +470,12 @@ export function findResourceNodeUnderPlan(graph, actions, target) {
     if (node.kind !== "resource_node") continue;
     const location = node.raw?.location ?? node.location;
     if (!location) continue;
-    // The node being mined is where the miner goes; it is not an obstruction.
+    // The node being mined is where the miner goes; it is not an advisory.
     if (targetId && String(node.actor_id ?? node.raw?.actor_id ?? "") === targetId) continue;
 
     // Deposits are not nodes. The snapshot files both under kind
-    // "resource_node" and separates them by node_type, and the clearance here
-    // was calibrated against a full node — applying it to a hand-minable rock
-    // refused a whole factory over BP_ResourceDeposit539 at 0.56 m, which is
-    // close enough to be under the miner itself.
-    //
-    // Only a node is refused, because a node is the only thing observed to
-    // block a foundation. Guessing that deposits behave the same way would be
-    // inventing a second rule from the evidence for the first.
+    // "resource_node" and separates them by node_type. Deposits are not added
+    // to this advisory because the available evidence concerns full nodes only.
     if (String(node.raw?.node_type ?? node.node_type ?? "") === "Deposit") continue;
 
     nodes.push({ name: node.raw?.name ?? node.display_name ?? node.actor_id, location });
@@ -524,11 +487,11 @@ export function findResourceNodeUnderPlan(graph, actions, target) {
     if (!at) continue;
     for (const node of nodes) {
       const distance = Math.hypot(node.location.x - at.x, node.location.y - at.y);
-      if (distance <= NODE_CLEARANCE_CM) {
+      if (distance <= NODE_ADVISORY_DISTANCE_CM) {
         return {
           name: node.name,
           distance_m: Math.round(distance) / 100,
-          clearance_used_cm: NODE_CLEARANCE_CM,
+          advisory_distance_cm: NODE_ADVISORY_DISTANCE_CM,
         };
       }
     }

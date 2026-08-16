@@ -99,7 +99,7 @@ test("server holograms clear the initialization sentinel before validation", () 
   );
 });
 
-test("a successful conveyor snap is not erased by a second placement update", () => {
+test("conveyor endpoint hits run one complete engine placement frame", () => {
   const actions = fs.readFileSync(
     new URL(
       "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
@@ -107,37 +107,81 @@ test("a successful conveyor snap is not erased by a second placement update", ()
     ),
     "utf8",
   );
-
-  // Both endpoints go through the one helper, so the rule is stated once.
-  assert.match(actions, /SnapBeltEndpointWithAim\(Belt, FromHit\)/);
-  assert.match(actions, /SnapBeltEndpointWithAim\(Belt, ToHit\)/);
-
-  // The original invariant, kept and widened: a successful snap must never be
-  // followed by a placement update, which erases the connection it recorded.
-  // The belt path now calls UpdateHologramPlacement nowhere at all, so assert
-  // that outright rather than only forbidding the adjacent pair.
   const beltStart = actions.indexOf("FAIFactoryActionResult PlaceBelt(");
   const beltEnd = actions.indexOf("FAIFactoryActionResult DismantleActor(", beltStart);
   const belt = actions.slice(beltStart, beltEnd);
-  assert.ok(beltStart >= 0 && beltEnd > beltStart);
-  // The call, not the word: the comments above the helper explain why this
-  // call is absent, and a bare word match would fail on its own explanation.
-  assert.doesNotMatch(belt, /->UpdateHologramPlacement\(/);
 
-  // And the reason the helper exists: snapping outside the placement envelope
-  // left the hologram with a connection and no aim, which the game refuses as
-  // FGCDInvalidAimLocation. Pre and Post must bracket the snap.
-  const helper = actions.slice(
-    actions.indexOf("bool SnapBeltEndpointWithAim("),
-    actions.indexOf("FHitResult MakeActionConnectionHit("),
+  assert.ok(beltStart >= 0 && beltEnd > beltStart);
+  assert.match(actions, /bool AIFactoryAllowConveyorEndpointOwners\(/);
+  assert.match(
+    actions,
+    /FindFunction\(FunctionName\)/,
   );
-  const pre = helper.indexOf("PreHologramPlacement");
-  const snap = helper.indexOf("TrySnapToActor");
-  const fallback = helper.indexOf("SetHologramLocationAndRotation");
-  const post = helper.indexOf("PostHologramPlacement");
-  assert.ok(pre >= 0 && snap > pre, "the snap must run after PreHologramPlacement");
-  assert.ok(fallback > snap, "the fallback belongs to a declined snap");
-  assert.ok(post > fallback, "PostHologramPlacement must close the envelope");
+  assert.match(
+    actions,
+    /Function->NumParms != 1[\s\S]*Function->ParmsSize != sizeof\(FAddValidHitClassParams\)/,
+  );
+  assert.match(
+    actions,
+    /Belt->ProcessEvent\(Function, &Params\)/,
+  );
+  const helper = actions.slice(
+    actions.indexOf("bool AIFactoryAllowConveyorEndpointOwners("),
+    actions.indexOf("UFGFactoryConnectionComponent* FindFreeActionConnection("),
+  );
+  const sourceClass = helper.indexOf("FAddValidHitClassParams Params{FromBuildable->GetClass()}");
+  const firstProcessEvent = helper.indexOf("Belt->ProcessEvent(Function, &Params)");
+  const destinationClass = helper.indexOf("Params.hitClass = ToBuildable->GetClass()");
+  const secondProcessEvent = helper.indexOf(
+    "Belt->ProcessEvent(Function, &Params)",
+    firstProcessEvent + 1,
+  );
+  assert.ok(
+    sourceClass >= 0 &&
+      sourceClass < firstProcessEvent &&
+      firstProcessEvent < destinationClass &&
+      destinationClass < secondProcessEvent,
+    "the reflected contract must admit the source class before the destination class",
+  );
+  assert.equal(
+    helper.match(/Belt->ProcessEvent\(Function, &Params\)/g)?.length,
+    2,
+  );
+  assert.match(
+    belt,
+    /AIFactoryAllowConveyorEndpointOwners\(Belt, FromBuildable, ToBuildable\)/,
+  );
+  assert.match(belt, /Belt->IsValidHitResult\(FromHit\)/);
+  assert.match(belt, /Belt->IsValidHitResult\(ToHit\)/);
+  assert.match(belt, /source_hologram_visible/);
+  assert.match(belt, /destination_hologram_visible/);
+  assert.equal(
+    belt.match(/Belt->UpdateHologramPlacement\(FromHit\)/g)?.length,
+    1,
+  );
+  assert.equal(
+    belt.match(/Belt->UpdateHologramPlacement\(ToHit\)/g)?.length,
+    1,
+  );
+  assert.doesNotMatch(belt, /Belt->TrySnapToActor\(/);
+  assert.doesNotMatch(actions, /SnapBeltEndpointWithAim/);
+
+  const sourceValid = belt.indexOf("Belt->IsValidHitResult(FromHit)");
+  const sourceUpdate = belt.indexOf("Belt->UpdateHologramPlacement(FromHit)");
+  const firstAdvance = belt.indexOf("Belt->DoMultiStepPlacement(false)");
+  const destinationValid = belt.indexOf("Belt->IsValidHitResult(ToHit)");
+  const destinationUpdate = belt.indexOf("Belt->UpdateHologramPlacement(ToHit)");
+  const destinationReadback = belt.indexOf(
+    "const TArray<AFGBuildable*> DestinationSnappedBuildables",
+  );
+  const validate = belt.indexOf("Belt->ValidatePlacementAndCost", destinationReadback);
+  assert.ok(sourceValid >= 0 && sourceValid < sourceUpdate && sourceUpdate < firstAdvance);
+  assert.ok(
+    destinationValid >= 0 &&
+      destinationValid < destinationUpdate &&
+      destinationUpdate < destinationReadback &&
+      destinationReadback < validate,
+  );
 });
 
 test("conveyor snap gates name the exact expected endpoint buildables", () => {
@@ -165,7 +209,7 @@ test("conveyor snap gates name the exact expected endpoint buildables", () => {
   const firstAdvance = actions.indexOf("Belt->DoMultiStepPlacement(false)");
   const sourceReadback = actions.indexOf("const TArray<AFGBuildable*> SourceSnappedBuildables");
   const sourceGate = actions.indexOf("if (!bExpectedSourceBuildableSnapped)");
-  const destinationSnap = actions.indexOf("SnapBeltEndpointWithAim(Belt, ToHit)");
+  const destinationSnap = actions.indexOf("Belt->UpdateHologramPlacement(ToHit)");
   const destinationGate = actions.indexOf(
     "if (!bExpectedSourceBuildableStillSnapped || !bExpectedDestinationBuildableSnapped)",
   );
@@ -190,6 +234,10 @@ test("a conveyor is revalidated, charged, and accepted only after exact endpoint
   assert.match(belt, /AFGBuildableConveyorBase/);
   assert.match(belt, /ConstructedBelt->GetConnection0\(\)/);
   assert.match(belt, /ConstructedBelt->GetConnection1\(\)/);
+  assert.match(
+    belt,
+    /IsExactPair\(Belt0, To\) && IsExactPair\(Belt1, From\)/,
+  );
   assert.match(
     belt,
     /Left->GetConnection\(\) == Right &&\s*Right->GetConnection\(\) == Left/,
@@ -297,4 +345,70 @@ test("extractors report the current extractable interface, not deprecated node s
   assert.match(snapshot, /Extractor->GetExtractorTypeName\(\)/);
   assert.match(snapshot, /ExtractableInterface->GetResourceClass\(\)/);
   assert.doesNotMatch(snapshot, /Extractor->GetResourceNode\(\)/);
+});
+
+test("an unconfigured manufacturer stays an unknown cycle rate instead of crashing the snapshot", () => {
+  const snapshot = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  const recipe = snapshot.indexOf(
+    "const TSubclassOf<UFGRecipe> Recipe =",
+  );
+  const validRecipeGuard = snapshot.indexOf(
+    "const bool bProductionCycleKnown = !Manufacturer || IsValid(Recipe.Get());",
+  );
+  const cycleGuard = snapshot.indexOf("if (bProductionCycleKnown)");
+  const cycle = snapshot.indexOf("Factory->GetProductionCycleTime()", cycleGuard);
+  const defaultCycle = snapshot.indexOf("Factory->GetDefaultProductionCycleTime()", cycleGuard);
+  const unknown = snapshot.indexOf("manufacturer_has_no_valid_current_recipe", cycleGuard);
+  assert.ok(
+    recipe >= 0 &&
+      recipe < validRecipeGuard &&
+      validRecipeGuard < cycleGuard &&
+      cycleGuard < cycle &&
+      cycle < defaultCycle &&
+      unknown > defaultCycle,
+    "cycle accessors must be guarded by the captured current-recipe validity",
+  );
+  assert.match(snapshot, /production_cycle_known/);
+  assert.match(snapshot, /production_cycle_unavailable_reason/);
+});
+
+test("game action outcomes are append-only diagnostics after authoritative execution", () => {
+  const subsystem = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(subsystem, /action-outcomes\.jsonl/);
+  assert.match(subsystem, /EFileWrite::FILEWRITE_Append/);
+  assert.match(subsystem, /OutcomeJson \+ TEXT\("\\n"\)/);
+  for (const field of [
+    "game_action_results",
+    "game_action_summary",
+    "game_actions_refused",
+    "game_world_was_mutated",
+    "game_actions_requested_count",
+    "game_actions_executed_count",
+    "game_world_revision_after",
+  ]) {
+    assert.match(subsystem, new RegExp(`Outcome->Set(?:Array|String|Bool|Number)Field\\(\\s*TEXT\\("${field}"\\)`));
+  }
+
+  const execute = subsystem.indexOf("AIFactoryActions::ExecutePlan(");
+  const enrichedResults = subsystem.indexOf('ResponseJson->SetArrayField(TEXT("game_action_results")', execute);
+  const appendGate = subsystem.indexOf("if (Actions->Num() > 0)", enrichedResults);
+  const append = subsystem.indexOf("action-outcomes.jsonl", appendGate);
+  assert.ok(
+    execute >= 0 && enrichedResults > execute && appendGate > enrichedResults && append > appendGate,
+    "outcomes must be appended only after the game has enriched the response",
+  );
 });

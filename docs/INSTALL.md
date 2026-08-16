@@ -99,7 +99,7 @@ rendered UI can contain private text.
 
 ## Source build environment
 
-The descriptor targets SML 3.12.0 and FactoryGame changelist 491125. Use the
+The descriptor targets SML 3.12.0 and FactoryGame changelist 502094. Use the
 official Satisfactory Modding Starter Project and its Coffee Stain Unreal Engine
 5.6.1-CSS installation. Do not package with a stock Epic engine.
 
@@ -111,19 +111,21 @@ Sync the repository into the Starter Project:
 
 ```powershell
 ./scripts/install-to-starter.ps1 `
-  -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject' -Force
+  -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject-502094' -Force
 ```
 
 Then validate, build, package, and assemble public artifacts:
 
 ```powershell
 ./scripts/validate.ps1 `
-  -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject'
-./scripts/package-local.ps1
+  -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject-502094'
+./scripts/package-local.ps1 -StarterProjectPath 'D:\Modding\Satisfactory\StarterProject-502094'
 ./scripts/package-release.ps1
 ```
 
-`package-local.ps1` refuses to deploy while Satisfactory holds the DLL open. It
+`package-local.ps1` refuses to deploy while Satisfactory holds the DLL open or
+when the Starter Project, descriptor, and installed game changelists do not
+match. It
 builds the official editor target required for cooking, invokes UAT with
 `-ScriptsForProject`, packages the Windows client, deploys it to the game, and
 checks the deployed version and icon. `package-release.ps1` then refuses a stale

@@ -19,6 +19,7 @@ test("plugin and companion publish one exact semantic version", async () => {
   assert.equal(plugin.VersionName, plugin.SemVersion);
   assert.equal(companion.version, plugin.SemVersion);
   assert.equal(plugin.IsBetaVersion, plugin.SemVersion.includes("-"));
+  assert.equal(plugin.GameVersion, ">=502094");
 });
 
 test("SML metadata links users to this project and its support tracker", async () => {
@@ -38,4 +39,16 @@ test("the public companion bundle includes secure configuration tooling", async 
   assert.match(configurator, /Read-Host .* -AsSecureString/);
   assert.doesNotMatch(configurator, /Write-Host.*ApiKey/i);
   assert.match(packager, /configure-companion\.ps1/);
+});
+
+test("source packaging refuses a mismatched game and Starter Project", async () => {
+  const [validator, localPackager] = await Promise.all([
+    readFile(new URL("scripts/validate.ps1", root), "utf8"),
+    readFile(new URL("scripts/package-local.ps1", root), "utf8"),
+  ]);
+  assert.match(validator, /FactoryGameSteam-Win64-Shipping\.version/);
+  assert.match(validator, /Starter Project FactoryGame CL/);
+  assert.match(localPackager, /FactoryGameSteam-Win64-Shipping\.version/);
+  assert.match(localPackager, /Starter Project CL .* installed Satisfactory CL/);
+  assert.match(localPackager, /source GameVersion/);
 });
