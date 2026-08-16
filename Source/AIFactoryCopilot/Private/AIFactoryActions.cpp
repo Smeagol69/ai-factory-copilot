@@ -2189,9 +2189,23 @@ FAIFactoryActionResult PlaceBlueprint(
 
     AFGBlueprintProxy* Proxy = Cast<AFGBlueprintProxy>(Constructed);
     TArray<AFGBuildable*> Placed;
+    int32 LightweightPlaced = 0;
+    bool bLightweightReadbackValid = false;
     if (IsValid(Proxy))
     {
         Proxy->CollectBuildables(Placed);
+        for (const FBuildableClassLightweightIndices& Entry :
+             Proxy->GetLightweightClassAndIndices())
+        {
+            // A blueprint can legitimately consist entirely of lightweight
+            // architecture. Those instances are owned by the proxy but do not
+            // appear in CollectBuildables(), so counting actors alone turns a
+            // successful native placement into a false failure and dismantles
+            // it before the player ever sees it.
+            LightweightPlaced += Entry.Indices.Num();
+        }
+        bLightweightReadbackValid =
+            LightweightPlaced > 0 && Proxy->AreProxyBuildingsRegisteredAndValid();
     }
     if (AFGBuildable* RootBuildable = Cast<AFGBuildable>(Constructed);
         IsValid(RootBuildable))
@@ -2207,7 +2221,10 @@ FAIFactoryActionResult PlaceBlueprint(
         }
     }
 
-    if (Placed.Num() == 0)
+    const bool bHasPlacedBuildables = Placed.Num() > 0;
+    const bool bHasPlacedLightweights =
+        LightweightPlaced > 0 && bLightweightReadbackValid;
+    if (!bHasPlacedBuildables && !bHasPlacedLightweights)
     {
         if (IsValid(Proxy))
         {
@@ -2229,7 +2246,10 @@ FAIFactoryActionResult PlaceBlueprint(
             }
         }
         Result.Status = TEXT("failed");
-        Result.Reason = TEXT("blueprint_hologram_constructed_no_buildables");
+        Result.Reason =
+            LightweightPlaced > 0
+                ? TEXT("blueprint_proxy_lightweight_readback_not_ready")
+                : TEXT("blueprint_hologram_constructed_no_buildables");
         return Result;
     }
     ChargeActionCost(Cost, Inventory);
@@ -2259,7 +2279,13 @@ FAIFactoryActionResult PlaceBlueprint(
     Step.Description = FString::Printf(TEXT("Dismantle the placed blueprint '%s'"), *BlueprintName);
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
-    Observed->SetNumberField(TEXT("buildings_placed"), Result.CreatedActorIds.Num());
+    const int32 TotalPlaced = Placed.Num() + LightweightPlaced;
+    Observed->SetNumberField(TEXT("buildings_placed"), TotalPlaced);
+    Observed->SetNumberField(TEXT("actor_buildings_placed"), Placed.Num());
+    Observed->SetNumberField(TEXT("lightweight_buildings_placed"), LightweightPlaced);
+    Observed->SetBoolField(
+        TEXT("lightweight_readback_valid"),
+        LightweightPlaced == 0 || bLightweightReadbackValid);
     Observed->SetObjectField(
         TEXT("origin"),
         ActionTransformJson(
@@ -2275,7 +2301,7 @@ FAIFactoryActionResult PlaceBlueprint(
     Result.bUndoable = true;
     Result.UndoDescription = FString::Printf(
         TEXT("Dismantle all %d placed buildings."),
-        Result.CreatedActorIds.Num());
+        TotalPlaced);
     RecordActionUndo(MoveTemp(Step));
 
     return Result;
