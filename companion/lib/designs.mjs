@@ -325,7 +325,16 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
   // are reported, not dropped quietly — a plan stops at its first runtime
   // failure, and one power line at the front of the queue takes the whole
   // design with it.
-  const notPlaceable = [];
+  //
+  // A design saved *since* that change already has them on `links`, and those
+  // count too: the player placing it now is owed the same sentence whether the
+  // design was saved last week or last month. Without this the message
+  // appeared only for older designs, which is the sort of inconsistency nobody
+  // would ever guess at from the reply.
+  const notPlaceable = (Array.isArray(design?.links) ? design.links : []).map((entry) => ({
+    class_path: entry.class_path,
+    why: describeUnplaceableByCoordinate(entry.class_path) ?? "is a link, not a building at a point",
+  }));
   const buildings = saved.filter((entry) => {
     const why = describeUnplaceableByCoordinate(entry.class_path);
     if (why) notPlaceable.push({ class_path: entry.class_path, why });

@@ -187,13 +187,21 @@ test("belts and power lines are recorded, not replayed as placements", () => {
   assert.equal(result.design.links.length, 2);
   assert.equal(result.skipped.length, 2);
 
-  // And a design saved before the capture knew the difference is filtered on
-  // the way out, so the ones already on disk get the same treatment.
-  const stale = { ...result.design, buildings: [...result.design.buildings, ...result.design.links] };
-  const plan = planDesignPlacement(stale, { origin: ANCHOR });
-  assert.equal(plan.count, 4);
-  assert.equal(plan.not_placeable.length, 2);
-  assert.ok(plan.actions.every((action) => !/ConveyorBelt|PowerLine/.test(action.recipe_class)));
+  // A design saved before the capture knew the difference has no `links` key
+  // at all and carries them on `buildings`. It is filtered on the way out, so
+  // the ones already on disk get the same treatment.
+  const { links: _oldFormat, ...stale } = result.design;
+  stale.buildings = [...result.design.buildings, ...result.design.links];
+  const older = planDesignPlacement(stale, { origin: ANCHOR });
+  assert.equal(older.count, 4);
+  assert.equal(older.not_placeable.length, 2);
+  assert.ok(older.actions.every((action) => !/ConveyorBelt|PowerLine/.test(action.recipe_class)));
+
+  // And one saved since then reports the same two, from `links`, so the player
+  // hears it whichever era their design comes from.
+  const current = planDesignPlacement(result.design, { origin: ANCHOR });
+  assert.equal(current.count, 4);
+  assert.equal(current.not_placeable.length, 2);
 });
 
 test("a design can be turned, and stays rigid when it is", () => {
