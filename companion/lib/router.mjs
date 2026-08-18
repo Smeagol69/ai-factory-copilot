@@ -1245,6 +1245,57 @@ export function parseWaypointRequest(question) {
 }
 
 /**
+ * "where am I", "what am I looking at", "how many smelters do I have".
+ *
+ * Three questions a player asks constantly, and all three were reaching a
+ * model. None of them contains anything to reason about: the player's position
+ * and the crosshair target are fields in the snapshot, and a count is a count.
+ * Paying per request to have the capture read back is the exact thing the
+ * deterministic routes exist to stop.
+ */
+// "whats" and "wheres" without the apostrophe are how people actually type,
+// so the apostrophe is optional rather than required.
+const WHERE_AM_I =
+  /^(?:can you |could you |please )?(?:where(?:'?s| is| am)?\s+(?:i|me|my\s+(?:position|location))|what(?:'?s| is| are)?\s+my\s+(?:position|location|co-?ordinates|coords)|my\s+(?:position|location|co-?ordinates|coords))\b/i;
+
+const WHAT_AM_I_LOOKING_AT =
+  /^(?:can you |could you |please )?(?:what(?:'?s| is| am)?\s+(?:i\s+)?(?:looking at|aiming at|pointing at|under (?:my|the) (?:crosshair|cursor|reticle))|what(?:'?s| is)?\s+(?:this|that)\s*(?:thing)?)\s*\??$/i;
+
+const HOW_MANY =
+  /^(?:can you |could you |please )?(?:how many|count(?:\s+(?:my|the|all))?)\s+(.+?)(?:\s+(?:do|have)\s+i\s+(?:have|own|got)|\s+do\s+i\s+have|\s+i\s+have)?\s*$/i;
+
+export function parseWhereAmIRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return WHERE_AM_I.test(text) ? {} : null;
+}
+
+export function parseLookingAtRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return WHAT_AM_I_LOOKING_AT.test(text) ? {} : null;
+}
+
+export function parseHowManyRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(HOW_MANY);
+  if (!match) return null;
+
+  let thing = match[1].replace(/\s+/g, " ").trim();
+  while (LOCATE_LEADING_ARTICLE.test(thing)) thing = thing.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  // Trailing plural is dropped so "smelters" finds "Smelter". Only the simple
+  // -s; anything cleverer starts mangling names like "Mk1 Bus".
+  thing = thing.replace(/\b(\w{4,})s\b/g, "$1");
+  if (thing.length < 3) return null;
+
+  // A question about rates, power or the best of something is not a count, and
+  // guessing that it is would answer confidently with a number nobody asked
+  // for.
+  if (/\b(?:power|mw|watt|item|per minute|ppm|resource|ore|point|ticket|coupon|slot|hour)\b/i.test(thing)) {
+    return null;
+  }
+  return { thing };
+}
+
+/**
  * "undo", "undo that", "revert that".
  *
  * Nothing follows it and nothing modifies it, so anything past the verb other
@@ -2509,6 +2560,85 @@ export function answerLocally(question, graph, services) {
     if (refusal) {
       return localAnswer(refusal, "modular_shell_refused", started, "Refused by validation before anything ran.");
     }
+  }
+
+  // "where am I" — a field in the snapshot, read back.
+  if (parseWhereAmIRequest(question) && graph) {
+    const started = Date.now();
+    const at = graph.snapshot?.interaction_context?.player?.pawn_location;
+    if (at) {
+      return localAnswer(
+        `You are at \`x=${round(at.x)}, y=${round(at.y)}, z=${round(at.z)}\`, which is ` +
+          `${round(at.z / 100)} m above sea level.\n\nSay "waypoint here" and I will drop a ` +
+          "map marker on it.",
+        "where_am_i",
+        started,
+        "Straight from the capture's player position.",
+      );
+    }
+  }
+
+  // "what am I looking at" — the crosshair target, which the capture already
+  // resolves for placement.
+  if (parseLookingAtRequest(question) && graph) {
+    const started = Date.now();
+    const target = graph.snapshot?.interaction_context?.preferred_target;
+    if (target?.available) {
+      const aimed = solvePlacementTarget(graph, { kind: "aim" });
+      const name = aimed?.on ?? target.actor_name ?? target.actor_id ?? "something the capture could not name";
+      const extra = [
+        // "Coal node — a Node" says nothing. Only the node types that are not
+        // the ordinary one are worth naming.
+        aimed?.node_type && aimed.node_type !== "Node" ? aimed.node_type : null,
+        aimed?.purity ? `${aimed.purity} purity` : null,
+        aimed?.occupied === true ? "already occupied" : null,
+        aimed?.occupied === false && aimed?.node_type ? "free for a miner" : null,
+      ].filter(Boolean);
+      return localAnswer(
+        `**${name}**${extra.length > 0 ? ` — ${extra.join(", ")}` : ""}.` +
+          (target.hit_location
+            ? `\n\nThe point under your crosshair is \`x=${round(target.hit_location.x)}, ` +
+              `y=${round(target.hit_location.y)}, z=${round(target.hit_location.z)}\`.`
+            : ""),
+        "looking_at",
+        started,
+        "The capture's own crosshair target; nothing was inferred.",
+      );
+    }
+    return localAnswer(
+      "Nothing the capture could identify is under your crosshair — you are looking at " +
+        "terrain, at the sky, or at something too far away for the scan radius.",
+      "looking_at",
+      started,
+      "The capture reports no preferred target.",
+    );
+  }
+
+  // "how many smelters do I have" — a count, not a judgement.
+  const howMany = parseHowManyRequest(question);
+  if (howMany && graph) {
+    const started = Date.now();
+    const found = solveActorLookup(graph, { name_contains: howMany.thing, limit: 1 });
+    // `match_count` is everything that matched; `matches` is capped by `limit`
+    // and is only there to name the nearest one. Reading the count off the
+    // capped list answered "how many smelters" with 1 when there were 2 --
+    // caught before this shipped, and exactly the kind of confidently wrong
+    // number that is worse than paying a model.
+    const total = Number.isFinite(found?.match_count) ? found.match_count : 0;
+    const nearest = found?.matches?.[0];
+    return localAnswer(
+      total === 0
+        ? `Nothing matching **${howMany.thing}** is in the current capture. The panel scans a ` +
+          "radius around you unless you ask for the whole world, so it may exist and simply not " +
+          "have been looked at."
+        : `**${total}** matching **${howMany.thing}**` +
+          (Number.isFinite(nearest?.distance_meters)
+            ? `, nearest ${nearest.distance_meters} m away.`
+            : "."),
+      "how_many",
+      started,
+      "Counted from the capture; it only knows what was scanned.",
+    );
   }
 
   // "open the library" — the page exists, the panel has a button for it, and

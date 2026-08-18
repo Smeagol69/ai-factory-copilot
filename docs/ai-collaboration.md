@@ -2726,3 +2726,36 @@ quietest way a feature can be missing: every part of it looks present. The
 route exists now and answers with the URL and a pointer to the panel button.
 
 677 companion tests pass. No C++ changed.
+
+### Three constant questions were being paid for — Claude, 2026-08-18
+
+Same method as the routing sweep above: run the phrasings a player actually
+types through the live router and read which ones fall through.
+
+`where am i`, `what am i looking at` and `how many smelters do i have` all
+reached a model. None of them contains anything to reason about — the player
+position and the crosshair target are *fields in the capture*, and a count is a
+count. Paying per request to have the snapshot read back is the exact thing the
+deterministic routes exist to stop.
+
+All three are local now. `looking_at` reuses `solvePlacementTarget` so it
+gives the same answer the placement path would, and says "Nothing the capture
+could identify" rather than guessing when the crosshair is on terrain.
+
+**The count nearly shipped wrong.** The first version read `matches.length`,
+which `solveActorLookup` caps by `limit` — so "how many smelters" answered
+**1** with two standing. Caught by testing it against a two-smelter graph before
+committing. The total comes from `match_count`; the capped list is used only
+to name the nearest one. A confidently wrong number is worse than paying for
+the answer, which is the whole reason this project measures instead of
+asserting.
+
+Deliberately still going to a model: "how many mw", "how many items per
+minute", anything about rates or power. Those are not actor counts and
+answering them with one would be exactly the failure above.
+
+Small things found the same way: `whats` and `wheres` without apostrophes,
+because that is how people type; and "Coal node — a Node", where the ordinary
+node type added nothing beside the name.
+
+682 companion tests pass. No C++ changed.
