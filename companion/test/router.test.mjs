@@ -566,6 +566,51 @@ test("neighbouring routes are not swallowed by the wider pattern", () => {
   }
 });
 
+test("a refused plan names the building, the scale, and the near misses", async () => {
+  const { describePlanRejection } = await import("../lib/router.mjs");
+
+  // The case this was written for: a 389-building design saved on a save that
+  // had a mod loaded, replayed on one that does not. "step 214" alone is not
+  // something a player can act on, and the rejection was already carrying the
+  // class path and the suggestions.
+  const missingMod = describePlanRejection({
+    reason: "one_or_more_steps_are_invalid",
+    rejected: [
+      {
+        step: 214,
+        reason: "recipe_not_in_catalog",
+        recipe_class: "/Game/CC/Recipe_CCWall8x8.Recipe_CCWall8x8_C",
+        did_you_mean: ["Wall 8x8", "Wall 8x4", "Wall Window"],
+      },
+      { step: 215, reason: "recipe_not_in_catalog" },
+      { step: 216, reason: "recipe_not_in_catalog" },
+    ],
+  });
+  assert.match(missingMod, /Recipe_CCWall8x8/);
+  assert.match(missingMod, /step 214/);
+  assert.match(missingMod, /3 of the steps/);
+  assert.match(missingMod, /Wall 8x8/);
+
+  // A readable name beats a class path when the catalogue knows one.
+  assert.match(
+    describePlanRejection({
+      reason: "one_or_more_steps_are_invalid",
+      rejected: [{ step: 3, reason: "build_recipe_is_not_unlocked", building_name: "Coal Generator" }],
+    }),
+    /on Coal Generator \(step 3\)\.$/,
+  );
+
+  // Nothing invented when there is nothing to say.
+  assert.match(
+    describePlanRejection({
+      reason: "one_or_more_steps_are_invalid",
+      rejected: [{ step: 1, reason: "location_must_be_an_xyz_object_with_an_explicit_z" }],
+    }),
+    /^The plan was refused: location_must_be_an_xyz_object_with_an_explicit_z \(step 1\)\.$/,
+  );
+  assert.equal(describePlanRejection({ reason: "one_or_more_steps_are_invalid", rejected: [] }), null);
+});
+
 test("a design can be asked for turned, in degrees or in quarters", async () => {
   const { parseDesignPlaceRequest } = await import("../lib/router.mjs");
 

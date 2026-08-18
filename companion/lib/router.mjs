@@ -124,8 +124,37 @@ export function describePlanRejection(rejection = lastPlanRejection) {
       "skip the building."
     );
   }
-  const first = rejection.rejected?.[0];
-  return first ? `The plan was refused: ${first.reason} (step ${first.step}).` : null;
+  const rejected = rejection.rejected ?? [];
+  const first = rejected[0];
+  if (!first) return null;
+
+  // Name the building, not just the step number.
+  //
+  // A 389-building design refused at step 214 with "recipe_not_in_catalog" told
+  // the player nothing they could act on, while the rejection object was
+  // already carrying the building name and the class path. A design saved on a
+  // save with a mod that is no longer loaded is exactly this case, and the
+  // useful sentence is "you no longer have the Curved Ceiling Wall".
+  const named = first.building_name || shortRecipeName(first.recipe_class);
+  const what = named ? ` on ${named}` : "";
+
+  // How many, because one missing mod takes out hundreds of steps and "step
+  // 214" reads like a single unlucky piece.
+  const more = rejected.length > 1
+    ? ` ${rejected.length} of the steps were refused; this is the first.`
+    : "";
+
+  const suggestion = Array.isArray(first.did_you_mean) && first.did_you_mean.length > 0
+    ? ` Closest names in your catalogue: ${first.did_you_mean.slice(0, 3).join(", ")}.`
+    : "";
+
+  return `The plan was refused: ${first.reason}${what} (step ${first.step}).${more}${suggestion}`;
+}
+
+/** "Build_CCWall8x8_C" out of a full class path, for a readable refusal. */
+function shortRecipeName(classPath) {
+  const tail = String(classPath ?? "").split(/[./]/).filter(Boolean).pop() ?? "";
+  return tail.replace(/_C$/, "") || null;
 }
 
 /** Words that carry no question meaning, so leftover ones do not block a route. */
