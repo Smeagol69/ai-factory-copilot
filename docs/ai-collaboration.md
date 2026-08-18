@@ -2651,3 +2651,35 @@ which came out 339 px tall and pushed everything else off screen; it is a fixed
 120 px now, with `preserveAspectRatio` keeping the drawing square inside it.
 
 670 companion tests pass.
+
+### "put a waypoint here" reached a model — Claude, 2026-08-18
+
+The owner's last waypoint report was a copilot transcript flatly denying that
+waypoints were possible. The capability was never the problem — Codex's
+`RunWaypointAction` has been using the game's own `AFGMapManager` markers
+with `CVD_Always` and the distance baked into the name since 2026-08-03. The
+*routing* was.
+
+Two holes, both found by trying the obvious phrasings against the live router:
+
+`waypoint here` and `put a waypoint here` matched `WAYPOINT_VERB`, which
+left "here" as the target, and then went looking for a *building named "here"*.
+Nothing matched, so the route fell through and a model answered — and a model
+with no waypoint tool in front of it says it cannot place waypoints. That is
+the transcript.
+
+`mark this spot` never reached the waypoint route at all. The overlay route
+runs later but its `SHOW_VERB` includes "mark", and by then the waypoint route
+had already declined, so it drew an overlay for buildings named "this spot".
+
+Both now resolve to `kind: "here"` before any lookup is attempted, and the
+route takes the position straight from the snapshot: the aim point, or the
+player's feet when the crosshair is on nothing, with the marker named "(your
+position)" in that case so the player is not left guessing which it used.
+Covered phrasings: waypoint/mark/pin/flag/note/drop a pin/set a marker, against
+here/this/this spot/my position/where I am standing.
+
+Naming a real thing still marks the thing rather than the player — pinned in a
+test, because that is the regression this change could have caused.
+
+674 companion tests pass. No C++ changed; this was entirely a routing gap.

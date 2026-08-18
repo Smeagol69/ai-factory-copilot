@@ -133,3 +133,86 @@ test("clearing waypoints accepts stacked qualifiers", () => {
   // Overlays are a different thing and must not be swept up.
   assert.equal(parseClearWaypointRequest("clear all my highlights"), false);
 });
+
+test("marking where you are stopped needing a model", () => {
+  // The owner's report was a copilot transcript flatly denying that waypoints
+  // were possible. This is why: "put a waypoint here" -- the most obvious form
+  // of the request there is -- fell through to a model, and "mark this spot"
+  // was claimed by the overlay route, which went hunting for buildings *named*
+  // "this spot". Neither needed reasoning: the position is in the snapshot.
+  const here = buildGraph({
+    world_revision: 5,
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    interaction_context: {
+      player: { pawn_available: true, pawn_location: { x: 1_000, y: 2_000, z: 500 } },
+      preferred_target: { hit_location: { x: 1_500, y: 2_000, z: 520 } },
+    },
+    actors: [],
+  });
+
+  for (const question of [
+    "put a waypoint here",
+    "waypoint here",
+    "mark this spot",
+    "mark this",
+    "drop a pin here",
+    "set a marker here",
+    "flag where i am standing",
+    "mark my position",
+  ]) {
+    const emitted = [];
+    const answer = answerLocally(question, here, {
+      actions: { emit: (actions) => emitted.push(...actions) },
+    });
+    assert.equal(answer?.local?.solver, "waypoint", `"${question}" should be a local waypoint`);
+    assert.equal(emitted.length, 1, `"${question}" should emit exactly one action`);
+    assert.equal(emitted[0].action, "waypoint");
+    // The aim point, because that is where the player is pointing.
+    assert.deepEqual(emitted[0].location, { x: 1_500, y: 2_000, z: 520 });
+  }
+});
+
+test("with nothing under the crosshair the waypoint lands at the player's feet", () => {
+  const nowhere = buildGraph({
+    world_revision: 6,
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    interaction_context: {
+      player: { pawn_available: true, pawn_location: { x: 700, y: 800, z: 90 } },
+    },
+    actors: [],
+  });
+
+  const emitted = [];
+  const answer = answerLocally("waypoint here", nowhere, {
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+  assert.equal(answer.local.solver, "waypoint");
+  assert.deepEqual(emitted[0].location, { x: 700, y: 800, z: 90 });
+  // And it says which it used, rather than letting the player assume.
+  assert.match(emitted[0].name, /your position/);
+});
+
+test("naming a thing still marks the thing, not the player", () => {
+  const world = buildGraph({
+    world_revision: 7,
+    world: { scan_center: { x: 0, y: 0, z: 0 } },
+    interaction_context: {
+      player: { pawn_available: true, pawn_location: { x: 0, y: 0, z: 0 } },
+      preferred_target: { hit_location: { x: 10, y: 10, z: 10 } },
+    },
+    actors: [
+      {
+        actor_id: "BP_ResourceNode217",
+        name: "Coal node",
+        kind: "resource_node",
+        location: { x: 9_000, y: 9_000, z: 100 },
+      },
+    ],
+  });
+
+  const emitted = [];
+  answerLocally("mark BP_ResourceNode217 on my map", world, {
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+  assert.deepEqual(emitted[0].location, { x: 9_000, y: 9_000, z: 100 });
+});

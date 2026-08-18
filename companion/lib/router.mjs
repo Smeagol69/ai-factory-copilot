@@ -558,6 +558,25 @@ const WAYPOINT_ALT =
 const WAYPOINT_BEST_SITE = /\b(?:best|ideal|optimal|recommended)\b.*\b(?:hub|site|spot|location|place|base)\b/i;
 
 /**
+ * "waypoint here", "mark this spot", "drop a pin where I'm standing".
+ *
+ * The most obvious waypoint request there is, and it was the one thing the
+ * route could not do. "put a waypoint here" fell through to a model — which is
+ * how the owner ended up with a copilot transcript flatly denying that
+ * waypoints were possible — and "mark this spot" was claimed by the overlay
+ * route, which went looking for buildings *named* "this spot" and found none.
+ *
+ * There is nothing to look up: the position is the aim point, or the player's
+ * feet when they are not aiming at anything.
+ */
+const WAYPOINT_HERE =
+  /^(?:this|here|it|that)?\s*(?:spot|place|position|location|point)?\s*$|^(?:where|wherever)\s+i(?:'m|m| am)?\s*(?:standing|looking|aiming|at)?\s*$|^my\s+(?:position|location|feet|spot)\s*$/i;
+
+/** "mark this spot", "drop a pin here" — the same request, other words. */
+const WAYPOINT_HERE_PHRASE =
+  /^(?:can you |could you |please )?(?:mark|pin|flag|note|remember|save|drop a pin(?:\s+(?:on|at|in))?|put a pin(?:\s+(?:on|at|in))?|set a marker(?:\s+(?:on|at|in))?)\s+(?:me\s+)?(this|here|this spot|this place|this position|my position|where i(?:'m|m| am)?(?:\s+(?:standing|looking|aiming))?)\s*$/i;
+
+/**
  * "belt the smelter to the constructor", "connect A to B with a mk2 belt".
  *
  * The planner and the write action both existed, and nothing connected them:
@@ -1172,10 +1191,19 @@ export function parseWaypointRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
 
+  // "mark this spot" and friends, before anything tries to look up a building
+  // called "this spot".
+  if (WAYPOINT_HERE_PHRASE.test(text)) return { kind: "here", target: "here" };
+
   let target = null;
   const alt = text.match(WAYPOINT_ALT);
   if (alt) target = alt[1].trim();
   else if (WAYPOINT_VERB.test(text)) target = text.replace(WAYPOINT_VERB, "").trim();
+  // "waypoint" on its own, or "waypoint here": the verb consumed the whole
+  // phrase, which means the player is asking about where they already are.
+  if (WAYPOINT_VERB.test(text) && WAYPOINT_HERE.test(target ?? "")) {
+    return { kind: "here", target: "here" };
+  }
   if (!target) return null;
 
   // "the best hub location" is not a name to look up — it is the site solver's
@@ -2299,7 +2327,15 @@ export function answerLocally(question, graph, services) {
     let location = null;
     let label = null;
 
-    if (waypoint.kind === "best_site") {
+    if (waypoint.kind === "here") {
+      // Where they are looking, or where they are standing when they are not
+      // looking at anything. No lookup: the position is already in the
+      // snapshot, which is the whole reason this never needed a model.
+      const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
+      const feet = graph.snapshot?.interaction_context?.player?.pawn_location;
+      location = aim ?? feet ?? null;
+      label = aim ? "Copilot waypoint" : "Copilot waypoint (your position)";
+    } else if (waypoint.kind === "best_site") {
       const site = solveSiteSelection(graph, {});
       const best = site?.sites?.[0];
       if (best?.center_cm) {
