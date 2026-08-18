@@ -1063,7 +1063,16 @@ const BLUEPRINT_PLACE =
 
 export function parseBlueprintPlaceRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
-  const match = text.match(BLUEPRINT_PLACE);
+  // A real blueprint turns too, and it costs nothing to support: the action
+  // has carried a yaw all along -- the validator emits it and the mod builds
+  // FRotator(0, Yaw, 0) from it -- the router simply never set it. Same
+  // stripping as the design route, and for the same reason: the pattern below
+  // anchors on the phrase ending in "here".
+  const turn = designTurnDegrees(text);
+  const withoutTurn = turn
+    ? text.replace(turn.phrase, "").replace(/\s{2,}/g, " ").trim()
+    : text;
+  const match = withoutTurn.match(BLUEPRINT_PLACE);
   if (!match) return null;
   const name = match[1].replace(/\s+/g, " ").replace(/\bblue\s?print\b/i, "").trim();
   // No keyword blocklist. A blocklist here would have to guess which words can
@@ -1071,7 +1080,7 @@ export function parseBlueprintPlaceRequest(question) {
   // owner's file really is called "Coal power plant 2700MW v1.1". The library
   // is the authority instead — the route falls through when nothing matches, so
   // a phrase that belongs to another planner reaches it untouched.
-  return name.length >= 2 ? { name } : null;
+  return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
 }
 
 /**
@@ -2769,13 +2778,21 @@ export function answerLocally(question, graph, services) {
     }
 
     const emitted = emitValidatedPlan(graph, services, [
-      { action: "place_blueprint", blueprint_name: chosen.name, location: origin, yaw: 0, commit: true },
+      {
+        action: "place_blueprint",
+        blueprint_name: chosen.name,
+        location: origin,
+        yaw: blueprintPlace.rotation_degrees,
+        commit: true,
+      },
     ]);
     if (emitted) {
       const dimensions = chosen.designer_dimensions;
       const size = dimensions ? ` (${dimensions.x}×${dimensions.y} foundations)` : "";
       return localAnswer(
-        `Placing **${chosen.name}**${size} where you are aiming. The game builds it as ` +
+        `Placing **${chosen.name}**${size} where you are aiming` +
+          (blueprintPlace.rotation_degrees ? `, turned ${blueprintPlace.rotation_degrees}°` : "") +
+          `. The game builds it as ` +
           `one piece, so every belt and pipe inside it is its own to resolve — nothing ` +
           `here places them individually. Say "undo" to reverse it.`,
         "blueprint_place",

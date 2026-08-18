@@ -429,6 +429,16 @@ test("the requested Z is honoured only when the caller asks", () => {
   assert.ok(actions.includes("requested_z_reached"));
   assert.ok(actions.includes("requested_z_drift_cm"));
 
+  // The panel's one line says how well it landed, not only how many ran.
+  // "It's placing everything wonky" was the report that found the discarded-Z
+  // bug and nothing in the panel could have answered it.
+  assert.ok(actions.includes("worst height drift"));
+  assert.ok(actions.includes("placed through clearance"));
+  assert.ok(actions.includes('TryGetNumberField(TEXT("requested_z_drift_cm"), DriftCm)'));
+  // Reported above one centimetre only: below that it is the engine settling a
+  // hologram, not a layout coming apart.
+  assert.ok(actions.includes("WorstZDriftCm > 1.0"));
+
   // A belt that joins the wrong ports names the ports it did join. This
   // refusal has been reached live more than once with nothing in the reply to
   // act on.

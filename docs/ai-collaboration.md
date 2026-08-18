@@ -2581,3 +2581,35 @@ The turn buttons are new: 90 / 180 / 270 next to each design, which is the
 build-gun rotation the owner asked for, reachable by copy and paste.
 
 Shipping DLL 687,104 bytes at 22:33. 660 companion tests pass.
+
+### The panel says how well it landed, and blueprints turn — Claude, 2026-08-17
+
+**The one line the player reads.** `ExecutePlan`'s summary counted committed,
+previewed and refused, and nothing about placement quality. "It's placing
+everything wonky" was the report that found the discarded-Z bug, and the panel
+could not have answered it — the drift was only visible by reading placed
+transforms out of the journal afterwards. It now appends `worst height drift
+N cm` (above a centimetre; below that is the engine settling a hologram, not a
+layout coming apart) and `N placed through clearance`. Both were already
+measured per action; they were just buried.
+
+**Real blueprints turn now, and it cost nothing.** `place_blueprint` has
+carried a yaw the whole time — the validator emits it, and the mod builds
+`FRotator(0, Yaw, 0)` from it — the router simply never set it. Parsing the
+same turn clause the design route strips wires it up, so "place coal plant here
+rotated 90" works on a `.sbp`, and the library page offers the 90/180/270
+buttons on blueprint cards as well.
+
+The name `Coal power plant 2700MW v1.1` is in the test for this: the version
+number has to survive the turn clause being stripped off the end, and it is the
+same name that proved a keyword blocklist on the blueprint route was a bad idea.
+
+**A note on the Z override and the target-actor path**, written into the code
+rather than left to be rediscovered: the override runs after both branches and
+is a *no-op* for the first, because a named `PlacementTarget` already builds
+its hit at the requested location. A miner on a node therefore behaves exactly
+as it did before — which matters, because a saved design sets both.
+
+Shipping DLL 687,616 bytes at 22:44. 663 companion tests pass, and
+`scripts/validate.ps1` is green: SML 3.12.0 and FactoryGame 502094 header
+compatibility, installed CL matching the mod and the Starter Project.

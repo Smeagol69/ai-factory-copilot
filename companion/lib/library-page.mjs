@@ -172,14 +172,13 @@ function card(item) {
     '<div class="says">' + item.says.map(say =>
       '<div class="say"><code>' + esc(say) + '</code>' +
       '<button data-say="' + esc(say) + '">copy</button></div>').join('') +
-    // Turning it, the way a vanilla blueprint turns under the build gun. The
-    // first phrase is the one that matters -- for a design with a miner that is
-    // the "on this node" one -- and the turn is appended to it.
-    (item.kind === 'design'
-      ? '<div class="turns"><span>turned</span>' + [90, 180, 270].map(deg =>
-          '<button data-say="' + esc(item.says[0] + ' rotated ' + deg) + '">' + deg +
-          '\\u00b0</button>').join('') + '</div>'
-      : '') +
+    // Turning it, the way a vanilla blueprint turns under the build gun --
+    // offered for real blueprints too, since place_blueprint has carried a yaw
+    // all along. The first phrase is the one that matters (for a design with a
+    // miner that is the "on this node" one) and the turn is appended to it.
+    '<div class="turns"><span>turned</span>' + [90, 180, 270].map(deg =>
+      '<button data-say="' + esc(item.says[0] + ' rotated ' + deg) + '">' + deg +
+      '\\u00b0</button>').join('') + '</div>' +
     '</div></article>';
 }
 

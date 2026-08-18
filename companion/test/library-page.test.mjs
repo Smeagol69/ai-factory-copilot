@@ -15,6 +15,7 @@ import fs from "node:fs";
 import test from "node:test";
 import { buildLibraryModel, renderLibraryPage } from "../lib/library-page.mjs";
 import {
+  parseBlueprintPlaceRequest,
   parseDesignListRequest,
   parseDesignPlaceRequest,
   parseDesignSaveRequest,
@@ -59,6 +60,26 @@ test("every phrase the page offers parses back to what the button promised", () 
       assert.ok(parsed, `dead turn button: "${say}"`);
       assert.equal(parsed.rotation_degrees, degrees);
     }
+  }
+});
+
+test("a blueprint's phrases and turn buttons parse too", () => {
+  const model = buildLibraryModel({
+    designs: [],
+    // The name in the noticeboard's warning: a real file with a version number
+    // in it, which is why the blueprint route has no keyword blocklist.
+    blueprints: [{ name: "Coal power plant 2700MW v1.1", build_cost: [{ amount: 4, item_name: "Concrete" }] }],
+  });
+
+  const [blueprint] = model.blueprints;
+  assert.equal(parseBlueprintPlaceRequest(blueprint.says[0]).name, "Coal power plant 2700MW v1.1");
+  assert.equal(parseBlueprintPlaceRequest(blueprint.says[0]).rotation_degrees, 0);
+
+  for (const degrees of [90, 180, 270]) {
+    const parsed = parseBlueprintPlaceRequest(`${blueprint.says[0]} rotated ${degrees}`);
+    assert.equal(parsed.rotation_degrees, degrees);
+    // The version number must survive the turn being stripped off the end.
+    assert.equal(parsed.name, "Coal power plant 2700MW v1.1");
   }
 });
 

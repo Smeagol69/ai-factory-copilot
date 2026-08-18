@@ -739,6 +739,11 @@ namespace
         //
         // Opt-in. A lone building dropped on open ground should still settle onto
         // terrain, so only a caller that says it means its Z gets this.
+        //
+        // Deliberately after both branches, and a no-op for the first: a named
+        // PlacementTarget already built its hit *at* the requested location, so
+        // there is nothing to move. A miner on a node therefore behaves exactly
+        // as it did before, which matters because a saved design sets both.
         if (bHonourRequestedZ)
         {
             const double WantedZ = Requested.GetLocation().Z;
@@ -3944,11 +3949,54 @@ FString ExecutePlan(
         ConsolidateActionUndoFrom(UndoJournalStart, CommittedWrites);
     }
 
+    // How well it actually landed, in the one line the player reads.
+    //
+    // "It's placing everything wonky" was the report that found the discarded-Z
+    // bug, and nothing in the panel could have answered it -- the drift was
+    // only visible by reading the placed transforms out of the journal
+    // afterwards. Both of these are already measured per action; this just
+    // stops them being buried.
+    double WorstZDriftCm = 0.0;
+    int32 ClearanceOverrides = 0;
+    for (const TSharedPtr<FJsonValue>& Value : OutResults)
+    {
+        const TSharedPtr<FJsonObject>* Object = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Object) || !Object)
+        {
+            continue;
+        }
+        const TSharedPtr<FJsonObject>* Predicted = nullptr;
+        if (!(*Object)->TryGetObjectField(TEXT("predicted"), Predicted) || !Predicted)
+        {
+            continue;
+        }
+        double DriftCm = 0.0;
+        if ((*Predicted)->TryGetNumberField(TEXT("requested_z_drift_cm"), DriftCm))
+        {
+            WorstZDriftCm = FMath::Max(WorstZDriftCm, FMath::Abs(DriftCm));
+        }
+        bool bOverrode = false;
+        if ((*Predicted)->TryGetBoolField(TEXT("clearance_overridden"), bOverrode) && bOverrode)
+        {
+            ++ClearanceOverrides;
+        }
+    }
+
     FString Summary = FString::Printf(
         TEXT("[actions] %d committed, %d previewed, %d refused"),
         Committed,
         DryRun,
         Refused);
+    if (WorstZDriftCm > 1.0)
+    {
+        // Only when it is worth saying. Sub-centimetre is the engine settling a
+        // hologram, not a layout coming apart.
+        Summary += FString::Printf(TEXT(", worst height drift %.0f cm"), WorstZDriftCm);
+    }
+    if (ClearanceOverrides > 0)
+    {
+        Summary += FString::Printf(TEXT(", %d placed through clearance"), ClearanceOverrides);
+    }
     if (Skipped > 0)
     {
         Summary += FString::Printf(TEXT(", %d skipped"), Skipped);
