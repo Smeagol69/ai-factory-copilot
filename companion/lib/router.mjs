@@ -2532,9 +2532,26 @@ export function answerLocally(question, graph, services) {
       );
     }
 
-    const skipped = captured.skipped.length > 0
-      ? `\n\n${captured.skipped.length} building(s) were left out because the capture ` +
-        "does not say what recipe built them."
+    // Each skipped entry carries its own reason now -- a belt is left off the
+    // placement list for a completely different cause than a building whose
+    // recipe is unknown -- so group by reason instead of asserting one.
+    const byReason = new Map();
+    for (const entry of captured.skipped) {
+      byReason.set(entry.why, (byReason.get(entry.why) ?? 0) + 1);
+    }
+    const skipped = byReason.size > 0
+      ? "\n\n" +
+        [...byReason].map(([why, count]) => `${count} left out: ${why}.`).join("\n")
+      : "";
+
+    // A Power Shard is something the player spent. Saying it here means they
+    // find out at save time, not when the rebuilt factory runs slower.
+    const overclockedCount = captured.design.buildings.filter(
+      (entry) => Number.isFinite(entry.potential),
+    ).length;
+    const overclocked = overclockedCount > 0
+      ? `\n\n${overclockedCount} of them are overclocked. The rate is recorded, but nothing ` +
+        "here can set a potential, so they will rebuild at 100%."
       : "";
     const how = captured.design.selected_by === "dismantle_selection"
       ? "the ones you marked with the dismantle tool"
@@ -2542,7 +2559,7 @@ export function answerLocally(question, graph, services) {
     return localAnswer(
       `Saved **${captured.design.name}** — ${captured.design.building_count} buildings ` +
         `(${how}), with the exact distances between them, their facings, and their ` +
-        `recipes.${skipped}\n\n` +
+        `recipes.${skipped}${overclocked}\n\n` +
         `Say "place ${captured.design.name} here" anywhere to build it again. ` +
         "It keeps the spacing and the direction it was saved with.",
       "design_save",
