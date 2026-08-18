@@ -2613,3 +2613,41 @@ as it did before — which matters, because a saved design sets both.
 Shipping DLL 687,616 bytes at 22:44. 663 companion tests pass, and
 `scripts/validate.ps1` is green: SML 3.12.0 and FactoryGame 502094 header
 compatibility, installed CL matching the mod and the Starter Project.
+
+### Design routes tested end to end, and the library shows shapes — Claude, 2026-08-18
+
+**The route bodies had no tests.** Save, list and place were covered at the
+parser and at the planner, and not at all in between — the part that picks the
+anchor out of the snapshot, assembles the reply, decides what to say about what
+it left out, and hands actions to the emitter. All three were rewritten while
+adding links, rotation and overclock, so a mistake in any of them would have
+surfaced only in a loaded save.
+
+`test/design-routes.test.mjs` runs all four routes plus blueprint placement
+against a synthetic graph carrying a dismantle selection, an overclocked
+smelter, a belt and a power line.
+
+It found one immediately. A design saved *since* links were split off carries
+them on `links` rather than `buildings`, so `planDesignPlacement` filtered
+nothing and never mentioned them — the "these are not being placed" sentence
+appeared only for older designs. Nobody would have guessed that from the reply.
+Both sources are counted now.
+
+**The library page draws a plan.** "Just like the game has" was the ask, and the
+game's blueprint menu shows you the shape of a thing. "21 buildings" does not
+say whether that is a tidy row or a sprawl.
+
+Each design card carries a top-down SVG: one dot per building, grey for
+structure, ink for machines, orange for the extractor. Points are normalised on
+the bridge and drawn by the client, both axes divided by the same span so the
+proportions are real, with the shorter axis centred in what is left — without
+that a row of four smelters came out hugging the bottom edge. Dots rather than
+boxes on purpose: the capture stores a centre and a facing, not a footprint, so
+a rectangle would be inventing a size.
+
+Checked in the browser against the live bridge: 35 cards, 6 plans, mega base
+389 dots, no horizontal overflow. The box was a square at card width first,
+which came out 339 px tall and pushed everything else off screen; it is a fixed
+120 px now, with `preserveAspectRatio` keeping the drawing square inside it.
+
+670 companion tests pass.

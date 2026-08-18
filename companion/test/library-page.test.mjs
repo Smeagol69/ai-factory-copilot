@@ -134,6 +134,48 @@ test("every phrase the README teaches is one the router understands", () => {
   }
 });
 
+test("the thumbnail keeps the design's proportions and centres it", () => {
+  const at = (x, y, className = "SmelterMk1") =>
+    piece(className, { offset_cm: { x, y, z: 0 } });
+
+  // A row of four, twice as long as it is deep. It must read as a row.
+  const row = buildLibraryModel({
+    designs: [design("a row", [at(0, 0), at(1_000, 0), at(2_000, 0), at(3_000, 0)])],
+    blueprints: [],
+  }).designs[0].plan;
+
+  const xs = row.map(([x]) => x);
+  const ys = row.map(([, y]) => y);
+  assert.equal(Math.min(...xs), 0);
+  assert.equal(Math.max(...xs), 1);
+  // Centred on the short axis rather than pinned to an edge, which is how the
+  // four-smelter design first came out.
+  assert.ok(ys.every((y) => Math.abs(y - 0.5) < 0.001), `row should sit centred, got ${ys}`);
+
+  // Proportions survive: a design twice as wide as deep uses half the height.
+  const oblong = buildLibraryModel({
+    designs: [design("oblong", [at(0, 0), at(2_000, 1_000)])],
+    blueprints: [],
+  }).designs[0].plan;
+  assert.equal(oblong[1][0] - oblong[0][0], 1);
+  assert.equal(oblong[1][1] - oblong[0][1], 0.5);
+
+  // Kinds are what the colours key off, and the extractor is the one that
+  // matters -- it is what a design gets aimed at.
+  const mixed = buildLibraryModel({
+    designs: [design("mixed", [at(0, 0, "MinerMk1"), at(500, 0), at(0, 500, "Foundation_8x4_01")])],
+    blueprints: [],
+  }).designs[0].plan;
+  assert.deepEqual(mixed.map(([, , kind]) => kind), [2, 1, 0]);
+
+  // A single building has no extent at all; dividing by that would be NaN.
+  const alone = buildLibraryModel({
+    designs: [design("alone", [at(0, 0)])],
+    blueprints: [],
+  }).designs[0].plan;
+  assert.ok(alone.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y)), "one building must still draw");
+});
+
 test("the page renders, escapes, and its client script compiles", () => {
   const awkward = design('a "quoted" <name> & co', [piece("SmelterMk1")]);
   const html = renderLibraryPage(buildLibraryModel({ designs: [awkward], blueprints: [] }));

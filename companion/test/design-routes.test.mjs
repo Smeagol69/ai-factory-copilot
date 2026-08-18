@@ -132,6 +132,37 @@ test("a turn reaches the emitted actions, and keeps the design rigid", () => {
   assert.ok(turned.every((action) => action.yaw === 90));
 });
 
+test("a real blueprint places, and turns, through the same phrasing", () => {
+  // The action has carried a yaw all along; only the router was not setting
+  // it. This is the end-to-end proof that it reaches the game.
+  const services = (emitted) => ({
+    actions: { emit: (actions) => emitted.push(...actions) },
+    listBlueprints: () => [
+      { name: "Coal power plant 2700MW v1.1", designer_dimensions: { x: 4, y: 4 } },
+      { name: "Smelter bank" },
+    ],
+  });
+
+  const emitted = [];
+  const answer = answerLocally(
+    "place Coal power plant 2700MW v1.1 here rotated 180",
+    graph,
+    services(emitted),
+  );
+  assert.equal(answer.local.solver, "blueprint_place");
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].action, "place_blueprint");
+  assert.equal(emitted[0].blueprint_name, "Coal power plant 2700MW v1.1");
+  assert.equal(emitted[0].yaw, 180);
+  assert.match(answer.reply, /turned 180/);
+
+  // Unturned stays unturned, and says nothing about an angle.
+  const plain = [];
+  const straight = answerLocally("place Smelter bank here", graph, services(plain));
+  assert.equal(plain[0].yaw, 0);
+  assert.ok(!/turned/.test(straight.reply));
+});
+
 test("a name that matches nothing saved falls through rather than guessing", () => {
   const { answer, emitted } = ask("place something nobody saved here");
   assert.equal(emitted.length, 0);

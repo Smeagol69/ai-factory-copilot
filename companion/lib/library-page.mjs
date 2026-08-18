@@ -47,6 +47,16 @@ h2 .n{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1p
 padding:15px 16px;display:flex;flex-direction:column;gap:10px;transition:border-color .12s}
 .card:hover{border-color:#3d444d}
 .card h3{margin:0;font-size:14.5px;font-weight:600;overflow-wrap:anywhere;line-height:1.35}
+/* Top-down plan. A fixed height so a card stays a card -- a square box at card
+   width came out 339px tall and pushed everything else off the screen. The
+   drawing inside stays square via preserveAspectRatio, so the design's real
+   proportions survive even though the box is wider than it is tall. */
+.plan{width:100%;height:120px;background:var(--bg);border:1px solid var(--line);
+border-radius:8px;display:block}
+.plan circle{opacity:.9}
+.plan .k0{fill:var(--dim)}   /* foundations, walls — the structure */
+.plan .k1{fill:var(--ink)}   /* machines */
+.plan .k2{fill:var(--hot)}   /* the extractor, which is what a design is aimed at */
 .meta{display:flex;gap:6px;flex-wrap:wrap}
 .tag{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;
 padding:2px 8px;white-space:nowrap}
@@ -102,6 +112,57 @@ function footprintOf(buildings) {
 const hasExtractor = (buildings) =>
   (buildings ?? []).some((entry) => /Miner|Extractor|Pump/i.test(String(entry.recipe_class)));
 
+/**
+ * A design's footprint as points, for the thumbnail on its card.
+ *
+ * "Just like the game has" was the ask, and the game's blueprint menu shows you
+ * the shape of the thing. A text list of contents does not tell you whether
+ * "21 buildings" is a tidy row or a sprawl.
+ *
+ * Normalised to a 0..1 box here rather than in the browser so the client stays
+ * a renderer: it receives points and draws them. Kinds are numbered rather than
+ * named because mega-base is 389 of these and the JSON is fetched every five
+ * seconds — 0 structural, 1 machine, 2 extractor.
+ */
+const MAXIMUM_PLAN_POINTS = 400;
+
+function planOf(buildings) {
+  const points = (buildings ?? []).filter((entry) => Number.isFinite(entry.offset_cm?.x));
+  if (points.length === 0) return null;
+
+  const xs = points.map((entry) => entry.offset_cm.x);
+  const ys = points.map((entry) => entry.offset_cm.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  // A single building, or a row, has zero extent on one axis. Dividing by that
+  // gives NaN and an empty thumbnail, so a flat design is drawn down its middle.
+  const width = Math.max(...xs) - minX || 1;
+  const height = Math.max(...ys) - minY || 1;
+  const span = Math.max(width, height);
+
+  const kindOf = (entry) => {
+    const name = String(entry.class_path || entry.recipe_class);
+    if (/Miner|Extractor|Pump/i.test(name)) return 2;
+    if (/Foundation|Wall|Pillar|Ramp|Beam|Floor|Catwalk|Railing|Fence|Stairs/i.test(name)) return 0;
+    return 1;
+  };
+
+  // Both axes divided by the same span, so the drawing keeps the design's real
+  // proportions -- a row of four smelters reads as a row, not as a square.
+  //
+  // The shorter axis is then centred in what is left. Without that, a flat
+  // design pins itself to one edge of the box: the four-smelter row came out
+  // hugging the bottom rather than sitting across the middle.
+  const padX = (1 - width / span) / 2;
+  const padY = (1 - height / span) / 2;
+  const round = (value) => Math.round(value * 1000) / 1000;
+  return points.slice(0, MAXIMUM_PLAN_POINTS).map((entry) => [
+    round((entry.offset_cm.x - minX) / span + padX),
+    round((entry.offset_cm.y - minY) / span + padY),
+    kindOf(entry),
+  ]);
+}
+
 /** The library as plain data. The page fetches this to refresh itself. */
 export function buildLibraryModel({ designs = [], blueprints = [] } = {}) {
   return {
@@ -122,6 +183,7 @@ export function buildLibraryModel({ designs = [], blueprints = [] } = {}) {
       count: placeable.length,
       links,
       footprint: footprintOf(placeable),
+      plan: planOf(placeable),
       picked: design.selected_by === "dismantle_selection",
       contents: describeContents(placeable),
       // A design containing a miner is meant for a node, so offer that phrasing
@@ -156,6 +218,23 @@ const state = { query: '', sort: 'name', model: null };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+// A top-down plan of the design, from the points the bridge normalised. The
+// game's blueprint menu shows you the shape of a thing, and "21 buildings" does
+// not say whether that is a tidy row or a sprawl.
+//
+// Points are drawn, not boxes: the capture stores a centre and a facing, not a
+// footprint, so a rectangle here would be inventing a size. A dot is the one
+// honest mark for "something stands here".
+function thumbnail(item) {
+  if (!item.plan || item.plan.length === 0) return '';
+  const R = 0.016;
+  const dots = item.plan.map(p =>
+    '<circle cx="' + p[0] + '" cy="' + (1 - p[1]) + '" r="' + R +
+    '" class="k' + p[2] + '"/>').join('');
+  return '<svg class="plan" viewBox="-0.05 -0.05 1.1 1.1" preserveAspectRatio="xMidYMid meet" ' +
+    'aria-label="top-down plan">' + dots + '</svg>';
+}
+
 function card(item) {
   const tags = [
     item.kind === 'design' ? item.count + ' buildings' : item.count + ' parts',
@@ -166,7 +245,7 @@ function card(item) {
     // what lands: belts and wires join two ends, so they are not replayed.
     item.links ? item.links + ' belts/wires not replayed' : null,
   ].filter(Boolean);
-  return '<article class="card"><h3>' + esc(item.name) + '</h3>' +
+  return '<article class="card">' + thumbnail(item) + '<h3>' + esc(item.name) + '</h3>' +
     '<div class="meta">' + tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>' +
     (item.contents ? '<div class="parts">' + esc(item.contents) + '</div>' : '') +
     '<div class="says">' + item.says.map(say =>
