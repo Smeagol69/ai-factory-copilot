@@ -191,6 +191,46 @@ Examples:
 
 The longer `/aifactory ask ...` syntax remains available for compatibility.
 
+## Saving and replaying a layout
+
+Mark buildings with the dismantle tool, then name them. The selection is what
+gets saved — a radius is offered as a fallback, but marking is the player saying
+exactly which ones.
+
+```text
+save this as mk1 copper
+place mk1 copper on this node
+place mk1 copper here rotated 90
+list designs
+```
+
+A saved design keeps the exact distances between buildings, each facing, and
+each machine's production recipe. Placing on a resource node attaches any
+extractor in the design to *that* node and re-anchors everything else on it, so
+the arrangement stays rigid rather than shearing. Adding `rotated 90`,
+`turned right` or `half turn` turns the whole thing about its anchor, the way
+a vanilla blueprint turns under the build gun.
+
+What it does not replay, and says so rather than quietly dropping:
+
+- **Belts, lifts, pipes and power lines.** Each is defined by two connection
+  components rather than a coordinate, so replaying one from a saved offset can
+  only be refused. They are recorded on the design and left for you to run.
+- **Overclocking.** Nothing here can spend a Power Shard, so an overclocked
+  machine rebuilds at 100%. The rate is saved for when it can.
+
+This is not a `.sbp`. A Blueprint Designer refuses extractors and caps the
+volume, which is exactly the case a saved design exists for; anything that fits
+a designer and has no miner in it is better off as a real blueprint.
+
+### The library page
+
+The panel has a **Library** button, and the bridge serves the same page at
+<http://127.0.0.1:8142/library>. It lists every saved design and every `.sbp`
+the game knows about, with what each is made of, its footprint, and a copy
+button for the phrase that places it — including turn buttons for 90°, 180° and
+270°. Type `/` to search, `Esc` to clear. It refreshes itself while open.
+
 ## Start the companion
 
 Node.js 20 or newer is required. No packages need to be installed.

@@ -294,7 +294,9 @@ That splits the two cleanly, and neither is a substitute:
 | Extractors | **refused by the designer** | placed, and attached via `target_actor_id` |
 | Size | capped by designer volume | 400 buildings |
 | Hologram | full build-gun preview | none; placed directly |
-| Belts inside | preserved | not captured |
+| Rotation | scroll under the build gun | on request, "rotated 90" |
+| Belts inside | preserved | recorded on `links`, never replayed |
+| Overclock | preserved | recorded, rebuilt at 100% |
 
 So anything with a miner stays a saved design; anything that fits a designer and
 has no extractor is a candidate for promotion to a real blueprint. Do not build

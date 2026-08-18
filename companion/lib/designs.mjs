@@ -15,12 +15,23 @@
  * anchor, its facing, and — for a manufacturer — the recipe it is running.
  * Replaying it is the same `place_building` path that already works.
  *
- * The one thing it deliberately does not do is rotate. Offsets are stored in
- * world axes and replayed by translation, so a design placed at a new node
- * comes out facing the way it was built. Re-orienting to a new approach angle
- * is a real feature and a different one; quietly rotating a saved layout is how
- * you get a factory that no longer lines up with the belts someone planned
- * around it.
+ * Offsets are stored in world axes and replayed by translation, so a design
+ * placed at a new node comes out facing the way it was built. It turns only
+ * when asked — `rotation_degrees`, from "rotated 90" in the phrase — because
+ * *quietly* rotating a saved layout is how you get a factory that no longer
+ * lines up with the belts someone planned around it. An angle the player said
+ * out loud is not that.
+ *
+ * Two things it does not do, both recorded rather than dropped so that saying
+ * so is possible:
+ *
+ *   Links. A belt, lift, pipe or power line is defined by two connection
+ *   components, not a coordinate, so replaying one from a saved offset is a
+ *   step that can only be refused. They go on `design.links`.
+ *
+ *   Potential. Nothing here can spend a Power Shard, so an overclocked machine
+ *   rebuilds at 100%. The rate is saved on the building as `potential`, ready
+ *   for whenever an action exists that can set one.
  */
 
 import fs from "node:fs";
@@ -269,12 +280,10 @@ function placementOrder(classPath) {
 /**
  * Turning a whole design about its anchor.
  *
- * The header above says offsets are replayed in world axes and the design keeps
- * the facing it was saved with. That is still the default, and still for the
- * stated reason. But a vanilla blueprint turns under the build gun, the owner
- * asked for placement that works "exactly the same as default game parameters
- * for blueprint placement", and an angle the player asked for out loud is not
- * the quiet re-orientation that comment was warning about.
+ * Not turning is still the default, for the reason in the header. This is the
+ * opt-in: a vanilla blueprint turns under the build gun, and the owner asked
+ * for placement that works "exactly the same as default game parameters for
+ * blueprint placement".
  *
  * Yaw only. UE's yaw rotation sends X to (cos, sin) and Y to (-sin, cos), so
  * this is the plain 2D rotation and the arrangement stays rigid: every offset

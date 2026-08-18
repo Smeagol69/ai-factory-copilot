@@ -11,9 +11,14 @@
  */
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import { buildLibraryModel, renderLibraryPage } from "../lib/library-page.mjs";
-import { parseDesignPlaceRequest } from "../lib/router.mjs";
+import {
+  parseDesignListRequest,
+  parseDesignPlaceRequest,
+  parseDesignSaveRequest,
+} from "../lib/router.mjs";
 
 const design = (name, buildings) => ({
   schema: "aifactory.design/v1",
@@ -74,6 +79,38 @@ test("the count is what will be placed, not what was saved", () => {
   assert.equal(storage.links, 2);
   assert.match(storage.contents, /Storage/);
   assert.ok(!/ConveyorBelt|PowerLine/.test(storage.contents));
+});
+
+test("every phrase the README teaches is one the router understands", () => {
+  // Same principle as the dead-button test above, applied to the docs. A
+  // phrase in the README that no parser accepts is a promise the copilot does
+  // not keep, and it is exactly the kind of thing that rots silently as the
+  // patterns change.
+  const readme = fs.readFileSync(new URL("../../README.md", import.meta.url), "utf8");
+  const section = readme.slice(readme.indexOf("## Saving and replaying a layout"));
+  assert.ok(section.length > 0, "the README should still document saving a layout");
+
+  const block = section.slice(section.indexOf("```text") + 7, section.indexOf("```", section.indexOf("```text") + 7));
+  const phrases = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  assert.ok(phrases.length >= 4, `expected the taught phrases, got ${phrases.length}`);
+
+  const parsers = [
+    parseDesignSaveRequest,
+    parseDesignPlaceRequest,
+    parseDesignListRequest,
+  ];
+  for (const phrase of phrases) {
+    assert.ok(
+      parsers.some((parse) => parse(phrase) !== null),
+      `the README teaches "${phrase}" and no parser accepts it`,
+    );
+  }
+
+  // And the ones named in prose rather than in the block.
+  for (const [phrase, degrees] of [["turned right", 90], ["half turn", 180]]) {
+    assert.ok(section.includes(phrase), `the README should still mention "${phrase}"`);
+    assert.equal(parseDesignPlaceRequest(`place mk1 copper here ${phrase}`).rotation_degrees, degrees);
+  }
 });
 
 test("the page renders, escapes, and its client script compiles", () => {
