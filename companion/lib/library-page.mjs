@@ -57,6 +57,9 @@ code{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
 padding:7px 9px;font:12px ui-monospace,"Cascadia Code",Consolas,monospace;
 color:var(--hot);overflow-wrap:anywhere}
 .say button{padding:0 11px;font-size:12px}
+.turns{display:flex;align-items:center;gap:6px;margin-top:2px}
+.turns span{color:var(--dim);font-size:11.5px;letter-spacing:.02em}
+.turns button{padding:3px 9px;font-size:11.5px}
 .empty{color:var(--dim);border:1px dashed var(--line);border-radius:var(--r);
 padding:20px;font-size:13.5px;line-height:1.6}
 .note{margin-top:32px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);
@@ -169,6 +172,14 @@ function card(item) {
     '<div class="says">' + item.says.map(say =>
       '<div class="say"><code>' + esc(say) + '</code>' +
       '<button data-say="' + esc(say) + '">copy</button></div>').join('') +
+    // Turning it, the way a vanilla blueprint turns under the build gun. The
+    // first phrase is the one that matters -- for a design with a miner that is
+    // the "on this node" one -- and the turn is appended to it.
+    (item.kind === 'design'
+      ? '<div class="turns"><span>turned</span>' + [90, 180, 270].map(deg =>
+          '<button data-say="' + esc(item.says[0] + ' rotated ' + deg) + '">' + deg +
+          '\\u00b0</button>').join('') + '</div>'
+      : '') +
     '</div></article>';
 }
 

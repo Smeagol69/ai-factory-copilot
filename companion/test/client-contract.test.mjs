@@ -429,6 +429,20 @@ test("the requested Z is honoured only when the caller asks", () => {
   assert.ok(actions.includes("requested_z_reached"));
   assert.ok(actions.includes("requested_z_drift_cm"));
 
+  // A belt that joins the wrong ports names the ports it did join. This
+  // refusal has been reached live more than once with nothing in the reply to
+  // act on.
+  assert.ok(actions.includes("belt_connection_0_joined_to"));
+  assert.ok(actions.includes("belt_connection_1_joined_to"));
+  assert.ok(actions.includes("belt_connection_0_owner"));
+  assert.ok(actions.includes('TEXT("requested_from")'));
+  assert.ok(actions.includes('TEXT("requested_to")'));
+  // Recorded before the branch that dismantles and returns, or a failure --
+  // the only case anyone reads this for -- would carry none of it.
+  const joins = actions.indexOf("belt_connection_0_joined_to");
+  const refusal = actions.indexOf("constructed_belt_endpoints_did_not_match_requested_components");
+  assert.ok(joins >= 0 && joins < refusal);
+
   // A snap reports what it snapped to, so FGCDMustSnapWall stops being a
   // refusal with no information attached to it.
   assert.ok(actions.includes("Cast<AFGBuildableHologram>(Hologram)"));

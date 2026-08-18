@@ -228,6 +228,21 @@ test("a design can be turned, and stays rigid when it is", () => {
   assert.deepEqual(at(0), planDesignPlacement(design, { origin: { x: 0, y: 0, z: 0 } }).actions);
 });
 
+test("an overclock is recorded and then admitted to, not lost", () => {
+  const overclocked = { ...ACTORS[0], factory: { current_potential: 1.5 } };
+  const design = capture({ actors: [overclocked, ...ACTORS.slice(1)] }).design;
+
+  const saved = design.buildings.find((entry) => entry.potential);
+  assert.equal(saved.potential, 1.5);
+  // A machine at its default rate carries no potential field at all, so the
+  // count means "overclocked", not "has a factory".
+  assert.equal(design.buildings.filter((entry) => "potential" in entry).length, 1);
+
+  // Nothing can spend a Power Shard, so the plan says so rather than handing
+  // back a slower factory than the one that was saved.
+  assert.equal(planDesignPlacement(design, { origin: ANCHOR }).overclocked_not_replayed, 1);
+});
+
 test("a design asks for its own heights, not the ground's", () => {
   // Measured live before this existed: a Smelter asked for z 8054 landed at
   // 9028 because every building traced down to its own patch of terrain. The

@@ -2526,3 +2526,56 @@ The split is pinned in `test/exact-z.test.mjs` rather than left to five
 planners to remember separately, including the count of two converters in
 `composition.mjs` and a check that the flag survives `validatePlan` and is
 *absent* rather than false when unasked, so the mod's default stands.
+
+### A belt that joins the wrong ports now names them — Claude, 2026-08-17
+
+`constructed_belt_endpoints_did_not_match_requested_components` has been
+reached live more than once, and the reply could never answer the first
+question anyone has about it: the belt *did* build and *did* attach to
+something, so which port was it? `belt_connection_0` and `belt_connection_1`
+recorded the belt's own two components and stopped there.
+
+Now recorded, before the branch that dismantles and returns — so a failure, the
+only case anyone reads this for, actually carries it:
+
+- `belt_connection_0_joined_to` / `belt_connection_1_joined_to`
+- `belt_connection_0_owner` / `belt_connection_1_owner` — the actor, which is
+  what makes "it grabbed the splitter's other input" readable at a glance
+- `requested_from` / `requested_to`, so the mismatch reads on its own in
+  `action-outcomes.jsonl` without the request beside it
+
+`GetConnection()` is the same accessor `IsExactPair` already used two lines
+above, so nothing new was guessed at. Whether the Z fix also fixes the belts is
+still open; this is about not needing another round trip into a loaded save to
+find out *why* when it does not.
+
+### Overclock is recorded, and admitted to — Claude, 2026-08-17
+
+The snapshot has exported `factory.current_potential` all along. A design
+saved from overclocked machines was silently rebuilding at 100%, which is a
+slower factory than the one that was saved and no way to tell.
+
+The capture now records `potential` on any machine not at its default rate,
+and the reply says so: "3 of them were overclocked when the design was saved
+and rebuild at 100% — nothing here can spend a Power Shard for you." It is
+written down rather than acted on because there is no action that sets a
+potential; when there is one, the designs already saved will carry the number.
+
+### The library page has tests now — Claude, 2026-08-17
+
+It had none, and its entire value is that the phrases it hands over work. A
+button copying something `parseDesignPlaceRequest` cannot parse is worse than
+no button — it looks like a feature and does nothing.
+
+`test/library-page.test.mjs` pins the round trip: for every design in the
+model, every phrase the page offers is parsed back and has to say what the
+button promised, including the three turn buttons with an angle stuck on the
+end. Also pinned: the count is what will be placed rather than what was saved,
+and no design data reaches the server-rendered shell at all — the client
+fetches `/library.json` — which is what makes the client's `esc()` the only
+place escaping has to be right.
+
+The turn buttons are new: 90 / 180 / 270 next to each design, which is the
+build-gun rotation the owner asked for, reachable by copy and paste.
+
+Shipping DLL 687,104 bytes at 22:33. 660 companion tests pass.

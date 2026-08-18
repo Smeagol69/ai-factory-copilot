@@ -106,6 +106,11 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
       },
       yaw: Math.round((Number(raw.rotation?.yaw) || 0) * 100) / 100,
       production_recipe_class: String(raw.manufacturer?.recipe_class ?? "").trim() || null,
+      // Recorded but not yet replayable: there is no action that sets a
+      // machine's potential, so a design saved from overclocked machines comes
+      // back at 100%. Writing it down is what lets the replay *say* so instead
+      // of quietly handing back a slower factory than the one that was saved.
+      ...(isOverclocked(raw) ? { potential: Number(raw.factory.current_potential) } : {}),
     };
 
     // Kept, but on the other list: a belt or a power line has two ends, and
@@ -276,6 +281,18 @@ function placementOrder(classPath) {
  * turns by the same angle about the same anchor, and each building's own facing
  * turns with it.
  */
+/**
+ * A machine running at anything other than its default rate.
+ *
+ * The snapshot reports `factory.current_potential` as a multiplier, 1 being
+ * 100%. Anything else is a Power Shard the player spent, and losing it silently
+ * on replay hands back a slower factory than the one that was saved.
+ */
+function isOverclocked(raw) {
+  const potential = Number(raw?.factory?.current_potential);
+  return Number.isFinite(potential) && Math.abs(potential - 1) > 0.001;
+}
+
 const normaliseYaw = (degrees) => ((Number(degrees) % 360) + 360) % 360;
 
 function turnOffset({ x, y }, degrees) {
@@ -343,6 +360,10 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
     count: buildings.length,
     not_placeable: notPlaceable,
     rotated_degrees: turn,
+    // Said out loud rather than lost. Nothing here can set a potential, so an
+    // overclocked design rebuilds at 100% and the player should hear that from
+    // the reply, not from a production rate that does not match.
+    overclocked_not_replayed: buildings.filter((entry) => Number.isFinite(entry.potential)).length,
     extractors_snapped: node ? buildings.filter((e) => isExtractorRecipe(e.recipe_class)).length : 0,
     actions: buildings.map((entry) => {
       // An extractor goes on the node, not at an offset from it. Given a node,

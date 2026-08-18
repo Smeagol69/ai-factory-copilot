@@ -2587,12 +2587,16 @@ export function answerLocally(question, graph, services) {
           ? ` ${plan.not_placeable.length} belt(s), lift(s) or power line(s) in the design ` +
             `are not placed — they connect two ends rather than sitting at a spot, so run those yourself.`
           : "";
+        const overclocked = plan.overclocked_not_replayed > 0
+          ? ` ${plan.overclocked_not_replayed} of them were overclocked when the design was ` +
+            `saved and rebuild at 100% — nothing here can spend a Power Shard for you.`
+          : "";
         const facing = plan.rotated_degrees
           ? `turned ${plan.rotated_degrees}° from how it was saved`
           : `keeping the spacing and facing it was saved at`;
         return localAnswer(
           `Building **${plan.name}** — ${plan.count} buildings, each with the recipe ` +
-            `it was saved with, ${facing}.${snapped}${dropped} ` +
+            `it was saved with, ${facing}.${snapped}${dropped}${overclocked} ` +
             `Say "undo" to reverse the whole thing.`,
           "design_place",
           started,

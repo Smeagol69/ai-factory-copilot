@@ -2929,6 +2929,36 @@ FAIFactoryActionResult PlaceBelt(
         TEXT("belt_connection_1"),
         IsValid(Belt1) ? Belt1->GetPathName() : TEXT(""));
     Observed->SetBoolField(TEXT("exact_requested_endpoints"), bExactEndpoints);
+
+    // Say what it *did* join, not only that it was not what was asked for.
+    //
+    // This refusal has been reached live more than once and the reply could
+    // never answer the first question anyone has about it: the belt built and
+    // attached to something, so which port was it? Without this the only way
+    // to find out is another round trip into a loaded save. GetConnection() is
+    // the same accessor IsExactPair uses two lines up.
+    const auto DescribeJoin = [&Observed](
+        const TCHAR* Field,
+        const TCHAR* OwnerField,
+        UFGFactoryConnectionComponent* Side)
+    {
+        UFGFactoryConnectionComponent* Joined =
+            IsValid(Side) ? Side->GetConnection() : nullptr;
+        Observed->SetStringField(Field, IsValid(Joined) ? Joined->GetPathName() : TEXT("none"));
+        Observed->SetStringField(
+            OwnerField,
+            IsValid(Joined) && IsValid(Joined->GetOwner())
+                ? Joined->GetOwner()->GetPathName()
+                : TEXT("none"));
+    };
+    DescribeJoin(TEXT("belt_connection_0_joined_to"), TEXT("belt_connection_0_owner"), Belt0);
+    DescribeJoin(TEXT("belt_connection_1_joined_to"), TEXT("belt_connection_1_owner"), Belt1);
+
+    // The two requested components alongside them, so the mismatch reads in one
+    // glance in action-outcomes.jsonl instead of needing the request beside it.
+    Observed->SetStringField(TEXT("requested_from"), From->GetPathName());
+    Observed->SetStringField(TEXT("requested_to"), To->GetPathName());
+
     if (!bExactEndpoints)
     {
         // Construct does not charge the player; successful actions charge only
