@@ -687,6 +687,7 @@ namespace
         UFGInventoryComponent* Inventory,
         const FTransform& Requested,
         AActor* PlacementTarget,
+        bool bHonourRequestedZ,
         bool bIgnoreClearance,
         const TSharedPtr<FJsonObject>& Predicted,
         FString& OutFailure)
@@ -725,6 +726,25 @@ namespace
         Predicted->SetStringField(
             TEXT("build_surface_actor"),
             IsValid(Hit.GetActor()) ? Hit.GetActor()->GetPathName() : TEXT("unknown"));
+
+        // Keep the traced surface actor -- the hologram needs a valid hit -- but
+        // move the point to the height that was asked for.
+        //
+        // Measured on a live design placement: a Smelter asked for z 8054 landed at
+        // 9028, nearly ten metres up, because every building traced down to its own
+        // patch of terrain and the requested Z was never used. An arrangement's
+        // relative heights are the whole point of saving one, and this discarded
+        // them.
+        //
+        // Opt-in. A lone building dropped on open ground should still settle onto
+        // terrain, so only a caller that says it means its Z gets this.
+        if (bHonourRequestedZ)
+        {
+            const double WantedZ = Requested.GetLocation().Z;
+            Hit.ImpactPoint.Z = WantedZ;
+            Hit.Location.Z = WantedZ;
+            Predicted->SetBoolField(TEXT("requested_z_honoured"), true);
+        }
 
         Hologram->SetConstructionInstigator(Player);
         if (!Hologram->IsValidHitResult(Hit))
@@ -815,6 +835,19 @@ namespace
             ActionTransformJson(Hologram->GetActorTransform()));
         Predicted->SetNumberField(TEXT("hologram_yaw_error_degrees"), YawError);
         Predicted->SetNumberField(TEXT("hologram_rotation_scrolls"), ScrollsApplied);
+
+        if (bHonourRequestedZ)
+        {
+            // Whether it took. Overriding the hit asks for a height; the
+            // hologram is free to resolve its own, and a reply claiming the Z
+            // was honoured is worth nothing unless the placed transform agrees.
+            const double AchievedZ = Hologram->GetActorLocation().Z;
+            const double DriftCm = AchievedZ - Requested.GetLocation().Z;
+            Predicted->SetNumberField(
+                TEXT("requested_z_drift_cm"),
+                FMath::RoundToDouble(DriftCm * 10.0) / 10.0);
+            Predicted->SetBoolField(TEXT("requested_z_reached"), FMath::Abs(DriftCm) <= 1.0);
+        }
 
         if (bRotationUnavailable)
         {
@@ -1454,7 +1487,8 @@ FAIFactoryActionResult PlaceBuilding(
     bool bCheckClearance,
     const FString& PlacementTargetActorId,
     const FString& ProductionRecipeClassPath,
-    bool bIgnoreClearance)
+    bool bIgnoreClearance,
+    bool bHonourRequestedZ)
 {
     const FString Action = TEXT("place_building");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -1663,6 +1697,7 @@ FAIFactoryActionResult PlaceBuilding(
         Inventory,
         Target,
         PlacementTarget,
+        bHonourRequestedZ,
         bIgnoreClearance,
         Predicted,
         HologramFailure);
@@ -2072,6 +2107,7 @@ FAIFactoryActionResult PlaceBlueprint(
         // A blueprint is placed on ground, not onto a named actor, so it keeps
         // the downward trace.
         nullptr,
+        false,
         false,
         Predicted,
         HologramFailure);
@@ -3345,6 +3381,10 @@ namespace
             // applying. Only overlap is waived -- see OnlyClearanceObjectionsRemain.
             bool bIgnoreClearance = false;
             Spec->TryGetBoolField(TEXT("ignore_clearance"), bIgnoreClearance);
+            // A saved design means its heights literally; a one-off placement
+            // does not.
+            bool bHonourRequestedZ = false;
+            Spec->TryGetBoolField(TEXT("exact_z"), bHonourRequestedZ);
             return PlaceBuilding(
                 Context,
                 RecipeClass,
@@ -3352,7 +3392,8 @@ namespace
                 bCheck,
                 PlacementTargetActorId,
                 ProductionRecipeClassPath,
-                bIgnoreClearance);
+                bIgnoreClearance,
+                bHonourRequestedZ);
         }
         if (Kind == TEXT("place_blueprint"))
         {

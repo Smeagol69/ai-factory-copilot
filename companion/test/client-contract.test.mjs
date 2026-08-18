@@ -412,3 +412,27 @@ test("game action outcomes are append-only diagnostics after authoritative execu
     "outcomes must be appended only after the game has enriched the response",
   );
 });
+
+test("the requested Z is honoured only when the caller asks", () => {
+  const actions = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp", import.meta.url),
+    "utf8",
+  );
+
+  // Opt-in, and gated: a lone building on open ground must still settle onto
+  // terrain, so the trace stays the default.
+  assert.ok(actions.includes('Spec->TryGetBoolField(TEXT("exact_z"), bHonourRequestedZ)'));
+  assert.ok(actions.includes("if (bHonourRequestedZ)"));
+  assert.ok(actions.includes("requested_z_honoured"));
+
+  // And the claim is checked against the placed transform, not asserted.
+  assert.ok(actions.includes("requested_z_reached"));
+  assert.ok(actions.includes("requested_z_drift_cm"));
+
+  // The traced surface actor is kept -- only the height moves -- because the
+  // hologram still needs a valid hit to accept.
+  const guard = actions.indexOf("if (bHonourRequestedZ)");
+  const lift = actions.indexOf("Hit.ImpactPoint.Z = WantedZ", guard);
+  const instigator = actions.indexOf("SetConstructionInstigator", guard);
+  assert.ok(guard >= 0 && lift > guard && instigator > lift);
+});

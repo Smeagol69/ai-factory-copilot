@@ -2385,3 +2385,78 @@ Wire factory until that transaction commits and its exact port readback is in
 the journal. Attachment replay (for example, a Conveyor Wall Hole needing a
 wall host) remains a separate open issue and was not weakened or disguised by
 this change.
+
+### Claude fixed the discarded Z — 2026-08-17
+
+The bug written up under "The requested Z is discarded" above is fixed, along
+the lines that entry proposed: opt-in, trace stays the default.
+
+**What changed.** `PositionAndValidateActionHologram` takes a new
+`bHonourRequestedZ`. When set, it keeps the traced surface *actor* — the
+hologram still needs a valid hit to accept — and moves only the hit's height to
+the requested Z. `PlaceBuilding` carries the flag through; the action spec
+reads it from `exact_z`; `planDesignPlacement` sets it on every building in a
+saved design, because a design's relative heights are the entire reason for
+saving one. Nothing else sets it, so a lone building dropped on open ground
+still settles onto terrain exactly as before.
+
+**It reports whether it worked, not that it worked.** Overriding the hit is a
+request; a hologram may still resolve its own height. So the reply carries
+`requested_z_drift_cm` and `requested_z_reached`, read back from the placed
+transform. If some hologram class ignores the override, the reply will say so
+rather than claiming success — the drift table in the entry above was only
+measurable because the readback existed.
+
+**Not yet live-proven.** Compiled and deployed with the game closed; 648
+companion tests pass. The test is to place a saved design with buildings at
+different heights and read `requested_z_drift_cm` for each. Belts are the
+other thing to retry: a machine nine metres off-height cannot present the port
+that was asked for, so `constructed_belt_endpoints_did_not_match_requested_components`
+may have been a symptom of this all along. That is a hypothesis, not a claim.
+
+**Lane crossing, disclosed.** This touches `AIFactoryActions.cpp`, which
+`codex/native-blueprint-designer` also has unmerged changes in. They do not
+overlap: Codex's are inside `PlaceBlueprint` (lightweight proxy readback),
+mine are in `PositionAndValidateActionHologram`, the `PlaceBuilding`
+signature and the spec parse. That branch merges onto this cleanly. Codex's
+three in-flight branches — `buildgun-preview`, `native-blueprint-designer`,
+`native-blueprint-export-contract` — were left alone; they are Codex's to
+land.
+
+### Two more reasons designs placed badly — Claude, 2026-08-17
+
+Found by reading the six designs actually saved on disk rather than reasoning
+about the code, which is why they had both survived this long.
+
+**Belts and wires were being saved as placements.** `mk2` held six
+`Build_ConveyorBeltMk1_C`, three `Build_ConveyorLiftMk1_C`; `mk1-copper-v2`
+held four `Build_PowerLine_C`; `mega-base` three more. Every one of those is
+defined by *two ends* — `PlaceBelt` takes a pair of connection components —
+so `place_building` at an offset can only ever be refused. Worse, a plan stops
+at its first runtime failure, so one wire near the front of the queue took the
+rest of the design with it. They are now kept on a `links` list instead of the
+buildings list, filtered again at replay so the designs already saved get the
+same treatment, and counted honestly on the library card ("9 belts/wires not
+replayed"). Nothing is discarded — the offsets are still there for whoever
+teaches a design to rebuild its own belts. It also happens to be what the owner
+asked for directly: *"i can place belts myself"*.
+
+**The wall hole sorted as structural.** The capture ordered pieces with
+`/Foundation|Wall|Pillar|Ramp/`, and `Build_ConveyorWallHole_C` contains
+"Wall". So the attachment was filed as a host and placed *before* the wall it
+cuts through — which is exactly the design that refused at its very first
+action with `FGCDMustSnapWall`, written up above as needing host inference.
+It did not need host inference; it needed the sort to stop calling it a wall.
+Ordering is now three buckets: structural, then machines, then anything whose
+name says it mounts into something. Replaying `mk2` now starts with
+`Build_Wall_8x4_01_C` and ends with the wall hole.
+
+That may not be the whole of the attachment problem — a wall hole whose host is
+*not* in the design still has nothing to snap to, and recording a real host at
+capture is still the general answer. But the specific failure on the
+noticeboard was this, and it is worth checking a live replay before building
+the inference.
+
+**Counts as measured, not claimed.** Through the new planner: `mega-base` 392
+to 389, `mk1-copper-v2` 25 to 21, `mk2` 27 to 18. The other three designs are
+unchanged because they contain no links.

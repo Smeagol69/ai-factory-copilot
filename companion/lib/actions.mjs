@@ -427,6 +427,9 @@ export function validateAction(graph, proposal) {
         // Waives overlap objections only, and only when asked. A design built
         // with clearance off has foundations intersecting machines by intent.
         ...(proposal.ignore_clearance === true ? { ignore_clearance: true } : {}),
+        // Place at the Z given rather than on traced ground. A saved design
+        // means its heights literally; a single building usually does not.
+        ...(proposal.exact_z === true ? { exact_z: true } : {}),
         ...(targetActorId ? { target_actor_id: targetActorId } : {}),
         ...(targetStepValue !== null ? { target_step: targetStepValue } : {}),
         ...(requestedProductionRecipe

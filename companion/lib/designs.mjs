@@ -71,6 +71,7 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
     : null;
 
   const buildings = [];
+  const links = [];
   const skipped = [];
   for (const node of graph?.nodes?.values() ?? []) {
     const raw = node?.raw;
@@ -95,7 +96,7 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
       skipped.push({ name: raw.name, why: "the capture does not say what recipe built it" });
       continue;
     }
-    buildings.push({
+    const placement = {
       recipe_class: recipeClass,
       class_path: raw.class_path,
       offset_cm: {
@@ -105,7 +106,18 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
       },
       yaw: Math.round((Number(raw.rotation?.yaw) || 0) * 100) / 100,
       production_recipe_class: String(raw.manufacturer?.recipe_class ?? "").trim() || null,
-    });
+    };
+
+    // Kept, but on the other list: a belt or a power line has two ends, and
+    // replaying it at a coordinate is a step that can only be refused.
+    const notPlaceable = describeUnplaceableByCoordinate(raw.class_path);
+    if (notPlaceable) {
+      links.push(placement);
+      skipped.push({ name: raw.name, why: notPlaceable });
+      continue;
+    }
+
+    buildings.push(placement);
     if (buildings.length > MAXIMUM_BUILDINGS) {
       return {
         saved: false,
@@ -123,11 +135,13 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
     };
   }
 
-  // Sort so foundations and supports go down before whatever stands on them.
-  buildings.sort((left, right) => {
-    const structural = (entry) => (/Foundation|Wall|Pillar|Ramp/i.test(entry.class_path) ? 0 : 1);
-    return structural(left) - structural(right) || left.offset_cm.z - right.offset_cm.z;
-  });
+  // Sort so foundations and supports go down before whatever stands on them,
+  // and so anything that mounts into a host comes after the host.
+  buildings.sort(
+    (left, right) =>
+      placementOrder(left.class_path) - placementOrder(right.class_path) ||
+      left.offset_cm.z - right.offset_cm.z,
+  );
 
   return {
     saved: true,
@@ -141,6 +155,9 @@ export function captureDesign(graph, { name, origin, radius_cm: radiusCm = 12_00
       radius_cm: chosen ? null : radiusCm,
       building_count: buildings.length,
       buildings,
+      // Recorded rather than discarded, so a later version that can rebuild a
+      // belt or a wire from a saved design has the offsets to do it with.
+      links,
     },
     skipped,
   };
@@ -196,13 +213,87 @@ function isExtractorRecipe(recipeClass) {
   return /Miner|Extractor|WaterPump|OilPump|FrackingExtractor/i.test(String(recipeClass ?? ""));
 }
 
+/**
+ * Some things are not placed at a point at all.
+ *
+ * A belt, a lift, a pipeline and a power line are each defined by *two* ends:
+ * the action that builds one takes a pair of connection components, not a
+ * coordinate. Asking `place_building` to put one at an offset cannot work no
+ * matter how good the offset is, and a design that contains one spends a step
+ * being refused — which, because a plan stops at its first runtime failure, can
+ * take the rest of the design down with it.
+ *
+ * Found by reading the designs already on disk: `mk1-copper-v2` had four power
+ * lines in it and `mk2` had six belts, three lifts and a splitter's worth of
+ * wiring, all saved as placements.
+ *
+ * They are not thrown away — `captureDesign` keeps them under `links` — they
+ * are just not replayed as placements.
+ */
+export function describeUnplaceableByCoordinate(classPath) {
+  const name = String(classPath ?? "");
+  if (/ConveyorBelt|ConveyorLift|Pipeline(?!Support)|PipeHyper(?!Support)/i.test(name)) {
+    return "runs between two connections, so it is built as a belt or pipe rather than placed at a point";
+  }
+  if (/PowerLine/i.test(name)) {
+    return "is a wire between two power connections, not a building with a location";
+  }
+  return null;
+}
+
+/**
+ * What goes down before what.
+ *
+ * Structural pieces first, then machines, then anything that mounts into
+ * something else. `Build_ConveyorWallHole_C` is why this is not a single
+ * pattern: it contains "Wall", so the first version filed it as structural and
+ * tried to place it *before* the wall it cuts through. That is the design that
+ * refused at its very first action with `FGCDMustSnapWall`.
+ *
+ * Getting a piece into the wrong bucket costs an ordering, not a placement —
+ * the game still decides what it accepts — so this is allowed to be a
+ * judgement about names where the class list gives nothing better.
+ */
+function placementOrder(classPath) {
+  const name = String(classPath ?? "");
+  if (/WallHole|PowerPoleWall|Railing|Fence|CatwalkStairs|WalkwayRamp/i.test(name)) return 2;
+  if (/Foundation|Wall|Pillar|Ramp|Beam|Floor|Catwalk|Stairs/i.test(name)) return 0;
+  return 1;
+}
+
 /** A saved design as placements at a new anchor. */
 export function planDesignPlacement(design, { origin, commit = true, node = null, ignore_clearance: ignoreClearance = true } = {}) {
   if (!origin || ![origin.x, origin.y, origin.z].every((v) => Number.isFinite(Number(v)))) {
     return { planned: false, reason: "no anchor point with a finite x, y and z" };
   }
-  const buildings = Array.isArray(design?.buildings) ? design.buildings : [];
-  if (buildings.length === 0) return { planned: false, reason: "that design has no buildings in it" };
+  const saved = Array.isArray(design?.buildings) ? design.buildings : [];
+  if (saved.length === 0) return { planned: false, reason: "that design has no buildings in it" };
+
+  // Designs saved before the capture learned the difference still have belts
+  // and power lines on the buildings list, so the filter runs here too. They
+  // are reported, not dropped quietly — a plan stops at its first runtime
+  // failure, and one power line at the front of the queue takes the whole
+  // design with it.
+  const notPlaceable = [];
+  const buildings = saved.filter((entry) => {
+    const why = describeUnplaceableByCoordinate(entry.class_path);
+    if (why) notPlaceable.push({ class_path: entry.class_path, why });
+    return !why;
+  });
+  if (buildings.length === 0) {
+    return {
+      planned: false,
+      reason: "everything in that design is a belt, lift or wire, and none of it is placed at a point",
+    };
+  }
+
+  // Re-sort on replay as well: the order a design was saved in reflects the
+  // rules that were understood when it was saved.
+  buildings.sort(
+    (left, right) =>
+      placementOrder(left.class_path) - placementOrder(right.class_path) ||
+      left.offset_cm.z - right.offset_cm.z,
+  );
 
   // Placing on a node pins the extractor to the node, so every other building
   // has to be measured from the extractor — not from whatever the design
@@ -221,6 +312,7 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
     planned: true,
     name: design.name,
     count: buildings.length,
+    not_placeable: notPlaceable,
     extractors_snapped: node ? buildings.filter((e) => isExtractorRecipe(e.recipe_class)).length : 0,
     actions: buildings.map((entry) => {
       // An extractor goes on the node, not at an offset from it. Given a node,
@@ -236,6 +328,9 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
         // already seen work. Only overlap is waived; the game still refuses
         // no ground, water, cost and the rest.
         ...(ignoreClearance ? { ignore_clearance: true } : {}),
+        // The saved heights are the arrangement. Without this each building
+        // traces to its own terrain and the design comes apart vertically.
+        exact_z: true,
         ...(entry.production_recipe_class
           ? { production_recipe_class: entry.production_recipe_class }
           : {}),

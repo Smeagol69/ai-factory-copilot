@@ -154,3 +154,52 @@ test("placing on a node keeps the arrangement rigid", () => {
   assert.equal(at("Smelter").x - at("Miner").x, 1_500);
   assert.equal(at("Constructor").x - at("Smelter").x, 1_500);
 });
+
+test("a wall hole waits for its wall", () => {
+  // Taken from mk2.json on disk, which refused live at its very first action
+  // with FGCDMustSnapWall. The wall hole sorted as structural because its class
+  // name contains "Wall", so it was attempted before the wall it cuts through.
+  const design = {
+    schema: "aifactory.design/v1",
+    name: "wall hole",
+    buildings: [
+      { recipe_class: "/G/Recipe_ConveyorWallHole_C", class_path: "/G/Build_ConveyorWallHole_C", offset_cm: { x: 0, y: 0, z: 0 }, yaw: 0 },
+      { recipe_class: "/G/Recipe_Wall_8x4_01_C", class_path: "/G/Build_Wall_8x4_01_C", offset_cm: { x: 0, y: 0, z: 0 }, yaw: 0 },
+      { recipe_class: "/G/Recipe_SmelterBasicMk1_C", class_path: "/G/Build_SmelterMk1_C", offset_cm: { x: 500, y: 0, z: 0 }, yaw: 0 },
+    ],
+  };
+  const order = planDesignPlacement(design, { origin: ANCHOR }).actions.map((a) => a.recipe_class);
+  assert.match(order[0], /Wall_8x4/);
+  assert.match(order.at(-1), /WallHole/);
+});
+
+test("belts and power lines are recorded, not replayed as placements", () => {
+  const actors = [
+    ...ACTORS,
+    building("belt", "Build_ConveyorBeltMk1", 1_100, 2_000, 0),
+    building("wire", "Build_PowerLine", 1_200, 2_000, 0),
+  ];
+  const result = capture({ actors });
+
+  // Off the placement list -- a belt is built between two connections, so an
+  // action putting one at a coordinate can only be refused.
+  assert.equal(result.design.building_count, 4);
+  assert.equal(result.design.links.length, 2);
+  assert.equal(result.skipped.length, 2);
+
+  // And a design saved before the capture knew the difference is filtered on
+  // the way out, so the ones already on disk get the same treatment.
+  const stale = { ...result.design, buildings: [...result.design.buildings, ...result.design.links] };
+  const plan = planDesignPlacement(stale, { origin: ANCHOR });
+  assert.equal(plan.count, 4);
+  assert.equal(plan.not_placeable.length, 2);
+  assert.ok(plan.actions.every((action) => !/ConveyorBelt|PowerLine/.test(action.recipe_class)));
+});
+
+test("a design asks for its own heights, not the ground's", () => {
+  // Measured live before this existed: a Smelter asked for z 8054 landed at
+  // 9028 because every building traced down to its own patch of terrain. The
+  // arrangement's relative heights are the whole point of saving one.
+  const placed = planDesignPlacement(capture().design, { origin: ANCHOR });
+  assert.ok(placed.actions.every((action) => action.exact_z === true));
+});

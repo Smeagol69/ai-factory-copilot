@@ -13,6 +13,8 @@
  * itself without a reload and without re-sending the markup.
  */
 
+import { describeUnplaceableByCoordinate } from "./designs.mjs";
+
 const STYLES = `
 :root{color-scheme:dark light;--bg:#0d1117;--panel:#161b22;--raise:#1c232c;
 --line:#2a313b;--ink:#e6edf3;--dim:#8b949e;--hot:#ff8b3d;--good:#3fb950;--r:11px}
@@ -102,19 +104,30 @@ export function buildLibraryModel({ designs = [], blueprints = [] } = {}) {
   return {
     schema: "aifactory.library/v1",
     generated_at_utc: new Date().toISOString(),
-    designs: designs.map((design) => ({
+    designs: designs.map((design) => {
+      // Count what will actually be placed. A design saved before the capture
+      // separated links from buildings still carries its belts and power lines
+      // on the buildings list, and promising 27 when 18 go down is the kind of
+      // small lie the rest of this project spends its time avoiding.
+      const placeable = (design.buildings ?? []).filter(
+        (entry) => !describeUnplaceableByCoordinate(entry.class_path),
+      );
+      const links = (design.buildings ?? []).length - placeable.length + (design.links ?? []).length;
+      return {
       name: design.name,
       kind: "design",
-      count: design.building_count,
-      footprint: footprintOf(design.buildings),
+      count: placeable.length,
+      links,
+      footprint: footprintOf(placeable),
       picked: design.selected_by === "dismantle_selection",
-      contents: describeContents(design.buildings),
+      contents: describeContents(placeable),
       // A design containing a miner is meant for a node, so offer that phrasing
       // first — it is the one that makes the extractor attach.
-      says: hasExtractor(design.buildings)
+      says: hasExtractor(placeable)
         ? [`place ${design.name} on this node`, `place ${design.name} here`]
         : [`place ${design.name} here`],
-    })),
+      };
+    }),
     blueprints: blueprints.map((blueprint) => ({
       name: blueprint.name,
       kind: "blueprint",
@@ -146,6 +159,9 @@ function card(item) {
     item.footprint,
     item.changelist ? 'CL ' + item.changelist : null,
     item.kind === 'design' ? (item.picked ? 'hand-picked' : 'by radius') : null,
+    // Say it on the card rather than letting the number quietly disagree with
+    // what lands: belts and wires join two ends, so they are not replayed.
+    item.links ? item.links + ' belts/wires not replayed' : null,
   ].filter(Boolean);
   return '<article class="card"><h3>' + esc(item.name) + '</h3>' +
     '<div class="meta">' + tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>' +

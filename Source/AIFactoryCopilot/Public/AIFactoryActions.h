@@ -177,7 +177,17 @@ namespace AIFactoryActions
          * turning clearance off for foundations is not consent to build into
          * something that can move.
          */
-        bool bIgnoreClearance = false);
+        bool bIgnoreClearance = false,
+        /**
+         * Place at the Z that was asked for, instead of on whatever the
+         * downward trace hits.
+         *
+         * A saved design's relative heights are the point of saving it, and
+         * tracing each building independently destroyed them -- a Smelter asked
+         * for 8054 landed at 9028. Opt-in, because a lone building dropped on
+         * open ground should still settle onto terrain.
+         */
+        bool bHonourRequestedZ = false);
 
     /**
      * Places a saved blueprint through AFGBlueprintHologram, so Satisfactory
