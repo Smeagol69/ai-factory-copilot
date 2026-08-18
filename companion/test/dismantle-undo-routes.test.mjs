@@ -216,3 +216,43 @@ test("naming a thing still marks the thing, not the player", () => {
   });
   assert.deepEqual(emitted[0].location, { x: 9_000, y: 9_000, z: 100 });
 });
+
+test("clearing holograms, overlays and opening the library all route locally", async () => {
+  const { parseClearHologramRequest, parseClearRequest, parseLibraryPageRequest } =
+    await import("../lib/router.mjs");
+
+  // This route had never once fired: every \s+ in its pattern had lost its
+  // backslash, so it asked for literal s characters where spaces belonged.
+  for (const question of [
+    "clear holograms",
+    "clear the stuck hologram",
+    "get rid of stray holograms",
+    "remove all my holograms",
+    "sweep up the leftover holograms",
+  ]) {
+    assert.equal(parseClearHologramRequest(question), true, question);
+  }
+  assert.equal(parseClearHologramRequest("clear waypoints"), false);
+  assert.equal(parseClearHologramRequest("what is a hologram"), false);
+
+  // Qualifiers stack in real speech. This was fixed for waypoints and not for
+  // overlays, so "clear my overlays" went to a model.
+  for (const question of [
+    "clear my overlays",
+    "clear all my highlights",
+    "clear the overlays",
+    "remove my markers",
+  ]) {
+    assert.deepEqual(parseClearRequest(question), { all: true }, question);
+  }
+
+  // Written, exported, and then never called from any route -- the quietest
+  // way a feature can be missing, because everything about it looks present.
+  for (const question of [
+    "open the library",
+    "show me the library",
+    "where is the library page",
+  ]) {
+    assert.deepEqual(parseLibraryPageRequest(question), {}, question);
+  }
+});

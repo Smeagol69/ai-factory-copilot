@@ -2683,3 +2683,46 @@ Naming a real thing still marks the thing rather than the player — pinned in a
 test, because that is the regression this change could have caused.
 
 674 companion tests pass. No C++ changed; this was entirely a routing gap.
+
+### The escape-collapse trap ate a whole route — Claude, 2026-08-18
+
+Read this one. It is the most expensive kind of bug this project produces and
+nothing in the repo was catching it.
+
+`clear holograms` — added because a stuck hologram was following the owner's
+cursor — has **never once fired**. Its pattern shipped as:
+
+    /^(?:clear|remove|delete|get rid of)s+(?:thes+|anys+|alls+)?holo(?:gram)?s?$/i
+
+Every `\s+` had lost its backslash. It demanded literal s characters where
+spaces belonged. The file parsed, the suite was green, and the request went to a
+model instead — silently, every time.
+
+The existing guard does not see this. That one catches the flavour that leaves a
+0x08 control character behind. This flavour just *deletes the backslash*, and
+what is left is ordinary letters.
+
+`test/collapsed-escapes.test.mjs` scans every regex literal in `lib`,
+`test` and the companion root for an escape-class letter sitting directly
+after a group or alternation close and followed by a quantifier — the shape a
+collapsed `\s+` leaves. Comment lines are skipped, since that file quotes the
+broken pattern to explain it. A second test feeds the detector the exact broken
+pattern and a legitimate `(?:pipes|belts)+` to prove it catches one and not
+the other; an assertion that never fires is not protection.
+
+The sweep found exactly one instance repo-wide, so the damage was contained.
+
+**Two more routing holes, found the same way — by running natural phrasings
+through the live router and reading which ones fell through.**
+
+`clear my overlays` reached a model. `CLEAR_PATTERNS` allowed
+`(?:the\s+)?(?:all\s+)?`, so one qualifier worked and two did not. This is
+the identical fault `CLEAR_WAYPOINTS` was fixed for in August — fixed in one
+place and not the other. Both now use `(?:(?:my|the|all|every|any)\s+)*`.
+
+`open the library` reached a model. `parseLibraryPageRequest` was written,
+exported, tested by nothing, and **never called from any route**. That is the
+quietest way a feature can be missing: every part of it looks present. The
+route exists now and answers with the URL and a pointer to the panel button.
+
+677 companion tests pass. No C++ changed.

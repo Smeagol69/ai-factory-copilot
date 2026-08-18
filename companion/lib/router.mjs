@@ -509,13 +509,33 @@ export function parseClearWaypointRequest(question) {
   return CLEAR_WAYPOINTS.test(text);
 }
 
+// Qualifiers stack in real speech, so they repeat here rather than being
+// listed as two optional slots. "clear my overlays" and "clear all my
+// highlights" both failed on `(?:the\s+)?(?:all\s+)?`, which is the same fault
+// CLEAR_WAYPOINTS above was already fixed for -- it was fixed in one place and
+// not the other.
 const CLEAR_PATTERNS = [
-  /^(?:can you |could you |please )?(?:clear|remove|hide|delete|turn off|get rid of)\s+(?:the\s+)?(?:all\s+)?(?:overlays?|highlights?|markers?|tracers?|lines?)\b/i,
+  /^(?:can you |could you |please )?(?:clear|remove|hide|delete|turn off|get rid of)\s+(?:(?:my|the|all|every|any)\s+)*(?:overlays?|highlights?|markers?|tracers?|lines?)\b/i,
 ];
 
 export function parseClearRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   return CLEAR_PATTERNS.some((pattern) => pattern.test(text)) ? { all: true } : null;
+}
+
+/**
+ * "clear holograms", "get rid of the stuck hologram".
+ *
+ * A preview left in the world after a refused placement, which the owner met as
+ * a hologram stuck to the cursor. Its own parser now, rather than an inline
+ * regex in the route, so it can be tested without driving the whole router.
+ */
+const CLEAR_HOLOGRAMS =
+  /^(?:can you |could you |please )?(?:clear|remove|delete|get rid of|sweep(?:\s+up)?)\s+(?:(?:my|the|all|every|any|stuck|stray|leftover)\s+)*holo(?:gram)?s?\b/i;
+
+export function parseClearHologramRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return CLEAR_HOLOGRAMS.test(text);
 }
 
 /* ---------------- routes ---------------- */
@@ -2491,6 +2511,23 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "open the library" — the page exists, the panel has a button for it, and
+  // until now asking for it in words reached a model. The parser was written
+  // and exported and then never called from anywhere, which is the quietest
+  // way a feature can be missing: everything about it looks present.
+  if (parseLibraryPageRequest(question)) {
+    const started = Date.now();
+    return localAnswer(
+      "The library is at <http://127.0.0.1:8142/library> — every saved design and " +
+        "every blueprint the game knows about, with a plan of each, and a copy button " +
+        "for the phrase that places it.\n\nThe **Library** button on this panel opens " +
+        "the same page in your browser.",
+      "library_page",
+      started,
+      "The bridge serves the page; nothing was sent to the game.",
+    );
+  }
+
   // "list designs" / "save this as X" / "place X here" — remembered builds.
   if (parseDesignListRequest(question)) {
     const started = Date.now();
@@ -2710,7 +2747,14 @@ export function answerLocally(question, graph, services) {
   }
 
   // "clear holograms" — sweep up any preview left stuck to the cursor.
-  if (/^(?:can you |please )?(?:clear|remove|delete|get rid of)s+(?:thes+|anys+|alls+)?(?:stucks+|strays+)?holo(?:gram)?s?$/i.test(String(question ?? "").trim().replace(/[?!.]+$/, ""))) {
+  //
+  // This route has never once fired. Every `\s+` in its pattern had lost its
+  // backslash, so it demanded "clear   holograms" spelled "clearsss" — it only
+  // ever matched literal s characters. The escape-collapse trap that keeps
+  // eating backslashes in this file leaves ordinary letters behind here rather
+  // than the 0x08 the repo already guards against, so nothing caught it.
+  // `test/collapsed-escapes.test.mjs` now does.
+  if (parseClearHologramRequest(question)) {
     const started = Date.now();
     if (emitValidatedPlan(graph, services, [{ action: "clear_holograms", commit: true }])) {
       return localAnswer(
