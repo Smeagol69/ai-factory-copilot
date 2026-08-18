@@ -176,6 +176,36 @@ test("the thumbnail keeps the design's proportions and centres it", () => {
   assert.ok(alone.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y)), "one building must still draw");
 });
 
+test("blueprint outlines are sized against each other, not each against its own box", () => {
+  // Designer volumes in the owner's library are all square -- 4x4, 5x5, 6x6,
+  // 12x12 -- so an outline normalised to fill its own box would say nothing
+  // the size tag does not. Relative scale is the whole point of drawing it.
+  const model = buildLibraryModel({
+    designs: [],
+    blueprints: [
+      { name: "small", designer_dimensions: { x: 4, y: 4 } },
+      { name: "large", designer_dimensions: { x: 12, y: 12 } },
+    ],
+  });
+
+  const [small, large] = model.blueprints;
+  assert.equal(large.outline.scale, 1);
+  assert.ok(Math.abs(small.outline.scale - 1 / 3) < 0.001);
+
+  // A library of one size still draws it full, rather than dividing by nothing.
+  const alone = buildLibraryModel({
+    designs: [],
+    blueprints: [{ name: "only", designer_dimensions: { x: 4, y: 4 } }],
+  }).blueprints[0];
+  assert.equal(alone.outline.scale, 1);
+
+  // A blueprint the game reported no dimensions for gets no outline invented
+  // for it.
+  const unknown = buildLibraryModel({ designs: [], blueprints: [{ name: "no size" }] }).blueprints[0];
+  assert.equal(unknown.outline, null);
+  assert.equal(unknown.footprint, null);
+});
+
 test("the page renders, escapes, and its client script compiles", () => {
   const awkward = design('a "quoted" <name> & co', [piece("SmelterMk1")]);
   const html = renderLibraryPage(buildLibraryModel({ designs: [awkward], blueprints: [] }));

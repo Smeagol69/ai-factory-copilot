@@ -57,6 +57,8 @@ border-radius:8px;display:block}
 .plan .k0{fill:var(--dim)}   /* foundations, walls — the structure */
 .plan .k1{fill:var(--ink)}   /* machines */
 .plan .k2{fill:var(--hot)}   /* the extractor, which is what a design is aimed at */
+.plan .outline{fill:none;stroke:var(--dim);stroke-width:.012}
+.plan .grid line{stroke:var(--line);stroke-width:.006}
 .meta{display:flex;gap:6px;flex-wrap:wrap}
 .tag{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;
 padding:2px 8px;white-space:nowrap}
@@ -165,6 +167,16 @@ function planOf(buildings) {
 
 /** The library as plain data. The page fetches this to refresh itself. */
 export function buildLibraryModel({ designs = [], blueprints = [] } = {}) {
+  // Every blueprint outline is drawn against this, so the cards are comparable
+  // with each other rather than each filling its own box. One is the floor, so
+  // a library of only Mk1 blueprints does not divide by zero or shrink them all.
+  const largestDesignerVolume = Math.max(
+    1,
+    ...blueprints.map((entry) =>
+      Math.max(entry.designer_dimensions?.x ?? 0, entry.designer_dimensions?.y ?? 0),
+    ),
+  );
+
   return {
     schema: "aifactory.library/v1",
     generated_at_utc: new Date().toISOString(),
@@ -200,6 +212,26 @@ export function buildLibraryModel({ designs = [], blueprints = [] } = {}) {
       footprint: blueprint.designer_dimensions
         ? `${blueprint.designer_dimensions.x} × ${blueprint.designer_dimensions.y} foundations`
         : null,
+      // The designer volume, drawn as an outline. A blueprint's insides are in
+      // the .sbp and nothing here decodes them, so there are no points to plot
+      // -- but the footprint the game itself records is real.
+      //
+      // `scale` is against the largest volume in the library. Every dimension
+      // in the owner's 29 blueprints is square -- 4x4, 5x5, 6x6, 12x12 -- so a
+      // shape normalised to fill its own box would say nothing the size tag
+      // does not. Drawn to relative scale instead, a 4x4 is visibly a third of
+      // a 12x12 across.
+      outline: blueprint.designer_dimensions
+        ? {
+            x: blueprint.designer_dimensions.x,
+            y: blueprint.designer_dimensions.y,
+            scale: Math.max(
+              0.25,
+              Math.max(blueprint.designer_dimensions.x, blueprint.designer_dimensions.y) /
+                largestDesignerVolume,
+            ),
+          }
+        : null,
       changelist: blueprint.game_changelist ?? null,
       contents: (blueprint.build_cost ?? [])
         .slice()
@@ -226,13 +258,40 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
 // footprint, so a rectangle here would be inventing a size. A dot is the one
 // honest mark for "something stands here".
 function thumbnail(item) {
-  if (!item.plan || item.plan.length === 0) return '';
-  const R = 0.016;
-  const dots = item.plan.map(p =>
-    '<circle cx="' + p[0] + '" cy="' + (1 - p[1]) + '" r="' + R +
-    '" class="k' + p[2] + '"/>').join('');
-  return '<svg class="plan" viewBox="-0.05 -0.05 1.1 1.1" preserveAspectRatio="xMidYMid meet" ' +
-    'aria-label="top-down plan">' + dots + '</svg>';
+  const box = inner =>
+    '<svg class="plan" viewBox="-0.05 -0.05 1.1 1.1" preserveAspectRatio="xMidYMid meet" ' +
+    'aria-label="top-down plan">' + inner + '</svg>';
+
+  if (item.plan && item.plan.length) {
+    const R = 0.016;
+    return box(item.plan.map(p =>
+      '<circle cx="' + p[0] + '" cy="' + (1 - p[1]) + '" r="' + R +
+      '" class="k' + p[2] + '"/>').join(''));
+  }
+
+  // A blueprint has no points to plot -- its insides live in the .sbp and
+  // nothing here decodes them -- but the designer volume the game records is
+  // real, so the outline is drawn with a grid at one line per foundation, and
+  // sized against the largest volume in the library so a Mk1 blueprint reads
+  // as smaller than a Mk3 one. Deliberately not filled with dots: that would
+  // suggest a building stands on every cell.
+  if (item.outline && item.outline.x > 0 && item.outline.y > 0) {
+    const span = Math.max(item.outline.x, item.outline.y) / (item.outline.scale || 1);
+    const w = item.outline.x / span, h = item.outline.y / span;
+    const x0 = (1 - w) / 2, y0 = (1 - h) / 2;
+    let grid = '';
+    for (let i = 1; i < item.outline.x; i++) {
+      const x = x0 + (w * i) / item.outline.x;
+      grid += '<line x1="' + x + '" y1="' + y0 + '" x2="' + x + '" y2="' + (y0 + h) + '"/>';
+    }
+    for (let i = 1; i < item.outline.y; i++) {
+      const y = y0 + (h * i) / item.outline.y;
+      grid += '<line x1="' + x0 + '" y1="' + y + '" x2="' + (x0 + w) + '" y2="' + y + '"/>';
+    }
+    return box('<g class="grid">' + grid + '</g><rect x="' + x0 + '" y="' + y0 +
+      '" width="' + w + '" height="' + h + '" class="outline"/>');
+  }
+  return '';
 }
 
 function card(item) {
