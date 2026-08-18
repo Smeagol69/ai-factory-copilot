@@ -55,6 +55,7 @@ import { planCoalPower } from "./power.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
 import { captureDesign, findDesign, listDesigns, planDesignPlacement, writeDesign } from "./designs.mjs";
+import { buildLibraryModel } from "./library-page.mjs";
 import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
@@ -2458,12 +2459,19 @@ export function answerLocally(question, graph, services) {
         "Read from the design folder on disk.",
       );
     }
+    // Counted through the library model rather than from building_count, so
+    // the number here is the number that will actually go down. A design saved
+    // before the capture separated links from buildings still carries its
+    // belts and power lines on the buildings list.
+    const listed = buildLibraryModel({ designs, blueprints: [] }).designs;
     return localAnswer(
       `You have **${designs.length}** saved design(s):\n\n` +
-        designs
-          .map((design) => `- **${design.name}** — ${design.building_count} buildings`)
+        listed
+          .map((design) =>
+            `- **${design.name}** — ${design.count} buildings` +
+            (design.links > 0 ? ` (${design.links} belt/wire link(s) not replayed)` : ""))
           .join("\n") +
-        '\n\nSay "place <name> here" to build one.',
+        '\n\nSay "place <name> here" to build one, or add "rotated 90" to turn it.',
       "design_library",
       started,
       "Read from the design folder on disk.",
