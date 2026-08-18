@@ -910,6 +910,45 @@ const DESIGN_PLACE =
 const DESIGN_LIST = /\b(?:list|show|what)\b[^?]*\b(?:designs?|saved builds?)\b/i;
 const DESIGN_RADIUS = /\bwithin\s+(\d{1,4})\s*m\b/i;
 
+/**
+ * "rotated 90", "turned right", "half turn" — turning a design as it goes down.
+ *
+ * Stripped out of the phrase before the place pattern runs, the same way the
+ * radius is, because that pattern anchors on the phrase ending in "here" or
+ * "on this node".
+ *
+ * Relative turns only, which is why the COMPASS table further down is not
+ * reused here. A single building has one facing, so "facing north" names an
+ * absolute yaw for it. A design has as many facings as it has buildings, and
+ * there is no honest answer to which one the compass word is about — so a
+ * design is turned *by* an angle, never *to* a bearing.
+ *
+ * "Right" is a quarter turn clockwise seen from above, the direction UE's yaw
+ * increases in. The reply states the angle it used, so a wrong reading of the
+ * phrase shows up on the first placement rather than silently.
+ */
+const DESIGN_TURN =
+  /\b(?:rotate[d]?|turn(?:ed)?|facing|spun)\s+(?:it\s+|by\s+)?(-?\d{1,3})\s*(?:deg(?:ree)?s?|°)?\b/i;
+const DESIGN_TURN_WORDS =
+  /\b(?:(quarter|half|three[- ]quarter)\s+turn|(?:rotate[d]?|turn(?:ed)?|spun)\s+(?:it\s+)?(right|left|around|clockwise|anti[- ]?clockwise|counter[- ]?clockwise))\b/i;
+
+function designTurnDegrees(text) {
+  const numeric = text.match(DESIGN_TURN);
+  if (numeric) return { degrees: Number(numeric[1]), phrase: numeric[0] };
+
+  const words = text.match(DESIGN_TURN_WORDS);
+  if (!words) return null;
+  const amount = String(words[1] ?? "").toLowerCase();
+  const direction = String(words[2] ?? "").toLowerCase();
+  if (amount === "quarter") return { degrees: 90, phrase: words[0] };
+  if (amount === "half") return { degrees: 180, phrase: words[0] };
+  if (amount === "three quarter" || amount === "three-quarter") return { degrees: 270, phrase: words[0] };
+  if (direction === "right" || direction === "clockwise") return { degrees: 90, phrase: words[0] };
+  if (direction === "left" || /clockwise$/.test(direction)) return { degrees: 270, phrase: words[0] };
+  if (direction === "around") return { degrees: 180, phrase: words[0] };
+  return null;
+}
+
 export function parseDesignSaveRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   const radius = text.match(DESIGN_RADIUS);
@@ -923,10 +962,14 @@ export function parseDesignSaveRequest(question) {
 
 export function parseDesignPlaceRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
-  const match = text.match(DESIGN_PLACE);
+  const turn = designTurnDegrees(text);
+  const withoutTurn = turn
+    ? text.replace(turn.phrase, "").replace(/\s{2,}/g, " ").trim()
+    : text;
+  const match = withoutTurn.match(DESIGN_PLACE);
   if (!match) return null;
   const name = match[1].replace(/\s+/g, " ").replace(/\b(?:design|blue\s?print)\b/i, "").trim();
-  return name.length >= 2 ? { name } : null;
+  return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
 }
 
 export function parseDesignListRequest(question) {
@@ -2506,6 +2549,7 @@ export function answerLocally(question, graph, services) {
         origin: aimedNode?.location ?? origin,
         node: aimedNode,
         commit: true,
+        rotation_degrees: designPlace.rotation_degrees,
       });
 
       // A nearby node is worth mentioning and is NOT worth refusing over.
@@ -2536,9 +2580,19 @@ export function answerLocally(question, graph, services) {
           ? ` The ${plan.extractors_snapped} extractor(s) in it are attached to the node ` +
             `you are aiming at, not just placed near it.`
           : "";
+        // Say what is not going down, rather than letting the count quietly
+        // disagree with what appears. A belt joins two ends, so it is not
+        // replayed from a saved offset.
+        const dropped = plan.not_placeable.length > 0
+          ? ` ${plan.not_placeable.length} belt(s), lift(s) or power line(s) in the design ` +
+            `are not placed — they connect two ends rather than sitting at a spot, so run those yourself.`
+          : "";
+        const facing = plan.rotated_degrees
+          ? `turned ${plan.rotated_degrees}° from how it was saved`
+          : `keeping the spacing and facing it was saved at`;
         return localAnswer(
           `Building **${plan.name}** — ${plan.count} buildings, each with the recipe ` +
-            `it was saved with, keeping the spacing and facing it was saved at.${snapped} ` +
+            `it was saved with, ${facing}.${snapped}${dropped} ` +
             `Say "undo" to reverse the whole thing.`,
           "design_place",
           started,

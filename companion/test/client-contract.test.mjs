@@ -429,6 +429,13 @@ test("the requested Z is honoured only when the caller asks", () => {
   assert.ok(actions.includes("requested_z_reached"));
   assert.ok(actions.includes("requested_z_drift_cm"));
 
+  // A snap reports what it snapped to, so FGCDMustSnapWall stops being a
+  // refusal with no information attached to it.
+  assert.ok(actions.includes("Cast<AFGBuildableHologram>(Hologram)"));
+  assert.ok(actions.includes("Buildable->GetSnappedBuilding()"));
+  assert.ok(actions.includes('TEXT("snapped_building")'));
+  assert.ok(actions.includes('#include "Hologram/FGBuildableHologram.h"'));
+
   // The traced surface actor is kept -- only the height moves -- because the
   // hologram still needs a valid hit to accept.
   const guard = actions.indexOf("if (bHonourRequestedZ)");

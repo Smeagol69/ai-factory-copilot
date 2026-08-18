@@ -565,3 +565,21 @@ test("neighbouring routes are not swallowed by the wider pattern", () => {
     assert.equal(parseAimedFactoryRequest(question), null, `should not build a factory: ${question}`);
   }
 });
+
+test("a design can be asked for turned, in degrees or in quarters", async () => {
+  const { parseDesignPlaceRequest } = await import("../lib/router.mjs");
+
+  // The turn is stripped before the place pattern runs, so the name still
+  // comes out clean and the phrase still has to end the way it always did.
+  assert.deepEqual(parseDesignPlaceRequest("place mk1 copper on this node rotated 90"), {
+    name: "mk1 copper",
+    rotation_degrees: 90,
+  });
+  assert.equal(parseDesignPlaceRequest("stamp mk2 down turned left").rotation_degrees, 270);
+  assert.equal(parseDesignPlaceRequest("place mk1 copper here half turn").rotation_degrees, 180);
+  assert.equal(parseDesignPlaceRequest("build smelter bank here rotated -90").rotation_degrees, -90);
+
+  // Asking for no turn is still asking for no turn.
+  assert.equal(parseDesignPlaceRequest("place mk1 copper on this node").rotation_degrees, 0);
+  assert.equal(parseDesignPlaceRequest("what is a smelter"), null);
+});

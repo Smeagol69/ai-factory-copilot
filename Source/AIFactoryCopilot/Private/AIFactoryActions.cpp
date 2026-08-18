@@ -26,6 +26,7 @@
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
 #include "Hologram/FGBlueprintHologram.h"
+#include "Hologram/FGBuildableHologram.h"
 #include "Hologram/FGConveyorBeltHologram.h"
 #include "Hologram/FGHologram.h"
 #include "Resources/FGBuildingDescriptor.h"
@@ -771,6 +772,22 @@ namespace
         const bool bSnappedToTarget = Hologram->TrySnapToActor(Hit);
         Predicted->SetBoolField(TEXT("snap_accepted"), bSnappedToTarget);
         Hologram->UpdateHologramPlacement(Hit);
+
+        // Name what it snapped *to*, not just that it snapped.
+        //
+        // FGCDMustSnapWall is the one refusal where the missing information is
+        // the host: a Conveyor Wall Hole took a 25-building design down at its
+        // first action and the reply could only say the snap was not accepted,
+        // never which wall it was looking for or whether it found one at all.
+        // AFGBuildableHologram::GetSnappedBuilding() is the game's own answer,
+        // so report it and stop inferring.
+        if (AFGBuildableHologram* Buildable = Cast<AFGBuildableHologram>(Hologram))
+        {
+            AFGBuildable* SnappedBuilding = Buildable->GetSnappedBuilding();
+            Predicted->SetStringField(
+                TEXT("snapped_building"),
+                IsValid(SnappedBuilding) ? SnappedBuilding->GetPathName() : TEXT("none"));
+        }
 
         // Rotate through the hologram's own scroll input, measuring the result
         // after each step rather than predicting it.

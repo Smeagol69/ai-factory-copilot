@@ -196,6 +196,38 @@ test("belts and power lines are recorded, not replayed as placements", () => {
   assert.ok(plan.actions.every((action) => !/ConveyorBelt|PowerLine/.test(action.recipe_class)));
 });
 
+test("a design can be turned, and stays rigid when it is", () => {
+  const design = {
+    schema: "aifactory.design/v1",
+    name: "turnable",
+    buildings: [
+      { recipe_class: "/G/Recipe_A_C", class_path: "/G/Build_A_C", offset_cm: { x: 0, y: 0, z: 0 }, yaw: 0 },
+      { recipe_class: "/G/Recipe_B_C", class_path: "/G/Build_B_C", offset_cm: { x: 1_000, y: 0, z: 50 }, yaw: 90 },
+    ],
+  };
+  const at = (degrees) =>
+    planDesignPlacement(design, { origin: { x: 0, y: 0, z: 0 }, rotation_degrees: degrees }).actions;
+
+  // A quarter turn sends +x to +y, and each building's own facing turns with it.
+  const quarter = at(90);
+  assert.deepEqual(quarter[1].location, { x: 0, y: 1_000, z: 50 });
+  assert.equal(quarter[1].yaw, 180);
+
+  // Rigid: the gap is the same at every angle, and heights are untouched.
+  for (const degrees of [0, 90, 180, 270, 45]) {
+    const turned = at(degrees);
+    const gap = Math.hypot(
+      turned[1].location.x - turned[0].location.x,
+      turned[1].location.y - turned[0].location.y,
+    );
+    assert.ok(Math.abs(gap - 1_000) < 0.5, `gap was ${gap} at ${degrees}°`);
+    assert.equal(turned[1].location.z, 50);
+  }
+
+  // And asking for nothing changes nothing.
+  assert.deepEqual(at(0), planDesignPlacement(design, { origin: { x: 0, y: 0, z: 0 } }).actions);
+});
+
 test("a design asks for its own heights, not the ground's", () => {
   // Measured live before this existed: a Smelter asked for z 8054 landed at
   // 9028 because every building traced down to its own patch of terrain. The

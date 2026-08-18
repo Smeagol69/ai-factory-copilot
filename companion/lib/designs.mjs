@@ -261,8 +261,33 @@ function placementOrder(classPath) {
   return 1;
 }
 
+/**
+ * Turning a whole design about its anchor.
+ *
+ * The header above says offsets are replayed in world axes and the design keeps
+ * the facing it was saved with. That is still the default, and still for the
+ * stated reason. But a vanilla blueprint turns under the build gun, the owner
+ * asked for placement that works "exactly the same as default game parameters
+ * for blueprint placement", and an angle the player asked for out loud is not
+ * the quiet re-orientation that comment was warning about.
+ *
+ * Yaw only. UE's yaw rotation sends X to (cos, sin) and Y to (-sin, cos), so
+ * this is the plain 2D rotation and the arrangement stays rigid: every offset
+ * turns by the same angle about the same anchor, and each building's own facing
+ * turns with it.
+ */
+const normaliseYaw = (degrees) => ((Number(degrees) % 360) + 360) % 360;
+
+function turnOffset({ x, y }, degrees) {
+  if (!degrees) return { x, y };
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return { x: x * cos - y * sin, y: x * sin + y * cos };
+}
+
 /** A saved design as placements at a new anchor. */
-export function planDesignPlacement(design, { origin, commit = true, node = null, ignore_clearance: ignoreClearance = true } = {}) {
+export function planDesignPlacement(design, { origin, commit = true, node = null, ignore_clearance: ignoreClearance = true, rotation_degrees: rotationDegrees = 0 } = {}) {
   if (!origin || ![origin.x, origin.y, origin.z].every((v) => Number.isFinite(Number(v)))) {
     return { planned: false, reason: "no anchor point with a finite x, y and z" };
   }
@@ -308,17 +333,26 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
     ? { x: extractor.offset_cm.x, y: extractor.offset_cm.y, z: extractor.offset_cm.z }
     : { x: 0, y: 0, z: 0 };
 
+  const turn = Number.isFinite(Number(rotationDegrees))
+    ? ((Number(rotationDegrees) % 360) + 360) % 360
+    : 0;
+
   return {
     planned: true,
     name: design.name,
     count: buildings.length,
     not_placeable: notPlaceable,
+    rotated_degrees: turn,
     extractors_snapped: node ? buildings.filter((e) => isExtractorRecipe(e.recipe_class)).length : 0,
     actions: buildings.map((entry) => {
       // An extractor goes on the node, not at an offset from it. Given a node,
       // the miner is placed at its centre and told which actor it sits on --
       // the same target_actor_id that made single miner placement work.
       const onNode = node && isExtractorRecipe(entry.recipe_class);
+      const turned = turnOffset(
+        { x: entry.offset_cm.x - shift.x, y: entry.offset_cm.y - shift.y },
+        turn,
+      );
       return {
         action: "place_building",
         recipe_class: entry.recipe_class,
@@ -338,11 +372,13 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
         location: onNode
           ? { x: node.location.x, y: node.location.y, z: node.location.z }
           : {
-              x: Math.round((Number(origin.x) + entry.offset_cm.x - shift.x) * 10) / 10,
-              y: Math.round((Number(origin.y) + entry.offset_cm.y - shift.y) * 10) / 10,
+              x: Math.round((Number(origin.x) + turned.x) * 10) / 10,
+              y: Math.round((Number(origin.y) + turned.y) * 10) / 10,
               z: Math.round((Number(origin.z) + entry.offset_cm.z - shift.z) * 10) / 10,
             },
-        yaw: entry.yaw,
+        // Untouched when nothing was asked for, so a design placed the old way
+        // comes out byte-for-byte the same.
+        yaw: turn ? Math.round(normaliseYaw(entry.yaw + turn) * 100) / 100 : entry.yaw,
         commit,
       };
     }),

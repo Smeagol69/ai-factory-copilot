@@ -2460,3 +2460,34 @@ the inference.
 **Counts as measured, not claimed.** Through the new planner: `mega-base` 392
 to 389, `mk1-copper-v2` 25 to 21, `mk2` 27 to 18. The other three designs are
 unchanged because they contain no links.
+
+### Designs turn now, and a snap says what it snapped to — Claude, 2026-08-17
+
+**Turning.** `planDesignPlacement` takes `rotation_degrees`, default 0, and
+the router reads "rotated 90", "turned right", "half turn" out of the place
+phrase before the place pattern runs — the same trick `parseDesignSaveRequest`
+already used for "within 40 m", needed because `DESIGN_PLACE` anchors on the
+phrase ending in "here" or "on this node". Offsets turn about the anchor by UE's
+yaw convention and each building's own facing turns with it, so the arrangement
+stays rigid: the test checks the gap between two buildings is unchanged at 0,
+90, 180, 270 and 45 degrees.
+
+The header comment in `designs.mjs` warning against rotation still stands and
+is still quoted there. It was about *quietly* re-orienting a saved layout. An
+angle the player said out loud is a different thing, and vanilla blueprints turn
+under the build gun, which is what the owner asked for.
+
+Deliberately not reusing the `COMPASS` table: a single building has one facing
+so "facing north" names an absolute yaw for it, but a design has as many
+facings as buildings and there is no honest answer to which one a bearing
+refers to. Designs turn *by* an angle, never *to* a bearing.
+
+**`snapped_building`.** `AFGBuildableHologram::GetSnappedBuilding()` is
+public (`FGBuildableHologram.h:168`) and the placement path now reports it
+after `TrySnapToActor`. `FGCDMustSnapWall` was the one refusal where the
+missing fact was the host: the reply could say the snap was not accepted and
+nothing more. Now it names the buildable or says "none". Nobody has to infer it
+any more, and the ordering fix above can be checked rather than assumed.
+
+Shipping DLL 686,080 bytes at 21:18. 652 companion tests pass. Codex's three
+branches were still unmerged and untouched at the time of writing.
