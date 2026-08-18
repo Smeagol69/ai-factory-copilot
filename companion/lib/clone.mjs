@@ -158,6 +158,10 @@ export function planClone(graph, args = {}) {
         y: Math.round((source.location.y + along.y * offset) * 10) / 10,
         z: source.location.z,
       },
+      // A copy stands at the height of the thing it copies. Without this the
+      // mod traces down for a build surface and every copy settles onto its own
+      // patch of ground, which turns a row of machines into a staircase.
+      exact_z: true,
       yaw: source.yaw,
       commit: true,
     });

@@ -2491,3 +2491,38 @@ any more, and the ordering fix above can be checked rather than assumed.
 
 Shipping DLL 686,080 bytes at 21:18. 652 companion tests pass. Codex's three
 branches were still unmerged and untouched at the time of writing.
+
+### The Z fix reached the four other planners that needed it — Claude, 2026-08-17
+
+The first pass wired `exact_z` into saved designs only, because that is where
+the drift was measured. It was never a design-only bug — every planner that
+computes a height was losing it the same way.
+
+Now asking for their own heights:
+
+| planner | why |
+|---|---|
+| `designs.mjs` | a saved arrangement; the heights *are* the design |
+| `clone.mjs` | `z: source.location.z` — a copy stands at the height of what it copies, or a row of machines becomes a staircase |
+| `composition.mjs` | deck heights, both converters — `compositionActions` and the staged one, because a staged build that drifts is the same bug arriving later |
+| `architecture.mjs` | `origin.z + level * storeyCm`; a piece that finds its own ground is not on that storey |
+| `base-build.mjs` | every machine position carries `deck.floor_z_cm`, and machines at different heights cannot be belted together |
+
+Foundations are flat. A floor grid that follows terrain is a lumpy floor, which
+is the strongest form of the argument and applies to all five.
+
+Still tracing, deliberately: `power.mjs` and `resource-factory.mjs`. Their Z
+is the resource node's own height reused for a row marching tens of metres away
+from it. The terrain under the far end is not something either planner
+measured, so forcing the anchor's height would float or bury a generator. The
+trace is doing real work there.
+
+Also excluded and not an oversight: `modular.mjs` emits `place_blueprint`,
+which goes through `AFGBlueprintHologram` and never touches
+`PositionAndValidateActionHologram`; `designer.mjs` places inside a Blueprint
+Designer, which supplies its own floor.
+
+The split is pinned in `test/exact-z.test.mjs` rather than left to five
+planners to remember separately, including the count of two converters in
+`composition.mjs` and a check that the flag survives `validatePlan` and is
+*absent* rather than false when unasked, so the mod's default stands.

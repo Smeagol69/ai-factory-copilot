@@ -389,6 +389,11 @@ export function baseBuildActions(plan, { commit = false, step_offset: stepOffset
         recipe_class: step.build_recipe_class,
         production_recipe_class: step.recipe_class,
         location: position.location_cm,
+        // Machines stand on the deck they were laid out on: every position
+        // here carries deck.floor_z_cm. Tracing each one down for its own
+        // build surface puts a row of them at different heights, and then the
+        // belts between them do not line up either.
+        exact_z: true,
         yaw: 0,
         commit,
       });

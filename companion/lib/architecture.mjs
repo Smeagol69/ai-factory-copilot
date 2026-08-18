@@ -359,6 +359,9 @@ export function structureActions(plan, { commit = false } = {}) {
       action: "place_building",
       recipe_class: part.recipe_class,
       location: part.location_cm,
+      // Storey heights are computed as origin.z + level * storeyCm. A piece
+      // that traces down for its own build surface is not on that storey.
+      exact_z: true,
       yaw: part.yaw ?? 0,
       commit,
     }));

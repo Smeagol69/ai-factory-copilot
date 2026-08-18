@@ -417,6 +417,11 @@ export function compositionActions(plan, { commit = false } = {}) {
       action: "place_building",
       recipe_class: part.recipe_class,
       location: part.location_cm,
+      // Every piece here sits at a computed deck or storey height, and
+      // foundations are flat. Letting each one trace down for its own build
+      // surface gives a lumpy floor and an upper storey that is not level --
+      // measured elsewhere as a Smelter asked for z 8054 landing at 9028.
+      exact_z: true,
       yaw: part.yaw ?? 0,
       commit,
     }));
@@ -452,6 +457,9 @@ export function stageComposition(plan, { maxActions = 512, commit = false } = {}
     action: "place_building",
     recipe_class: part.recipe_class,
     location: part.location_cm,
+    // Same reason as compositionActions above: these are deck heights, not
+    // suggestions to be resolved against whatever the ground happens to do.
+    exact_z: true,
     yaw: part.yaw ?? 0,
     commit,
   });
