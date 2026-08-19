@@ -619,7 +619,14 @@ test("a design can be asked for turned, in degrees or in quarters", async () => 
   assert.deepEqual(parseDesignPlaceRequest("place mk1 copper on this node rotated 90"), {
     name: "mk1 copper",
     rotation_degrees: 90,
+    omit: null,
   });
+
+  // A turn and an omission in one phrase, both stripped before the name is read.
+  assert.deepEqual(
+    parseDesignPlaceRequest("place mk1 copper on this node rotated 90 without the foundations"),
+    { name: "mk1 copper", rotation_degrees: 90, omit: "foundation" },
+  );
   assert.equal(parseDesignPlaceRequest("stamp mk2 down turned left").rotation_degrees, 270);
   assert.equal(parseDesignPlaceRequest("place mk1 copper here half turn").rotation_degrees, 180);
   assert.equal(parseDesignPlaceRequest("build smelter bank here rotated -90").rotation_degrees, -90);

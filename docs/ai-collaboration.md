@@ -2946,3 +2946,41 @@ biofuel`) all route correctly now and handle "biofuel" matching two items by
 listing both rather than picking. Those log entries predate the route.
 
 702 companion tests pass. No C++ changed.
+
+### "but ignore the foundations" — Claude, 2026-08-18
+
+Asked twice in the routing log, in two different shapes:
+
+    place mk1 copper v2 on this node but ignore the foundations
+    place everything ignore the belts
+
+Both went to a model, which cannot place anything. And it is a fair ask — a
+saved design is often *almost* what someone wants, and the alternative was
+placing all of it and dismantling by hand. Belts were already excluded because
+they cannot be replayed at all; this is the player choosing to leave out
+something that could be.
+
+`place <name> here without the foundations` — also walls, pillars, ramps,
+railings, beams, power poles, storage. Matched on class path, so it works for
+modded pieces: a `Build_CCFoundation8x8xhalf_C` is a foundation whoever
+shipped it. Against the owner's own `mk1 copper v2`: 21 buildings normally, 5
+without foundations, and the reply says "16 foundation(s) left out because you
+asked" so the number never disagrees with what appears.
+
+Refused rather than silently emptied when *everything* in a design is the thing
+being left out.
+
+**One bug worth writing down, because it is a trap and the tests caught it.**
+The first version filtered into `kept`, then did:
+
+    buildings.length = 0;
+    buildings.push(...kept);
+
+When no omission was asked for, `kept` **is** `buildings` — so setting the
+length to zero emptied the array it was about to copy from, and every design
+placement silently became nothing. Ten tests went red at once, which is exactly
+what should happen; live, it would have looked like the design system had
+stopped working entirely. It is a `splice` now, with the reason in a comment
+beside it.
+
+706 companion tests pass. No C++ changed.

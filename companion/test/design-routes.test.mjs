@@ -218,6 +218,24 @@ test("housekeeping never gets between a player and a real building", () => {
   assert.notEqual(ask("rename atlantis to utopia").answer?.local?.solver, "design_rename");
 });
 
+test("a category can be left out on request, and the count says so", () => {
+  // Asked twice in the routing log -- "but ignore the foundations" and "place
+  // everything ignore the belts" -- and both went to a model, which cannot
+  // place anything. A design is often almost what someone wants.
+  ask("save this as with floor");
+
+  const { answer, emitted } = ask("place with floor here without the foundations");
+  assert.equal(answer.local.solver, "design_place");
+  assert.ok(emitted.every((action) => !/Foundation/.test(action.recipe_class)));
+  assert.match(answer.reply, /1 foundation\(s\) left out because you asked/);
+
+  // The count quoted is what actually goes down.
+  assert.match(answer.reply, new RegExp(`${emitted.length} buildings`));
+
+  // Without the clause, the foundation is back.
+  assert.ok(ask("place with floor here").emitted.some((a) => /Foundation/.test(a.recipe_class)));
+});
+
 test("a name that matches nothing saved falls through rather than guessing", () => {
   const { answer, emitted } = ask("place something nobody saved here");
   assert.equal(emitted.length, 0);

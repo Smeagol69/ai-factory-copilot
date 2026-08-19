@@ -423,8 +423,35 @@ function turnOffset({ x, y }, degrees) {
   return { x: x * cos - y * sin, y: x * sin + y * cos };
 }
 
+/**
+ * Leaving a category out on request.
+ *
+ * "place mk1 copper v2 on this node but ignore the foundations" and "place
+ * everything ignore the belts" are both in the routing log. A design is often
+ * *almost* what someone wants, and rebuilding it without its floor is a
+ * reasonable ask — the alternative today is placing all of it and dismantling
+ * by hand.
+ *
+ * Matched on the class path, so it works for modded pieces too: a
+ * `Build_CCFoundation8x8xhalf_C` is a foundation whoever shipped it.
+ */
+const OMISSION_PATTERNS = {
+  foundation: /Foundation|Floor/i,
+  floor: /Foundation|Floor/i,
+  wall: /Wall(?!Hole)/i,
+  pillar: /Pillar/i,
+  ramp: /Ramp/i,
+  railing: /Railing/i,
+  beam: /Beam/i,
+  "power pole": /PowerPole/i,
+  pole: /PowerPole/i,
+  storage: /Storage/i,
+  "storage container": /Storage/i,
+  container: /Storage/i,
+};
+
 /** A saved design as placements at a new anchor. */
-export function planDesignPlacement(design, { origin, commit = true, node = null, ignore_clearance: ignoreClearance = true, rotation_degrees: rotationDegrees = 0 } = {}) {
+export function planDesignPlacement(design, { origin, commit = true, node = null, ignore_clearance: ignoreClearance = true, rotation_degrees: rotationDegrees = 0, omit = null } = {}) {
   if (!origin || ![origin.x, origin.y, origin.z].every((v) => Number.isFinite(Number(v)))) {
     return { planned: false, reason: "no anchor point with a finite x, y and z" };
   }
@@ -458,6 +485,29 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
     };
   }
 
+  // A category the player asked to leave out. Counted and reported, because
+  // "21 buildings" when six were dropped on request is still a wrong number.
+  const omitPattern = omit ? OMISSION_PATTERNS[String(omit).toLowerCase()] ?? null : null;
+  let omitted = 0;
+  if (omitPattern) {
+    const kept = buildings.filter((entry) => {
+      const drop = omitPattern.test(String(entry.class_path ?? entry.recipe_class));
+      if (drop) omitted += 1;
+      return !drop;
+    });
+    if (kept.length === 0) {
+      return {
+        planned: false,
+        reason: `every building in that design is a ${omit}, so leaving them out leaves nothing`,
+      };
+    }
+    // Rewritten in place rather than reassigned, because `buildings` is sorted
+    // and read below. Splice, not `length = 0` followed by a push from the same
+    // array -- that emptied the source it was about to copy from, and quietly
+    // wiped every design placement until the tests caught it.
+    buildings.splice(0, buildings.length, ...kept);
+  }
+
   // Re-sort on replay as well: the order a design was saved in reflects the
   // rules that were understood when it was saved.
   buildings.sort(
@@ -488,6 +538,8 @@ export function planDesignPlacement(design, { origin, commit = true, node = null
     name: design.name,
     count: buildings.length,
     not_placeable: notPlaceable,
+    omitted_on_request: omitted,
+    omitted_kind: omitted > 0 ? omit : null,
     rotated_degrees: turn,
     // Said out loud rather than lost. Nothing here can set a potential, so an
     // overclocked design rebuilds at 100% and the player should hear that from

@@ -1107,12 +1107,30 @@ export function parseDesignSaveRequest(question) {
   return { name, radius_cm: radius ? Number(radius[1]) * 100 : null };
 }
 
+/**
+ * "…but ignore the foundations", "…without the walls".
+ *
+ * Asked twice in the routing log — "place mk1 copper v2 on this node but
+ * ignore the foundations" and "place everything ignore the belts" — and both
+ * went to a model, which cannot place anything. Belts are excluded already
+ * because they cannot be replayed at all; this is the player choosing to leave
+ * out something that *could* be.
+ *
+ * Stripped before the place pattern runs, like the turn clause, because that
+ * pattern anchors on the phrase ending in a location.
+ */
+const DESIGN_WITHOUT =
+  /\s*(?:,\s*)?(?:but\s+)?(?:without|ignore|skip|omit|leave out|no)\s+(?:the\s+|any\s+|all\s+)?(foundations?|walls?|pillars?|ramps?|floors?|railings?|beams?|power poles?|poles?|storage(?:\s+containers?)?|containers?)\b/i;
+
 export function parseDesignPlaceRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
-  const turn = designTurnDegrees(text);
+  const omit = text.match(DESIGN_WITHOUT);
+  const withoutOmission = omit ? text.replace(omit[0], " ").replace(/\s{2,}/g, " ").trim() : text;
+
+  const turn = designTurnDegrees(withoutOmission);
   const withoutTurn = turn
-    ? text.replace(turn.phrase, "").replace(/\s{2,}/g, " ").trim()
-    : text;
+    ? withoutOmission.replace(turn.phrase, "").replace(/\s{2,}/g, " ").trim()
+    : withoutOmission;
   const match = withoutTurn.match(DESIGN_PLACE);
   if (!match) return null;
   const name = match[1]
@@ -1124,7 +1142,13 @@ export function parseDesignPlaceRequest(question) {
     // People say it twice; the name is what is left after both.
     .replace(/\s+(?:here|down|at this|on this (?:node|spot|foundation))\s*$/i, "")
     .trim();
-  return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
+  if (name.length < 2) return null;
+  return {
+    name,
+    rotation_degrees: turn ? turn.degrees : 0,
+    // Singularised, so "foundations" and "foundation" are the same request.
+    omit: omit ? omit[1].toLowerCase().replace(/s$/, "") : null,
+  };
 }
 
 /**
@@ -3440,6 +3464,7 @@ export function answerLocally(question, graph, services) {
         node: aimedNode,
         commit: true,
         rotation_degrees: designPlace.rotation_degrees,
+        omit: designPlace.omit,
       });
 
       // A nearby node is worth mentioning and is NOT worth refusing over.
@@ -3481,12 +3506,15 @@ export function answerLocally(question, graph, services) {
           ? ` ${plan.overclocked_not_replayed} of them were overclocked when the design was ` +
             `saved and rebuild at 100% — nothing here can spend a Power Shard for you.`
           : "";
+        const left_out = plan.omitted_on_request > 0
+          ? ` ${plan.omitted_on_request} ${plan.omitted_kind}(s) left out because you asked.`
+          : "";
         const facing = plan.rotated_degrees
           ? `turned ${plan.rotated_degrees}° from how it was saved`
           : `keeping the spacing and facing it was saved at`;
         return localAnswer(
           `Building **${plan.name}** — ${plan.count} buildings, each with the recipe ` +
-            `it was saved with, ${facing}.${snapped}${dropped}${overclocked} ` +
+            `it was saved with, ${facing}.${left_out}${snapped}${dropped}${overclocked} ` +
             `Say "undo" to reverse the whole thing.`,
           "design_place",
           started,
