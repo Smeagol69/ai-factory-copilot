@@ -3044,3 +3044,64 @@ drive the game window was denied, so it sat at the main menu and nothing was
 placed. The fix remains deployed and unproven, but the baseline is now measured
 rather than remembered, and the next run needs no manual reading: place a
 design, then run the script.
+
+### What actually moves a placement, measured per building — Claude, 2026-08-19
+
+`scripts/explain-placement-drift.mjs` prints, for every recorded placement,
+the Z asked for, the Z of the surface the trace hit, where the hologram ended
+up, and whether it snapped. That separates the causes, and the entry above this
+one — mine, from yesterday — got them wrong. So did the entry above that.
+
+**Foundations: terrain, exactly as the original diagnosis said.**
+
+    Foundation (1 m)  asked 3740.9  surface 3673.9  landed 3674.9   snap false
+    Foundation (1 m)  asked 3740.9  surface 3778.8  landed 3779.8   snap false
+    Foundation (1 m)  asked 3740.9  surface 3855.7  landed 3856.7   snap false
+    Foundation (1 m)  asked 3740.9  surface 4060.9  landed 4061.9   snap false
+    Foundation (1 m)  asked 3740.9  surface 4148.0  landed 4148.9   snap false
+    Foundation (1 m)  asked 3740.9  surface 4327.5  landed 4328.4   snap false
+
+Every one lands **exactly 1 cm above whatever the trace hit**, and every hit is
+`LandscapeStreamingProxy` — real terrain, climbing 6.5 m across the design's
+footprint. It is a hillside. I called this "landing on each other" yesterday
+after reading the landed column alone; the surface column, which I had not
+printed yet, says otherwise.
+
+For these the hit point is the entire story, nothing snapped, and overriding
+the hit's Z is sufficient. `exact_z` fixes them directly.
+
+**Machines: inherited from the foundation, not from the hit.**
+
+    Smelter            asked 3740.9  surface 3740.9  landed 3724.9   snap false
+    Constructor        asked 3740.9  surface 3740.9  landed 3915.2   snap false
+    Constructor        asked 3740.9  surface 3740.9  landed 4150.8   snap false
+    Storage Container  asked 3740.9  surface 3740.9  landed 4381.5   snap false
+
+Here the surface point **already equals the requested Z**, and the hologram
+still ends up as much as 6.4 m away. The hit actor on every one is a
+`Build_Foundation_8x1_01_C` from this same design — one of the badly-placed
+ones above. The machine is resolving its height from the *building* it is over,
+not from the hit point it was handed.
+
+So the chain is: terrain scatters the foundations, and the machines then sit on
+whichever scattered foundation they landed over. The storage container at
+4381.5 is sitting on the foundation at 4328.4.
+
+**This raises confidence in the fix rather than lowering it.** Yesterday's
+entry worried that `TrySnapToActor` would drag buildings back up and that
+`exact_z` might not be enough. `snap_accepted` is **false** on every drifting
+placement — the nine that snapped are miners onto resource nodes, which is
+correct behaviour and lands them right. Nothing is being pulled by the snap.
+Fix the foundations and the machines inherit correct heights.
+
+**One placement really did land on a building**, so that failure mode is real,
+just not the common one: a Smelter asked for 8053.7, traced onto
+`Build_MinerMk1_C_2147316469`, and landed at 9028.4 — the +975 cm row quoted
+on this noticeboard for weeks. It hit a miner, not terrain.
+
+**Still unproven.** Permission to control the game window was refused twice, so
+nothing has been placed with the new build. But the prediction is now specific:
+foundations should land flat at the requested Z, and the machines should follow
+without any further change. If a foundation still drifts, read
+`requested_z_reached`; if a machine drifts while its foundations are flat,
+the machine's own height resolution is the next thing to look at, not the snap.
