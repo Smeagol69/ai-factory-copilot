@@ -131,6 +131,52 @@ test("the machine under the crosshair reports its own recipe", () => {
   assert.match(answer.reply, /Iron Ingot/);
 });
 
+test("a backed-up belt is reported, and a healthy world says so plainly", () => {
+  // The last solver with no way in. "Backed up at capture" is the game's own
+  // available_space reading, not an inference from throughput.
+  const clogged = buildGraph({
+    world_revision: 2,
+    world: { scan_center: ORIGIN },
+    interaction_context: { player: { pawn_available: true, pawn_location: ORIGIN } },
+    actors: [
+      {
+        actor_id: "Belt1",
+        name: "Conveyor Mk.1",
+        kind: "buildable",
+        location: ORIGIN,
+        transport: { kind: "conveyor", reported_speed: 7_200, item_spacing_cm: 120, items_on_segment: 33, available_space: 0 },
+      },
+    ],
+  });
+
+  const answer = answerLocally("is anything backed up", clogged, { actions: { emit: () => {} } });
+  assert.equal(answer.local.solver, "get_transport_capacity");
+  assert.match(answer.reply, /Conveyor Mk\.1/);
+  assert.match(answer.reply, /backed up at capture/);
+
+  // Called with only_problems, so an empty result really does mean nothing is
+  // struggling -- worth saying rather than listing a hundred healthy segments.
+  const healthy = buildGraph({
+    world_revision: 3,
+    world: { scan_center: ORIGIN },
+    interaction_context: { player: { pawn_available: true, pawn_location: ORIGIN } },
+    actors: [
+      {
+        actor_id: "Belt2",
+        name: "Conveyor Mk.1",
+        kind: "buildable",
+        location: ORIGIN,
+        transport: { kind: "conveyor", reported_speed: 7_200, item_spacing_cm: 120, items_on_segment: 2, available_space: 40 },
+      },
+    ],
+  });
+  const quiet = answerLocally("are my belts full", healthy, { actions: { emit: () => {} } });
+  assert.equal(quiet.local.solver, "get_transport_capacity");
+  assert.match(quiet.reply, /No captured belt or pipe is backed up/);
+  // And it admits what it could not have seen.
+  assert.match(quiet.reply, /radius-limited/);
+});
+
 test("neighbouring questions are not swallowed", () => {
   // "cost" has to appear or "how much is my power" becomes a build cost.
   assert.equal(parseBuildCostRequest("how much power am i making"), null);

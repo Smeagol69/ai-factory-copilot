@@ -2871,3 +2871,30 @@ difference between a useful answer and silence; the name filter stays as the
 fallback for "recipes for alternate" and the like.
 
 695 companion tests pass. No C++ changed.
+
+### Every solver has a way in now, and a test that keeps it that way — Claude, 2026-08-18
+
+`solveTransportCapacity` was the fourth and last solver nobody could reach by
+asking. "Are my belts backed up" went to a model while the capture sat there
+holding `available_space`, which is the game's own word for a full belt — not
+an inference from throughput. Routed, with `only_problems` so a quiet world
+gets one honest sentence instead of a hundred healthy segments, and with the
+pipeline head-lift caveat carried through rather than dropped.
+
+**`test/solver-coverage.test.mjs` now fails the build if any solver has
+nothing calling it.** That is the failure mode that kept recurring —
+`parseLibraryPageRequest`, then `solveBuildCost`, `solveRecipeOptions`,
+`solveMachineRates`, now this one. Every time, everything looked present:
+written, exported, tested, exposed as a tool. Nothing failed and nothing warned;
+the work simply never reached a player.
+
+It is deliberately a weak check — being routed is not the same as being
+reachable by every phrasing, and no test can promise that. It catches the
+whole-solver case, which is the one that actually kept happening.
+
+Together with `collapsed-escapes`, `capabilities` and the README phrase
+check, there are now four tests whose only job is catching work that exists but
+cannot be reached. On this project that has been a more productive category of
+bug than anything in the logic.
+
+698 companion tests pass. No C++ changed.

@@ -37,6 +37,7 @@ import {
   solvePlacementTarget,
   solveProductionPlan,
   solveSiteSelection,
+  solveTransportCapacity,
   solveUnlockStatus,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
@@ -370,6 +371,55 @@ function formatBottlenecks(result) {
     );
   }
   return lines.join("\n\n");
+}
+
+/**
+ * Belts and pipes that are struggling. Nothing else.
+ *
+ * The solver is called with `only_problems`, so an empty result genuinely
+ * means nothing is backed up — worth saying plainly rather than listing a
+ * hundred healthy segments.
+ */
+function formatTransport(result) {
+  const conveyors = result.conveyors ?? [];
+  const pipelines = result.pipelines ?? [];
+  if (conveyors.length === 0 && pipelines.length === 0) {
+    return (
+      "No captured belt or pipe is backed up or over capacity. The capture is radius-limited, " +
+      "so this covers what was scanned."
+    );
+  }
+
+  const describe = (entry) => {
+    const notes = [
+      // The game's own word for a full belt, not an inference from throughput.
+      entry.backed_up_evidence ? "backed up at capture" : null,
+      Number.isFinite(entry.capacity_items_per_minute)
+        ? `capacity ${entry.capacity_items_per_minute}/min`
+        : null,
+      Number.isFinite(entry.supply_items_per_minute)
+        ? `fed ${entry.supply_items_per_minute}/min`
+        : null,
+      ...(entry.findings ?? []).map((finding) =>
+        String(finding.finding ?? finding).replaceAll("_", " "),
+      ),
+    ].filter(Boolean);
+    return `- **${entry.name ?? entry.actor_id}**${notes.length ? ` — ${notes.join(", ")}` : ""}`;
+  };
+
+  const section = (heading, list) =>
+    list.length === 0 ? "" : `\n\n**${heading}**\n${list.slice(0, 8).map(describe).join("\n")}` +
+      (list.length > 8 ? `\n- …and ${list.length - 8} more` : "");
+
+  return (
+    `${conveyors.length + pipelines.length} transport segment(s) have a finding:` +
+    section("Belts", conveyors) +
+    section("Pipes", pipelines) +
+    (pipelines.length > 0
+      ? "\n\nPipeline head lift and pressure are not in the capture, so elevation problems " +
+        "can be neither confirmed nor ruled out."
+      : "")
+  );
 }
 
 function formatBalance(result) {
@@ -1333,6 +1383,7 @@ export const CAPABILITY_EXAMPLES = [
     "where am i",
     "what tier am i",
     "what is my bottleneck",
+    "is anything backed up",
   ]],
   ["Ask about recipes and costs", [
     "how much does a smelter cost",
@@ -2145,6 +2196,24 @@ const ROUTES = [
     extraFiller: ["tier", "tech", "unlocked", "unlock", "status", "recipes", "schematics", "many"],
     run: (graph) => solveUnlockStatus(graph),
     format: formatUnlocks,
+  },
+  {
+    // The last solver with no way in. "Are my belts backed up" is a question
+    // about measured segment occupancy, and the capture already carries it --
+    // `available_space <= 0` is the game's own word for a full belt, not an
+    // inference from throughput.
+    name: "get_transport_capacity",
+    patterns: [
+      "are my belts full", "are my belts saturated", "is anything backed up",
+      "is anything backing up", "which belts are saturated", "belt capacity",
+      "are any belts at capacity", "is anything clogged", "belt saturation",
+      "are my pipes full", "transport capacity", "are my belts keeping up",
+    ],
+    extraFiller: ["belt", "belts", "pipe", "pipes", "saturated", "capacity", "full", "clogged", "backed", "backing"],
+    // Problems only. A hundred healthy belts is not an answer to "is anything
+    // backed up", and the tool layer already defaults the same way.
+    run: (graph) => solveTransportCapacity(graph, { only_problems: true }),
+    format: formatTransport,
   },
   {
     name: "list_blueprints",
