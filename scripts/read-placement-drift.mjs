@@ -143,13 +143,30 @@ for (const row of rows.slice(-40)) {
   );
 }
 
-const drifts = rows.map((row) => row.reported ?? row.measured).filter((value) => value !== null);
-if (drifts.length > 0) {
-  const worst = Math.max(...drifts.map(Math.abs));
+// Split the verdict by whether exact_z was asked for. Reporting one worst
+// figure across both eras gave the wrong answer out loud: the file still holds
+// every pre-fix placement, so the headline read "worst drift 974.7 cm, still
+// drifting" on a run where every new placement was within a centimetre.
+const worstOf = (list) => {
+  const values = list.map((row) => row.reported ?? row.measured).filter((value) => value !== null);
+  return values.length === 0 ? null : Math.max(...values.map(Math.abs));
+};
+const asked = rows.filter((row) => row.honoured);
+const notAsked = rows.filter((row) => !row.honoured);
+
+const worstAsked = worstOf(asked);
+const worstNotAsked = worstOf(notAsked);
+console.log(`\n${rows.length} placement(s) with a height.`);
+if (worstNotAsked !== null) {
+  console.log(`  ${notAsked.length} on the old path (no exact_z): worst drift ${worstNotAsked} cm`);
+}
+if (worstAsked !== null) {
   console.log(
-    `\n${drifts.length} placement(s) with a height. Worst drift ${worst} cm.` +
-      (worst <= 1 ? "  <- the fix is holding" : "  <- still drifting; read the rows above"),
+    `  ${asked.length} asking for an exact Z: worst drift ${worstAsked} cm` +
+      (worstAsked <= 2 ? "  <- holding" : "  <- NOT holding; read the rows"),
   );
+} else {
+  console.log("  none yet asking for an exact Z — the fix is untested on this data");
 }
 const ignored = rows.filter((row) => row.honoured && row.reached === false);
 if (ignored.length > 0) {
