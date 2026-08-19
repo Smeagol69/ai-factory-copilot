@@ -1335,6 +1335,14 @@ export function parseWaypointRequest(question) {
   while (LOCATE_LEADING_ARTICLE.test(target)) {
     target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
   }
+  // "waypoint nearest source of biomass" is in the routing log, answered by a
+  // model. "source of" carries no search value -- the thing being looked for
+  // is what follows it -- and leaving it in made the lookup search for a
+  // building called "source of biomass".
+  target = target.replace(/^(?:source|supply|deposit)\s+of\s+/i, "").trim();
+  while (LOCATE_LEADING_ARTICLE.test(target)) {
+    target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  }
   if (target.length < 2) return null;
 
   return {
@@ -1567,9 +1575,41 @@ export function parseUndoRequest(question) {
 const TELEPORT_VERB =
   /^(?:can you |could you |please )?(?:teleport|tp|warp|take|send|move|bring)\s+(?:me\s+)?(?:back\s+)?(?:to|over to)\s+/i;
 
+/**
+ * "x=372373.7, y=-153420.9, z=4006.0", or the same numbers bare.
+ *
+ * Both orders appear in the routing log because the owner tried the coordinate
+ * first and the verb first, on separate attempts, when neither worked. Z is
+ * optional: without it the teleport ground-snaps, which is what someone
+ * copying a pair of numbers off a map wants.
+ */
+const LABELLED_COORDINATE = /\bx\s*[=:]\s*(-?\d+(?:\.\d+)?)[\s,]+y\s*[=:]\s*(-?\d+(?:\.\d+)?)(?:[\s,]+z\s*[=:]\s*(-?\d+(?:\.\d+)?))?/i;
+const BARE_COORDINATE = /^(-?\d{3,}(?:\.\d+)?)[\s,]+(-?\d{3,}(?:\.\d+)?)(?:[\s,]+(-?\d+(?:\.\d+)?))?$/;
+
+export function parseCoordinateTriple(text) {
+  const source = String(text ?? "");
+  const match = source.match(LABELLED_COORDINATE) ?? source.trim().match(BARE_COORDINATE);
+  if (!match) return null;
+
+  const x = Number(match[1]);
+  const y = Number(match[2]);
+  const z = match[3] === undefined ? null : Number(match[3]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (z !== null && !Number.isFinite(z)) return null;
+  return { target: { x, y, z: z ?? 0 }, had_z: z !== null };
+}
+
 export function parseTeleportRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text || MULTI_CLAUSE.test(text)) return null;
+
+  // The coordinate can come before the verb — "x=…, y=… teleport me here" is
+  // in the log twice — so the whole phrase is checked before the verb is
+  // required to lead.
+  if (/\b(?:teleport|tp|warp)\b/i.test(text)) {
+    const anywhere = parseCoordinateTriple(text);
+    if (anywhere) return { kind: "coordinates", ...anywhere };
+  }
 
   const verb = text.match(TELEPORT_VERB);
   if (!verb) return null;
@@ -1588,8 +1628,19 @@ export function parseTeleportRequest(question) {
   while (LOCATE_LEADING_ARTICLE.test(target)) {
     target = target.replace(LOCATE_LEADING_ARTICLE, "").trim();
   }
-  // A raw coordinate is not a name, and deserves the plausibility conversation
-  // the model gives it, so those still go to the model.
+  // A raw coordinate used to be sent to a model, on the reasoning that it
+  // "deserves the plausibility conversation". The routing log says otherwise:
+  // the owner asked three times in a row, phrased three different ways, and
+  // never arrived. The conversation the model was supposed to add never
+  // happened; the request just failed.
+  //
+  // The plausibility check is deterministic anyway — `validateAction` already
+  // refuses a teleport beyond MAX_TELEPORT_METERS and warns when ground
+  // snapping is off. So the coordinate is parsed here and the existing gate
+  // does the judging.
+  const coordinates = parseCoordinateTriple(target);
+  if (coordinates) return { kind: "coordinates", ...coordinates };
+
   if (!target || target.length < 2 || /[=,]|\d{4,}/.test(target)) return null;
 
   return /^[A-Za-z]+_[A-Za-z0-9_]+$/.test(target)
@@ -4052,6 +4103,33 @@ export function answerLocally(question, graph, services) {
     const started = Date.now();
 
     // "take me to the best hub site": the destination is computed, not named.
+    if (teleport.kind === "coordinates") {
+      const action = {
+        action: "teleport_player",
+        target: teleport.target,
+        // Without a stated Z the numbers are a map reference, not a height.
+        // Snapping is on either way: the validator warns that turning it off
+        // drops the player through the world, and nobody asking this wants that.
+        snap_to_ground: true,
+        commit: true,
+      };
+      if (emitValidatedPlan(graph, services, [action])) {
+        return localAnswer(
+          `Teleporting to \`x=${round(teleport.target.x)}, y=${round(teleport.target.y)}` +
+            (teleport.had_z ? `, z=${round(teleport.target.z)}` : "") + "`" +
+            (teleport.had_z ? "" : " — no height given, so you land on the ground there") +
+            ". The mod reports where you actually arrive.",
+          "teleport_player",
+          started,
+          "Coordinates read from the request; the distance gate still applies.",
+        );
+      }
+      const refusal = describePlanRejection();
+      if (refusal) {
+        return localAnswer(refusal, "teleport_refused", started, "Refused before anything ran.");
+      }
+    }
+
     if (teleport.kind === "best_site") {
       const site = solveSiteSelection(graph, {});
       const best = site?.sites?.[0];

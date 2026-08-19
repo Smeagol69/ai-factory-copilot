@@ -2235,7 +2235,22 @@ export function solveActorLookup(graph, args = {}) {
     const name = String(raw.name ?? "");
     const resource = String(raw.resource_name ?? "");
 
-    if (wanted && id !== wanted && !id.endsWith(wanted) && name !== wanted) continue;
+    // Case-insensitive on the id, because nobody types BP_ResourceNode217 with
+    // the capitals right. "where is bp_resourcenode217" is in the routing log
+    // answered by a model: the parser resolved it to an actor_id correctly and
+    // this comparison then matched nothing, so the route fell through and the
+    // question was paid for. The name comparison beside it was already
+    // case-insensitive; only the id was not.
+    const wantedLower = wanted.toLowerCase();
+    const idLower = id.toLowerCase();
+    if (
+      wanted &&
+      idLower !== wantedLower &&
+      !idLower.endsWith(wantedLower) &&
+      name.toLowerCase() !== wantedLower
+    ) {
+      continue;
+    }
     if (nameNeedle && !name.toLowerCase().includes(nameNeedle) && !id.toLowerCase().includes(nameNeedle)) continue;
     if (resourceNeedle && !resource.toLowerCase().includes(resourceNeedle)) continue;
     if (kindNeedle && String(raw.kind ?? "").toLowerCase() !== kindNeedle) continue;

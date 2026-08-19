@@ -2898,3 +2898,51 @@ cannot be reached. On this project that has been a more productive category of
 bug than anything in the logic.
 
 698 companion tests pass. No C++ changed.
+
+### The routing log was sitting there the whole time — Claude, 2026-08-18
+
+`%LOCALAPPDATA%/FactoryGame/Saved/AIFactoryCopilot/Diagnostics/routing.jsonl`.
+512 logged questions, each with `answeredBy`. 185 went to a model. It is a
+list of every time this thing failed to help, in the owner's own words, and I
+had been guessing at phrasings for three sessions without opening it.
+
+**Read it before writing another pattern.** Everything below came from it.
+
+**The coordinate teleport, asked three times in a row.**
+
+    teleport me here x=372373.7, y=-153420.9, z=4006.0
+    x=372373.7, y=-153420.9, z=4006.0 teleport me here
+    x=372373.7, y=-153420.9 tlepoert here
+
+Three phrasings, three failures, nobody arrived. `parseTeleportRequest`
+deliberately refused raw coordinates, with a comment saying they "deserve the
+plausibility conversation the model gives it" — and there is now a test named
+after that policy asserting the opposite. The conversation never happened. And
+the plausibility check was deterministic all along: `validateAction` refuses
+past `MAX_TELEPORT_METERS` and warns when ground snapping is off. The model
+was contributing the failure and nothing else. Both orders parse now, Z is
+optional, and without one the reply says it ground-snapped rather than leaving
+the player to wonder.
+
+**A lowercase actor id.** `where is bp_resourcenode217` — answered by a model.
+The parser resolved it to an `actor_id` correctly; `solveActorLookup` then
+compared ids **case-sensitively** and matched nothing. The name comparison on
+the very next clause had always been case-insensitive. One line, and it
+repaired locate, teleport and waypoint together — all three take ids through
+that function.
+
+**`waypoint nearest source of biomass`**, logged while the owner was testing
+the waypoint system. "source of" is not part of a name, so the lookup went
+hunting for a building called "source of biomass".
+
+`test/routing-log-misses.test.mjs` holds these in the owner's own words,
+typos included where the typo is the point. Real usage has been a better source
+of routing gaps than any amount of reading the patterns — and unlike my
+guesses, every entry in it is a thing that actually happened.
+
+Checked and **not** broken, for the record: the give-item phrasings in the log
+(`give me 64 biofuel`, `insert biomass into my inventory`, `add me
+biofuel`) all route correctly now and handle "biofuel" matching two items by
+listing both rather than picking. Those log entries predate the route.
+
+702 companion tests pass. No C++ changed.

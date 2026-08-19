@@ -233,10 +233,36 @@ test("a teleport to an unresolvable name goes to the model rather than a guessed
   assert.equal(emitted.length, 0);
 });
 
-test("a raw coordinate teleport still goes to the model", () => {
-  // Dropping a player at an arbitrary coordinate deserves the plausibility
-  // conversation, which is judgement and therefore not local.
-  assert.equal(parseTeleportRequest("teleport me to x=100, y=200"), null);
+test("a coordinate teleport is read here, not sent away for a conversation", () => {
+  // This test used to assert the opposite: a raw coordinate "deserves the
+  // plausibility conversation, which is judgement and therefore not local".
+  //
+  // The routing log disagreed. The owner asked three times in a row, phrased
+  // three different ways, and never arrived — the conversation the model was
+  // supposed to add never happened, the request simply failed. And the
+  // plausibility check is deterministic anyway: validateAction refuses beyond
+  // MAX_TELEPORT_METERS and warns when ground snapping is off. The model was
+  // contributing nothing except the failure.
+  assert.deepEqual(parseTeleportRequest("teleport me to x=100, y=200"), {
+    kind: "coordinates",
+    target: { x: 100, y: 200, z: 0 },
+    had_z: false,
+  });
+
+  // Both orders, because both are in the log: the coordinate was tried before
+  // the verb as well as after it.
+  const before = parseTeleportRequest("x=372373.7, y=-153420.9, z=4006.0 teleport me here");
+  assert.equal(before.kind, "coordinates");
+  assert.deepEqual(before.target, { x: 372_373.7, y: -153_420.9, z: 4_006 });
+  assert.equal(before.had_z, true);
+
+  // Bare numbers count, but only at a magnitude that reads as a world
+  // coordinate -- "teleport me to 3 smelters" must not become a position.
+  assert.equal(parseTeleportRequest("tp to 372373 -153420").kind, "coordinates");
+  assert.notEqual(parseTeleportRequest("teleport me to the coal node")?.kind, "coordinates");
+
+  // A named place is still a lookup, not a coordinate.
+  assert.equal(parseTeleportRequest("teleport me to BP_ResourceNode217").actor_id, "BP_ResourceNode217");
 });
 
 test("undo is answered locally and emits the reversal", () => {
