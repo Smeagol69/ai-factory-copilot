@@ -1245,6 +1245,69 @@ export function parseWaypointRequest(question) {
 }
 
 /**
+ * "what can you do", "help".
+ *
+ * The first thing anyone asks, and it was reaching a model — which has to
+ * guess at its own capabilities and gets it wrong in the expensive direction.
+ * That is not hypothetical: the owner's waypoint complaint was a transcript of
+ * this copilot flatly denying it could place waypoints, while the action to do
+ * it had been shipped for weeks.
+ *
+ * So the answer is a fixed list, and `test/capabilities.test.mjs` runs every
+ * example in it back through the router. A phrase listed here that no parser
+ * accepts fails the suite. The list cannot promise something the copilot will
+ * not do, which is the only way a hand-written list is worth having.
+ */
+const WHAT_CAN_YOU_DO =
+  /^(?:can you |could you |please )?(?:help|halp|\?+|what can (?:you|u) do|what do you do|what can i (?:ask|say|do)|what are (?:you|your) (?:able to do|capable of|abilities|commands|features)|what commands|list (?:your )?commands|how do i use (?:you|this)|what is this)\s*\??$/i;
+
+export function parseCapabilityRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return WHAT_CAN_YOU_DO.test(text) ? {} : null;
+}
+
+/**
+ * Grouped so the answer reads as a menu rather than a wall.
+ *
+ * Every phrase is exercised by the test. Adding one here without making it
+ * work is a failing build, not a disappointed player.
+ */
+export const CAPABILITY_EXAMPLES = [
+  ["Look at your world", [
+    "what have i built",
+    "how many smelters do i have",
+    "what am i looking at",
+    "where am i",
+    "what tier am i",
+    "what is my bottleneck",
+  ]],
+  ["Find and mark things", [
+    "show me every coal node within 200 m",
+    "waypoint here",
+    "where should i put my hub",
+    "clear my overlays",
+  ]],
+  ["Build", [
+    "place a mk1 miner on this node facing north",
+    "build a wire factory on this node",
+    "belt the smelter to the constructor",
+    "clone this 5 times",
+  ]],
+  ["Remember a layout and stamp it again", [
+    "save this as mk1 copper",
+    "place mk1 copper on this node rotated 90",
+    "list designs",
+    "open the library",
+  ]],
+  ["Fix and reverse", [
+    "undo",
+    "what can i undo",
+    "clear holograms",
+    "dismantle Build_SmelterMk1_C_9",
+  ]],
+];
+
+/**
  * "where am I", "what am I looking at", "how many smelters do I have".
  *
  * Three questions a player asks constantly, and all three were reaching a
@@ -1272,6 +1335,25 @@ export function parseWhereAmIRequest(question) {
 export function parseLookingAtRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   return WHAT_AM_I_LOOKING_AT.test(text) ? {} : null;
+}
+
+/**
+ * "how far is the coal node", "distance to my hub".
+ *
+ * Pythagoras on two points the capture already holds. `solveActorLookup`
+ * even computes the metres for us; this was only ever a routing gap.
+ */
+const HOW_FAR =
+  /^(?:can you |could you |please )?(?:how far(?:\s+away)?\s+(?:is|are)\s+|how far\s+to\s+|distance\s+(?:to|from me to)\s+)(.+?)(?:\s+from\s+(?:me|here))?\s*$/i;
+
+export function parseHowFarRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(HOW_FAR);
+  if (!match) return null;
+
+  let thing = match[1].replace(/\s+/g, " ").trim();
+  while (LOCATE_LEADING_ARTICLE.test(thing)) thing = thing.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  return thing.length >= 2 ? { thing } : null;
 }
 
 export function parseHowManyRequest(question) {
@@ -1938,6 +2020,9 @@ const ROUTES = [
       "what tier am i", "what tech tier", "my tech tier", "what have i unlocked",
       "unlock status", "how many recipes are available", "how many recipes", "what tier", "my progress",
       "what phase am i", "my milestone", "current objective",
+      // "whats my tier" reached a model while "what tier am i" did not, which
+      // is the sort of gap only trying the phrasings finds.
+      "my tier", "which tier", "what milestone", "what phase", "my phase",
     ],
     extraFiller: ["tier", "tech", "unlocked", "unlock", "status", "recipes", "schematics", "many"],
     run: (graph) => solveUnlockStatus(graph),
@@ -2562,6 +2647,23 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "what can you do" — answered from a list that is tested, not guessed at.
+  if (parseCapabilityRequest(question)) {
+    const started = Date.now();
+    return localAnswer(
+      "Ask in plain words. Everything below is answered or built without sending your " +
+        "question anywhere:\n\n" +
+        CAPABILITY_EXAMPLES.map(([heading, examples]) =>
+          `**${heading}**\n` + examples.map((example) => `- \`${example}\``).join("\n"),
+        ).join("\n\n") +
+        "\n\nAnything I actually change is previewed, validated by the game, and reversible " +
+        'with "undo". Anything I cannot work out, I say so rather than guessing.',
+      "capabilities",
+      started,
+      "A fixed list; every example here is exercised by the test suite.",
+    );
+  }
+
   // "where am I" — a field in the snapshot, read back.
   if (parseWhereAmIRequest(question) && graph) {
     const started = Date.now();
@@ -2612,6 +2714,37 @@ export function answerLocally(question, graph, services) {
       started,
       "The capture reports no preferred target.",
     );
+  }
+
+  // "how far is the coal node" — two points the capture already holds.
+  const howFar = parseHowFarRequest(question);
+  if (howFar && graph) {
+    const started = Date.now();
+    const found = solveActorLookup(graph, { name_contains: howFar.thing, limit: 1 });
+    const nearest = found?.matches?.[0];
+    if (nearest && Number.isFinite(nearest.distance_meters)) {
+      const others = (found.match_count ?? 1) - 1;
+      return localAnswer(
+        `**${nearest.name ?? nearest.actor_id}** is **${nearest.distance_meters} m** away, at ` +
+          `\`x=${round(nearest.location_cm.x)}, y=${round(nearest.location_cm.y)}, ` +
+          `z=${round(nearest.location_cm.z)}\`.` +
+          (others > 0 ? ` That is the closest of ${others + 1} matching.` : "") +
+          `\n\nSay "teleport me to ${howFar.thing}" to go there, or "waypoint ${howFar.thing}" ` +
+          "to put it on your compass.",
+        "how_far",
+        started,
+        "Measured between two positions in the capture.",
+      );
+    }
+    if (found?.match_count === 0) {
+      return localAnswer(
+        `Nothing matching **${howFar.thing}** is in the current capture, so there is no ` +
+          "distance to give. The panel scans a radius around you unless you ask for the whole world.",
+        "how_far",
+        started,
+        "Nothing matched; no distance was invented.",
+      );
+    }
   }
 
   // "how many smelters do I have" — a count, not a judgement.

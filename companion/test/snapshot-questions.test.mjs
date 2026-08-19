@@ -110,6 +110,44 @@ test("a count is the whole count, not the page of it that came back", () => {
   assert.match(none.reply, /scans a radius/);
 });
 
+test("how far is Pythagoras on two points the capture already holds", () => {
+  const far = buildGraph({
+    world_revision: 8,
+    world: { scan_center: PLAYER },
+    interaction_context: { player: { pawn_available: true, pawn_location: PLAYER } },
+    actors: [
+      { actor_id: "BP_ResourceNode217", name: "Coal node", kind: "resource_node", location: { x: 9_000, y: 2_000, z: 500 } },
+    ],
+  });
+  const askFar = (question) => answerLocally(question, far, { actions: { emit: () => {} } });
+
+  for (const question of [
+    "how far is the coal node",
+    "how far away is the coal node",
+    "distance to the coal node",
+    "how far to the coal node",
+  ]) {
+    const answer = askFar(question);
+    assert.equal(answer?.local?.solver, "how_far", question);
+    // 8 000 cm along x.
+    assert.match(answer.reply, /\*\*80 m\*\*/);
+  }
+
+  // Nothing found gets no distance invented for it.
+  const missing = askFar("how far is atlantis");
+  assert.equal(missing.local.solver, "how_far");
+  assert.match(missing.reply, /Nothing matching/);
+  assert.ok(!/\d+ m\b/.test(missing.reply.split("\n")[0]));
+});
+
+test("the tier question is answered whichever way it is phrased", () => {
+  // "what tier am i" was local and "whats my tier" was not, which is the sort
+  // of gap only trying the phrasings finds.
+  for (const question of ["what tier am i", "whats my tier", "my tier", "what milestone", "which tier"]) {
+    assert.equal(ask(question)?.local?.solver, "get_unlock_status", question);
+  }
+});
+
 test("questions that only look like counts are left to a model", () => {
   // These need rates, power figures or judgement. Answering them with an actor
   // count would be confidently wrong.

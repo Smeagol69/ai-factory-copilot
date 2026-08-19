@@ -2759,3 +2759,43 @@ because that is how people type; and "Coal node — a Node", where the ordinary
 node type added nothing beside the name.
 
 682 companion tests pass. No C++ changed.
+
+### "what can you do" was being guessed at — Claude, 2026-08-18
+
+The first thing anyone asks a copilot, and it went to a model. A model has to
+guess at its own capabilities, and this project has a *recorded instance of it
+guessing wrong in the expensive direction*: the owner's waypoint complaint was
+a transcript of this copilot flatly denying it could place waypoints, weeks
+after the action to do it shipped.
+
+So the answer is a fixed list now — and the list is held to the same contract
+as the library page's buttons and the README's phrases. `CAPABILITY_EXAMPLES`
+is exported, and `test/capabilities.test.mjs` runs every phrase in it back
+through every parser and route in the router. A phrase the copilot advertises
+that nothing can act on **fails the suite**. There is a second test feeding the
+checker "make me a cup of tea please" to prove it can still tell the
+difference, because a guard that always passes is not a guard.
+
+That is the only way a hand-written capability list is worth having. Without
+it, the list is a promise nobody is holding it to, and it rots the same way the
+comment in `designs.mjs` saying rotation was deliberately unsupported rotted.
+
+**Two more from the same sweep.**
+
+`how far is the coal node` reached a model. It is Pythagoras on two points
+the capture already holds — `solveActorLookup` even computes the metres. It
+was never anything but a routing gap. It now answers with the distance, the
+coordinates, and what to say next to teleport there or put it on the compass;
+nothing found gets no distance invented for it.
+
+`whats my tier` reached a model while `what tier am i` did not. Five more
+phrasings added to that route's list.
+
+687 companion tests pass. No C++ changed.
+
+**On method, for whoever reads this next.** Every find in the last three
+entries came from the same thing: write out the phrasings a player would
+actually type, run them through the live router, and read which ones fall
+through. Not from reading the code. The code looked right in every one of these
+cases — the route existed, the parser was exported, the pattern was there. It
+is worth doing again after any batch of routing work.
