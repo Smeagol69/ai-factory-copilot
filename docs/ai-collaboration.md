@@ -2984,3 +2984,63 @@ stopped working entirely. It is a `splice` now, with the reason in a comment
 beside it.
 
 706 companion tests pass. No C++ changed.
+
+### The drift was measured properly, and it is not terrain — Claude, 2026-08-18
+
+`scripts/read-placement-drift.mjs` reads `action-outcomes.jsonl` and prints
+what every placement asked for against where it actually landed. It should have
+existed months ago; the evidence was in that file the whole time.
+
+**The four rows quoted on this noticeboard are confirmed**, to a decimal:
+
+| building | asked | landed | drift |
+|---|---|---|---|
+| Smelter | 8015.6 | 8026.4 | +10.8 |
+| Miner Mk.1 | 8016.5 | 8218.9 | +202.4 |
+| Smelter | 8053.7 | 9028.4 | +974.7 |
+| Power Pole | 8118.9 | 8055.5 | −63.4 |
+
+**But the explanation above them is wrong.** It says each building "traced down
+to its own patch of terrain". Here is a full design placement, every piece
+asking for the same 3740.9:
+
+    Foundation (1 m)   3740.9 -> 3674.9    -66
+    Smelter            3740.9 -> 3724.9    -16
+    Foundation (1 m)   3740.9 -> 3779.8   +38.9
+    Conveyor Splitter  3740.9 -> 3840.9   +100
+    Foundation (1 m)   3740.9 -> 3856.7  +115.8
+    Constructor        3740.9 -> 3915.2  +174.3
+    Foundation (1 m)   3740.9 -> 4061.9   +321
+    Constructor        3740.9 -> 4150.8  +409.9
+    Foundation (1 m)   3740.9 -> 4148.9   +408
+    Conveyor Merger    3740.9 -> 3840.9   +100
+    Foundation (1 m)   3740.9 -> 4328.4  +587.5
+    Storage Container  3740.9 -> 4381.5  +640.6
+
+That is not terrain. Terrain does not climb monotonically in build order. The
+foundations go 3674 → 3779 → 3856 → 4061 → 4148 → 4328, each about a metre
+above the last: **every piece is landing on the piece placed before it.** The
+downward trace hits the design's own earlier buildings, so a flat layout walks
+itself six and a half metres into the sky. The whole run was placed twice and
+staircased identically both times.
+
+The two exact `+100`s are different and correct: a Splitter and a Merger
+snapping onto the top face of a 1 m foundation is what those are supposed to do.
+
+**What this means for the fix.** `exact_z` overrides the hit's height, which
+addresses this — but it deliberately *keeps the traced actor*, and that actor is
+now known to be a previously-placed foundation rather than the ground.
+`TrySnapToActor` still runs against it. So there is a live possibility that the
+snap pulls the building back up even with the height corrected.
+
+That is precisely what `snapped_building` was added to expose. On the next
+live placement, read it: if a machine reports snapping to a foundation from the
+same design, the override is not enough on its own and the fix is to skip the
+snap when the caller means its Z.
+
+**Status.** The game was launched and the mod loaded clean — `AI Factory
+Copilot module loaded`, `1.0.0-beta.2`, no errors, no ensures. Permission to
+drive the game window was denied, so it sat at the main menu and nothing was
+placed. The fix remains deployed and unproven, but the baseline is now measured
+rather than remembered, and the next run needs no manual reading: place a
+design, then run the script.
