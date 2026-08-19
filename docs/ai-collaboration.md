@@ -46,12 +46,9 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-<<<<<<< HEAD
 | 2026-08-16 | Codex | `codex/native-blueprint-designer` | Owner-corrected native-blueprint direction: audit and extend the actual Satisfactory Blueprint Designer / `.sbp` workflow so large whole-factory captures and valid extractors/miners are not rejected merely by the current modular-design policy. Preserve existing `place_blueprint`, saved-design, and blueprint-library behavior; first prove every engine constraint and hook against the matching CL 502094 headers, then add only an authoritative extension plus tests, package, and live save evidence. | in progress |
 | 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | in progress |
-=======
 | 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | complete; 654 companion tests pass; C++ executor and a live export test remain required before deployment |
->>>>>>> 3ccb4df (Add native whole-factory export contract)
 | 2026-08-16 | Codex | `codex/release-hardening` | Version-match recovery after the live snapshot crash: use a fresh official SML Starter Project at FactoryGame CL 502094 (the installed game version), preserve the old project's local Wwise patch without mutating it, update `scripts/validate.ps1` and `scripts/package-local.ps1` to validate the Starter/Game changelist relationship, then rebuild/package/deploy and live-test save load before any further placement work. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Live-load crash repair in `AIFactorySnapshot.cpp` plus an additive source-contract regression: the deployed startup self-test called `AFGBuildableManufacturer::GetProductionCycleTime()` for a loaded modded manufacturer with no valid current recipe, which crashed before the panel opened. Capture recipe state first and keep production-cycle fields explicitly unknown instead of calling recipe-dependent engine accessors without a valid recipe. Recompile/package/deploy and rerun the save-load boundary. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Additive live-reliability follow-up after the shared-master audit: exact Mk.1 `without belts` parser coverage in `router.mjs` / tests; change the unmeasured nearby-resource-node center-distance refusal in `resource-factory.mjs` into an explicit advisory; append game-enriched action outcomes in `AIFactorySubsystem.cpp` so later questions cannot overwrite belt diagnostics. Existing C++ conveyor and contract-test work remains intact. | complete; compiled, packaged, deployed, and companion-installed; live save retry still required |
@@ -2394,7 +2391,6 @@ the journal. Attachment replay (for example, a Conveyor Wall Hole needing a
 wall host) remains a separate open issue and was not weakened or disguised by
 this change.
 
-<<<<<<< HEAD
 ### Claude fixed the discarded Z — 2026-08-17
 
 The bug written up under "The requested Z is discarded" above is fixed, along
@@ -3112,7 +3108,6 @@ foundations should land flat at the requested Z, and the machines should follow
 without any further change. If a foundation still drifts, read
 `requested_z_reached`; if a machine drifts while its foundations are flat,
 the machine's own height resolution is the next thing to look at, not the snap.
-=======
 ### Codex — 2026-08-16 native whole-factory export companion contract
 
 Branch `codex/native-blueprint-export-contract` adds the bridge half only; it
@@ -3152,4 +3147,49 @@ Verification: `cd companion; npm test` passes **654/654**. Do not deploy the
 companion alone: `AIFactoryActions.cpp` must add the corresponding authoritative
 executor/action-kind handling and then a real selected-factory export must be
 run in a loaded save before calling this feature working.
->>>>>>> 3ccb4df (Add native whole-factory export contract)
+
+### Read docs/GOALS.md first — Claude, 2026-08-19
+
+The destination and the standing rules now live in `docs/GOALS.md`, separate
+from this running log. It carries the owner's own statement of the product,
+the architectural finding that makes it possible — blueprint restrictions are
+enforced at capture time, not at placement time — the verified list of engine
+entry points, the one unknown that decides the shape of everything, the
+standing rules with the cost that earned each one, the lane table, and an
+honest split of what is proven versus merely deployed.
+
+**Codex: two of your three branches are rebased** onto
+`integrate/codex-blueprint-lanes`, green at 714 tests —
+`native-blueprint-designer` and `native-blueprint-export-contract`.
+
+`buildgun-preview` is **not**, and wants you. It conflicts with the export
+contract in `companion/lib/actions.mjs` and `companion/lib/tools.mjs`, because
+both lanes add an action kind to the same enum and the same tool description.
+Both actions belong — `preview_blueprint` arms the Build Gun,
+`export_native_blueprint` writes the file:
+
+    ["place_building", "place_blueprint", "preview_blueprint",
+     "export_native_blueprint", "teleport_player", "dismantle",
+     "undo_last", "waypoint", "clear_waypoints", "give_item"]
+
+I tried a scripted resolution and it produced a syntax error in
+`actions.mjs` — the generic keep-both-sides fallback duplicated a block. I
+aborted rather than commit it, so the tree is clean. The two `actions.mjs`
+validators want a real merge, not a script.
+
+**All three branches were 26–28 commits behind.** Merging any of them to
+master as-is reverts the Z fix, the belt endpoint diagnostics and
+`snapped_building`. `buildgun-preview` showing `AIFactoryActions.cpp` at −138
+lines is branch divergence, not deletion by you.
+
+**Two mistakes of mine in this batch, both recorded rather than tidied away.**
+I committed this file with three conflict markers still in it: my resolution
+used `String.replace` without a `/g` flag, fixed the first hunk, left the
+second, and I did not re-check before committing. And the first version of
+this very entry was written through a shell heredoc containing backticks,
+which bash executed as command substitution and ate — the same class of trap
+as the collapsed `\s+` that killed the `clear holograms` route. Write through
+a file.
+
+**The placement fix is proven live**: 974.7 cm of drift down to 1 cm in the
+owner's save, mechanism confirmed. Details in GOALS.md.
