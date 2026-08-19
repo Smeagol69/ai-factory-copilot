@@ -163,6 +163,61 @@ test("a real blueprint places, and turns, through the same phrasing", () => {
   assert.ok(!/turned/.test(straight.reply));
 });
 
+test("retiring a design moves it out of the way and never destroys it", () => {
+  // A library that only grows fills with experiments. But unlinking a file on
+  // a spoken request is the kind of thing that goes wrong once and cannot be
+  // taken back, and a design can represent a real amount of building.
+  ask("save this as scratch build");
+  assert.ok(fs.existsSync(path.join(directory, "scratch-build.json")));
+
+  const { answer } = ask("delete the scratch build design");
+  assert.equal(answer.local.solver, "design_retire");
+  assert.match(answer.reply, /moved, not deleted/);
+
+  assert.equal(fs.existsSync(path.join(directory, "scratch-build.json")), false);
+  const retired = fs.readdirSync(path.join(directory, "retired"));
+  assert.equal(retired.length, 1);
+  assert.match(retired[0], /^scratch-build--/);
+  // Timestamped, so retiring a second design of the same name cannot overwrite
+  // the first -- which is the single outcome this whole design avoids.
+  assert.match(retired[0], /\d{4}-\d{2}-\d{2}/);
+
+  // And it is out of the library.
+  assert.ok(!ask("list designs").answer.reply.includes("scratch build"));
+});
+
+test("renaming keeps one file, under the new name, with the name inside it", () => {
+  ask("save this as before");
+  const { answer } = ask("rename before to after");
+  assert.equal(answer.local.solver, "design_rename");
+
+  assert.equal(fs.existsSync(path.join(directory, "before.json")), false);
+  const moved = JSON.parse(fs.readFileSync(path.join(directory, "after.json"), "utf8"));
+  assert.equal(moved.name, "after");
+  assert.equal(moved.building_count, 3);
+});
+
+test("housekeeping never gets between a player and a real building", () => {
+  // "delete the smelter" is a dismantle, and still is: the retire patterns
+  // require the word "design" precisely so the two can never be confused. What
+  // must not happen is this route claiming the phrase and quietly doing
+  // nothing while the player watches for a building to disappear.
+  const before = fs.readdirSync(directory).filter((name) => name.endsWith(".json"));
+  const { answer, emitted } = ask("delete the smelter");
+  assert.equal(answer.local.solver, "dismantle");
+  assert.equal(emitted[0].action, "dismantle");
+  assert.deepEqual(
+    fs.readdirSync(directory).filter((name) => name.endsWith(".json")),
+    before,
+    "dismantling a building must not touch the design library",
+  );
+
+  // A name matching no design falls through rather than refusing on another
+  // planner's behalf.
+  assert.notEqual(ask("delete the atlantis design").answer?.local?.solver, "design_retire");
+  assert.notEqual(ask("rename atlantis to utopia").answer?.local?.solver, "design_rename");
+});
+
 test("a name that matches nothing saved falls through rather than guessing", () => {
   const { answer, emitted } = ask("place something nobody saved here");
   assert.equal(emitted.length, 0);

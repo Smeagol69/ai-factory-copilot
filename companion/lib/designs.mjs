@@ -190,6 +190,77 @@ export function writeDesign(design, env = process.env) {
   return { written: true, path: full };
 }
 
+/**
+ * Retiring a design, without destroying it.
+ *
+ * A library you can only add to fills with experiments — this one already has
+ * a "Smelter test" and a superseded "mk1 copper" beside its replacement. But
+ * unlinking a file on a spoken request is the kind of thing that goes wrong
+ * once and is unrecoverable, and a saved design can represent a real amount of
+ * building.
+ *
+ * So it moves. The file goes to a `retired` folder beside the designs, keeps
+ * its name, and stops appearing in the library. Putting it back is dragging one
+ * file, and the reply says exactly where it went. Nothing here deletes.
+ */
+export function retireDesign(name, env = process.env) {
+  const directory = resolveDesignDirectory(env);
+  if (!directory) return { retired: false, reason: "no design directory is configured" };
+
+  const { matches } = findDesign(name, env);
+  if (matches.length === 0) return { retired: false, reason: `nothing saved is called "${name}"` };
+  if (matches.length > 1) {
+    return {
+      retired: false,
+      reason: `"${name}" matches ${matches.length} designs`,
+      matches: matches.map((design) => design.name),
+    };
+  }
+
+  const file = designFileName(matches[0].name);
+  const from = path.join(directory, file);
+  if (!fs.existsSync(from)) return { retired: false, reason: "the design's file is not on disk" };
+
+  const retiredDirectory = path.join(directory, "retired");
+  fs.mkdirSync(retiredDirectory, { recursive: true });
+  // A name reused after retiring one would otherwise overwrite the old file,
+  // which is the one outcome this whole function exists to avoid.
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const to = path.join(retiredDirectory, `${path.basename(file, ".json")}--${stamp}.json`);
+  fs.renameSync(from, to);
+  return { retired: true, name: matches[0].name, path: to, building_count: matches[0].building_count };
+}
+
+/** Giving a saved design a different name. Same file, new name inside and out. */
+export function renameDesign(from, to, env = process.env) {
+  const directory = resolveDesignDirectory(env);
+  if (!directory) return { renamed: false, reason: "no design directory is configured" };
+
+  const wanted = String(to ?? "").trim();
+  if (!wanted) return { renamed: false, reason: "the new name is empty" };
+  const target = designFileName(wanted);
+  if (!target) return { renamed: false, reason: "that name has no letters or digits to make a filename from" };
+
+  const { matches } = findDesign(from, env);
+  if (matches.length === 0) return { renamed: false, reason: `nothing saved is called "${from}"` };
+  if (matches.length > 1) {
+    return {
+      renamed: false,
+      reason: `"${from}" matches ${matches.length} designs`,
+      matches: matches.map((design) => design.name),
+    };
+  }
+  if (fs.existsSync(path.join(directory, target)) && designFileName(matches[0].name) !== target) {
+    return { renamed: false, reason: `something saved is already called "${wanted}"` };
+  }
+
+  const design = { ...matches[0], name: wanted };
+  const previous = path.join(directory, designFileName(matches[0].name));
+  fs.writeFileSync(path.join(directory, target), JSON.stringify(design, null, 1));
+  if (path.basename(previous) !== target) fs.rmSync(previous, { force: true });
+  return { renamed: true, from: matches[0].name, to: wanted };
+}
+
 export function listDesigns(env = process.env) {
   const directory = resolveDesignDirectory(env);
   if (!directory || !fs.existsSync(directory)) return [];

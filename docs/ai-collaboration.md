@@ -2799,3 +2799,36 @@ actually type, run them through the live router, and read which ones fall
 through. Not from reading the code. The code looked right in every one of these
 cases — the route existed, the parser was exported, the pattern was there. It
 is worth doing again after any batch of routing work.
+
+### The library can be pruned now, and nothing gets deleted — Claude, 2026-08-18
+
+`delete the mk2 design` and `rename mk1 copper to copper starter` reached a
+model. The library only ever grew — the owner's already holds a "Smelter test"
+and a superseded "mk1 copper" beside its replacement.
+
+**It moves, it does not delete.** `retireDesign` renames the file into a
+`retired` folder beside the designs, timestamped so reusing a name later
+cannot overwrite what was retired earlier, and the reply gives the full path so
+putting it back is dragging one file up a folder. Unlinking a file on a spoken
+request is the kind of thing that goes wrong once and cannot be taken back, and
+a saved design can stand for a real amount of building. The verb the player
+used is honoured; the file survives.
+
+Both patterns **require the word "design"**. `delete the smelter` is a
+dismantle and still is — pinned in a test that also checks the design folder is
+untouched when it happens, because the failure worth guarding against is this
+route silently claiming the phrase while the player waits for a building to
+disappear.
+
+Renaming rewrites the name inside the file as well as the filename, refuses a
+name already taken, and refuses an ambiguous match with the candidates listed
+rather than picking one.
+
+**Also:** `what did you just do`, `what have you built` and `show me what
+you did` now reach the undo journal. They were going to a model, which has no
+journal and would answer from the chat transcript instead — plausible, and not
+the same thing. The pronoun is what separates them from the factory census:
+"what have **you** built" is the journal, "what have **i** built" is the world.
+Both pinned.
+
+690 companion tests pass. No C++ changed.

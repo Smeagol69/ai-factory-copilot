@@ -54,7 +54,15 @@ import {
 import { planCoalPower } from "./power.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
-import { captureDesign, findDesign, listDesigns, planDesignPlacement, writeDesign } from "./designs.mjs";
+import {
+  captureDesign,
+  findDesign,
+  listDesigns,
+  planDesignPlacement,
+  renameDesign,
+  retireDesign,
+  writeDesign,
+} from "./designs.mjs";
 import { buildLibraryModel } from "./library-page.mjs";
 import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
@@ -682,9 +690,17 @@ export function parseDismantleRequest(question) {
     : { name_contains: target, target, limit: 1 };
 }
 
-/** "what can I undo", "what did you just do". */
+/**
+ * "what can I undo", "what did you just do", "what have you built".
+ *
+ * The last two are the same question asked about the other party: the journal
+ * is the only record of what this copilot changed, so "what did I just do" and
+ * "show me what you did" want exactly what "what can I undo" returns. They
+ * were reaching a model, which has no journal to read and would answer from
+ * the chat transcript instead — plausible, and not the same thing.
+ */
 const UNDO_HISTORY =
-  /\b(?:what|anything)\b.*\bundo\b|\bundo\s+(?:history|list|stack)\b|\bwhat did you (?:just )?(?:do|change|build)\b/i;
+  /\b(?:what|anything)\b.*\bundo\b|\bundo\s+(?:history|list|stack)\b|\bwhat did (?:you|i|we)\s+(?:just\s+)?(?:do|change|build|place)\b|\bwhat have (?:you|we)\s+(?:just\s+)?(?:done|built|changed|placed)\b|\bshow me what (?:you|we)\s+(?:did|built|changed)\b/i;
 
 export function parseUndoHistoryRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
@@ -1039,6 +1055,39 @@ export function parseDesignPlaceRequest(question) {
   if (!match) return null;
   const name = match[1].replace(/\s+/g, " ").replace(/\b(?:design|blue\s?print)\b/i, "").trim();
   return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
+}
+
+/**
+ * "delete the mk2 design", "rename mk1 copper to copper starter".
+ *
+ * Housekeeping for a library that only ever grew. Nothing is destroyed —
+ * see `retireDesign` — so the verb the player used is honoured while the file
+ * is only moved, and the reply says where it went.
+ *
+ * Both patterns require the word "design" or "blueprint" somewhere, because
+ * "delete the smelter" is a dismantle and mistaking one for the other is the
+ * kind of error the dismantle route is deliberately paranoid about.
+ */
+const DESIGN_RETIRE =
+  /^(?:can you |could you |please )?(?:delete|remove|retire|forget|drop|get rid of)\s+(?:the\s+|my\s+|that\s+)?["']?(.+?)["']?\s*(?:design|blue\s?print|saved build)\s*$/i;
+const DESIGN_RENAME =
+  /^(?:can you |could you |please )?(?:rename|call)\s+(?:the\s+|my\s+)?["']?(.+?)["']?\s*(?:design|blue\s?print|saved build)?\s+(?:to|as)\s+["']?(.+?)["']?\s*$/i;
+
+export function parseDesignRetireRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(DESIGN_RETIRE);
+  if (!match) return null;
+  const name = match[1].replace(/\s+/g, " ").trim();
+  return name.length >= 2 ? { name } : null;
+}
+
+export function parseDesignRenameRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(DESIGN_RENAME);
+  if (!match) return null;
+  const from = match[1].replace(/\s+/g, " ").trim();
+  const to = match[2].replace(/\s+/g, " ").replace(/\b(?:design|blue\s?print)\b/i, "").trim();
+  return from.length >= 2 && to.length >= 2 ? { from, to } : null;
 }
 
 export function parseDesignListRequest(question) {
@@ -2789,6 +2838,72 @@ export function answerLocally(question, graph, services) {
       started,
       "The bridge serves the page; nothing was sent to the game.",
     );
+  }
+
+  // "delete the mk2 design" — moved to a retired folder, never unlinked.
+  const designRetire = parseDesignRetireRequest(question);
+  if (designRetire) {
+    const started = Date.now();
+    const result = retireDesign(designRetire.name);
+    if (result.retired) {
+      return localAnswer(
+        `**${result.name}** (${result.building_count} buildings) is out of the library.\n\n` +
+          `It was moved, not deleted — the file is at \`${result.path}\`, so drag it back up ` +
+          "one folder if you want it again.",
+        "design_retire",
+        started,
+        "The file was moved to a retired folder; nothing was destroyed.",
+      );
+    }
+    if (result.matches) {
+      return localAnswer(
+        `${result.reason}:\n\n${result.matches.map((name) => `- ${name}`).join("\n")}\n\nSay the full name.`,
+        "design_retire_refused",
+        started,
+        "Ambiguous name; nothing was moved.",
+      );
+    }
+    // A name that matches nothing was probably never a design request at all,
+    // so it falls through rather than refusing on another planner's behalf.
+    if (!/nothing saved is called/i.test(result.reason ?? "")) {
+      return localAnswer(
+        `I could not retire that: ${result.reason}.`,
+        "design_retire_refused",
+        started,
+        "Nothing was moved.",
+      );
+    }
+  }
+
+  // "rename mk1 copper to copper starter".
+  const designRename = parseDesignRenameRequest(question);
+  if (designRename) {
+    const started = Date.now();
+    const result = renameDesign(designRename.from, designRename.to);
+    if (result.renamed) {
+      return localAnswer(
+        `**${result.from}** is now **${result.to}**. Say "place ${result.to} here" to build it.`,
+        "design_rename",
+        started,
+        "The saved file was rewritten under the new name.",
+      );
+    }
+    if (result.matches) {
+      return localAnswer(
+        `${result.reason}:\n\n${result.matches.map((name) => `- ${name}`).join("\n")}\n\nSay the full name.`,
+        "design_rename_refused",
+        started,
+        "Ambiguous name; nothing was renamed.",
+      );
+    }
+    if (!/nothing saved is called/i.test(result.reason ?? "")) {
+      return localAnswer(
+        `I could not rename that: ${result.reason}.`,
+        "design_rename_refused",
+        started,
+        "Nothing was renamed.",
+      );
+    }
   }
 
   // "list designs" / "save this as X" / "place X here" — remembered builds.
