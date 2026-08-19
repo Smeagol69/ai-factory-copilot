@@ -18,6 +18,8 @@ import {
   parseBlueprintPlaceRequest,
   parseDesignListRequest,
   parseDesignPlaceRequest,
+  parseDesignRenameRequest,
+  parseDesignRetireRequest,
   parseDesignSaveRequest,
 } from "../lib/router.mjs";
 
@@ -119,6 +121,8 @@ test("every phrase the README teaches is one the router understands", () => {
     parseDesignSaveRequest,
     parseDesignPlaceRequest,
     parseDesignListRequest,
+    parseDesignRenameRequest,
+    parseDesignRetireRequest,
   ];
   for (const phrase of phrases) {
     assert.ok(

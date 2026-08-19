@@ -202,6 +202,8 @@ save this as mk1 copper
 place mk1 copper on this node
 place mk1 copper here rotated 90
 list designs
+rename mk1 copper to copper starter
+delete the copper starter design
 ```
 
 A saved design keeps the exact distances between buildings, each facing, and
@@ -210,6 +212,10 @@ extractor in the design to *that* node and re-anchors everything else on it, so
 the arrangement stays rigid rather than shearing. Adding `rotated 90`,
 `turned right` or `half turn` turns the whole thing about its anchor, the way
 a vanilla blueprint turns under the build gun.
+
+Housekeeping moves rather than deletes: a retired design goes to a 
+`retired` folder beside the others, timestamped, and the reply gives you the
+path. Nothing here unlinks a file.
 
 What it does not replay, and says so rather than quietly dropping:
 

@@ -1332,6 +1332,7 @@ export const CAPABILITY_EXAMPLES = [
   ]],
   ["Find and mark things", [
     "show me every coal node within 200 m",
+    "how far is the coal node",
     "waypoint here",
     "where should i put my hub",
     "clear my overlays",
@@ -1346,6 +1347,8 @@ export const CAPABILITY_EXAMPLES = [
     "save this as mk1 copper",
     "place mk1 copper on this node rotated 90",
     "list designs",
+    "rename mk1 copper to copper starter",
+    "delete the mk1 copper design",
     "open the library",
   ]],
   ["Fix and reverse", [
