@@ -26,9 +26,12 @@
 
 import {
   solveBottlenecks,
+  solveBuildCost,
   solveFactorySummary,
   solveItemBalance,
+  solveMachineRates,
   solvePowerCircuits,
+  solveRecipeOptions,
   solveActorLookup,
   solveBuildRecipeLookup,
   solvePlacementTarget,
@@ -1326,9 +1329,15 @@ export const CAPABILITY_EXAMPLES = [
     "what have i built",
     "how many smelters do i have",
     "what am i looking at",
+    "what is this making",
     "where am i",
     "what tier am i",
     "what is my bottleneck",
+  ]],
+  ["Ask about recipes and costs", [
+    "how much does a smelter cost",
+    "what uses iron ore",
+    "how do i make steel ingot",
   ]],
   ["Find and mark things", [
     "show me every coal node within 200 m",
@@ -1387,6 +1396,63 @@ export function parseWhereAmIRequest(question) {
 export function parseLookingAtRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   return WHAT_AM_I_LOOKING_AT.test(text) ? {} : null;
+}
+
+/**
+ * "how much does a smelter cost", "what does a constructor cost".
+ *
+ * `solveBuildCost` has existed the whole time and had no route to it, so the
+ * question was going to a model that would answer from training — which is how
+ * you get a confident cost for a building a mod changed. The catalogue in the
+ * capture is the authority.
+ */
+const BUILD_COST =
+  /^(?:can you |could you |please )?(?:how much (?:does|do|is|are)\s+|what (?:does|do)\s+|cost (?:of|for)\s+)(?:a\s+|an\s+|the\s+)?(?:(\d{1,3})\s+)?(.+?)(?:\s+cost)?\s*$/i;
+
+export function parseBuildCostRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  // "cost" has to appear, or "how much is my power" becomes a build cost.
+  if (!/\bcosts?\b/i.test(text)) return null;
+  const match = text.match(BUILD_COST);
+  if (!match) return null;
+
+  let thing = match[2].replace(/\s+/g, " ").replace(/\bcosts?\b/gi, "").trim();
+  while (LOCATE_LEADING_ARTICLE.test(thing)) thing = thing.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  thing = thing.replace(/\b(\w{4,})s\b/g, "$1");
+  if (thing.length < 3) return null;
+  return { thing, count: match[1] ? Number(match[1]) : 1 };
+}
+
+/**
+ * "what can I make with iron", "what uses copper ore", "how do I make steel".
+ *
+ * `solveRecipeOptions` was in the same position: written, exposed to the model
+ * as a tool, and unreachable by asking in words.
+ */
+const RECIPE_OPTIONS =
+  /^(?:can you |could you |please )?(?:what (?:can i (?:make|craft|build)|recipes?)\s+(?:with|from|use[sd]?|need)\s+|what (?:uses|needs)\s+|how (?:do|can) i (?:make|craft|smelt)\s+|what (?:do i need|is needed) (?:for|to make)\s+|recipes? for\s+)(?:a\s+|an\s+|the\s+|some\s+)?(.+?)\s*$/i;
+
+export function parseRecipeOptionsRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(RECIPE_OPTIONS);
+  if (!match) return null;
+  let thing = match[1].replace(/\s+/g, " ").trim();
+  while (LOCATE_LEADING_ARTICLE.test(thing)) thing = thing.replace(LOCATE_LEADING_ARTICLE, "").trim();
+  return thing.length >= 3 ? { thing } : null;
+}
+
+/**
+ * "what is this making", "what is this machine producing".
+ *
+ * About the thing under the crosshair, so it needs no name — and the capture
+ * already carries the recipe and the measured rate.
+ */
+const WHAT_IS_THIS_MAKING =
+  /^(?:can you |could you |please )?what(?:'?s| is| are)?\s+(?:this|that|it)\s*(?:machine|building|one)?\s+(?:making|producing|running|on|set to|building|doing)\s*\??$/i;
+
+export function parseWhatIsThisMakingRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  return WHAT_IS_THIS_MAKING.test(text) ? {} : null;
 }
 
 /**
@@ -2766,6 +2832,149 @@ export function answerLocally(question, graph, services) {
       started,
       "The capture reports no preferred target.",
     );
+  }
+
+  // "what is this making" — the crosshair target's own recipe and rate.
+  if (parseWhatIsThisMakingRequest(question) && graph) {
+    const started = Date.now();
+    const aimedId = graph.snapshot?.interaction_context?.preferred_target?.actor_id;
+    const [machine] = aimedId
+      ? solveMachineRates(graph, { actor_ids: [aimedId] })?.machines ?? []
+      : [];
+    if (machine) {
+      const products = (machine.products ?? [])
+        .map((entry) => `${entry.per_minute ?? "?"}/min ${entry.item_name ?? entry.item_class}`)
+        .join(", ");
+      return localAnswer(
+        `**${machine.name}** is set to **${machine.recipe_name ?? "no recipe"}**` +
+          (products ? `, making ${products}` : "") +
+          (machine.production_status ? `. Status: ${machine.production_status}.` : ".") +
+          (Number.isFinite(machine.current_potential) && machine.current_potential !== 1
+            ? ` Overclocked to ${Math.round(machine.current_potential * 100)}%.`
+            : ""),
+        "what_is_this_making",
+        started,
+        "Read from the capture's own factory state for the actor you are aiming at.",
+      );
+    }
+    return localAnswer(
+      aimedId
+        ? "What you are aiming at is not a machine with a recipe — the capture reports no " +
+          "production state for it."
+        : "You are not aiming at anything the capture could identify.",
+      "what_is_this_making",
+      started,
+      "No production state in the capture for that target.",
+    );
+  }
+
+  // "how much does a smelter cost" — the catalogue, not a memory of the wiki.
+  const buildCost = parseBuildCostRequest(question);
+  if (buildCost && graph) {
+    const started = Date.now();
+    const recipe = solveBuildRecipeLookup(graph, { building: buildCost.thing });
+    // A locked building still has a cost, and wanting to know it before
+    // committing to the milestone is most of why anyone asks. The lookup
+    // refuses on unlock grounds but hands back the class anyway, so the price
+    // is answerable — with the lock stated rather than hidden.
+    const recipeClass = recipe?.recipe_class ?? null;
+    if (recipeClass) {
+      const cost = solveBuildCost(graph, {
+        recipe_class: recipeClass,
+        count: buildCost.count,
+      });
+      // `required_display_units` is the number a player reads on a build menu;
+      // the registry units beside it are the raw integers. Field names taken
+      // from the solver rather than assumed -- the first draft of this route
+      // said `entry.amount`, which does not exist, and printed nothing.
+      const lines = (cost?.ingredients ?? [])
+        .map((entry) =>
+          `- ${entry.required_display_units ?? entry.required_registry_units} × ` +
+          `${entry.item_name ?? entry.item_class}` +
+          (Number.isFinite(entry.shortfall_display_units) && entry.shortfall_display_units > 0
+            ? ` (${entry.shortfall_display_units} short)`
+            : ""))
+        .join("\n");
+      if (lines) {
+        return localAnswer(
+          `**${buildCost.count} × ${cost.recipe_name ?? recipe.name ?? buildCost.thing}** costs:\n\n${lines}` +
+            (recipe.resolved === false && recipe.reason
+              ? `\n\nNote: ${recipe.reason}.`
+              : "") +
+            (cost.affordable_from_captured_player_inventories === true
+              ? "\n\nYou are carrying enough."
+              : cost.affordable_from_captured_player_inventories === false
+                ? "\n\nNot all of that is in your inventory."
+                : ""),
+          "build_cost",
+          started,
+          "From the recipe catalogue in the capture, not from memory.",
+        );
+      }
+    }
+  }
+
+  // "what can I make with iron" — the recipe catalogue, filtered.
+  const recipeOptions = parseRecipeOptionsRequest(question);
+  if (recipeOptions && graph) {
+    const started = Date.now();
+    // The player names an *item*, but `name_contains` filters *recipe names*.
+    // "what uses iron ore" found nothing, because no recipe is called that.
+    // Resolving the item first is the difference between a useful answer and
+    // silence, and the name filter stays as the fallback for "recipes for
+    // alternate" and the like.
+    const needle = recipeOptions.thing.toLowerCase();
+    let itemClass = null;
+    for (const item of graph.itemsByClass?.values() ?? []) {
+      const name = String(item?.name ?? "").toLowerCase();
+      if (!name) continue;
+      if (name === needle) { itemClass = item.class_path; break; }
+      if (!itemClass && name.includes(needle)) itemClass = item.class_path;
+    }
+    const found = solveRecipeOptions(
+      graph,
+      itemClass ? { item_class: itemClass } : { name_contains: recipeOptions.thing },
+    );
+    // The solver splits by direction, which is the distinction the question is
+    // actually about: "how do I make steel" wants the producers, "what uses
+    // iron ore" wants the consumers. Both are shown, labelled.
+    const producing = found?.recipes_producing_item ?? [];
+    const consuming = found?.recipes_consuming_item ?? [];
+    if (producing.length + consuming.length > 0) {
+      // Per minute when the catalogue gave a duration, per cycle when it did
+      // not. `inputs`/`outputs` come back empty rather than wrong if the recipe
+      // has no cycle time, which is why the fallback reads the raw entry.
+      const quantity = (item) =>
+        Number.isFinite(item.display_units_per_minute)
+          ? `${item.display_units_per_minute}/min`
+          : `${item.amount_per_cycle ?? item.amount ?? "?"}`;
+      const describe = (entry) => {
+        const inputs = (entry.inputs ?? [])
+          .map((item) => `${quantity(item)} ${item.item_name ?? item.item_class}`)
+          .join(" + ");
+        const outputs = (entry.outputs ?? [])
+          .map((item) => `${quantity(item)} ${item.item_name ?? item.item_class}`)
+          .join(" + ");
+        return `- **${entry.recipe_name ?? entry.recipe_class}**` +
+          (inputs ? ` — ${inputs}` : "") + (outputs ? ` → ${outputs}` : "") +
+          (entry.machines_currently_using_it > 0
+            ? ` *(${entry.machines_currently_using_it} running)*`
+            : "");
+      };
+      const section = (heading, list) =>
+        list.length === 0
+          ? ""
+          : `\n\n**${heading}**\n` + list.slice(0, 6).map(describe).join("\n") +
+            (list.length > 6 ? `\n- …and ${list.length - 6} more` : "");
+
+      return localAnswer(
+        `Matching **${recipeOptions.thing}** in your recipe catalogue:` +
+          section("Makes it", producing) + section("Uses it", consuming),
+        "recipe_options",
+        started,
+        "Filtered from the recipe catalogue in the capture, not from memory.",
+      );
+    }
   }
 
   // "how far is the coal node" — two points the capture already holds.

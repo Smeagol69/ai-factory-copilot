@@ -2832,3 +2832,42 @@ the same thing. The pronoun is what separates them from the factory census:
 Both pinned.
 
 690 companion tests pass. No C++ changed.
+
+### Three solvers had no way in — Claude, 2026-08-18
+
+`solveBuildCost`, `solveRecipeOptions` and `solveMachineRates` were all
+written, tested, and exposed to the model as tools — and **no phrasing in the
+router reached any of them**. So "how much does a smelter cost" went to a model
+answering from training, which is how you get a confident price for a building
+a mod changed. The catalogue in the capture is the authority and it was sitting
+right there.
+
+Same shape as `parseLibraryPageRequest`: everything looks present.
+
+Routed now: `what is this making`, `how much does a smelter cost`, `cost of
+3 smelters`, `what uses iron ore`, `what can i make with iron ingot`, `how
+do i make steel`.
+
+**Two shapes I assumed wrong, caught by testing rather than in a save.**
+`solveBuildCost` returns `required_display_units`, not `amount` — the
+first draft printed an empty cost list. `solveRecipeOptions` splits into
+`recipes_producing_item` and `recipes_consuming_item` rather than a flat
+`recipes`, which turns out to be better than what I assumed: it is exactly
+the distinction the question asks about, so the reply labels them "Makes it"
+and "Uses it".
+
+**Two real behaviour findings.**
+
+A locked building still has a price. `solveBuildRecipeLookup` refuses one on
+unlock grounds — correct for *placing* — but hands the class back anyway, so
+the cost is answerable. Wanting to know a price before committing to the
+milestone is most of why anyone asks. The reply gives the cost and states the
+lock rather than refusing.
+
+The player names an *item*; `name_contains` filters *recipe names*. "what
+uses iron ore" found nothing at all, because no recipe is called that.
+Resolving the item name against the capture's item catalogue first is the
+difference between a useful answer and silence; the name filter stays as the
+fallback for "recipes for alternate" and the like.
+
+695 companion tests pass. No C++ changed.
