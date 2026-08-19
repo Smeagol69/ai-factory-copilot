@@ -278,13 +278,53 @@ export function listDesigns(env = process.env) {
   return designs.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
+/**
+ * How close two short names are, as a count of edits.
+ *
+ * Only used to *suggest*, never to pick. "place emga base here" is in the
+ * routing log — one transposition away from "mega base", and it fell through
+ * to a model that could not know what was saved. Suggesting is the whole
+ * benefit; placing a 389-building design because two letters were swapped is
+ * exactly the guess this project does not make.
+ */
+function editDistance(left, right) {
+  const a = String(left);
+  const b = String(right);
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[b.length];
+}
+
 export function findDesign(name, env = process.env) {
   const needle = String(name ?? "").trim().toLowerCase();
   if (!needle) return { matches: [] };
   const all = listDesigns(env);
   const exact = all.filter((design) => String(design.name).toLowerCase() === needle);
-  if (exact.length > 0) return { matches: exact };
-  return { matches: all.filter((design) => String(design.name).toLowerCase().includes(needle)) };
+  if (exact.length > 0) return { matches: exact, near: [] };
+
+  const partial = all.filter((design) => String(design.name).toLowerCase().includes(needle));
+  if (partial.length > 0) return { matches: partial, near: [] };
+
+  // Nothing matched. Offer the near misses so a typo gets a name back instead
+  // of silence, without ever placing one on its own.
+  const near = all
+    .map((design) => ({ design, distance: editDistance(needle, String(design.name).toLowerCase()) }))
+    .filter((entry) => entry.distance <= Math.max(2, Math.floor(needle.length / 4)))
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, 3)
+    .map((entry) => entry.design.name);
+  return { matches: [], near };
 }
 
 /**

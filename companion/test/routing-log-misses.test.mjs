@@ -12,10 +12,42 @@
  */
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
-import { answerLocally, parseTeleportRequest } from "../lib/router.mjs";
+import {
+  answerLocally,
+  parseDesignPlaceRequest,
+  parseTeleportRequest,
+} from "../lib/router.mjs";
+import { findDesign } from "../lib/designs.mjs";
 import { buildGraph } from "../lib/graph.mjs";
+
+
+/**
+ * The near-miss suggestion, exercised against a temporary library rather than
+ * the owner's real one.
+ */
+function nearestSavedName(typed, designs) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "aifactory-near-"));
+  const previous = process.env.AIFACTORY_DESIGN_DIR;
+  process.env.AIFACTORY_DESIGN_DIR = directory;
+  try {
+    for (const design of designs) {
+      const slug = design.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      fs.writeFileSync(
+        path.join(directory, `${slug}.json`),
+        JSON.stringify({ schema: "aifactory.design/v1", name: design.name, buildings: [] }),
+      );
+    }
+    return findDesign(typed).near ?? [];
+  } finally {
+    process.env.AIFACTORY_DESIGN_DIR = previous;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 const PLAYER = { x: 372_000, y: -153_000, z: 4_000 };
 
@@ -101,6 +133,41 @@ test("waypoint nearest source of biomass", () => {
   assert.equal(answer.local.solver, "waypoint");
   assert.equal(emitted[0].action, "waypoint");
   assert.deepEqual(emitted[0].location, { x: 373_000, y: -153_000, z: 4_000 });
+});
+
+test("place waypoint and name it concrete", () => {
+  // Answered by a model because the multi-clause guard sees the "and" and
+  // steps aside. It is not two requests -- it is one waypoint with a label,
+  // and the map marker has carried a name field the whole time. Six markers
+  // all called "Copilot waypoint" are no better than none.
+  const { answer, emitted } = ask("place waypoint and name it concrete");
+  assert.equal(answer.local.solver, "waypoint");
+  assert.equal(emitted[0].name, "concrete");
+
+  assert.equal(ask("waypoint here call it coal spot").emitted[0].name, "coal spot");
+  // Unnamed still gets the default.
+  assert.match(ask("waypoint here").emitted[0].name, /Copilot waypoint/);
+});
+
+test("place mk1 copper here on this node", () => {
+  // Both location words survived into the name, so the route looked for a
+  // design called "mk1 copper here" and found nothing. People do say it twice;
+  // the name is what is left after both are taken off.
+  assert.equal(parseDesignPlaceRequest("place mk1 copper here on this node").name, "mk1 copper");
+  assert.equal(parseDesignPlaceRequest("place mega base here").name, "mega base");
+  // A name that genuinely ends in a location word is not eaten to nothing.
+  assert.equal(parseDesignPlaceRequest("place bus here").name, "bus");
+});
+
+test("place emga base here", () => {
+  // One transposition from "mega base", and it fell through to a model that
+  // cannot know what is saved on disk. The near name is offered, never chosen:
+  // placing a 389-building design because two letters were swapped is exactly
+  // the guess this project does not make.
+  const saved = [{ name: "mega base" }, { name: "mk1 copper" }];
+  const suggestion = nearestSavedName("emga base", saved);
+  assert.deepEqual(suggestion, ["mega base"]);
+  assert.deepEqual(nearestSavedName("atlantis", saved), []);
 });
 
 test("a named target is still a lookup, not a coordinate", () => {

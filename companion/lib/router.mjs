@@ -653,6 +653,15 @@ const WAYPOINT_BEST_SITE = /\b(?:best|ideal|optimal|recommended)\b.*\b(?:hub|sit
 const WAYPOINT_HERE =
   /^(?:this|here|it|that)?\s*(?:spot|place|position|location|point)?\s*$|^(?:where|wherever)\s+i(?:'m|m| am)?\s*(?:standing|looking|aiming|at)?\s*$|^my\s+(?:position|location|feet|spot)\s*$/i;
 
+/**
+ * "place waypoint and name it concrete", "waypoint here called coal".
+ *
+ * One request, not two — the marker has always had a name field. Checked
+ * before the multi-clause guard would otherwise hand the "and" to a model.
+ */
+const WAYPOINT_NAMED_HERE =
+  /^(?:can you |could you |please )?(?:place|drop|add|set|put|create|make)?\s*(?:a\s+|an\s+|the\s+)?way\s?point\s*(?:here|at this spot|on this spot)?\s*(?:,\s*)?(?:and\s+)?(?:name|call|label)\s+(?:it|this|that)\s+(.+?)\s*$/i;
+
 /** "mark this spot", "drop a pin here" — the same request, other words. */
 const WAYPOINT_HERE_PHRASE =
   /^(?:can you |could you |please )?(?:mark|pin|flag|note|remember|save|drop a pin(?:\s+(?:on|at|in))?|put a pin(?:\s+(?:on|at|in))?|set a marker(?:\s+(?:on|at|in))?)\s+(?:me\s+)?(this|here|this spot|this place|this position|my position|where i(?:'m|m| am)?(?:\s+(?:standing|looking|aiming))?)\s*$/i;
@@ -1106,7 +1115,15 @@ export function parseDesignPlaceRequest(question) {
     : text;
   const match = withoutTurn.match(DESIGN_PLACE);
   if (!match) return null;
-  const name = match[1].replace(/\s+/g, " ").replace(/\b(?:design|blue\s?print)\b/i, "").trim();
+  const name = match[1]
+    .replace(/\s+/g, " ")
+    .replace(/\b(?:design|blue\s?print)\b/i, "")
+    // "place mk1 copper here on this node" is in the routing log. The pattern
+    // anchors on the phrase *ending* in a location, so a second location word
+    // in the middle stayed in the name and "mk1 copper here" matched nothing.
+    // People say it twice; the name is what is left after both.
+    .replace(/\s+(?:here|down|at this|on this (?:node|spot|foundation))\s*$/i, "")
+    .trim();
   return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
 }
 
@@ -1312,6 +1329,16 @@ export function parseStructureRequest(question) {
 export function parseWaypointRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
+
+  // "place waypoint and name it concrete" is in the routing log, answered by a
+  // model because MULTI_CLAUSE sees the "and" and steps aside. It is not two
+  // requests: it is one waypoint with a label, and the map marker has carried
+  // a name field the whole time.
+  const named = text.match(WAYPOINT_NAMED_HERE);
+  if (named) {
+    const label = named[1].replace(/\s+/g, " ").replace(/^["']|["']$/g, "").trim();
+    if (label.length >= 2) return { kind: "here", target: "here", name: label };
+  }
 
   // "mark this spot" and friends, before anything tries to look up a building
   // called "this spot".
@@ -2728,7 +2755,11 @@ export function answerLocally(question, graph, services) {
       const aim = graph.snapshot?.interaction_context?.preferred_target?.hit_location;
       const feet = graph.snapshot?.interaction_context?.player?.pawn_location;
       location = aim ?? feet ?? null;
-      label = aim ? "Copilot waypoint" : "Copilot waypoint (your position)";
+      // A name the player gave wins over the default, which is the whole point
+      // of "name it concrete" -- a map with six markers all called "Copilot
+      // waypoint" is no better than none.
+      label = waypoint.name
+        ?? (aim ? "Copilot waypoint" : "Copilot waypoint (your position)");
     } else if (waypoint.kind === "best_site") {
       const site = solveSiteSelection(graph, {});
       const best = site?.sites?.[0];
@@ -3365,9 +3396,22 @@ export function answerLocally(question, graph, services) {
   const designPlace = parseDesignPlaceRequest(question);
   if (designPlace && graph) {
     const started = Date.now();
-    const { matches } = findDesign(designPlace.name);
-    // No match means this was never a design request; let the phrase reach the
-    // planner that owns it.
+    const { matches, near } = findDesign(designPlace.name);
+    // No match usually means this was never a design request, so the phrase
+    // falls through to the planner that owns it. But a name one or two letters
+    // off a saved design almost certainly *was* one -- "place emga base here"
+    // is in the routing log -- and saying so beats silence. The name is
+    // offered, never chosen.
+    if (matches.length === 0 && near?.length > 0) {
+      return localAnswer(
+        `Nothing is saved as **${designPlace.name}**. Did you mean:\n` +
+          near.map((name) => `- \`place ${name} here\``).join("\n") +
+          '\n\nSay "list designs" for all of them.',
+        "design_place_refused",
+        started,
+        "Close names only; nothing was placed.",
+      );
+    }
     if (matches.length > 1) {
       return localAnswer(
         `"${designPlace.name}" matches ${matches.length} designs:\n` +
