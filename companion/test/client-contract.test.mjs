@@ -500,3 +500,29 @@ test("the requested Z is honoured only when the caller asks", () => {
   const instigator = actions.indexOf("SetConstructionInstigator", guard);
   assert.ok(guard >= 0 && lift > guard && instigator > lift);
 });
+
+test("a hologram that mounts at an offset is corrected by measurement, once", () => {
+  const actions = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp", import.meta.url),
+    "utf8",
+  );
+
+  // A Conveyor Merger came back +101 cm twice with snap_accepted false and
+  // snapped_building "none". Nothing snapped it; it mounts a metre above
+  // whatever surface it is handed, the way it sits on a foundation, so
+  // replaying its captured world position made it add that offset again.
+  //
+  // The correction is measured, not tabulated: lower the hit by the drift that
+  // was actually observed. A per-class offset table would be a guess that rots.
+  assert.ok(actions.includes("requested_z_first_pass_drift_cm"));
+  assert.ok(actions.includes("Hit.ImpactPoint.Z -= DriftCm;"));
+
+  // Kept only if it helped, and undone if it did not -- a hologram that
+  // ignores the hit must not be left worse off than before it was touched.
+  assert.ok(actions.includes("requested_z_corrected"));
+  assert.ok(actions.includes("requested_z_correction_rejected"));
+  assert.ok(actions.includes("FMath::Abs(CorrectedDrift) < FMath::Abs(DriftCm)"));
+
+  // One pass. Oscillating would be worse than reporting the residue honestly.
+  assert.equal(actions.match(/Hit\.ImpactPoint\.Z -= DriftCm;/g).length, 1);
+});

@@ -135,10 +135,10 @@ without disclosing the crossing.
 
 | Lane | Owner | State |
 |---|---|---|
-| Native `.sbp` exporter | open | **the critical path** — contract exists, executor does not |
-| Build Gun preview handoff | Codex | written, needs a rebase (see below) and one live check |
-| Unrestricted designer | open | after the exporter; the exporter matters more |
-| Router / companion | Claude | 714 tests |
+| Native `.sbp` exporter | Claude | **working** — 94 buildings exported and placed |
+| Build Gun preview handoff | Codex | **needs a manual merge** — conflicts with the export contract |
+| Unrestricted designer | open | may be unnecessary now the exporter works from the world |
+| Router / companion | Claude | 710 tests; web library removed, box preview added |
 | Placement C++ | Claude | Z fix proven live |
 | SML packaging | open | last |
 
@@ -146,29 +146,62 @@ without disclosing the crossing.
 
 ## Progress, and what is actually proven
 
-**Proven live, measured:** the placement height fix. 974.7 cm of drift down to
-1 cm, in the owner's own save. The mechanism is confirmed: a Smelter whose
-terrain sat 13.8 cm below its requested height landed at asked+1 rather than
-surface+1, so the override beat the trace. The residual 1 cm is a constant
-pivot offset, uniform, so relative heights are exact. `snap_accepted` is false
-on every drifting placement, so snapping was never the cause.
+**Proven live, measured.**
 
-**Compiles and loads:** the mod at `1.0.0-beta.2` against CL 502094, clean, no
-ensures.
+*Placement heights.* 974.7 cm of drift down to 1 cm, in the owner's save. A
+Smelter whose terrain sat 13.8 cm below its requested height landed at
+asked+1 rather than surface+1, so the override beat the trace. The residual
+1 cm is a constant pivot offset, uniform, so relative heights are exact.
+`snap_accepted` is false on every drifting placement, so snapping was never
+the cause.
 
-**Not proven:** everything else added since — belt endpoint diagnostics,
-`snapped_building`, the wall-hole ordering fix, the panel's drift summary. All
-deployed, none exercised in a save.
+*Mega blueprints.* **94 buildings exported as one native `.sbp` through an
+MK2 designer and placed with the vanilla Build Gun.** `adopted 94, skipped 0`,
+`designer_left_empty: true`, `blueprint_readable_from_disc: true`,
+save_version 2, changelist 502094. The size cap does not apply because the
+buildings are never in the box — the designer is borrowed as a serialiser and
+told to forget them again before the call returns.
 
-**Known open faults:**
-- Belts still fail with `constructed_belt_endpoints_did_not_match_requested_components`.
-  `belt_connection_0_joined_to` / `_owner` now name the ports actually joined,
-  which should identify it on the next attempt.
-- Attachments needing a host (`FGCDMustSnapWall`) work when the host is in the
-  same design and ordered first; a wall hole whose host is *not* in the design
-  still has nothing to snap to.
+*Belts inside blueprints.* Fixed by consequence, not by design. Internal
+belts are serialised into the archive and rewired by the game's own loader,
+so they never touch our `place_belt` path. That bug is bypassed rather than
+fixed — but for the megabase workflow it is bypassed completely.
 
----
+**Compiles and loads:** `1.0.0-beta.2` against CL 502094, clean, no ensures.
+
+**Deployed but not exercised in a save:** the measured Z correction for
+self-offsetting holograms, the box preview selection, the belt endpoint
+diagnostics, `snapped_building`, the wall-hole ordering fix.
+
+**Known open faults.**
+
+- *Conveyor attachments mount a metre up.* A Conveyor Merger came back
+  +101 cm twice with `snap_accepted: false` and `snapped_building: "none"` —
+  a constant self offset, not a snap. A measured single-pass correction is
+  deployed and untested.
+- *A conveyor chain crash, unattributed.* `EXCEPTION_ACCESS_VIOLATION` in
+  `AFGConveyorChainActor::Factory_Tick` on a worker thread, 34 minutes after
+  an export, **no AIFactoryCopilot frame on the stack**. Could be the
+  adopt/release cycle touching live belts, could be the placed blueprint's own
+  wiring, could be one of 25 other mods. The test that separates them is an
+  export from a selection containing no belts.
+- *Ad-hoc belts* still fail with
+  `constructed_belt_endpoints_did_not_match_requested_components`. Only
+  belts *outside* a blueprint are affected.
+- *Attachments needing a host* work when the host is in the same selection
+  and ordered first; a wall hole whose host is absent has nothing to snap to.
+
+**The archive records the designer's dimensions, not the content's** — 5x5x5
+for 94 buildings. It placed correctly anyway, consistent with the hologram
+validating nothing, so the field looks like menu metadata. Untested at larger
+spreads.
+
+**Two crashes caused by me, both recorded on the noticeboard rather than
+tidied away.** `SetInsideBlueprintDesigner` is construction-time only and
+asserts on a live buildable; it would also have written a `SaveGame` field
+onto the owner's factory permanently. Public, matching signature, and a clean
+compile told me nothing about *when* the call was legal.
+
 
 ## The rebase Codex needs to know about
 

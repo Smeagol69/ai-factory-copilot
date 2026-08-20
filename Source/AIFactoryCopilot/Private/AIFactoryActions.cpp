@@ -864,12 +864,60 @@ namespace
             // Whether it took. Overriding the hit asks for a height; the
             // hologram is free to resolve its own, and a reply claiming the Z
             // was honoured is worth nothing unless the placed transform agrees.
-            const double AchievedZ = Hologram->GetActorLocation().Z;
-            const double DriftCm = AchievedZ - Requested.GetLocation().Z;
+            const double WantedZ = Requested.GetLocation().Z;
+            double DriftCm = Hologram->GetActorLocation().Z - WantedZ;
+
+            // Some holograms mount at a fixed offset from the surface they are
+            // given rather than sitting on it. A Conveyor Merger came back
+            // +101 cm twice, with snap_accepted false and snapped_building
+            // "none" -- nothing snapped it, it simply mounts a metre up, the
+            // way it would sit on a foundation. The capture recorded its real
+            // world position, so replaying that position made it add the mount
+            // offset a second time.
+            //
+            // Rather than keep a table of per-class offsets, which would be a
+            // guess that rots as the game changes, lower the hit by exactly the
+            // drift that was measured and let the hologram place again. This is
+            // the same discover-by-observation approach the yaw code above
+            // uses: it scrolls and reads the angle back instead of predicting
+            // the step size.
+            //
+            // One correction only. If a second pass does not converge the class
+            // is doing something this cannot model, and the honest outcome is
+            // to report the remaining drift rather than oscillate.
+            constexpr double ZToleranceCm = 1.0;
+            if (FMath::Abs(DriftCm) > ZToleranceCm)
+            {
+                Predicted->SetNumberField(
+                    TEXT("requested_z_first_pass_drift_cm"),
+                    FMath::RoundToDouble(DriftCm * 10.0) / 10.0);
+
+                Hit.ImpactPoint.Z -= DriftCm;
+                Hit.Location.Z -= DriftCm;
+                Hologram->UpdateHologramPlacement(Hit);
+
+                const double CorrectedDrift = Hologram->GetActorLocation().Z - WantedZ;
+                // Keep the correction only if it actually helped. A hologram
+                // that ignores the hit entirely would otherwise be left worse
+                // off than before it was touched.
+                if (FMath::Abs(CorrectedDrift) < FMath::Abs(DriftCm))
+                {
+                    DriftCm = CorrectedDrift;
+                    Predicted->SetBoolField(TEXT("requested_z_corrected"), true);
+                }
+                else
+                {
+                    Hit.ImpactPoint.Z += DriftCm;
+                    Hit.Location.Z += DriftCm;
+                    Hologram->UpdateHologramPlacement(Hit);
+                    Predicted->SetBoolField(TEXT("requested_z_correction_rejected"), true);
+                }
+            }
+
             Predicted->SetNumberField(
                 TEXT("requested_z_drift_cm"),
                 FMath::RoundToDouble(DriftCm * 10.0) / 10.0);
-            Predicted->SetBoolField(TEXT("requested_z_reached"), FMath::Abs(DriftCm) <= 1.0);
+            Predicted->SetBoolField(TEXT("requested_z_reached"), FMath::Abs(DriftCm) <= ZToleranceCm);
         }
 
         if (bRotationUnavailable)

@@ -3353,3 +3353,46 @@ I authored it through `node -e` inside bash, and bash ran the backticks as
 command substitution. I wrote that trap up after the first occurrence and
 then repeated it twice. The rule is not *be careful with backticks*; it is
 **never author prose through a shell argument**. Write a file and run it.
+
+### The readback caught one: Conveyor Mergers mount a metre up — Claude, 2026-08-20
+
+`requested_z_reached` was added so a claim could be checked rather than
+asserted. It has now earned that, on real placements:
+
+    Smelter           3717.7 -> 3718.7      +1   honoured
+    design            3740.9 -> 3740.9       0   honoured
+    Smelter           3817.9 -> 3818.9      +1   honoured
+    Conveyor Merger   3785.1 -> 3886.1    +101   asked, NOT reached
+    Conveyor Merger   3785.2 -> 3886.2    +101   asked, NOT reached
+
+Both mergers, both **exactly +101 cm**, both with `snap_accepted: false` and
+`snapped_building: "none"`. Nothing snapped them. It is a constant self
+offset, and the pre-fix data shows the same signature — a Conveyor Splitter
+and a Conveyor Merger each landing exactly +100 from their hit.
+
+Conveyor attachments mount a metre above the surface they are handed, which
+is how they sit on a foundation. The capture recorded the merger's real world
+position, so replaying that position made it add the mount offset a second
+time. The stray +1 on top is the universal pivot offset every building shows.
+
+**The fix measures rather than tabulates.** A per-class offset table would be
+a guess that rots as the game changes, and this project has been burned by
+exactly that kind of table before. Instead: place, read the drift back, lower
+the hit by precisely that drift, place again. It is the same
+discover-by-observation approach the yaw code above it already uses, which
+scrolls and reads the angle rather than predicting the step size.
+
+Three properties worth keeping when anyone touches this:
+
+- **One correction only.** A second pass that does not converge means the
+  class is doing something this cannot model, and reporting the residue
+  honestly beats oscillating.
+- **Kept only if it helped.** `requested_z_correction_rejected` undoes it when
+  the second placement is no better, so a hologram that ignores the hit
+  entirely is not left worse off than before it was touched.
+- **Both numbers reported.** `requested_z_first_pass_drift_cm` alongside the
+  final drift, so the correction is visible rather than hidden behind a
+  suddenly-good figure.
+
+Untested in a save. The build is deployed; the next design placement
+containing a splitter or merger will say whether it converges.
