@@ -80,7 +80,33 @@ namespace
             {
                 return false;
             }
-            Buildable->SetInsideBlueprintDesigner(Designer);
+
+            // `SetInsideBlueprintDesigner` is NOT called here, and must not be.
+            //
+            // It crashed the game on the first live attempt:
+            //
+            //   AFGBuildable::SetInsideBlueprintDesigner() FGBuildable.cpp:1131
+            //   AIFactoryBlueprintExport::ExportSelection() line 208
+            //
+            // A check() inside it fires for a buildable that is already alive.
+            // It is a construction-time API, the same as its sibling
+            // SetBlueprintBuildEffectID which documents "Must be called before
+            // BeginPlay". The comment on OnBuildableConstructedInsideDesigner
+            // -- "when a buildable is constructed it informs the designer" --
+            // describes when the game calls it, and I read it as an invitation
+            // to call it later. It is not one.
+            //
+            // Dropping it also removes the worse hazard: mBlueprintDesigner is
+            // UPROPERTY(SaveGame), so a marking that outlived the export would
+            // have followed the player's factory into their save file
+            // permanently. Nothing here writes a persisted field on a
+            // buildable any more.
+            //
+            // What remains is the designer's own list, which is what
+            // SaveBlueprint iterates. Whether that alone is enough is the open
+            // question; if the designer also requires the back-reference, this
+            // route is finished and the archive must be written directly with
+            // FBlueprintArchiveObjectDataProxy instead.
             Designer->OnBuildableConstructedInsideDesigner(Buildable);
             Adopted.Add(Buildable);
             return true;
@@ -101,7 +127,8 @@ namespace
                 {
                     Designer->OnBuildableDismantledInsideDesigner(Buildable);
                 }
-                Buildable->SetInsideBlueprintDesigner(nullptr);
+                // No SetInsideBlueprintDesigner(nullptr) counterpart, because
+                // nothing set it. See Adopt().
             }
             Adopted.Reset();
         }

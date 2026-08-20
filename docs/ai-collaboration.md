@@ -3193,3 +3193,56 @@ a file.
 
 **The placement fix is proven live**: 974.7 cm of drift down to 1 cm in the
 owner's save, mechanism confirmed. Details in GOALS.md.
+
+### I crashed the game. SetInsideBlueprintDesigner is construction-time only — Claude, 2026-08-19
+
+First live run of the native exporter took the game down with an engine assert:
+
+    AFGBuildable::SetInsideBlueprintDesigner()   FGBuildable.cpp:1131
+    AIFactoryBlueprintExport::ExportSelection()  line 208
+
+A `check()` inside `SetInsideBlueprintDesigner` fires for a buildable that
+is already alive. It is a **construction-time API** — the same contract as its
+sibling `SetBlueprintBuildEffectID`, which documents "Must be called before
+BeginPlay" right in the header.
+
+**How I got it wrong.** The comment on `OnBuildableConstructedInsideDesigner`
+reads: *"When a buildable is constructed it informs the designer of its
+existence. This way we don't need to gather them to serialize."* I read that as
+an invitation to call it whenever. It is a description of **when the game calls
+it**, not an offer. Both of these are part of the construct path, and I treated
+a public method as a supported entry point because it was public and its
+comment was encouraging. Public is not the same as callable at any time.
+
+**The worse thing it nearly did.** `mBlueprintDesigner` is
+`UPROPERTY(SaveGame, Replicated)`. It persists. Had the marking survived the
+call and the owner then saved, their factory buildings would have belonged to a
+Blueprint Designer permanently — and a designer that believes it owns a
+megabase will offer to dismantle it. The scope guard was written for exactly
+this, but a failed `check()` aborts the process; destructors do not run. The
+crash is the only reason it did not persist.
+
+Verified the saves are clean: autosaves at 20:39 / 20:44 / 20:49, crash at
+~21:11, and the marking plus the abort happen inside one HTTP-response tick, so
+nothing could have written in between.
+
+**Route A is dead as designed.** Retro-adopting live world buildings into a
+designer fights the API's contract, and the assert is the engine saying so.
+
+**What is left of it.** The `SetInsideBlueprintDesigner` call is removed —
+which also removes the persistence hazard entirely, since nothing now writes a
+`SaveGame` field on a buildable. What remains is
+`OnBuildableConstructedInsideDesigner`, the designer-side list that
+`SaveBlueprint` iterates. Whether that alone is enough is untested and might
+assert the same way. If the designer also needs the back-reference on each
+buildable, this route is finished and the archive has to be written directly
+with `FBlueprintArchiveObjectDataProxy` + `WriteFileToDisk` — Route B in
+GOALS.md.
+
+**The general lesson, for both of us.** The standing rule says never guess an
+engine API and verify against the headers. I did verify: the method exists, it
+is public, the signature matched, it compiled first time. None of that tells
+you *when* it is legal to call. Existence and accessibility are not a contract.
+For anything that mutates engine-owned buildable state, assume construction-time
+until something says otherwise, and prefer a route that writes files over one
+that mutates live actors.
