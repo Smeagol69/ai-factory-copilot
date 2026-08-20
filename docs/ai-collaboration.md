@@ -3246,3 +3246,102 @@ you *when* it is legal to call. Existence and accessibility are not a contract.
 For anything that mutates engine-owned buildable state, assume construction-time
 until something says otherwise, and prefer a route that writes files over one
 that mutates live actors.
+
+### Mega blueprints work. 94 buildings through an 8×8 designer — Claude, 2026-08-19
+
+The owner exported 94 marked buildings as one native `.sbp` and placed it with
+Satisfactory's own Build Gun. This is the feature.
+
+Recorded and verified:
+
+    adopted 94, skipped 0
+    designer_left_empty: true
+    blueprint_readable_from_disc: true
+    designer: Build_BlueprintDesigner_MK2_C
+    save_version 2 · changelist 502094 · 8 cost entries · 10,794 bytes
+
+**The size cap does not apply**, which is the whole point. 94 buildings do not
+fit in an MK2 designer's box; they were never in it. The designer is borrowed
+as a serialiser — it is told the buildings are its contents, `SaveBlueprint`
+runs the game's own archive writer over that list, and the designer is told to
+forget them again before the function returns.
+
+**The belts fixed themselves**, which nobody planned. Belts *inside* a
+blueprint are serialised into the archive and rewired by the game's own loader
+on placement, so they never touch our `place_belt` path — the one that has
+been failing with
+`constructed_belt_endpoints_did_not_match_requested_components` for weeks.
+That bug is not fixed; it is *bypassed*, for everything that travels inside a
+blueprint. Which for the megabase workflow is everything.
+
+Worth stating plainly: the placement itself is **not** in our logs, because it
+went through the vanilla Build Gun and never reached the mod. That absence is
+the confirmation. It is an ordinary blueprint in an ordinary menu now.
+
+**What attempt 2 changed.** Only `OnBuildableConstructedInsideDesigner` and
+`SaveBlueprint` are called. `SetInsideBlueprintDesigner` — the one that
+asserted and would have written a `SaveGame` field onto live factory
+buildings — is gone. The designer-side list alone is sufficient. That answers
+the question left open in the crash entry above: the designer does **not**
+need the back-reference on each buildable.
+
+**Route B is not needed for this.** The archive proxies stay documented in
+GOALS.md as the fallback, but the game's own serialiser is doing the work and
+there is no reason to reimplement it.
+
+**One real refusal, correct and worth knowing:**
+`hologram_disqualified:FGCDIntersectingBlueprintDesigner` — a blueprint
+cannot be placed overlapping a Blueprint Designer. Place away from it.
+
+**Still open, and it is the last big one:** the archive records
+`dimensions 5x5x5`, which is the *designer's* size, not the spread of the 94
+buildings. It placed correctly anyway, consistent with the finding that
+`AFGBlueprintHologram` validates nothing — the field looks like menu
+metadata. But it is untested at larger spreads, and a genuine megabase is the
+case that would expose it.
+
+**Next:** export a selection containing a miner. Nothing in the headers says
+whether an extractor survives a blueprint placement, and it is the one
+remaining unknown between here and the stated goal.
+
+### The web library is gone; the game menu is the library — Claude, 2026-08-19
+
+Owner: "we can remove the library section and all that fluff since we are
+going vanilla route keeping it all in the game UI." Correct — a native .sbp
+appears in Satisfactory own blueprint menu, so a second browsable list served
+over HTTP was duplicating the game.
+
+Removed:  (428 lines), its ,  and
+ routes, the  route and parser, the in-game
+**Library** button and , and the page test file.
+ moved into , where it belonged anyway — it
+answers "what will actually go down", a property of the design rather than of
+any way of showing it.
+
+**Kept: the saved-design system.** It is still the only path that can put a
+miner on a node, and the native route has not been proven to survive an
+extractor yet. Removing it now would delete a working capability before its
+replacement exists. It goes once that question is answered.
+
+**A removal mistake worth recording.** The first cut used a non-greedy regex
+anchored on the *next* section comment.  expanded straight past two
+intervening route blocks to reach that anchor and deleted **94 lines instead
+of 16**, taking the design retire and rename routes with it. Three tests went
+red, I restored from git and redid it line-based with brace counting, which
+cannot run past the block it started in. Regex across block boundaries is not
+safe for deletion; bound it structurally.
+
+The capability guard also earned itself here: it failed immediately because
+the advertised list still promised  after the route was
+gone. That is exactly the rot it exists to catch.
+
+**Second crash, unresolved.** An  in
+ on a worker thread, 34 minutes after the
+export, with a successful blueprint placement in between. **No AIFactoryCopilot
+frame on the stack.** I cannot attribute it. The plausible mechanism that is
+mine: the export adds and removes every selected buildable from a designer
+list, designer membership and conveyor-chain membership interact, and a live
+belt cycled through that could leave a chain holding a stale pointer. Equally
+plausible: the placed blueprint being wired by the game loader, or one of the
+25 other mods. The test that would separate them is an export from a selection
+containing no belts at all.

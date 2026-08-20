@@ -186,30 +186,6 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .AutoWidth()
                         .Padding(8.0f, 0.0f)
                         [
-                            // Opens the bridge's library page in the default
-                            // browser: saved designs and blueprints, each with
-                            // the phrase to say. The panel is Slate and draws
-                            // plain text, so a link inside the transcript would
-                            // not be clickable — a button is.
-                            // No tooltip. The one that was here outlived the
-                            // panel and followed the cursor around the world
-                            // with no way to dismiss it -- a Slate tooltip does
-                            // not go away just because the widget that owned it
-                            // was hidden. "Library" says what the button does,
-                            // so the tooltip was buying nothing anyway.
-                            SNew(SButton)
-                            .Text(FText::FromString(TEXT("Library")))
-                            .OnClicked_Lambda([this]()
-                            {
-                                FPlatformProcess::LaunchURL(
-                                    *ResolveLibraryUrl(), nullptr, nullptr);
-                                return FReply::Handled();
-                            })
-                        ]
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(8.0f, 0.0f)
-                        [
                             SNew(SButton)
                             .Text(FText::FromString(TEXT("Reset")))
                             .OnClicked_Lambda([this]()
@@ -315,31 +291,6 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
  * bridge to another port gets a button that still works. `/v1/ask` is the
  * endpoint; the library is served from the same origin's root.
  */
-FString UAIFactoryCopilotUISubsystem::ResolveLibraryUrl()
-{
-    const FString Configured = FAIFactorySettings::Load().BridgeUrl;
-
-    // Keep scheme://host:port and drop the path, using only FindChar/Mid/Left.
-    // An earlier attempt used FString::FindSubstring, which does not exist and
-    // was caught by the compiler -- the third engine API this project has
-    // guessed wrong, and the reason the rule is to verify first.
-    int32 ColonAt = INDEX_NONE;
-    if (Configured.FindChar(TEXT(':'), ColonAt))
-    {
-        const int32 HostStart = ColonAt + 3; // past "://"
-        if (HostStart < Configured.Len())
-        {
-            const FString AfterScheme = Configured.Mid(HostStart);
-            int32 PathStart = INDEX_NONE;
-            if (AfterScheme.FindChar(TEXT('/'), PathStart))
-            {
-                return Configured.Left(HostStart + PathStart + 1);
-            }
-            return Configured + TEXT("/");
-        }
-    }
-    return TEXT("http://127.0.0.1:8142/");
-}
 
 void UAIFactoryCopilotUISubsystem::TogglePanel()
 {

@@ -218,7 +218,7 @@ test("naming a thing still marks the thing, not the player", () => {
 });
 
 test("clearing holograms, overlays and opening the library all route locally", async () => {
-  const { parseClearHologramRequest, parseClearRequest, parseLibraryPageRequest } =
+  const { parseClearHologramRequest, parseClearRequest } =
     await import("../lib/router.mjs");
 
   // This route had never once fired: every \s+ in its pattern had lost its
@@ -246,13 +246,4 @@ test("clearing holograms, overlays and opening the library all route locally", a
     assert.deepEqual(parseClearRequest(question), { all: true }, question);
   }
 
-  // Written, exported, and then never called from any route -- the quietest
-  // way a feature can be missing, because everything about it looks present.
-  for (const question of [
-    "open the library",
-    "show me the library",
-    "where is the library page",
-  ]) {
-    assert.deepEqual(parseLibraryPageRequest(question), {}, question);
-  }
 });

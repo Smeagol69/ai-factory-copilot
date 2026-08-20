@@ -3,7 +3,6 @@ import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describeUnkeptPromise, WRITE_ACTION_KINDS } from "./lib/actions.mjs";
-import { buildLibraryModel, renderLibraryPage } from "./lib/library-page.mjs";
 import { listDesigns } from "./lib/designs.mjs";
 import { readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
@@ -578,33 +577,6 @@ export function createBridgeServer({ env = process.env } = {}) {
   return http.createServer(async (request, response) => {
     let admittedAskRequest = false;
     try {
-      // A browsable library, for the owner who wanted the game's blueprint
-      // panel. Read live so it never shows a stale copy of the folder.
-      if (request.method === "GET" && (request.url === "/" || request.url === "/library")) {
-        response.writeHead(200, {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "no-store",
-        });
-        response.end(renderLibraryPage());
-        return;
-      }
-
-      // The same library as data. The page polls this so a design saved in game
-      // appears without a reload, and so a refresh costs a few hundred bytes
-      // rather than the whole document.
-      if (request.method === "GET" && request.url === "/library.json") {
-        const model = buildLibraryModel({
-          designs: listDesigns(env),
-          blueprints: typeof listBlueprints === "function" ? listBlueprints() : [],
-        });
-        response.writeHead(200, {
-          "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "no-store",
-        });
-        response.end(JSON.stringify(model));
-        return;
-      }
-
       if (request.method === "GET" && request.url === "/health") {
         const sourcePolicy = resolveSourcePolicy(env);
         const sourceCapability = providerSourceCapability(provider, env, sourcePolicy);

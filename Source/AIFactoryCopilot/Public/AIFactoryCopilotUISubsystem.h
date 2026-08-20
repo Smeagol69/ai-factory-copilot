@@ -13,27 +13,6 @@ class SMultiLineEditableTextBox;
 class STextBlock;
 class SWidget;
 class UCommandSender;
-
-/**
- * Local, screenshot-free conversation panel. Insert toggles the panel and the
- * status strip follows the live pawn/crosshair while it is open.
- */
-UCLASS()
-class AIFACTORYCOPILOT_API UAIFactoryCopilotUISubsystem final : public UGameInstanceSubsystem
-{
-    GENERATED_BODY()
-
-public:
-    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-    virtual void Deinitialize() override;
-
-    void TogglePanel();
-
-    /**
-     * The bridge's library page, derived from the configured BridgeUrl so a
-     * moved bridge still gets a working button.
-     */
-    static FString ResolveLibraryUrl();
     void HidePanel();
     bool IsPanelVisible() const { return bPanelVisible; }
 

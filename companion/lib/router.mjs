@@ -64,10 +64,10 @@ import {
   listDesigns,
   planDesignPlacement,
   renameDesign,
+  summariseDesign,
   retireDesign,
   writeDesign,
 } from "./designs.mjs";
-import { buildLibraryModel } from "./library-page.mjs";
 import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
@@ -1189,14 +1189,6 @@ export function parseDesignListRequest(question) {
   return DESIGN_LIST.test(text) ? {} : null;
 }
 
-/** "open the library", "show me the library page". */
-const LIBRARY_PAGE =
-  /\b(?:open|show|launch|bring up|where(?:'s| is))\b[^?]*\b(?:librar(?:y|ies)|web ?page|ui|dashboard|browser)\b/i;
-
-export function parseLibraryPageRequest(question) {
-  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
-  return LIBRARY_PAGE.test(text) ? {} : null;
-}
 
 /**
  * "clone this 5 times", "copy this smelter 3 more times".
@@ -1495,13 +1487,12 @@ export const CAPABILITY_EXAMPLES = [
     "belt the smelter to the constructor",
     "clone this 5 times",
   ]],
-  ["Remember a layout and stamp it again", [
+  ["Save and stamp a layout", [
     "save this as mk1 copper",
     "place mk1 copper on this node rotated 90",
     "list designs",
     "rename mk1 copper to copper starter",
     "delete the mk1 copper design",
-    "open the library",
   ]],
   ["Fix and reverse", [
     "undo",
@@ -3243,22 +3234,6 @@ export function answerLocally(question, graph, services) {
     );
   }
 
-  // "open the library" — the page exists, the panel has a button for it, and
-  // until now asking for it in words reached a model. The parser was written
-  // and exported and then never called from anywhere, which is the quietest
-  // way a feature can be missing: everything about it looks present.
-  if (parseLibraryPageRequest(question)) {
-    const started = Date.now();
-    return localAnswer(
-      "The library is at <http://127.0.0.1:8142/library> — every saved design and " +
-        "every blueprint the game knows about, with a plan of each, and a copy button " +
-        "for the phrase that places it.\n\nThe **Library** button on this panel opens " +
-        "the same page in your browser.",
-      "library_page",
-      started,
-      "The bridge serves the page; nothing was sent to the game.",
-    );
-  }
 
   // "delete the mk2 design" — moved to a retired folder, never unlinked.
   const designRetire = parseDesignRetireRequest(question);
@@ -3343,7 +3318,7 @@ export function answerLocally(question, graph, services) {
     // the number here is the number that will actually go down. A design saved
     // before the capture separated links from buildings still carries its
     // belts and power lines on the buildings list.
-    const listed = buildLibraryModel({ designs, blueprints: [] }).designs;
+    const listed = designs.map(summariseDesign);
     return localAnswer(
       `You have **${designs.length}** saved design(s):\n\n` +
         listed

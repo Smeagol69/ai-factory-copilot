@@ -261,6 +261,27 @@ export function renameDesign(from, to, env = process.env) {
   return { renamed: true, from: matches[0].name, to: wanted };
 }
 
+/**
+ * A design's placeable count and its link count, for listing it honestly.
+ *
+ * This lived in the library page, which has been removed now that blueprints
+ * go straight into Satisfactory's own menu. The logic belongs here regardless:
+ * it answers "what will actually go down", which is a property of the design,
+ * not of any particular way of displaying it.
+ *
+ * A design saved before links were split off still carries its belts and power
+ * lines on the buildings list, so both eras count correctly.
+ */
+export function summariseDesign(design) {
+  const saved = Array.isArray(design?.buildings) ? design.buildings : [];
+  const placeable = saved.filter((entry) => !describeUnplaceableByCoordinate(entry.class_path));
+  return {
+    name: design?.name ?? null,
+    count: placeable.length,
+    links: saved.length - placeable.length + (Array.isArray(design?.links) ? design.links.length : 0),
+  };
+}
+
 export function listDesigns(env = process.env) {
   const directory = resolveDesignDirectory(env);
   if (!directory || !fs.existsSync(directory)) return [];
