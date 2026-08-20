@@ -807,8 +807,8 @@ export const SOLVER_TOOLS = [
               blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
               selection_source: {
                 type: "string",
-                enum: ["dismantle_selection"],
-                description: "export_native_blueprint: must be dismantle_selection; the game-side multi-select is the only v1 export source.",
+                enum: ["dismantle_selection", "box_selection"],
+                description: "export_native_blueprint: dismantle_selection for the game's own multi-select, or box_selection for a region the player sized and previewed. Never invent either; box_selection is refused unless the ids match a preview the player was shown.",
               },
               selected_actor_ids: {
                 type: "array",

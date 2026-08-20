@@ -68,6 +68,15 @@ import {
   retireDesign,
   writeDesign,
 } from "./designs.mjs";
+import {
+  clearPreview,
+  describeSelection,
+  lastPreview,
+  makeSelectionBox,
+  rememberPreview,
+  selectionBounds,
+  selectionContents,
+} from "./selection.mjs";
 import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
 import {
@@ -1257,6 +1266,53 @@ export function parseBlueprintPlaceRequest(question) {
   return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
 }
 
+
+/**
+ * "select 120 m around me", "make it 200 wide", "select 150 x 80 x 60 here".
+ *
+ * The owner asked for something like SMART!'s preview: set a size, see what
+ * would be caught, adjust, then commit. Clicking every piece of a megabase
+ * with the dismantle tool is not a workflow.
+ *
+ * Two shapes. The first sets a box; the second resizes the one already shown,
+ * which is the slider without a slider -- say a number, look, say another.
+ */
+const SELECT_BOX =
+  /^(?:can you |could you |please )?(?:select|preview|show|mark|box)\s+(?:everything\s+)?(?:within\s+|inside\s+|in\s+)?(\d{1,4})\s*m?\b(?:\s*(?:x|by|\*)\s*(\d{1,4})\s*m?\b)?(?:\s*(?:x|by|\*)\s*(\d{1,4})\s*m?\b)?/i;
+const SELECT_RESIZE =
+  /^(?:can you |could you |please )?(?:make it|resize(?:\s+it)?|set(?:\s+it)?(?:\s+to)?|now)\s+(\d{1,4})\s*m?\b|^(\d{1,4})\s*m?$/i;
+const SELECT_GROW =
+  /^(?:can you |could you |please )?(bigger|wider|larger|smaller|tighter|narrower|taller|shorter)\b/i;
+
+export function parseSelectBoxRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(SELECT_BOX);
+  if (!match) return null;
+  const width = Number(match[1]);
+  if (!Number.isFinite(width) || width <= 0) return null;
+  return {
+    width_m: width,
+    depth_m: match[2] ? Number(match[2]) : null,
+    height_m: match[3] ? Number(match[3]) : null,
+  };
+}
+
+export function parseSelectResizeRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const exact = text.match(SELECT_RESIZE);
+  if (exact) {
+    const width = Number(exact[1] ?? exact[2]);
+    return Number.isFinite(width) && width > 0 ? { width_m: width } : null;
+  }
+  const relative = text.match(SELECT_GROW);
+  if (!relative) return null;
+  const word = relative[1].toLowerCase();
+  // A step, not a jump: the point is to converge on a size by looking.
+  if (/bigger|wider|larger/.test(word)) return { scale: 1.5 };
+  if (/smaller|tighter|narrower/.test(word)) return { scale: 1 / 1.5 };
+  if (word === "taller") return { height_scale: 1.5 };
+  return { height_scale: 1 / 1.5 };
+}
 /**
  * "export this factory as blueprint Northern Steel Works".
  *
@@ -3333,12 +3389,119 @@ export function answerLocally(question, graph, services) {
     );
   }
 
+  // A box you set and can see before anything is written.
+  const selectBox = parseSelectBoxRequest(question);
+  const selectResize = lastPreview() ? parseSelectResizeRequest(question) : null;
+  if ((selectBox || selectResize) && graph) {
+    const started = Date.now();
+    const previous = lastPreview();
+
+    // Resizing keeps the centre it was already anchored on, so the box does
+    // not walk across the map every time the size changes.
+    const centre = previous?.box?.centre
+      ?? graph.snapshot?.interaction_context?.preferred_target?.hit_location
+      ?? graph.snapshot?.interaction_context?.player?.pawn_location;
+    if (!centre) {
+      return localAnswer(
+        "I do not know where to centre the selection — the capture reported no aim point and no player position.",
+        "selection_refused",
+        started,
+        "No anchor in the snapshot.",
+      );
+    }
+
+    const sizes = selectBox
+      ? selectBox
+      : {
+          width_m: Math.round((previous.box.size_m.width) * (selectResize.scale ?? 1)),
+          depth_m: Math.round((previous.box.size_m.depth) * (selectResize.scale ?? 1)),
+          height_m: Math.round((previous.box.size_m.height) * (selectResize.height_scale ?? 1)),
+        };
+    if (selectResize?.width_m) {
+      sizes.width_m = selectResize.width_m;
+      sizes.depth_m = selectResize.width_m;
+    }
+
+    const box = makeSelectionBox({ centre, ...sizes });
+    if (!box) {
+      return localAnswer("That is not a size I can make a box from.", "selection_refused", started, "Bad extents.");
+    }
+
+    const { buildings, skipped } = selectionContents(graph, box);
+    if (buildings.length === 0) {
+      rememberPreview(box, [], graph.world_revision);
+      return localAnswer(
+        `Nothing is inside a ${box.size_m.width} × ${box.size_m.depth} × ${box.size_m.height} m box there. ` +
+          "Say a bigger number, or stand somewhere else and try again.",
+        "selection_preview",
+        started,
+        "Counted from the capture, which only knows what was scanned.",
+      );
+    }
+
+    rememberPreview(box, buildings, graph.world_revision);
+    const bounds = selectionBounds(buildings);
+
+    // The preview is the consent: these exact ids are lit up, and these exact
+    // ids are what an export would serialise.
+    emitValidatedPlan(graph, services, [{
+      action: "highlight",
+      overlay: "selection",
+      actor_ids: buildings.map((entry) => entry.actor_id),
+      radius_m: 1,
+      commit: true,
+    }]);
+
+    return localAnswer(
+      `**${buildings.length}** buildings inside a ${box.size_m.width} × ${box.size_m.depth} × ` +
+        `${box.size_m.height} m box, lit up in the world now.` +
+        (bounds ? ` They actually span ${bounds.span_m.x} × ${bounds.span_m.y} × ${bounds.span_m.z} m.` : "") +
+        `\n\n${describeSelection(buildings)}` +
+        (skipped.length > 0 ? `\n\n${skipped.length} left out: ${skipped[0].why}.` : "") +
+        '\n\nSay a number to resize, "bigger"/"smaller"/"taller", or ' +
+        '"export this selection as blueprint <name>" when it looks right.',
+      "selection_preview",
+      started,
+      "The highlight shows exactly the set an export would serialise.",
+    );
+  }
+
   // "export this factory as blueprint X" — unlike a saved design, this asks
   // the game to write a native .sbp. Exact dismantle-tool membership is the
   // boundary; never substitute the crosshair or a radius for a whole factory.
   const nativeBlueprintExport = parseNativeBlueprintExportRequest(question);
   if (nativeBlueprintExport && graph) {
     const started = Date.now();
+    // A previewed box wins over the dismantle tool when one is live: the
+    // player just looked at it, so it is the more recent statement of intent.
+    const preview = lastPreview();
+    if (preview && preview.actor_ids.length > 0) {
+      const emittedBox = emitValidatedPlan(graph, services, [{
+        action: "export_native_blueprint",
+        blueprint_name: nativeBlueprintExport.name,
+        selection_source: "box_selection",
+        selected_actor_ids: preview.actor_ids,
+        commit: true,
+      }]);
+      if (emittedBox) {
+        const size = preview.box.size_m;
+        const count = preview.actor_ids.length;
+        clearPreview();
+        return localAnswer(
+          `Exporting the **${count}** buildings you previewed ` +
+            `(${size.width} × ${size.depth} × ${size.height} m) as **${nativeBlueprintExport.name}**. ` +
+            "Only the game can say whether an .sbp was written; its action result will.",
+          "native_blueprint_export",
+          started,
+          "Exactly the set that was highlighted; nothing was added to it.",
+        );
+      }
+      const refusedBox = describePlanRejection();
+      if (refusedBox) {
+        return localAnswer(refusedBox, "native_blueprint_export_refused", started, "Refused before anything ran.");
+      }
+    }
+
     const selection = graph.snapshot?.interaction_context?.dismantle_selection;
     if (selection?.available !== true) {
       return localAnswer(

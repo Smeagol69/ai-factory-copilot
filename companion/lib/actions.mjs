@@ -13,6 +13,7 @@
  */
 
 import { distanceMeters } from "./graph.mjs";
+import { lastPreview } from "./selection.mjs";
 
 /**
  * How many actions one reply may carry.
@@ -602,11 +603,46 @@ export function validateAction(graph, proposal) {
     // Do not accept a model-proposed box, radius, or arbitrary actor list.
     // The player made this selection in the game's own multi-select tool, and
     // its captured membership is the only source this action serialises.
-    if (proposal.selection_source !== "dismantle_selection") {
-      return reject(kind, "native_blueprint_export_requires_dismantle_selection");
+    // Two sources, both player-made. The dismantle tool is the game's own
+    // multi-select. A box selection is one the player sized and saw lit up in
+    // their world before confirming -- the preview is the consent, and it is
+    // verified here against what was actually shown rather than trusted from
+    // the proposal. A model still cannot invent a region: ids that were never
+    // previewed are refused exactly as an arbitrary list always was.
+    if (proposal.selection_source === "box_selection") {
+      const preview = lastPreview();
+      if (!preview || preview.actor_ids.length === 0) {
+        return reject(kind, "box_selection_requires_a_preview_first");
+      }
+      const shown = new Set(preview.actor_ids);
+      const asked = Array.isArray(proposal.selected_actor_ids) ? proposal.selected_actor_ids : [];
+      const unseen = asked.filter((id) => !shown.has(String(id)));
+      if (asked.length === 0 || unseen.length > 0) {
+        return reject(kind, "box_selection_must_match_what_was_previewed", {
+          previewed: preview.actor_ids.length,
+          requested: asked.length,
+          not_previewed: unseen.length,
+        });
+      }
+    } else if (proposal.selection_source !== "dismantle_selection") {
+      return reject(kind, "native_blueprint_export_requires_a_player_made_selection");
     }
-    const selection = resolveNativeBlueprintExportSelection(graph, proposal.selected_actor_ids);
-    if (!selection.ok) return reject(kind, selection.reason, selection);
+    // Each source resolves its own way. The dismantle resolver checks the
+    // proposal against the capture's live multi-select, which a previewed box
+    // does not have and never will -- running it here refused every box
+    // export with `dismantle_selection_is_not_available`.
+    let selection;
+    if (proposal.selection_source === "box_selection") {
+      const previewed = lastPreview();
+      selection = {
+        ok: true,
+        actorIds: proposal.selected_actor_ids.map((id) => String(id)),
+        bounds: previewed?.box ?? null,
+      };
+    } else {
+      selection = resolveNativeBlueprintExportSelection(graph, proposal.selected_actor_ids);
+      if (!selection.ok) return reject(kind, selection.reason, selection);
+    }
 
     warnings.push(
       "This is a request to the native game-side exporter, not proof that an .sbp was written. " +
@@ -618,7 +654,7 @@ export function validateAction(graph, proposal) {
       warnings,
       checks: {
         ...checks,
-        selection_source: "dismantle_selection",
+        selection_source: proposal.selection_source,
         selected_actor_count: selection.actorIds.length,
         captured_selection_bounds_cm: selection.bounds,
         bounds_are_capture_evidence_only: true,
@@ -629,7 +665,7 @@ export function validateAction(graph, proposal) {
         {
           action: kind,
           blueprint_name: name,
-          selection_source: "dismantle_selection",
+          selection_source: proposal.selection_source,
           selected_actor_ids: selection.actorIds,
           selected_actor_count: selection.actorIds.length,
           // The executor must recompute this from the live actors. Carrying the

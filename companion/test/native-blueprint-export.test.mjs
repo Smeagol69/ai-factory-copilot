@@ -102,7 +102,7 @@ test("a model cannot replace, subset, or invent the player's export selection", 
   }
   assert.equal(
     validateAction(graph, exportProposal({ selection_source: "radius" })).reason,
-    "native_blueprint_export_requires_dismantle_selection",
+    "native_blueprint_export_requires_a_player_made_selection",
   );
 });
 
@@ -175,7 +175,7 @@ test("the model-facing action schema exposes only the selection contract, not a 
   const performActions = SOLVER_TOOLS.find((tool) => tool.name === "perform_actions");
   const item = performActions.parameters.properties.actions.items;
   assert.ok(item.properties.action.enum.includes("export_native_blueprint"));
-  assert.deepEqual(item.properties.selection_source.enum, ["dismantle_selection"]);
+  assert.deepEqual(item.properties.selection_source.enum, ["dismantle_selection", "box_selection"]);
   assert.match(item.properties.selected_actor_ids.description, /exactly once/i);
   assert.equal(item.properties.captured_selection_bounds_cm, undefined);
   assert.equal(item.properties.radius_cm, undefined);
@@ -215,4 +215,37 @@ test("widening the export verb does not steal a design save", async () => {
     assert.equal(parseNativeBlueprintExportRequest(question), null, question);
     assert.ok(parseDesignSaveRequest(question), `${question} should still be a design save`);
   }
+});
+
+test("a box selection is refused unless it is one the player was shown", async () => {
+  // Codex's rule was "do not accept a model-proposed box, radius, or arbitrary
+  // actor list", and it still holds. What changed is that a box the *player*
+  // sized and saw highlighted is no longer indistinguishable from one a model
+  // invented: the validator checks the ids against the live preview instead of
+  // believing the proposal.
+  const { validatePlan } = await import("../lib/actions.mjs");
+  const { clearPreview, rememberPreview } = await import("../lib/selection.mjs");
+  const graph = { world_revision: 1, nodes: new Map(), snapshot: { content: { recipes: [] } } };
+
+  const propose = (ids) => validatePlan(graph, [{
+    action: "export_native_blueprint",
+    blueprint_name: "invented",
+    selection_source: "box_selection",
+    selected_actor_ids: ids,
+    commit: true,
+  }]);
+
+  // Nothing previewed: refused outright.
+  clearPreview();
+  assert.equal(propose(["A", "B"]).rejected[0].reason, "box_selection_requires_a_preview_first");
+
+  // Previewed, but the proposal names something that was never shown.
+  rememberPreview({ size_m: { width: 10, depth: 10, height: 10 } }, [{ actor_id: "A" }], 1);
+  const smuggled = propose(["A", "B"]).rejected[0];
+  assert.equal(smuggled.reason, "box_selection_must_match_what_was_previewed");
+  assert.equal(smuggled.not_previewed, 1);
+
+  // Exactly what was shown is allowed.
+  assert.equal(propose(["A"]).valid, true);
+  clearPreview();
 });
