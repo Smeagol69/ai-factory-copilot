@@ -88,6 +88,19 @@ private:
     bool bSelectionAnchored = false;
     /** The exact ids currently lit up, and therefore the exact ids an export writes. */
     TArray<FString> SelectionActorIds;
+    /**
+     * Lightweight instances caught by the same box.
+     *
+     * Foundations and walls are not actors -- the subsystem owns them as
+     * instance data -- so they are counted and removed through a separate
+     * path. Kept as class plus index because that pair is what the
+     * subsystem addresses them by; a pointer would be meaningless.
+     */
+    TArray<TPair<TSubclassOf<class AFGBuildable>, int32>> SelectionLightweight;
+    int32 LightweightCount = 0;
+    /** Demolish is destructive, so it arms on the first click and fires on the second. */
+    double DemolishArmedAt = 0.0;
+    void DemolishSelection();
 
     TSharedRef<SWidget> BuildSelectionSection();
     /** Re-query the box, repaint the highlight, update the count. */

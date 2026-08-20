@@ -3457,3 +3457,65 @@ three build cycles already.
 **Still open on the UI:** a blueprint list in-game with a button to arm one
 in the Build Gun (the parser and RCO now exist, the panel does not), settings
 for scan radius and provider, and the Insert key being hardcoded.
+
+### Half the world is not actors — Claude, 2026-08-20
+
+A box drawn over a whole glass-and-steel building exported a blueprint that
+showed nothing in the hologram. The archive was 43,791 bytes, so it was not
+empty; the hologram was telling the truth about what was in it.
+
+**Satisfactory converts foundations, walls and similar into lightweight
+instances** owned by `AFGLightweightBuildableSubsystem`. They are not actors.
+`TActorIterator<AFGBuildable>` -- which both the selection box and the
+snapshot use -- cannot see them at all.
+
+The evidence: a snapshot taken six minutes after the export, 250 m radius,
+centred on the player standing at the building, contained **three**
+buildables. A designer, a storage blueprint, one foundation. The entire
+structure was invisible.
+
+The header says why the vanilla workflow never trips over this:
+
+    ShouldConvertToLightweight() const {
+      return ... && mBlueprintDesigner == nullptr;
+    }
+
+A building inside a designer is **exempt** from conversion. Borrowing the
+designer from outside walks straight into the case the game never has to
+handle. Codex hit the same wall from the other side -- `f578d89 Accept
+lightweight-only blueprint proxies` -- and solved it for *placement*. Nobody
+had solved it for *capture*.
+
+It also explains the first successful export: those 94 were machines and
+belts, which stay actors. Anything structural was silently absent, and the
+count said 94 because 94 is what the iterator found.
+
+**The fix for the preview** uses the subsystem's own public table,
+`GetAllLightweightBuildableInstances()`, which returns every instance grouped
+by class with a `Transform` on each -- all a box test needs. The count line
+now reads "180 structure (168 lightweight)" so the blindness is visible
+rather than silent.
+
+**The export is not fixed yet.** It takes `TArray<AFGBuildable*>` and these
+are not actors. `FindOrSpawnBuildableForRuntimeData` returns an
+`FInstanceToTemporaryBuildable` holding a real buildable, which is the
+documented route -- but those are *temporary*, pooled and recycled by
+`ReturnBuildableToPool` and `RemoveStaleTemporaryBuildables`. Adopting one
+into a designer mid-export is the same shape as the two crashes already in
+this log, so it waits until the corrected count proves the query works.
+
+**Demolish**, on request. Destructive, so: arms on the first click and fires
+on the second within five seconds, with the count on screen while deciding;
+dismantles through `IFGDismantleInterface` so materials are refunded rather
+than `Destroy()` eating them; gathers actors before removing any, because
+removing while iterating is how you get the stale pointer this log already
+has one unexplained crash of; and removes lightweight instances highest index
+first, since removing one shifts every index above it.
+
+**Two corrections.** I said the cause was "confirmed by elimination" after
+ruling out one of two theories I had invented -- the real cause was a third
+thing I had not considered, and elimination between two guesses is not
+evidence. And I wrote a script that scanned archives for coordinate-like
+doubles; it reported the same spread for known-good blueprints as for the
+broken one, so it discriminated nothing. Deleted rather than left around
+producing confident numbers that mean nothing.

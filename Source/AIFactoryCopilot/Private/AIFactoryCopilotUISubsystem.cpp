@@ -1,4 +1,6 @@
 #include "AIFactoryCopilotUISubsystem.h"
+#include "FGDismantleInterface.h"
+#include "FGLightweightBuildableSubsystem.h"
 #include "Widgets/Input/SSlider.h"
 #include "EngineUtils.h"
 #include "Buildables/FGBuildable.h"
@@ -776,6 +778,33 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
         }
     }
 
+    // The other half of the world. Foundations and walls are converted to
+    // lightweight instances and are not actors, so the iterator above cannot
+    // see them -- a box over a whole building found three things and wrote a
+    // blueprint that looked empty in the hologram.
+    SelectionLightweight.Reset();
+    LightweightCount = 0;
+    if (AFGLightweightBuildableSubsystem* Lightweight =
+            AFGLightweightBuildableSubsystem::Get(World))
+    {
+        for (const auto& Pair : Lightweight->GetAllLightweightBuildableInstances())
+        {
+            const TArray<FRuntimeBuildableInstanceData>& Instances = Pair.Value;
+            for (int32 Index = 0; Index < Instances.Num(); ++Index)
+            {
+                const FVector Offset = Instances[Index].Transform.GetLocation() - SelectionCentre;
+                if (FMath::Abs(Offset.X) > Half.X ||
+                    FMath::Abs(Offset.Y) > Half.Y ||
+                    FMath::Abs(Offset.Z) > Half.Z)
+                {
+                    continue;
+                }
+                SelectionLightweight.Add(TPair<TSubclassOf<AFGBuildable>, int32>(Pair.Key, Index));
+                ++LightweightCount;
+                ++Structural;
+            }
+        }
+    }
     FAIFactoryOverlayQuery Query;
     Query.ActorIds = SelectionActorIds;
     // MaxResults caps the draw, so it has to admit everything the box caught
@@ -800,9 +829,10 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
     if (SelectionCountText.IsValid())
     {
         SelectionCountText->SetText(FText::FromString(FString::Printf(
-            TEXT("%d buildings  |  %d structure, %d machines  |  %.0f x %.0f x %.0f m"),
-            SelectionActorIds.Num(),
+            TEXT("%d buildings  |  %d structure (%d lightweight), %d machines  |  %.0f x %.0f x %.0f m"),
+            SelectionActorIds.Num() + LightweightCount,
             Structural,
+            LightweightCount,
             Machines,
             SelectionWidthM,
             SelectionDepthM,
@@ -1048,6 +1078,19 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             .Padding(6.0f, 0.0f, 0.0f, 0.0f)
             [
                 SNew(SButton)
+                .Text(FText::FromString(TEXT("Demolish")))
+                .ButtonColorAndOpacity(FLinearColor(0.62f, 0.16f, 0.12f, 1.0f))
+                .OnClicked_Lambda([this]()
+                {
+                    DemolishSelection();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
                 .Text(FText::FromString(TEXT("Clear")))
                 .OnClicked_Lambda([this]()
                 {
@@ -1056,4 +1099,101 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                 })
             ]
         ];
+}
+
+/**
+ * Dismantle everything in the selection.
+ *
+ * The most destructive thing in this mod, so it arms rather than fires: the
+ * first click reports what would go and starts a five second window, the
+ * second click inside that window does it. A single misclick cannot delete a
+ * base, and the count is on screen while deciding.
+ *
+ * Dismantled, not destroyed. IFGDismantleInterface refunds the materials the
+ * way the player's own dismantle tool does; Destroy() would silently eat
+ * them.
+ */
+void UAIFactoryCopilotUISubsystem::DemolishSelection()
+{
+    const int32 Total = SelectionActorIds.Num() + LightweightCount;
+    if (Total == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected."));
+        return;
+    }
+
+    const double Now = FPlatformTime::Seconds();
+    if (DemolishArmedAt <= 0.0 || (Now - DemolishArmedAt) > 5.0)
+    {
+        DemolishArmedAt = Now;
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(
+            TEXT("Demolish will dismantle %d buildings (%d of them lightweight). ")
+            TEXT("Click Demolish again within five seconds to confirm. Materials are refunded."),
+            Total,
+            LightweightCount));
+        return;
+    }
+    DemolishArmedAt = 0.0;
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World))
+    {
+        return;
+    }
+
+    int32 RemovedActors = 0;
+    TSet<FString> Wanted(SelectionActorIds);
+    TArray<AFGBuildable*> Doomed;
+    for (TActorIterator<AFGBuildable> It(World); It; ++It)
+    {
+        AFGBuildable* Buildable = *It;
+        if (IsValid(Buildable) && Wanted.Contains(Buildable->GetPathName()))
+        {
+            Doomed.Add(Buildable);
+        }
+    }
+    // Gathered first, then dismantled: removing actors while iterating the
+    // world is how you get a stale pointer, and this file has already seen
+    // one conveyor-chain crash of exactly that shape.
+    for (AFGBuildable* Buildable : Doomed)
+    {
+        if (!IsValid(Buildable))
+        {
+            continue;
+        }
+        if (Buildable->GetClass()->ImplementsInterface(UFGDismantleInterface::StaticClass()))
+        {
+            IFGDismantleInterface::Execute_Dismantle(Buildable);
+            ++RemovedActors;
+        }
+    }
+
+    // Lightweight instances go through their own handle. Highest index first,
+    // because removing one shifts every index above it in that class's array.
+    int32 RemovedLightweight = 0;
+    if (AFGLightweightBuildableSubsystem* Lightweight =
+            AFGLightweightBuildableSubsystem::Get(World))
+    {
+        SelectionLightweight.Sort([](const TPair<TSubclassOf<AFGBuildable>, int32>& A,
+                                     const TPair<TSubclassOf<AFGBuildable>, int32>& B)
+        {
+            return A.Value > B.Value;
+        });
+        for (const TPair<TSubclassOf<AFGBuildable>, int32>& Entry : SelectionLightweight)
+        {
+            FLightweightBuildableInstanceRef Ref;
+            Ref.Initialize(Lightweight, Entry.Key, Entry.Value);
+            if (Ref.IsValid() && Ref.Remove())
+            {
+                ++RemovedLightweight;
+            }
+        }
+    }
+
+    AppendTranscript(TEXT("COPILOT"), FString::Printf(
+        TEXT("Dismantled %d buildings and %d lightweight pieces. Materials refunded where they fit."),
+        RemovedActors,
+        RemovedLightweight));
+    ClearSelectionPreview();
 }
