@@ -3396,3 +3396,64 @@ Three properties worth keeping when anyone touches this:
 
 Untested in a save. The build is deployed; the next design placement
 containing a splitter or merger will say whether it converges.
+
+### The UI the owner asked for, three sessions late — Claude, 2026-08-20
+
+Owner: "what happened about the new UI i mentioned". Nothing had. They asked
+for the mod to "act like a mod with UI and QOL" at the start, and every
+session after that I took the concrete blocker in front of me -- the Z fix,
+the crash, the exporter, the belts -- because the UI was never the thing
+*stopping* anything. That is a bad reason. It is item one of four goals and it
+is the difference between a tool someone runs and a mod someone installs.
+
+**A selection panel.** Three sliders (W/D/H), a live count, a name box, and
+**Save blueprint**, in the copilot panel.
+
+The decision that matters: **it never touches the bridge**. A drag queries
+actors, repaints the overlay, and updates the count entirely in C++. An HTTP
+round trip per slider frame would never feel like a slider. The export button
+calls `AIFactoryBlueprintExport::ExportSelection` directly for the same
+reason -- the ids are already resolved locally, and a round trip could only
+lose or stale them.
+
+Details with reasons:
+
+- The slider is **quadratic**, 5 m to 1 km. Linear would spend most of its
+  travel in sizes nobody wants; a factory selection is tens of metres and
+  occasionally hundreds.
+- The box **anchors on first use**, so dragging grows it around where the
+  player was standing rather than following them across the map.
+- `MaxResults` is set to the full count deliberately. If the draw capped, the
+  highlight would show *less* than an export writes, and that equality is the
+  only thing that lets a preview stand in for marking each piece by hand.
+- Export **re-resolves every id first and refuses if any are gone**, rather
+  than serialising a blueprint quietly missing pieces.
+- Amber, so a selection reads differently from the green search overlay.
+
+**Graceful offline, which is what makes it shippable.** A player with no
+companion running was told to "start companion/server.mjs and verify
+AIFactoryCopilot.cfg" -- meaningless to someone who installed this from a mod
+manager. The status line now says **"Assistant offline — sliders and Save
+blueprint still work"**, which is true: half this mod is pure C++ and needs no
+bridge at all. That is the difference between a mod someone keeps and one they
+uninstall on first launch.
+
+**Codex's preview lane is merged.** The conflict I flagged as needing a
+human turned out to be positional, not semantic: both lanes appended a branch
+to the same validator chain and touched the `ACTION_KINDS` region, but
+`preview_blueprint` (arms the Build Gun) and `export_native_blueprint`
+(writes a file) do not overlap at all. Merged by taking Codex's three
+additions and placing them beside mine rather than replaying a diff. The
+`AIFactorySubsystem.cpp` half applied cleanly with `git apply --3way`, and the
+four RCO/module files came across untouched. 710 tests pass and
+`preview the Coal power plant blueprint` parses.
+
+**One caught before it cost a build cycle.** `AIFactoryOverlay::Draw` takes
+five parameters -- World, Player, OverlayName, Query, Style -- and my first
+draft called it with three. Checked against the header before compiling,
+which is the rule that exists because ignoring it has cost two crashes and
+three build cycles already.
+
+**Still open on the UI:** a blueprint list in-game with a button to arm one
+in the Build Gun (the parser and RCO now exist, the panel does not), settings
+for scan radius and provider, and the Insert key being hardcoded.

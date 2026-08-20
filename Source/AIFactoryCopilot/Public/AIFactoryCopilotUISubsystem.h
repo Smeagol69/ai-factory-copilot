@@ -51,6 +51,52 @@ private:
     bool bPreviousShowMouseCursor = false;
     bool bSuppressedGameInput = false;
     bool bFocusInputOnNextTick = false;
+    /**
+     * Whether the assistant half is actually there.
+     *
+     * Tracked so the panel can say "assistant offline" instead of "Ready"
+     * when no companion is running. The selection and export half needs no
+     * bridge, so an offline panel is degraded rather than broken -- which is
+     * the difference between a mod someone keeps installed and one they
+     * uninstall on the first launch.
+     */
+    bool bBridgeEverTried = false;
+    bool bBridgeAnswered = false;
+
+    /**
+     * The box selection, as a panel rather than as a sentence.
+     *
+     * The owner asked for "a slider, and it shows a preview of what's going to
+     * be saved", so clicking a megabase piece by piece with the dismantle tool
+     * is not the only way in. Everything here is deliberately local: the world
+     * is right there, so a drag queries actors and repaints the highlight
+     * without a bridge round trip. An HTTP call per slider frame would never
+     * feel like a slider.
+     */
+    TSharedPtr<class SSlider> WidthSlider;
+    TSharedPtr<class SSlider> DepthSlider;
+    TSharedPtr<class SSlider> HeightSlider;
+    TSharedPtr<STextBlock> SelectionCountText;
+    TSharedPtr<class SEditableTextBox> BlueprintNameBox;
+
+    /** Metres, full extent rather than half: "100" means 100 m across. */
+    float SelectionWidthM = 60.0f;
+    float SelectionDepthM = 60.0f;
+    float SelectionHeightM = 40.0f;
+    /** Where the box is anchored. Set when the player first opens a preview. */
+    FVector SelectionCentre = FVector::ZeroVector;
+    bool bSelectionAnchored = false;
+    /** The exact ids currently lit up, and therefore the exact ids an export writes. */
+    TArray<FString> SelectionActorIds;
+
+    TSharedRef<SWidget> BuildSelectionSection();
+    /** Re-query the box, repaint the highlight, update the count. */
+    void RefreshSelectionPreview();
+    void ClearSelectionPreview();
+    void ExportSelectionAsBlueprint();
+    /** Slider position 0..1 mapped to a usable range of metres. */
+    static float SliderToMetres(float Normalised);
+    static float MetresToSlider(float Metres);
 
     void BuildPanel();
     void ShowPanel();

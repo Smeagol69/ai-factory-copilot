@@ -1244,6 +1244,20 @@ export function parseCloneRequest(question) {
 const BLUEPRINT_PLACE =
   /^(?:can you |could you |please )?(?:place|put|drop|spawn|stamp)\s+(?:down\s+)?(?:the\s+|a\s+|an\s+|my\s+)?(.+?)(?:\s+blue\s?print)?\s+(?:here|down|at this|on this|where i(?:'m|m| am)?\s+(?:looking|standing|aiming))$/i;
 
+const BLUEPRINT_PREVIEW =
+  /^(?:can you |could you |please )?(?:preview|arm|select)\s+(?:the\s+|a\s+|an\s+|my\s+)?(.+?)(?:\s+blue\s?print)?(?:\s+(?:in|with)\s+(?:my\s+)?build\s?gun)?$/i;
+export function parseBlueprintPreviewRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || !/\b(?:blue\s?print|build\s?gun)\b/i.test(text)) return null;
+  const match = text.match(BLUEPRINT_PREVIEW);
+  if (!match) return null;
+  const name = match[1]
+    .replace(/\bblue\s?print\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name.length >= 2 ? { name } : null;
+}
+
 export function parseBlueprintPlaceRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   // A real blueprint turns too, and it costs nothing to support: the action

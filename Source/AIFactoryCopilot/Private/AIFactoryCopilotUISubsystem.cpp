@@ -1,4 +1,9 @@
 #include "AIFactoryCopilotUISubsystem.h"
+#include "Widgets/Input/SSlider.h"
+#include "EngineUtils.h"
+#include "Buildables/FGBuildable.h"
+#include "AIFactoryOverlay.h"
+#include "AIFactoryBlueprintExport.h"
 
 #include "AIFactorySettings.h"
 #include "AIFactorySnapshot.h"
@@ -234,6 +239,12 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                                 ? FLinearColor(1.0f, 0.58f, 0.16f, 1.0f)
                                 : FLinearColor(0.62f, 0.68f, 0.73f, 1.0f))
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+                    ]
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+                    [
+                        BuildSelectionSection()
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -560,9 +571,21 @@ bool UAIFactoryCopilotUISubsystem::AreWriteActionsEnabled() const
 
 FString UAIFactoryCopilotUISubsystem::GetReadyStatus() const
 {
+    // Two halves, because half of this mod does not need the assistant at all.
+    //
+    // The selection sliders and the blueprint export are entirely local C++:
+    // they read the world, draw the overlay, and call the serialiser without a
+    // single HTTP request. Someone who installs this from SML and never sets up
+    // the companion still gets unrestricted mega blueprints, and the panel
+    // should say so rather than reading as broken.
+    const FString Keys = TEXT("Enter sends | Shift+Enter new line | Insert or Esc closes");
+    if (!bBridgeAnswered && bBridgeEverTried)
+    {
+        return TEXT("Assistant offline — sliders and Save blueprint still work | ") + Keys;
+    }
     return AreWriteActionsEnabled()
-        ? TEXT("Ready | WRITES ENABLED | Enter sends | Shift+Enter new line | Insert or Esc closes")
-        : TEXT("Ready | advisory/read-only | Enter sends | Shift+Enter new line | Insert or Esc closes");
+        ? TEXT("Ready | WRITES ENABLED | ") + Keys
+        : TEXT("Ready | advisory/read-only | ") + Keys;
 }
 
 void UAIFactoryCopilotUISubsystem::RefreshReadyStatus()
@@ -634,6 +657,10 @@ void UAIFactoryCopilotUISubsystem::HandleBridgeResult(
 
     PendingSender.Reset();
     bWaitingForAnswer = false;
+    // Remember whether the assistant half is actually reachable, so the
+    // status line can distinguish "offline" from "broken".
+    bBridgeEverTried = true;
+    bBridgeAnswered = bSuccess;
     const FString Speaker = bSuccess
         ? FString::Printf(TEXT("COPILOT  [%s / %s]"), *Provider, *Model)
         : TEXT("COPILOT ERROR");
@@ -655,4 +682,378 @@ void UAIFactoryCopilotUISubsystem::HandleBridgeResult(
         FSlateApplication::Get().SetAllUserFocus(InputBox, EFocusCause::SetDirectly);
         FSlateApplication::Get().SetKeyboardFocus(InputBox, EFocusCause::SetDirectly);
     }
+}
+
+/**
+ * Slider position to metres.
+ *
+ * Not linear: a factory selection is usually tens of metres and occasionally
+ * hundreds, so a linear 1..1000 slider would spend most of its travel in sizes
+ * nobody wants. Squaring the normalised value gives fine control at the small
+ * end where the work happens, and still reaches 1 km at the far right.
+ */
+float UAIFactoryCopilotUISubsystem::SliderToMetres(float Normalised)
+{
+    const float Clamped = FMath::Clamp(Normalised, 0.0f, 1.0f);
+    return FMath::RoundToFloat(5.0f + (Clamped * Clamped * 995.0f));
+}
+
+float UAIFactoryCopilotUISubsystem::MetresToSlider(float Metres)
+{
+    const float Above = FMath::Max(0.0f, Metres - 5.0f);
+    return FMath::Clamp(FMath::Sqrt(Above / 995.0f), 0.0f, 1.0f);
+}
+
+/**
+ * Everything inside the box, highlighted, counted.
+ *
+ * The overlay takes explicit actor ids and bypasses its own radius filter, so
+ * what lights up is exactly the set an export would write -- not an
+ * approximation of it. That equality is the whole point: the preview is what
+ * earns the right to export without the player having marked each piece.
+ */
+void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
+{
+    SelectionActorIds.Reset();
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    APawn* Pawn = IsValid(Controller) ? Controller->GetPawn() : nullptr;
+    if (!IsValid(World) || !IsValid(Pawn))
+    {
+        if (SelectionCountText.IsValid())
+        {
+            SelectionCountText->SetText(FText::FromString(TEXT("No player to centre a selection on.")));
+        }
+        return;
+    }
+
+    // Anchored once, so dragging a slider grows the box around where the
+    // player was standing rather than following them across the map.
+    if (!bSelectionAnchored)
+    {
+        SelectionCentre = Pawn->GetActorLocation();
+        bSelectionAnchored = true;
+    }
+
+    const FVector Half(
+        SelectionWidthM * 50.0,
+        SelectionDepthM * 50.0,
+        SelectionHeightM * 50.0);
+
+    int32 Structural = 0;
+    int32 Machines = 0;
+    for (TActorIterator<AFGBuildable> It(World); It; ++It)
+    {
+        AFGBuildable* Buildable = *It;
+        if (!IsValid(Buildable))
+        {
+            continue;
+        }
+        const FVector Offset = Buildable->GetActorLocation() - SelectionCentre;
+        if (FMath::Abs(Offset.X) > Half.X ||
+            FMath::Abs(Offset.Y) > Half.Y ||
+            FMath::Abs(Offset.Z) > Half.Z)
+        {
+            continue;
+        }
+        // A Blueprint Designer cannot be inside its own blueprint, and it is
+        // also the thing doing the serialising.
+        const FString ClassName = Buildable->GetClass()->GetName();
+        if (ClassName.Contains(TEXT("BlueprintDesigner")))
+        {
+            continue;
+        }
+        SelectionActorIds.Add(Buildable->GetPathName());
+        if (ClassName.Contains(TEXT("Foundation")) || ClassName.Contains(TEXT("Wall")) ||
+            ClassName.Contains(TEXT("Pillar")) || ClassName.Contains(TEXT("Ramp")))
+        {
+            ++Structural;
+        }
+        else
+        {
+            ++Machines;
+        }
+    }
+
+    FAIFactoryOverlayQuery Query;
+    Query.ActorIds = SelectionActorIds;
+    // MaxResults caps the draw, so it has to admit everything the box caught
+    // or the highlight would show less than an export writes -- and that
+    // equality is the only reason a preview can stand in for marking each piece.
+    Query.MaxResults = FMath::Max(1, SelectionActorIds.Num());
+    Query.RadiusMeters = 1.0;
+
+    FAIFactoryOverlayStyle Style;
+    // Amber, so a selection reads differently from the green search overlay.
+    Style.Color = FLinearColor(1.0f, 0.62f, 0.15f, 1.0f);
+    Style.bDrawTracers = false;
+    Style.LifetimeSeconds = 0.0f;
+
+    AIFactoryOverlay::Draw(
+        World,
+        Cast<AFGCharacterPlayer>(Pawn),
+        TEXT("selection"),
+        Query,
+        Style);
+
+    if (SelectionCountText.IsValid())
+    {
+        SelectionCountText->SetText(FText::FromString(FString::Printf(
+            TEXT("%d buildings  |  %d structure, %d machines  |  %.0f x %.0f x %.0f m"),
+            SelectionActorIds.Num(),
+            Structural,
+            Machines,
+            SelectionWidthM,
+            SelectionDepthM,
+            SelectionHeightM)));
+    }
+}
+
+void UAIFactoryCopilotUISubsystem::ClearSelectionPreview()
+{
+    SelectionActorIds.Reset();
+    bSelectionAnchored = false;
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    if (UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr)
+    {
+        AIFactoryOverlay::Clear(World, TEXT("selection"));
+    }
+    if (SelectionCountText.IsValid())
+    {
+        SelectionCountText->SetText(FText::FromString(TEXT("Selection cleared.")));
+    }
+}
+
+/**
+ * Export exactly what is lit up.
+ *
+ * Calls the exporter directly rather than going through the bridge: the ids
+ * are already resolved here, and a round trip could only lose or stale them.
+ */
+void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
+{
+    const FString Name = BlueprintNameBox.IsValid()
+        ? BlueprintNameBox->GetText().ToString().TrimStartAndEnd()
+        : FString();
+    if (Name.IsEmpty())
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("Give the blueprint a name first."));
+        return;
+    }
+    if (SelectionActorIds.Num() == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Move a slider to preview a box first."));
+        return;
+    }
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World))
+    {
+        return;
+    }
+
+    // Resolve the ids to live buildables now, so a piece dismantled since the
+    // preview is caught here rather than half way through serialising.
+    TArray<AFGBuildable*> Buildables;
+    TSet<FString> Wanted(SelectionActorIds);
+    for (TActorIterator<AFGBuildable> It(World); It; ++It)
+    {
+        AFGBuildable* Buildable = *It;
+        if (IsValid(Buildable) && Wanted.Contains(Buildable->GetPathName()))
+        {
+            Buildables.Add(Buildable);
+        }
+    }
+    if (Buildables.Num() != SelectionActorIds.Num())
+    {
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(
+            TEXT("%d of the %d selected buildings are gone. Re-preview before exporting."),
+            SelectionActorIds.Num() - Buildables.Num(),
+            SelectionActorIds.Num()));
+        return;
+    }
+
+    FAIFactoryActionContext Context;
+    Context.World = World;
+    Context.Player = Cast<AFGCharacterPlayer>(Controller->GetPawn());
+    Context.bDryRun = false;
+
+    const FAIFactoryActionResult Result =
+        AIFactoryBlueprintExport::ExportSelection(Context, Name, Buildables);
+
+    // Report what the game said, not what was attempted.
+    if (Result.bCommitted)
+    {
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(
+            TEXT("Wrote **%s** from %d buildings. It is in your blueprint menu now."),
+            *Name,
+            Buildables.Num()));
+        ClearSelectionPreview();
+    }
+    else
+    {
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(
+            TEXT("The export did not complete: %s"),
+            Result.Reason.IsEmpty() ? TEXT("the game gave no reason") : *Result.Reason));
+    }
+}
+
+/**
+ * The selection section.
+ *
+ * Three sliders, a live count, a name, and one button that writes the
+ * blueprint. Deliberately the whole workflow in one strip: the owner's
+ * complaint was having to mark a megabase piece by piece, so anything that
+ * makes them leave this panel mid-task defeats the point.
+ */
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
+{
+    return SNew(SVerticalBox)
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 4.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(TEXT("SELECTION")))
+            .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 9))
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        [
+            SNew(SHorizontalBox)
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(0.0f, 0.0f, 6.0f, 0.0f)
+                [
+                    SNew(SBox)
+                    .WidthOverride(18.0f)
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(TEXT("W")))
+                        .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+                        .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
+                    ]
+                ]
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .VAlign(VAlign_Center)
+                .Padding(0.0f, 0.0f, 12.0f, 0.0f)
+                [
+                    SAssignNew(WidthSlider, SSlider)
+                    .Value(MetresToSlider(SelectionWidthM))
+                    .OnValueChanged_Lambda([this](float NewValue)
+                    {
+                        SelectionWidthM = SliderToMetres(NewValue);
+                        RefreshSelectionPreview();
+                    })
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(0.0f, 0.0f, 6.0f, 0.0f)
+                [
+                    SNew(SBox)
+                    .WidthOverride(18.0f)
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(TEXT("D")))
+                        .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+                        .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
+                    ]
+                ]
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .VAlign(VAlign_Center)
+                .Padding(0.0f, 0.0f, 12.0f, 0.0f)
+                [
+                    SAssignNew(DepthSlider, SSlider)
+                    .Value(MetresToSlider(SelectionDepthM))
+                    .OnValueChanged_Lambda([this](float NewValue)
+                    {
+                        SelectionDepthM = SliderToMetres(NewValue);
+                        RefreshSelectionPreview();
+                    })
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(0.0f, 0.0f, 6.0f, 0.0f)
+                [
+                    SNew(SBox)
+                    .WidthOverride(18.0f)
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(TEXT("H")))
+                        .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+                        .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
+                    ]
+                ]
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .VAlign(VAlign_Center)
+                .Padding(0.0f, 0.0f, 12.0f, 0.0f)
+                [
+                    SAssignNew(HeightSlider, SSlider)
+                    .Value(MetresToSlider(SelectionHeightM))
+                    .OnValueChanged_Lambda([this](float NewValue)
+                    {
+                        SelectionHeightM = SliderToMetres(NewValue);
+                        RefreshSelectionPreview();
+                    })
+                ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 6.0f, 0.0f, 0.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot()
+            .FillWidth(1.0f)
+            .VAlign(VAlign_Center)
+            [
+                SAssignNew(SelectionCountText, STextBlock)
+                .Text(FText::FromString(TEXT("Move a slider to preview a selection.")))
+                .ColorAndOpacity(FLinearColor(1.0f, 0.62f, 0.15f, 1.0f))
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(8.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SBox)
+                .WidthOverride(150.0f)
+                [
+                    SAssignNew(BlueprintNameBox, SEditableTextBox)
+                    .HintText(FText::FromString(TEXT("blueprint name")))
+                ]
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Save blueprint")))
+                .OnClicked_Lambda([this]()
+                {
+                    ExportSelectionAsBlueprint();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Clear")))
+                .OnClicked_Lambda([this]()
+                {
+                    ClearSelectionPreview();
+                    return FReply::Handled();
+                })
+            ]
+        ];
 }

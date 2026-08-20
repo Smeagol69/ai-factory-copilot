@@ -70,7 +70,23 @@ export const WRITE_ACTION_KINDS = [
 export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight", "clear_holograms"];
 
 /** Everything the mod knows how to execute. */
-export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
+
+/**
+ * Actions that affect only the requesting player's local controls.
+ *
+ * `preview_blueprint` deliberately constructs nothing. The server verifies
+ * the saved blueprint, then sends the owning client a small RCO message and
+ * that client selects the Blueprint recipe in its own Build Gun. The
+ * hologram, snapping, rotation, affordability and eventual construction all
+ * stay Satisfactory's, which is the entire point -- it is the vanilla
+ * placement experience, reached from here.
+ */
+export const CLIENT_ACTION_KINDS = ["preview_blueprint"];
+export const ACTION_KINDS = [
+  ...WRITE_ACTION_KINDS,
+  ...OVERLAY_ACTION_KINDS,
+  ...CLIENT_ACTION_KINDS,
+];
 
 /** Beyond this the player almost certainly meant something else. */
 const MAX_TELEPORT_METERS = 200_000;
@@ -593,6 +609,43 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         commit: proposal.commit === true,
       }, proposal),
+    };
+  }
+
+  if (kind === "preview_blueprint") {
+    const name = String(proposal.blueprint_name ?? "").trim();
+    if (!name) return reject(kind, "blueprint_name_is_required");
+
+    // This is a client-only selection, not a server construction request. The
+    // bridge normally has the library service and can catch spelling mistakes
+    // here; the game repeats the descriptor lookup immediately before it sends
+    // the owning client's RCO message.
+    const library = graph?.services?.blueprints ?? null;
+    if (Array.isArray(library) && library.length > 0) {
+      const match = library.find((entry) => entry.name === name);
+      if (!match) {
+        const needle = name.toLowerCase();
+        const near = library
+          .filter((entry) => String(entry.name).toLowerCase().includes(needle))
+          .slice(0, 5)
+          .map((entry) => entry.name);
+        return reject(kind, "blueprint_not_in_library", {
+          blueprint_name: name,
+          did_you_mean: near,
+        });
+      }
+      checks.designer_dimensions = match.designer_dimensions;
+      checks.build_cost_entries = match.build_cost?.length ?? 0;
+    }
+
+    return {
+      valid: true,
+      warnings,
+      checks: { ...checks, client_only: true, world_write: false },
+      // This is intentionally always dispatched. It is equivalent to opening
+      // the Build Gun's native blueprint picker, and never performs a world
+      // write, spends items, changes the undo stack, or needs a revision stamp.
+      action: { action: kind, blueprint_name: name, commit: true },
     };
   }
 
