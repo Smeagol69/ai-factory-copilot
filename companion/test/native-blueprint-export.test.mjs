@@ -180,3 +180,39 @@ test("the model-facing action schema exposes only the selection contract, not a 
   assert.equal(item.properties.captured_selection_bounds_cm, undefined);
   assert.equal(item.properties.radius_cm, undefined);
 });
+
+test("the phrasings people actually use all reach the exporter", async () => {
+  const { parseNativeBlueprintExportRequest, parseDesignSaveRequest } =
+    await import("../lib/router.mjs");
+
+  // The original pattern took only "export this factory as blueprint X".
+  // Everything else here failed, which is the same narrowness the routing log
+  // kept exposing on other routes.
+  const expected = {
+    "export this factory as blueprint Northern Steel Works": "Northern Steel Works",
+    "save this selection as a blueprint called Mega Base": "Mega Base",
+    "export selected as blueprint MegaBase": "MegaBase",
+    "save this megabase as a native blueprint called Home": "Home",
+    "package my base as blueprint Ross": "Ross",
+  };
+  for (const [question, name] of Object.entries(expected)) {
+    assert.equal(parseNativeBlueprintExportRequest(question)?.name, name, question);
+  }
+});
+
+test("widening the export verb does not steal a design save", async () => {
+  const { parseNativeBlueprintExportRequest, parseDesignSaveRequest } =
+    await import("../lib/router.mjs");
+
+  // Accepting "save" here is the risky part: "save this as mk1 copper" is the
+  // design route, and parseDesignSaveRequest even strips a trailing
+  // "blueprint". The word "blueprint" in the middle is what separates them.
+  for (const question of [
+    "save this as mk1 copper",
+    "save this as bench mk1",
+    "save this as a mk1 copper blueprint",
+  ]) {
+    assert.equal(parseNativeBlueprintExportRequest(question), null, question);
+    assert.ok(parseDesignSaveRequest(question), `${question} should still be a design save`);
+  }
+});

@@ -1,6 +1,7 @@
 #include "AIFactoryActions.h"
 #include "AIFactoryWaypointDisplay.h"
 
+#include "AIFactoryBlueprintExport.h"
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
@@ -3304,6 +3305,7 @@ namespace
             Kind == TEXT("teleport_player") ||
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
+            Kind == TEXT("export_native_blueprint") ||
             Kind == TEXT("give_item") ||
             Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
@@ -3493,6 +3495,60 @@ namespace
                 Context,
                 Name,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location));
+        }
+        if (Kind == TEXT("export_native_blueprint"))
+        {
+            FString Name;
+            if (!Spec->TryGetStringField(TEXT("blueprint_name"), Name) || Name.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("blueprint_name_is_required"));
+            }
+
+            // Only the exact actors the player marked with the dismantle tool.
+            // No radius, no "everything nearby": a guessed factory boundary is
+            // especially unsafe for a megabase with power, rail and
+            // architecture running through it.
+            const TArray<TSharedPtr<FJsonValue>>* Ids = nullptr;
+            if (!Spec->TryGetArrayField(TEXT("selected_actor_ids"), Ids) || !Ids || Ids->Num() == 0)
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("selected_actor_ids_is_required"));
+            }
+
+            TArray<AFGBuildable*> Buildables;
+            int32 Unresolved = 0;
+            for (const TSharedPtr<FJsonValue>& Value : *Ids)
+            {
+                FString ActorId;
+                if (!Value.IsValid() || !Value->TryGetString(ActorId) || ActorId.IsEmpty())
+                {
+                    ++Unresolved;
+                    continue;
+                }
+                AFGBuildable* Buildable =
+                    Cast<AFGBuildable>(FindActionActorByPathName(Context.World, ActorId));
+                if (IsValid(Buildable))
+                {
+                    Buildables.AddUnique(Buildable);
+                }
+                else
+                {
+                    ++Unresolved;
+                }
+            }
+
+            // An id that no longer resolves means the selection describes a
+            // world that has moved on. Exporting the remainder would quietly
+            // write a blueprint missing pieces the player marked, so refuse.
+            if (Unresolved > 0)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    FString::Printf(
+                        TEXT("%d selected actor(s) could not be resolved; re-mark the selection"),
+                        Unresolved));
+            }
+
+            return AIFactoryBlueprintExport::ExportSelection(Context, Name, Buildables);
         }
         if (Kind == TEXT("place_belt"))
         {

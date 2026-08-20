@@ -1275,8 +1275,20 @@ export function parseBlueprintPlaceRequest(question) {
  * dismantle multi-select first. A radius is a guess at the factory boundary,
  * and an enormous factory makes that guess more dangerous, not less.
  */
+// Widened from the original, which only accepted "export this factory as
+// blueprint X". "save this selection as a blueprint called Mega Base" and
+// "export selected as blueprint MegaBase" both failed -- the same narrowness
+// the routing log kept exposing elsewhere. The noun is optional now, "save" is
+// accepted alongside "export", and the article before "blueprint" may be there
+// or not.
+//
+// "save" is the risky addition, because "save this as mk1 copper" is the
+// *design* route. The word "blueprint" is what separates them and is required
+// here; parseDesignSaveRequest strips a trailing "blueprint" and would
+// otherwise claim these. Route order puts this first, and the design tests pin
+// that their phrasings still reach them.
 const NATIVE_BLUEPRINT_EXPORT =
-  /^(?:can you |could you |please )?(?:export|package)\s+(?:this|the|my|selected)\s+(?:factory|base|build|selection|these|it)(?:\s+as)?\s+(?:a\s+)?(?:native\s+)?blue\s?print(?:\s+(?:called|named))?\s+["']?(.+?)["']?$/i;
+  /^(?:can you |could you |please )?(?:export|package|save)\s+(?:this|the|my|these|selected|current)?\s*(?:factory|base|build|selection|megabase|mega\s?base|it)?\s*(?:as)?\s*(?:a\s+|an\s+)?(?:new\s+)?(?:native\s+|real\s+|game\s+)?blue\s?print(?:\s+(?:called|named|as))?\s+["']?(.+?)["']?$/i;
 
 export function parseNativeBlueprintExportRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
