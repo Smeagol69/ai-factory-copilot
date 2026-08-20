@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Templates/SubclassOf.h"
 
 struct FAIFactoryActionContext;
 struct FAIFactoryActionResult;
@@ -31,8 +32,19 @@ namespace AIFactoryBlueprintExport
      * Dry-runnable. On a real run every buildable it marks is unmarked again
      * before the function returns, on every path.
      */
+    /**
+     * @param LightweightInstances  Structure the actor iterator cannot see.
+     *
+     * Foundations and walls are held by AFGLightweightBuildableSubsystem as
+     * instance data rather than as actors, so a selection built from
+     * TActorIterator captures a building's power poles and ladders and none
+     * of its shell. Each pair is the buildable class and its index in that
+     * class runtime array, which is how the subsystem addresses them.
+     * Defaulted, so the bridge lane that passes only actors is unchanged.
+     */
     FAIFactoryActionResult ExportSelection(
         const FAIFactoryActionContext& Context,
         const FString& BlueprintName,
-        const TArray<AFGBuildable*>& Buildables);
+        const TArray<AFGBuildable*>& Buildables,
+        const TArray<TPair<TSubclassOf<AFGBuildable>, int32>>& LightweightInstances = {});
 }

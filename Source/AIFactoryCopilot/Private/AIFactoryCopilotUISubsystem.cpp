@@ -874,7 +874,10 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
         AppendTranscript(TEXT("COPILOT"), TEXT("Give the blueprint a name first."));
         return;
     }
-    if (SelectionActorIds.Num() == 0)
+    // Counted together: a box holding nothing but foundations is a perfectly
+    // good selection, and refusing it because no *actor* was caught is how the
+    // structural half stayed invisible in the first place.
+    if (SelectionActorIds.Num() + LightweightCount == 0)
     {
         AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Move a slider to preview a box first."));
         return;
@@ -914,15 +917,21 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
     Context.bDryRun = false;
 
     const FAIFactoryActionResult Result =
-        AIFactoryBlueprintExport::ExportSelection(Context, Name, Buildables);
+        AIFactoryBlueprintExport::ExportSelection(
+            Context, Name, Buildables, SelectionLightweight);
 
     // Report what the game said, not what was attempted.
     if (Result.bCommitted)
     {
+        // The structural count is named separately because it is the half that
+        // used to vanish silently, and a number the player can compare against
+        // the panel is what makes a partial capture visible.
         AppendTranscript(TEXT("COPILOT"), FString::Printf(
-            TEXT("Wrote **%s** from %d buildings. It is in your blueprint menu now."),
+            TEXT("Wrote **%s** from %d buildings, %d of them structure. ")
+            TEXT("It is in your blueprint menu now."),
             *Name,
-            Buildables.Num()));
+            Buildables.Num() + LightweightCount,
+            LightweightCount));
         ClearSelectionPreview();
     }
     else
@@ -1235,36 +1244,10 @@ void UAIFactoryCopilotUISubsystem::BeginStagedExport(const FString& Name)
         return;
     }
 
-    if (LightweightCount == 0)
-    {
-        // Nothing to materialise, so no reason to make the player wait.
-        ExportSelectionAsBlueprint();
-        return;
-    }
-
-    if (AFGLightweightBuildableSubsystem* Lightweight =
-            AFGLightweightBuildableSubsystem::Get(World))
-    {
-        // Radius covers the box corner to corner, so nothing inside the
-        // selection is left as instance data.
-        const FVector Half(
-            SelectionWidthM * 50.0,
-            SelectionDepthM * 50.0,
-            SelectionHeightM * 50.0);
-        const float Radius = static_cast<float>(Half.Size()) + 100.0f;
-        ConversionInstigator = Lightweight->AddInstanceConverterInstigator(
-            Radius,
-            nullptr,
-            FTransform(SelectionCentre));
-    }
-
-    PendingExportName = Name;
-    PendingExportLastCount = -1;
-    PendingExportStableTicks = 0;
-    PendingExportStartedAt = FPlatformTime::Seconds();
-    AppendTranscript(TEXT("COPILOT"), FString::Printf(
-        TEXT("Materialising %d lightweight pieces before export. This takes a moment."),
-        LightweightCount));
+    // Materialising is synchronous now -- the exporter spawns the lightweight
+    // pieces itself -- so there is nothing to stage and nothing to wait for.
+    // The converter path below is kept but no longer used; see TickStagedExport.
+    ExportSelectionAsBlueprint();
 }
 
 /** Drop the converter. Safe to call when none was ever armed. */
@@ -1290,6 +1273,18 @@ void UAIFactoryCopilotUISubsystem::EndConversion()
  * guess about someone else's frame budget; this measures the thing it
  * actually depends on. Ten seconds is a hard ceiling so a converter that
  * never settles cannot wedge the panel.
+ */
+/**
+ * No longer in the export path, and left inert on purpose.
+ *
+ * This waited on AddInstanceConverterInstigator to materialise lightweight
+ * pieces. It never produced a measurable conversion, and the settle test could
+ * not distinguish a converter that had not started from one that had finished:
+ * at a 0.2s ticker and three stable polls it fired 0.8s after arming, every
+ * time. The exporter spawns the pieces directly now. Kept rather than deleted
+ * because the converter is still the right tool if the direct spawn ever turns
+ * out to be too heavy for a very large selection -- but nothing calls this, so
+ * PendingExportName stays empty and it returns immediately.
  */
 void UAIFactoryCopilotUISubsystem::TickStagedExport()
 {

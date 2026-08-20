@@ -3519,3 +3519,81 @@ evidence. And I wrote a script that scanned archives for coordinate-like
 doubles; it reported the same spread for known-good blueprints as for the
 broken one, so it discriminated nothing. Deleted rather than left around
 producing confident numbers that mean nothing.
+
+### The converter did nothing, and I could prove it — Claude, 2026-08-20
+
+The staged export from the previous entry shipped, the owner tested it, and
+the placed blueprint was still the building's wiring without its shell. This
+time I measured instead of theorising, and the measurement is worth keeping
+because it is repeatable.
+
+**How to read a `.sbp`.** The body is a run of UE compressed chunks, magic
+`C1832A9E`. Rather than trusting a chunk-header layout I was not sure of, the
+script finds each zlib stream by its own `0x78` marker after a magic and
+inflates from there -- inflate either succeeds or it does not, so the method
+checks itself. Then count `Build_[A-Za-z0-9_]+_C` in the inflated bytes.
+
+**The result, against a hand-made blueprint the owner supplied as a control:**
+
+    C01_5x5_MODULAR_1.0.sbp        mine (selection test.sbp)
+      34  Build_Foundation_Concrete_8x4_C     0  Build_Foundation_*
+     114  Build_Wall_8x4_01_C                 0  Build_Wall_8x4_01_C
+     145  Build_Railing_01_C                  0  Build_Railing_01_C
+     222  Build_PowerPoleWall_C            1395  Build_PowerPoleWall_C
+     160  Build_PowerLine_C                1040  Build_PowerLine_C
+
+Everything that survived my export is exactly the set that never converts to
+lightweight: power poles, power lines, floodlights, beams, ladders, doors.
+Zero foundations, zero plain walls. The hologram was telling the truth.
+
+**Two things the numbers settled that argument could not.** The archive was
+not empty (43,791 bytes, 3,727 class references) so "nothing was captured" was
+wrong. And the staged version came out *smaller* than the unstaged one --
+16,867 bytes against 43,791 -- so the instance converter did not add a single
+piece. A control blueprint from the owner is what made both readable; without
+it I would still be arguing about whether 3,727 references was a lot.
+
+**Why the converter wait could never have worked.** The ticker is 0.2s and the
+settle test was three stable polls, so it fired 0.8s after arming. Worse, the
+test could not distinguish "the converter has not started" from "the converter
+has finished" -- both look like an unchanged count. It was a settle detector
+that reported settled before anything had a chance to move.
+
+**The replacement is deterministic.** For each lightweight instance in the box,
+spawn a real buildable from its `FRuntimeBuildableInstanceData`, which already
+carries `Transform`, `BuiltWithRecipe` and `CustomizationData` -- everything a
+buildable needs. Synchronous, exactly as many as were asked for, done by the
+time the next line runs. No waiting, no pooled temporaries.
+
+**It calls `SetInsideBlueprintDesigner`, the call that crashed the game.** That
+is deliberate and it is safe here for a reason I can state: the assert reads
+"Must be called before BeginPlay", and `SpawnActor(bDeferConstruction)` ->
+`SetInsideBlueprintDesigner` -> `FinishSpawning` is precisely that window. The
+earlier crash called it on a live factory building, which is not. Marking them
+at construction has a second payoff: `ShouldConvertToLightweight()` returns
+false when `mBlueprintDesigner != nullptr`, so they cannot dissolve back into
+instance data half way through `SaveBlueprint`.
+
+The actors are `RF_Transient` and destroyed on unwind on every path, because
+`mBlueprintDesigner` is `UPROPERTY(SaveGame)` and one of these outliving the
+export would follow the owner's factory into their save file. The materialiser
+guard is declared *before* the membership guard so it destructs *after* it --
+the designer must let go of these before they are destroyed, or `mBuildables`
+keeps pointers to dead actors.
+
+**One trap found by reading rather than by crashing.** `FScopedDesignerMembership::Adopt`
+refuses anything already inside a designer, which is correct for factory
+buildings -- taking one would mean handing it back to the wrong owner. But the
+materialised pieces are marked at construction, so `Adopt` would have refused
+every single one and the export would have come out identical to before, with
+no error anywhere. Hence a separate `AdoptOwned` for actors this export spawned
+and destroys itself.
+
+**Not deleted:** the converter path is still in `AIFactoryCopilotUISubsystem.cpp`,
+inert, with a comment saying why nothing calls it. It is still the right tool
+if direct spawning turns out too heavy for a very large selection.
+
+**Unverified at time of writing.** The game was running, so this has not been
+compiled -- `D:\Modding\Satisfactory\StarterProject-502094` must not be touched
+while it is. Every new call was checked public against the CL 502094 headers,
+which catches a build failure but not a runtime one. Treat as untested.

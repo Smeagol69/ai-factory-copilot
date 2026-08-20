@@ -7,6 +7,7 @@
 #include "FGCharacterPlayer.h"
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
+#include "FGLightweightBuildableSubsystem.h"
 #include "EngineUtils.h"
 
 /**
@@ -112,6 +113,27 @@ namespace
             return true;
         }
 
+        /**
+         * Adopt a buildable this export spawned a moment ago.
+         *
+         * Adopt() refuses anything already marked as inside a designer,
+         * which is right for factory buildings -- taking one would mean
+         * handing it back to the wrong owner. Instances materialised by
+         * FScopedMaterialisedInstances are marked at construction and would
+         * trip that guard, but they are ours: spawned in this call, owned by
+         * this designer, destroyed before this function returns.
+         */
+        bool AdoptOwned(AFGBuildable* Buildable)
+        {
+            if (!IsValid(Buildable) || !IsValid(Designer))
+            {
+                return false;
+            }
+            Designer->OnBuildableConstructedInsideDesigner(Buildable);
+            Adopted.Add(Buildable);
+            return true;
+        }
+
         int32 Num() const { return Adopted.Num(); }
 
         ~FScopedDesignerMembership()
@@ -138,6 +160,123 @@ namespace
         TArray<TWeakObjectPtr<AFGBuildable>> Adopted;
     };
 
+    /**
+     * Real buildables spawned from lightweight instance data, alive only for
+     * the length of one export.
+     *
+     * Foundations and walls are not actors. The measured proof: an archive
+     * exported from a whole glass-and-steel building contained 1395
+     * Build_PowerPoleWall_C and zero Build_Foundation_*, while a hand-made
+     * blueprint of comparable size contained 34 foundations and 114 walls.
+     * Everything that survived was exactly the set that never converts to
+     * lightweight. The placed copy was the wiring without the shell.
+     *
+     * The previous attempt armed the game's own instance converter and waited
+     * for the actor count to settle. It produced nothing measurable, and the
+     * settle test could not distinguish a converter that had not started from
+     * one that had finished, so it fired 0.8s after arming every time. This
+     * spawns the pieces directly instead: synchronous, exactly as many as were
+     * asked for, and done by the time the next line runs.
+     *
+     * SetInsideBlueprintDesigner is called here -- the same call whose check()
+     * killed the game earlier in this project. Deferred spawning is the one
+     * window where it is legal: the assert demands it happen before BeginPlay,
+     * and between SpawnActor(bDeferConstruction) and FinishSpawning is exactly
+     * that. Marking them at construction also makes them exempt from
+     * ShouldConvertToLightweight, so they cannot dissolve back into instance
+     * data half way through SaveBlueprint.
+     *
+     * RF_Transient and destroyed on unwind on every path, because
+     * mBlueprintDesigner is UPROPERTY(SaveGame) and one of these outliving the
+     * export would follow the player's factory into their save file.
+     */
+    class FScopedMaterialisedInstances
+    {
+    public:
+        FScopedMaterialisedInstances(
+            UWorld* InWorld,
+            AFGBuildableBlueprintDesigner* InDesigner,
+            const TArray<TPair<TSubclassOf<AFGBuildable>, int32>>& Instances)
+        {
+            if (!IsValid(InWorld) || !IsValid(InDesigner) || Instances.Num() == 0)
+            {
+                return;
+            }
+            AFGLightweightBuildableSubsystem* Subsystem =
+                AFGLightweightBuildableSubsystem::Get(InWorld);
+            if (!IsValid(Subsystem))
+            {
+                return;
+            }
+
+            const TMap<TSubclassOf<AFGBuildable>, TArray<FRuntimeBuildableInstanceData>>& All =
+                Subsystem->GetAllLightweightBuildableInstances();
+
+            for (const TPair<TSubclassOf<AFGBuildable>, int32>& Entry : Instances)
+            {
+                const TArray<FRuntimeBuildableInstanceData>* Bucket = All.Find(Entry.Key);
+                if (Bucket == nullptr || !Bucket->IsValidIndex(Entry.Value))
+                {
+                    // The preview and the export are separate frames; an
+                    // instance removed in between is counted, not guessed at.
+                    ++Missing;
+                    continue;
+                }
+                const FRuntimeBuildableInstanceData& Data = (*Bucket)[Entry.Value];
+
+                FActorSpawnParameters Params;
+                Params.SpawnCollisionHandlingOverride =
+                    ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Params.bDeferConstruction = true;
+                Params.ObjectFlags |= RF_Transient;
+
+                AFGBuildable* Buildable =
+                    InWorld->SpawnActor<AFGBuildable>(Entry.Key, Data.Transform, Params);
+                if (!IsValid(Buildable))
+                {
+                    ++Missing;
+                    continue;
+                }
+
+                // Before BeginPlay. This is the only legal window; see above.
+                Buildable->SetInsideBlueprintDesigner(InDesigner);
+                Buildable->SetBuiltWithRecipe(Data.BuiltWithRecipe);
+                Buildable->FinishSpawning(Data.Transform);
+
+                if (!IsValid(Buildable))
+                {
+                    ++Missing;
+                    continue;
+                }
+                // After FinishSpawning: this one touches components, which do
+                // not exist until the actor is fully constructed.
+                Buildable->SetCustomizationData_Native(Data.CustomizationData);
+                Spawned.Add(Buildable);
+            }
+        }
+
+        ~FScopedMaterialisedInstances()
+        {
+            for (int32 Index = Spawned.Num() - 1; Index >= 0; --Index)
+            {
+                AFGBuildable* Buildable = Spawned[Index];
+                if (IsValid(Buildable))
+                {
+                    Buildable->Destroy();
+                }
+            }
+            Spawned.Reset();
+        }
+
+        const TArray<AFGBuildable*>& Get() const { return Spawned; }
+        int32 Num() const { return Spawned.Num(); }
+        int32 NumMissing() const { return Missing; }
+
+    private:
+        TArray<AFGBuildable*> Spawned;
+        int32 Missing = 0;
+    };
+
     /** Any Blueprint Designer standing in the world. The player must own one. */
     AFGBuildableBlueprintDesigner* FindAnyDesigner(UWorld* World)
     {
@@ -162,7 +301,8 @@ namespace AIFactoryBlueprintExport
 FAIFactoryActionResult ExportSelection(
     const FAIFactoryActionContext& Context,
     const FString& BlueprintName,
-    const TArray<AFGBuildable*>& Buildables)
+    const TArray<AFGBuildable*>& Buildables,
+    const TArray<TPair<TSubclassOf<AFGBuildable>, int32>>& LightweightInstances)
 {
     const FString Action = TEXT("export_native_blueprint");
 
@@ -225,6 +365,14 @@ FAIFactoryActionResult ExportSelection(
     Result.Action = Action;
     Result.Predicted = Predicted;
 
+    // Declared before the membership guard so it unwinds *after* it: the
+    // designer must let go of these before they are destroyed, or its list
+    // keeps pointers to dead actors.
+    FScopedMaterialisedInstances Materialised(Context.World, Designer, LightweightInstances);
+    Predicted->SetNumberField(TEXT("lightweight_requested"), LightweightInstances.Num());
+    Predicted->SetNumberField(TEXT("lightweight_materialised"), Materialised.Num());
+    Predicted->SetNumberField(TEXT("lightweight_missing"), Materialised.NumMissing());
+
     int32 Skipped = 0;
     {
         // Scope matters: the guard unwinds at the closing brace, before any
@@ -233,6 +381,14 @@ FAIFactoryActionResult ExportSelection(
         for (AFGBuildable* Buildable : Buildables)
         {
             if (!Membership.Adopt(Buildable))
+            {
+                ++Skipped;
+            }
+        }
+
+        for (AFGBuildable* Buildable : Materialised.Get())
+        {
+            if (!Membership.AdoptOwned(Buildable))
             {
                 ++Skipped;
             }
