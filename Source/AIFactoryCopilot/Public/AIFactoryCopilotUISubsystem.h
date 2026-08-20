@@ -102,6 +102,22 @@ private:
     double DemolishArmedAt = 0.0;
     void DemolishSelection();
 
+    /**
+     * A staged export, waiting on the game to materialise instances.
+     *
+     * Lightweight buildables become real actors only once an instance
+     * converter has run over them, and that takes ticks. Rather than
+     * guessing a delay, the count is watched until it stops rising.
+     */
+    FString PendingExportName;
+    TWeakObjectPtr<AActor> ConversionInstigator;
+    int32 PendingExportLastCount = -1;
+    int32 PendingExportStableTicks = 0;
+    double PendingExportStartedAt = 0.0;
+    void BeginStagedExport(const FString& Name);
+    void TickStagedExport();
+    void EndConversion();
+
     TSharedRef<SWidget> BuildSelectionSection();
     /** Re-query the box, repaint the highlight, update the count. */
     void RefreshSelectionPreview();

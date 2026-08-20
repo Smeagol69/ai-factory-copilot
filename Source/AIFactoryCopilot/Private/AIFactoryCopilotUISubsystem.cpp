@@ -484,6 +484,9 @@ void UAIFactoryCopilotUISubsystem::AppendTranscript(const FString& Speaker, cons
 
 bool UAIFactoryCopilotUISubsystem::Tick(const float DeltaTime)
 {
+    // Runs whether or not the panel is open: a conversion armed before the
+    // player closed it still has to finish and be cleaned up.
+    TickStagedExport();
     if (bPanelVisible)
     {
         if (bFocusInputOnNextTick && InputBox.IsValid() && FSlateApplication::IsInitialized())
@@ -1069,7 +1072,9 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                 .Text(FText::FromString(TEXT("Save blueprint")))
                 .OnClicked_Lambda([this]()
                 {
-                    ExportSelectionAsBlueprint();
+                    BeginStagedExport(BlueprintNameBox.IsValid()
+                        ? BlueprintNameBox->GetText().ToString().TrimStartAndEnd()
+                        : FString());
                     return FReply::Handled();
                 })
             ]
@@ -1196,4 +1201,139 @@ void UAIFactoryCopilotUISubsystem::DemolishSelection()
         RemovedActors,
         RemovedLightweight));
     ClearSelectionPreview();
+}
+
+/**
+ * Arm the game's instance converter over the selection, then wait.
+ *
+ * Nothing is exported here. The converter turns lightweight instances into
+ * real buildables over the next few ticks, and only then does the actor
+ * query see a whole building rather than its machines.
+ */
+void UAIFactoryCopilotUISubsystem::BeginStagedExport(const FString& Name)
+{
+    if (Name.IsEmpty())
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("Give the blueprint a name first."));
+        return;
+    }
+    if (SelectionActorIds.Num() + LightweightCount == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Move a slider to preview a box first."));
+        return;
+    }
+    if (!PendingExportName.IsEmpty())
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("An export is already in progress."));
+        return;
+    }
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World))
+    {
+        return;
+    }
+
+    if (LightweightCount == 0)
+    {
+        // Nothing to materialise, so no reason to make the player wait.
+        ExportSelectionAsBlueprint();
+        return;
+    }
+
+    if (AFGLightweightBuildableSubsystem* Lightweight =
+            AFGLightweightBuildableSubsystem::Get(World))
+    {
+        // Radius covers the box corner to corner, so nothing inside the
+        // selection is left as instance data.
+        const FVector Half(
+            SelectionWidthM * 50.0,
+            SelectionDepthM * 50.0,
+            SelectionHeightM * 50.0);
+        const float Radius = static_cast<float>(Half.Size()) + 100.0f;
+        ConversionInstigator = Lightweight->AddInstanceConverterInstigator(
+            Radius,
+            nullptr,
+            FTransform(SelectionCentre));
+    }
+
+    PendingExportName = Name;
+    PendingExportLastCount = -1;
+    PendingExportStableTicks = 0;
+    PendingExportStartedAt = FPlatformTime::Seconds();
+    AppendTranscript(TEXT("COPILOT"), FString::Printf(
+        TEXT("Materialising %d lightweight pieces before export. This takes a moment."),
+        LightweightCount));
+}
+
+/** Drop the converter. Safe to call when none was ever armed. */
+void UAIFactoryCopilotUISubsystem::EndConversion()
+{
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (IsValid(World) && ConversionInstigator.IsValid())
+    {
+        if (AFGLightweightBuildableSubsystem* Lightweight =
+                AFGLightweightBuildableSubsystem::Get(World))
+        {
+            Lightweight->RemoveInstanceConverterInstigator(ConversionInstigator.Get());
+        }
+    }
+    ConversionInstigator.Reset();
+}
+
+/**
+ * Watch the count until conversion settles, then export.
+ *
+ * Stable for three consecutive polls is the signal. A fixed delay would be a
+ * guess about someone else's frame budget; this measures the thing it
+ * actually depends on. Ten seconds is a hard ceiling so a converter that
+ * never settles cannot wedge the panel.
+ */
+void UAIFactoryCopilotUISubsystem::TickStagedExport()
+{
+    if (PendingExportName.IsEmpty())
+    {
+        return;
+    }
+
+    RefreshSelectionPreview();
+    const int32 Count = SelectionActorIds.Num();
+    if (Count == PendingExportLastCount)
+    {
+        ++PendingExportStableTicks;
+    }
+    else
+    {
+        PendingExportStableTicks = 0;
+        PendingExportLastCount = Count;
+    }
+
+    const bool bSettled = PendingExportStableTicks >= 3;
+    const bool bTimedOut = (FPlatformTime::Seconds() - PendingExportStartedAt) > 10.0;
+    if (!bSettled && !bTimedOut)
+    {
+        return;
+    }
+
+    const FString Name = PendingExportName;
+    PendingExportName.Reset();
+
+    if (bTimedOut && !bSettled)
+    {
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(
+            TEXT("Conversion did not settle in ten seconds; exporting the %d actors that did appear. ")
+            TEXT("Some structure may be missing."),
+            Count));
+    }
+
+    // The name box drives ExportSelectionAsBlueprint, so restore it in case
+    // the player edited it while waiting.
+    if (BlueprintNameBox.IsValid())
+    {
+        BlueprintNameBox->SetText(FText::FromString(Name));
+    }
+    ExportSelectionAsBlueprint();
+    EndConversion();
 }
