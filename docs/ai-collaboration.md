@@ -3307,16 +3307,16 @@ remaining unknown between here and the stated goal.
 ### The web library is gone; the game menu is the library — Claude, 2026-08-19
 
 Owner: "we can remove the library section and all that fluff since we are
-going vanilla route keeping it all in the game UI." Correct — a native .sbp
-appears in Satisfactory own blueprint menu, so a second browsable list served
-over HTTP was duplicating the game.
+going vanilla route keeping it all in the game UI." Correct — a native `.sbp`
+appears in Satisfactory's own blueprint menu, so a second browsable list
+served over HTTP was duplicating the game.
 
-Removed:  (428 lines), its ,  and
- routes, the  route and parser, the in-game
-**Library** button and , and the page test file.
- moved into , where it belonged anyway — it
+Removed: `lib/library-page.mjs` (428 lines), its `/`, `/library` and
+`/library.json` routes, the `open the library` route and parser, the in-game
+**Library** button and `ResolveLibraryUrl()`, and the page test file.
+`summariseDesign` moved into `designs.mjs`, where it belonged anyway: it
 answers "what will actually go down", a property of the design rather than of
-any way of showing it.
+any particular way of showing it.
 
 **Kept: the saved-design system.** It is still the only path that can put a
 miner on a node, and the native route has not been proven to survive an
@@ -3324,24 +3324,32 @@ extractor yet. Removing it now would delete a working capability before its
 replacement exists. It goes once that question is answered.
 
 **A removal mistake worth recording.** The first cut used a non-greedy regex
-anchored on the *next* section comment.  expanded straight past two
-intervening route blocks to reach that anchor and deleted **94 lines instead
-of 16**, taking the design retire and rename routes with it. Three tests went
-red, I restored from git and redid it line-based with brace counting, which
-cannot run past the block it started in. Regex across block boundaries is not
-safe for deletion; bound it structurally.
+anchored on the *next* section's comment. The lazy quantifier expanded
+straight past two intervening route blocks to reach that anchor and deleted
+**94 lines instead of 16**, taking the design retire and rename routes with
+it. Three tests went red, I restored from git and redid it line-based with
+brace counting, which cannot run past the block it started in. Regex across
+block boundaries is not safe for deletion; bound it structurally.
 
-The capability guard also earned itself here: it failed immediately because
-the advertised list still promised  after the route was
-gone. That is exactly the rot it exists to catch.
+The capability guard earned itself here: it failed immediately because the
+advertised list still promised `open the library` after the route was gone.
+That is exactly the rot it exists to catch.
 
-**Second crash, unresolved.** An  in
- on a worker thread, 34 minutes after the
-export, with a successful blueprint placement in between. **No AIFactoryCopilot
-frame on the stack.** I cannot attribute it. The plausible mechanism that is
-mine: the export adds and removes every selected buildable from a designer
-list, designer membership and conveyor-chain membership interact, and a live
-belt cycled through that could leave a chain holding a stale pointer. Equally
-plausible: the placed blueprint being wired by the game loader, or one of the
-25 other mods. The test that would separate them is an export from a selection
+**Second crash, unresolved and not attributed.** An
+`EXCEPTION_ACCESS_VIOLATION` in `AFGConveyorChainActor::Factory_Tick` on a
+worker thread, 34 minutes after the export, with a successful blueprint
+placement in between, and **no AIFactoryCopilot frame on the stack**.
+
+The mechanism that could be mine: the export adds and removes every selected
+buildable from a designer's list; designer membership and conveyor-chain
+membership interact, so a live belt cycled through that could leave a chain
+holding a stale pointer that only crashes on a later tick. Equally plausible:
+the placed blueprint's own belts being wired by the game's loader, or one of
+the 25 other mods. The test that separates them is an export from a selection
 containing no belts at all.
+
+**Third backtick loss this session.** This entry had to be rewritten because
+I authored it through `node -e` inside bash, and bash ran the backticks as
+command substitution. I wrote that trap up after the first occurrence and
+then repeated it twice. The rule is not *be careful with backticks*; it is
+**never author prose through a shell argument**. Write a file and run it.
