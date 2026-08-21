@@ -1,4 +1,5 @@
 #include "AIFactorySnapshot.h"
+#include "FGLightweightBuildableSubsystem.h"
 
 #include "AIFactoryCopilotModule.h"
 #include "AIFactoryDataProvider.h"
@@ -942,6 +943,57 @@ namespace
         return Result;
     }
 
+    /**
+     * One lightweight buildable, in the same shape as BuildableJson.
+     *
+     * Foundations, walls, pillars, catwalks and roofs are not actors. They are
+     * instance data, so TActorIterator cannot reach them and the snapshot has
+     * been reporting a base's wiring as though it were the whole base --
+     * measured at 11 of 51 classes visible in one building.
+     *
+     * Compact on purpose: a wall has no inventory, no throughput and no
+     * connections, and a large base holds tens of thousands of these. Class,
+     * transform, bounds and recipe is what a layout reader actually needs.
+     *
+     * The id is synthesised as lightweight:<Class>:<Index> because these have
+     * no path name -- that pair is how the subsystem itself addresses them.
+     * It is stable only within one snapshot: removing an instance shifts every
+     * index above it, which is why nothing should persist one of these ids.
+     */
+    TSharedRef<FJsonObject> LightweightBuildableJson(
+        const TSubclassOf<AFGBuildable>& BuildableClass,
+        const FRuntimeBuildableInstanceData& Instance,
+        int32 Index)
+    {
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        const FString ClassName = IsValid(BuildableClass) ? BuildableClass->GetName() : TEXT("Unknown");
+        Result->SetStringField(TEXT("actor_id"),
+            FString::Printf(TEXT("lightweight:%s:%d"), *ClassName, Index));
+        Result->SetStringField(TEXT("name"), FString::Printf(TEXT("%s_%d"), *ClassName, Index));
+        Result->SetStringField(TEXT("class_path"),
+            IsValid(BuildableClass) ? BuildableClass->GetPathName() : FString());
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(BuildableClass));
+        Result->SetStringField(TEXT("kind"), TEXT("lightweight_buildable"));
+        Result->SetObjectField(TEXT("location"), VectorJson(Instance.Transform.GetLocation()));
+        Result->SetObjectField(TEXT("rotation"), RotatorJson(Instance.Transform.Rotator()));
+        Result->SetObjectField(TEXT("scale"), VectorJson(Instance.Transform.GetScale3D()));
+
+        // BoundingBox is local space -- the field says so -- so it is moved onto
+        // the instance before being reported, to match BuildableJson's world bounds.
+        if (Instance.BoundingBox.IsValid != 0)
+        {
+            const FBox WorldBounds = Instance.BoundingBox.TransformBy(Instance.Transform);
+            const TSharedRef<FJsonObject> Bounds = MakeShared<FJsonObject>();
+            Bounds->SetObjectField(TEXT("origin"), VectorJson(WorldBounds.GetCenter()));
+            Bounds->SetObjectField(TEXT("extent"), VectorJson(WorldBounds.GetExtent()));
+            Result->SetObjectField(TEXT("bounds"), Bounds);
+        }
+
+        Result->SetStringField(TEXT("built_with_recipe"), ClassPath(Instance.BuiltWithRecipe.Get()));
+        Result->SetBoolField(TEXT("inside_blueprint_designer"), false);
+        return Result;
+    }
+
     TSharedRef<FJsonObject> BuildableJson(AFGBuildable* Buildable, const FAIFactorySettings& Settings)
     {
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
@@ -1817,6 +1869,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
         VisibleUiJson(World, Settings.bIncludeVisibleUiText));
 
     TArray<TSharedPtr<FJsonValue>> Actors;
+    int32 LightweightSeen = 0;
     if (IsValid(World))
     {
         const double RadiusSquaredCm = FMath::Square(static_cast<double>(Request.RadiusMeters) * 100.0);
@@ -1840,6 +1893,43 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
             Actors.Add(MakeShared<FJsonValueObject>(BuildableJson(Buildable, CaptureSettings)));
             ++Result.ActorCount;
             ++Result.BuildableCount;
+        }
+
+        // The other four fifths. Structural pieces are instance data, not
+        // actors, so the loop above cannot see them -- measured at 11 of 51
+        // classes visible in one of the owner's buildings.
+        if (!Result.bActorLimitReached)
+        {
+            if (AFGLightweightBuildableSubsystem* Lightweight =
+                    AFGLightweightBuildableSubsystem::Get(World))
+            {
+                for (const auto& Pair : Lightweight->GetAllLightweightBuildableInstances())
+                {
+                    const TArray<FRuntimeBuildableInstanceData>& Instances = Pair.Value;
+                    for (int32 Index = 0; Index < Instances.Num(); ++Index)
+                    {
+                        const FRuntimeBuildableInstanceData& Instance = Instances[Index];
+                        if (Request.bUseRadius &&
+                            FVector::DistSquared(Instance.Transform.GetLocation(), Request.Center) > RadiusSquaredCm)
+                        {
+                            continue;
+                        }
+                        if (Actors.Num() >= Settings.MaxActorsPerSnapshot)
+                        {
+                            Result.bActorLimitReached = true;
+                            break;
+                        }
+                        Actors.Add(MakeShared<FJsonValueObject>(
+                            LightweightBuildableJson(Pair.Key, Instance, Index)));
+                        ++Result.ActorCount;
+                        ++LightweightSeen;
+                    }
+                    if (Result.bActorLimitReached)
+                    {
+                        break;
+                    }
+                }
+            }
         }
 
         if (!Result.bActorLimitReached)
@@ -1913,6 +2003,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
 
     const TSharedRef<FJsonObject> Completeness = MakeShared<FJsonObject>();
     Completeness->SetBoolField(TEXT("actor_limit_reached"), Result.bActorLimitReached);
+    // Named separately so a reader can tell an empty base from a blind snapshot.
+    Completeness->SetNumberField(TEXT("lightweight_buildable_count"), LightweightSeen);
     Completeness->SetNumberField(TEXT("actor_limit"), Settings.MaxActorsPerSnapshot);
     Completeness->SetStringField(TEXT("unknown_policy"),
         TEXT("Unknown custom behavior is never inferred; an explicit adapter is required."));

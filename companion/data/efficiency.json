@@ -1,0 +1,75 @@
+{
+  "$schema_note": "Hardcoded efficiency constants. Only things the game does NOT expose as structured data belong here. Recipe ratios are derived live from snapshot content.recipes (duration_seconds + ingredients + products), because that is authoritative, version-exact and mod-aware -- hardcoding those would be strictly worse.",
+  "seeded_from": {
+    "game_version": "1.2.4.0",
+    "changelist": 502094,
+    "snapshot_date": "2026-08-20",
+    "mods_active": 51,
+    "note": "Transport tiers were read out of the player's own install rather than recalled. That is how Conveyor Belt Mk.6 at 1200/min got in here -- it is a modded tier that does not exist in vanilla, and any table written from memory would have missed it."
+  },
+
+  "transport": {
+    "$why_hardcoded": "The game states throughput only as prose inside the item description ('Transports up to 60 resources per minute'). There is no structured field, so parsing it at runtime would mean depending on English description text. Hardcoded here, and cross-checked against those descriptions by efficiency.test.mjs so a mod or patch that changes a tier fails a test instead of silently producing wrong plans.",
+    "belts": [
+      { "tier": 1, "name": "Conveyor Belt Mk.1", "items_per_min": 60, "verified": true },
+      { "tier": 2, "name": "Conveyor Belt Mk.2", "items_per_min": 120, "verified": true },
+      { "tier": 3, "name": "Conveyor Belt Mk.3", "items_per_min": 270, "verified": true },
+      { "tier": 4, "name": "Conveyor Belt Mk.4", "items_per_min": 480, "verified": true },
+      { "tier": 5, "name": "Conveyor Belt Mk.5", "items_per_min": 780, "verified": true },
+      { "tier": 6, "name": "Conveyor Belt Mk.6", "items_per_min": 1200, "verified": true, "modded": true }
+    ],
+    "lifts": [
+      { "tier": 1, "name": "Conveyor Lift Mk.1", "items_per_min": 60, "verified": true },
+      { "tier": 2, "name": "Conveyor Lift Mk.2", "items_per_min": 120, "verified": true },
+      { "tier": 3, "name": "Conveyor Lift Mk.3", "items_per_min": 270, "verified": true },
+      { "tier": 4, "name": "Conveyor Lift Mk.4", "items_per_min": 480, "verified": true },
+      { "tier": 5, "name": "Conveyor Lift Mk.5", "items_per_min": 780, "verified": true },
+      { "tier": 6, "name": "Conveyor Lift Mk.6", "items_per_min": 1200, "verified": true, "modded": true }
+    ],
+    "pipes": [
+      { "tier": 1, "name": "Pipeline Mk.1", "cubic_m_per_min": 300, "verified": false },
+      { "tier": 2, "name": "Pipeline Mk.2", "cubic_m_per_min": 600, "verified": false }
+    ],
+    "pipes_note": "verified:false means these were NOT confirmed against this install -- the description regex that caught every belt caught no pipe. Treat as provisional; efficiency.test.mjs reports them as unconfirmed rather than passing them off as checked."
+  },
+
+  "overclock": {
+    "$why_hardcoded": "Not present anywhere in snapshot content. These are engine constants.",
+    "min_percent": 1,
+    "max_percent": 250,
+    "power_exponent": 1.321928,
+    "power_formula": "power_mw = base_mw * (clock_percent / 100) ^ power_exponent",
+    "exponent_note": "1.321928 is log2(2.5): at 250% clock a machine draws exactly 2.5x its rated power raised to that curve. Underclocking uses the same curve, which is why underclocking is the cheapest way to hit a fractional ratio -- two machines at 50% draw far less than one at 100%.",
+    "somersloop": {
+      "verified": false,
+      "note": "Production amplification is deliberately omitted rather than guessed. I am not confident of the exact power penalty formula in 1.2, and a wrong constant here would quietly corrupt every power budget that used it. Measure it in-game before filling this in."
+    }
+  },
+
+  "conventions": {
+    "$why_hardcoded": "Layout knowledge is settled community practice and is not derivable from recipe data at all. This is the part that genuinely belongs in the repo.",
+    "manifold": {
+      "use_when": "Default for most production lines.",
+      "why": "Self-balancing once saturated, far less belt and floor space, trivially extendable by adding one machine on the end.",
+      "cost": "Machines fill sequentially, so the line takes time to reach steady state after a cold start. Irrelevant for a factory that runs continuously.",
+      "rule": "Feed the manifold at exactly the total consumption rate. Overfeeding does not make it faster; it just backs up."
+    },
+    "balancer": {
+      "use_when": "Short bursts, on-demand production, or when a line must reach full rate immediately.",
+      "why": "Every machine gets its share from the first item.",
+      "cost": "Splitter trees grow fast, need much more space, and have to be rebuilt to change machine count."
+    },
+    "belt_sizing": {
+      "rule": "Pick the smallest tier whose rate is at least the line's throughput. Running a Mk.5 where a Mk.2 suffices costs materials and nothing else, but under-sizing silently throttles the whole line.",
+      "watch": "A manifold's trunk carries the SUM of every machine on it, not one machine's rate. Sizing the trunk for a single machine is the most common throttle."
+    },
+    "clocking": {
+      "rule": "Prefer whole machines at 100%. When a target rate needs a fraction, underclock the last machine rather than rounding up -- the power curve is superlinear, so N machines at a reduced clock beat N+1 at 100% for both power and cost.",
+      "example": "A line needing 2.4 smelters runs as 2 at 100% + 1 at 40%, not 3 at 80% and not 3 at 100% with one starved."
+    }
+  },
+
+  "footprints_m": {
+    "$why_empty": "Deliberately not filled with recalled numbers. Every buildable in a snapshot carries a real measured `bounds.extent`, so these can be derived exactly from the player's own world -- including modded machines, which no hardcoded table would cover. measureFootprints() in efficiency.mjs populates this from any snapshot. Until the snapshot can see a factory, it stays empty rather than wrong."
+  }
+}

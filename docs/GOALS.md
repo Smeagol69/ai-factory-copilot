@@ -32,6 +32,146 @@ not us.
 
 ---
 
+## The end state
+
+The four points above are the shippable mod. This is what it is *for*, in the
+owner's words, 2026-08-20:
+
+> "Real time viewing of everything visually, internally full read and write of
+> game. You are the game master and you can create me beautiful blueprints and
+> use your creative skills and extensive knowledge to build something I request,
+> and also fix inefficiencies like starting location — maybe something like *'I
+> see you placed your hub here, there's only 1 iron node in 300m, if you moved
+> to these coordinates you will be set up better in later game'* — stuff like
+> that, like you're sitting right beside me looking over my shoulder."
+
+The operative phrase is **looking over my shoulder**. Not a query interface. A
+second pair of eyes that already knows what it is looking at and speaks up
+without being asked.
+
+That decomposes into four capabilities. They are listed in dependency order:
+each one is worthless without the one above it, which is also the order to
+build them in.
+
+### 1. SEE — read everything, continuously
+
+Status: **badly incomplete, and it was invisible until measured.**
+
+Of the 51 buildable classes in one of the owner's buildings, the snapshot could
+see **11** and was blind to **40**. `AIFactorySnapshot.cpp` iterates
+`TActorIterator<AFGBuildable>`, and foundations, walls, pillars, catwalks,
+railings and roofs are not actors -- they are instance data owned by
+`AFGLightweightBuildableSubsystem`. Every claim this mod has ever made about
+"what is in your world" was made from the wiring while calling it the building.
+
+This is the same blindness that made the blueprint export capture a building's
+poles and ladders and none of its shell. That was fixed in the exporter on
+2026-08-20; the snapshot fix is written and pending a build.
+
+Still missing after that: measured production rates per machine (the snapshot
+has `connections` and `inventories` but nothing that says "this smelter is
+running at 84%"), and a structural `.sbp` parser so blueprints can be read as
+geometry rather than counted as strings.
+
+### 2. UNDERSTAND — know what the reading means
+
+Status: **strong, and the strongest part of the project.**
+
+Every snapshot carries 4,040 recipes and 3,692 items pulled live from the
+owner's install, with `duration_seconds`, `ingredients`, `products` and
+`produced_in`. Exact ratios are arithmetic on that, and being live means they
+are correct for all 51 active mods -- which a hardcoded ratio table could never
+be. `companion/lib/efficiency.mjs` does that derivation.
+
+**What is hardcoded, and why only this:** `companion/data/efficiency.json`
+holds what the game does *not* expose as structured data -- belt and lift
+throughput (stated only as English prose inside item descriptions), the
+overclock power curve (an engine constant that appears nowhere), and
+manifold-versus-balancer practice (community knowledge that no recipe data
+implies). The transport table was seeded from the owner's own install rather
+than recalled, which is how Conveyor Belt Mk.6 at 1200/min got into it: a
+modded tier that does not exist in vanilla and that any table written from
+memory would have silently missed. A test cross-checks the table against those
+descriptions every run, so a patch that changes a tier fails a test instead of
+quietly producing wrong plans for months.
+
+Machine footprints are deliberately **empty** rather than filled with recalled
+numbers. Every buildable in a snapshot carries a real measured `bounds.extent`,
+so they get derived from the owner's world -- modded machines included.
+
+### 3. SPEAK UP — volunteer, do not wait to be asked
+
+Status: **zero. This is the gap between what exists and what was asked for.**
+
+Everything in this mod today is request-response. Nothing has ever volunteered
+anything.
+
+The nervous system is already built and unused: `AAIFactorySubsystem` runs
+`ObserveWorld` on a timer, computes a `WorldFingerprint`, calls
+`MarkWorldDirty()` when the world changes, and holds an `OnActorSpawned`
+handler that fires on every single placement. It detects change and does
+nothing with it. There is no brain attached to it.
+
+The hub example is a good test case because it needs every layer at once:
+
+    detect the placement          HandleActorSpawned          exists
+    find nearby resource nodes    AFGResourceNodeBase in      exists
+                                  the snapshot
+    score this site vs others     assessMegabaseSite()        exists
+                                  in megabase.mjs
+    say it unprompted             -                           does not exist
+
+Three of four already work. The missing piece is a channel that speaks without
+being spoken to, plus the judgement to do it rarely -- an assistant that
+comments on every foundation is one the owner turns off in a day. The bar:
+**only speak when the observation is worth an interruption, and when it is
+still cheap to act on.** A hub critique is worth it in the first hour and
+worthless after fifty hours of building around it.
+
+### 4. BUILD — write things worth looking at
+
+Status: **the mechanism landed by accident, and has not been used yet.**
+
+There are ~4,200 lines of planners already (`planStructure`, `planTower`,
+`planEnclosedFactory`, `planCoalPower`, `planComposition`, `planModularShell`,
+`megabaseFootprint`). They all emit *placement actions* -- one building at a
+time through holograms -- which is the fragile path: clearance failures, Z
+drift, and ad-hoc belts that still do not connect.
+
+`FScopedMaterialisedInstances`, built on 2026-08-20 to fix the pillar bug, is
+in substance *"spawn arbitrary buildables inside a designer and serialise
+them"*. Point it at computed transforms instead of existing instance data and
+it is a blueprint generator. That route has no holograms, no clearance checks,
+no Z drift, undo is deleting a file, and **the game's own loader rewires the
+belts on placement** -- which is already why belts inside blueprints work when
+ad-hoc ones do not.
+
+So: planner -> geometry -> spawn in designer -> `SaveBlueprint` -> the owner
+places it with the vanilla Build Gun. Every planner should be rerouted through
+that instead of through live placement.
+
+**On "beautiful", honestly.** Efficiency is a solver problem and is close to
+solved. Aesthetics is not, and pretending otherwise would be dishonest. Claude
+cannot see the game and has no taste of its own to apply to it. What is
+achievable is learning the owner's: their builds are genuinely well-made, and
+once a `.sbp` can be parsed structurally their own library becomes the style
+vocabulary -- spacing conventions, which beam goes with which wall, where
+railings and catwalks run. That is imitating a taste that demonstrably exists,
+not inventing one.
+
+### The order, and why
+
+1. **Snapshot sees lightweight** — written, pending a build. Nothing above it
+   is worth doing while four fifths of the world is invisible.
+2. **`.sbp` structural parser** — unlocks reading the owner's style *and*
+   verifying generated output. Companion-side, no build cycle, no crash risk.
+3. **One planner rerouted to blueprint output** — `planCoalPower` is the
+   tightest and the easiest to check against known ratios.
+4. **Measured rates, then the proactive channel** — advice that has never been
+   checked against a running factory is arithmetic, not observation.
+
+---
+
 ## The key architectural finding
 
 Verified against the CL 502094 headers, and it is the reason this is possible:
