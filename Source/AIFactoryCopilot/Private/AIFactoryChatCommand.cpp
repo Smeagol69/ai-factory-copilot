@@ -1,5 +1,6 @@
 #include "AIFactoryChatCommand.h"
 #include "AIFactoryVision.h"
+#include "AIFactoryTerrainScan.h"
 
 #include "AIFactorySubsystem.h"
 #include "Command/CommandSender.h"
@@ -88,6 +89,49 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             Request.RadiusMeters,
             static_cast<unsigned long long>(Subsystem->GetWorldRevision()),
             Snapshot.bActorLimitReached ? TEXT(" [actor limit reached]") : TEXT("")));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("terrain"))
+    {
+        // Defaults chosen to cover a cove or a build site in one go without
+        // a visible freeze: 120 m at a 4 m pitch is about nine thousand
+        // traces. Both are overridable because measuring a rock face wants a
+        // finer pitch than surveying a valley.
+        const double ScanRadius = Arguments.IsValidIndex(1)
+            ? FCString::Atod(*Arguments[1])
+            : 120.0;
+        const double ScanStep = Arguments.IsValidIndex(2)
+            ? FCString::Atod(*Arguments[2])
+            : 4.0;
+
+        auto* ScanPlayer = Sender->GetPlayer();
+        UWorld* ScanWorld = IsValid(ScanPlayer) ? ScanPlayer->GetWorld() : nullptr;
+        if (!IsValid(ScanWorld))
+        {
+            Sender->SendChatMessage(TEXT("No world to scan."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        // A frame is captured alongside, because a height field without a
+        // picture is a grid of numbers nobody can orient. The two together
+        // are what make a scan readable.
+        AIFactoryVision::RequestFrame(ScanWorld, TEXT("terrain_scan"), true);
+
+        const FString Written = AIFactoryTerrainScan::ScanToFile(
+            ScanWorld,
+            GetScanCenter(Sender),
+            ScanRadius,
+            ScanStep,
+            TEXT("chat_command"));
+
+        Sender->SendChatMessage(Written.IsEmpty()
+            ? TEXT("The terrain scan could not be written.")
+            : FString::Printf(
+                TEXT("Scanned %.0f m at ~%.0f m spacing -> %s"),
+                ScanRadius,
+                ScanStep,
+                *Written));
         return EExecutionStatus::COMPLETED;
     }
 
@@ -200,6 +244,6 @@ void AAIFactoryChatCommand::SendHelp(UCommandSender* Sender)
     Sender->SendChatMessage(TEXT("/ai <question> - chat using a fresh nearby snapshot, exact position, and current crosshair focus"));
     Sender->SendChatMessage(TEXT("/ai all <question> - chat using the whole-world live snapshot"));
     Sender->SendChatMessage(TEXT("/ai reset - clear this save/player conversation"));
-    Sender->SendChatMessage(TEXT("/ai status | scan [radius_m] | export [radius_m|all]"));
+    Sender->SendChatMessage(TEXT("/ai status | scan [radius_m] | terrain [radius_m] [step_m] | look | export [radius_m|all]"));
     Sender->SendChatMessage(TEXT("Examples: /ai what should I do here?  /ai is this machine connected correctly?"));
 }
