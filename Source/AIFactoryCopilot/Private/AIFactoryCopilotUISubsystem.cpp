@@ -746,6 +746,14 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
         SelectionDepthM * 50.0,
         SelectionHeightM * 50.0);
 
+    // Overlap, not pivot. A pillar runs from the platform down to the terrain
+    // with its origin at the foot, so a point test asks whether its foot is
+    // inside the box when the question is whether the pillar passes through it.
+    // Measured: an export of a whole building contained zero pillars, and the
+    // snapshot showed none as actors -- they were in the lightweight map all
+    // along and this test threw them away.
+    const FBox SelectionBox(SelectionCentre - Half, SelectionCentre + Half);
+
     int32 Structural = 0;
     int32 Machines = 0;
     for (TActorIterator<AFGBuildable> It(World); It; ++It)
@@ -755,10 +763,15 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
         {
             continue;
         }
-        const FVector Offset = Buildable->GetActorLocation() - SelectionCentre;
-        if (FMath::Abs(Offset.X) > Half.X ||
-            FMath::Abs(Offset.Y) > Half.Y ||
-            FMath::Abs(Offset.Z) > Half.Z)
+        // GetCachedBounds is world space -- CalculateBounds documents a zero
+        // extent 'at the buildable location' as valid. A buildable whose bounds
+        // were never cached falls back to the old point test rather than being
+        // dropped, so this can only ever select more than before, never less.
+        const FBox ActorBounds = Buildable->GetCachedBounds();
+        const bool bActorOverlaps = ActorBounds.IsValid != 0
+            ? ActorBounds.Intersect(SelectionBox)
+            : SelectionBox.IsInsideOrOn(Buildable->GetActorLocation());
+        if (!bActorOverlaps)
         {
             continue;
         }
@@ -795,10 +808,13 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
             const TArray<FRuntimeBuildableInstanceData>& Instances = Pair.Value;
             for (int32 Index = 0; Index < Instances.Num(); ++Index)
             {
-                const FVector Offset = Instances[Index].Transform.GetLocation() - SelectionCentre;
-                if (FMath::Abs(Offset.X) > Half.X ||
-                    FMath::Abs(Offset.Y) > Half.Y ||
-                    FMath::Abs(Offset.Z) > Half.Z)
+                const FRuntimeBuildableInstanceData& Instance = Instances[Index];
+                // BoundingBox is local space -- the field says so -- so it has to
+                // be moved onto the instance before it means anything.
+                const bool bInstanceOverlaps = Instance.BoundingBox.IsValid != 0
+                    ? SelectionBox.Intersect(Instance.BoundingBox.TransformBy(Instance.Transform))
+                    : SelectionBox.IsInsideOrOn(Instance.Transform.GetLocation());
+                if (!bInstanceOverlaps)
                 {
                     continue;
                 }

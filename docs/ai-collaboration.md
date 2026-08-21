@@ -3597,3 +3597,53 @@ if direct spawning turns out too heavy for a very large selection.
 compiled -- `D:\Modding\Satisfactory\StarterProject-502094` must not be touched
 while it is. Every new call was checked public against the CL 502094 headers,
 which catches a build failure but not a runtime one. Treat as untested.
+
+### Select by overlap, not by pivot — Claude, 2026-08-20
+
+The direct spawn worked. The owner's next export went from 13 distinct classes
+to 51, from 3,727 class references to 7,243, and from zero foundations to 204
+-- walls, railings, catwalks, roofs and beams all arrived. Their words: "much
+better just missing some small items".
+
+The missing items were pillars, and the diagnosis took one measurement:
+
+  - zero `Build_*Pillar*_C` anywhere in the exported archive
+  - zero pillar actors in the 250 m snapshot, so they are lightweight
+
+Both facts together say the pillars were sitting in
+`GetAllLightweightBuildableInstances()` the whole time and my box test threw
+them away.
+
+**Why pillars specifically.** Both tests compared one point against the box. A
+pillar runs from the platform down to the terrain with its origin at the foot,
+so a box centred on a player standing on top was asking "is the pillar's foot
+inside?" when the question is "does the pillar pass through?". Every long thin
+buildable fails that test, pillars worst of all. The same flaw was quietly
+clipping beams and walls at the edges of every selection.
+
+**Both sides already carried bounds**, so the fix costs nothing:
+
+    AFGBuildable::GetCachedBounds()             world space -- CalculateBounds
+                                                documents a zero extent "at the
+                                                buildable location" as valid
+    FRuntimeBuildableInstanceData::BoundingBox  local space, per the comment on
+                                                the field, so transform first
+
+Where bounds are missing the old point test still applies, so this can only
+ever select more than before, never less. Nothing that used to be captured
+stops being captured.
+
+**A build that lied.** `package-local.ps1` does not sync source --
+`install-to-starter.ps1` does -- and running only the former printed BUILD
+SUCCESSFUL in fourteen seconds while producing a byte-identical DLL. It had
+compiled stale source and said nothing. Always check the DLL size and
+timestamp against the previous one; "BUILD SUCCESSFUL" is not evidence that
+your change is in the binary.
+
+**A guard that defeated itself.** The script that adds
+`FScopedMaterialisedInstances` was guarded on
+`!includes("FScopedMaterialisedInstances")`, and the `AdoptOwned` doc comment
+inserted moments earlier *names that class*. The guard matched its own comment
+and skipped the class entirely. Brace balance came back 0 and proved nothing,
+because nothing had been inserted. Only the compiler caught it. Guard
+insertions on the declaration (`class Foo`), never on the bare name.
