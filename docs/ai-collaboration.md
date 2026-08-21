@@ -3647,3 +3647,189 @@ inserted moments earlier *names that class*. The guard matched its own comment
 and skipped the class entirely. Brace balance came back 0 and proved nothing,
 because nothing had been inserted. Only the compiler caught it. Guard
 insertions on the declaration (`class Foo`), never on the bare name.
+
+### Eyes, and the end of guessing at the world — Claude, 2026-08-20/21
+
+Four things landed in one evening. Read this before touching the snapshot, the
+selector, or anything that claims to know what is in the owner's world.
+
+---
+
+#### 1. The snapshot was blind to four fifths of the world
+
+**Measured, not suspected.** Of the 51 buildable classes in one of the owner's
+buildings, `AIFactorySnapshot.cpp` could see **11** and was blind to **40**. It
+iterated `TActorIterator<AFGBuildable>`, and foundations, walls, pillars,
+catwalks, railings and roofs are not actors -- they are instance data owned by
+`AFGLightweightBuildableSubsystem`.
+
+Every statement this mod ever made about "what is in your world" was made from
+the wiring while calling it the building. If you have code that reasons about
+world contents from a snapshot older than revision 25, **its conclusions were
+drawn from a fifth of the data** and are worth re-deriving.
+
+Fixed by adding `LightweightBuildableJson` and a second loop over
+`GetAllLightweightBuildableInstances()`. Records are compact on purpose -- class,
+transform, bounds, recipe -- because a wall has no inventory, no throughput and
+no connections, and a large base holds tens of thousands of them. New field:
+`completeness.lightweight_buildable_count`, so a reader can tell an empty base
+from a blind capture.
+
+`maxActorsPerSnapshot` was raised 5,000 -> 20,000 in the owner's config. At
+5,000 a single building would cap the capture.
+
+#### 2. Vision: the assistant can look at the game
+
+`AIFactoryVision.{h,cpp}`. `FScreenshotRequest::RequestScreenshot(filename,
+bShowUI, bAddUniqueSuffix)` is `ENGINE_API` and works in a shipping build.
+
+**The absolute path is honoured** -- `CreateViewportScreenShotFilename` keeps any
+filename containing a slash and only prefixes the default screenshot directory
+for bare names. Read in `UnrealClient.cpp` rather than assumed, because a wrong
+guess there writes frames somewhere nobody looks while everything downstream
+reports "no frame captured".
+
+Frames land in a bounded ring at `Saved/AIFactoryCopilot/Vision/` with a JSON
+sidecar each: capture time, reason, player location, **control rotation** (not
+actor rotation -- where the camera points is what the picture shows). A ring
+rather than one overwritten file, because a single still cannot show motion.
+
+Capture is **asynchronous**. The sidecar describes the frame that was
+*requested*; a reader finding no PNG yet should wait rather than conclude
+failure. Do not add a completion hook expectation to any consumer.
+
+Vision rides the existing observer timer rather than owning one -- the observer
+already ticks and already knows when the world changed.
+
+Off by default; `visionEnabled` gates *automatic* capture only. `/aifactory
+look` always works, because an explicit request is consent. I originally gated
+`RequestFrame` itself, which would have made the command silently do nothing
+while replying that it had captured a frame.
+
+**This is verified working.** I read a frame and described the owner's HUB,
+biome, milestone and open panel back to them.
+
+#### 3. The selector is precise now, and one cause was mine
+
+Report: on a busy map the box grabbed machines the owner did not want.
+
+Two causes. There was never a way to say what *kind* of thing to take. And I
+changed the test from pivot to bounds-overlap earlier the same day to fix
+missing pillars -- right for pillars, and it made over-selection strictly worse
+everywhere else. Overlap is a **mode** now, not a decree ("Only fully inside
+the box").
+
+Five categories, by **class hierarchy**, never by substring matching on names --
+matching on names is how `Build_Wall_Door_8x4_01_C` counts as structure and
+`Build_WallMountedFrackingSmasher_C` joins it:
+
+    structure   AFGBuildableFactoryBuilding
+    machines    AFGBuildableFactory
+    transport   AFGBuildableConveyorBase / PipeBase / ConveyorAttachment
+    power       AFGBuildableWire / PowerPole
+    other       beams, railings, catwalks, ladders -- no shared base class
+
+**The load-bearing fact, checked in the headers rather than assumed from the
+name: `AFGBuildableFactoryBuilding` descends from `AFGBuildable`, NOT from
+`AFGBuildableFactory`.** Had it descended, "machines off" would have silently
+taken every foundation and wall with it. If you add a category, check the
+hierarchy the same way.
+
+`CategoryIndexFor` takes a `UClass*`, so actors and lightweight instances
+classify through one path. Filters default ON; the count line prints the
+breakdown ("structure 210  machines off  transport 4") because a filter you
+cannot see the effect of is one you cannot trust.
+
+#### 4. Efficiency: what is hardcoded, and what must never be
+
+The owner asked for efficiency to be hardcoded. The split is not arbitrary:
+
+**DERIVED, never hardcoded** -- every recipe ratio. `content.recipes` carries
+`duration_seconds`, `ingredients`, `products` and `produced_in`, which is
+exactly enough for items/minute. It is live, version-exact, and correct for all
+51 of the owner's mods. A hardcoded ratio table could only be a stale copy of
+something authoritative already in every capture. `companion/lib/efficiency.mjs`
+does this.
+
+**HARDCODED** in `companion/data/efficiency.json` -- what the game does not
+expose as structured data: belt/lift throughput and miner rates (stated only as
+English prose in item descriptions), the overclock power curve, and
+manifold-vs-balancer practice.
+
+Both tables were **seeded from the owner's own install**, not recalled. That is
+how `Conveyor Belt Mk.6` at 1200/min and `Miner Mk.4` at 720/min got in --
+modded tiers absent from vanilla that any table written from memory would have
+missed silently. `crossCheckTransport()` re-verifies against those descriptions
+every test run, so a patch that moves a tier fails a test instead of quietly
+producing wrong plans for months.
+
+**NOT WRITTEN AT ALL** -- machine footprints. Every buildable carries a real
+`bounds.extent`, so `measureFootprints()` derives them from the owner's world,
+modded machines included. Empty beats recalled.
+
+Anything unverified says so in the data (`verified: false`) and a test asserts
+that nothing unverified is presented as verified. Purity multipliers
+(Impure 0.5 / Normal 1 / Pure 2) are flagged unverified -- the miner description
+says extraction "varies based on node purity" and never gives the numbers.
+
+#### 5. Site survey: the first piece that offers a judgement
+
+`companion/lib/survey.mjs`, routed as `site_survey`. The owner's framing: *"I
+see you placed your hub here, there's only 1 iron node in 300m."*
+
+**The distinction that makes it honest is node versus deposit.** The capture
+around the owner's HUB held 35 "resource nodes". Twenty-three were
+`BP_ResourceDeposit_C` -- hand-mined lumps that run out and cannot take a miner.
+Reporting 35 would have been true and useless. Only the 12 permanent
+`node_type == "Node"` entries can carry a factory.
+
+Read from first-class snapshot fields -- `resource_name`, `purity`, `node_type`,
+`occupied`, `has_resources`, `terrain.verdict` -- not reflected properties, not
+class-name guessing.
+
+Two deliberate behaviours worth preserving:
+
+- It reports `snapshot_radius_meters` and says plainly that absence beyond it is
+  not evidence. "No coal nearby" and "no coal captured" are different claims.
+- It is **willing to say a site is good**. An assistant that only ever finds
+  fault is one whose praise means nothing and whose criticism gets ignored. The
+  owner's hub turned out to be a strong site -- 6 Pure Iron nodes at 96 m -- and
+  saying so mattered more than manufacturing a complaint.
+
+Routed locally on purpose. Resource layout is exactly the kind of thing a model
+answers confidently and wrongly.
+
+#### 6. Two process failures, both of which nearly shipped
+
+**A build that lied.** `package-local.ps1` does NOT sync source --
+`install-to-starter.ps1` does. Running only the former printed BUILD SUCCESSFUL
+in fourteen seconds and produced a **byte-identical DLL**. It compiled stale
+source and said nothing. Always run install-to-starter first, and always check
+the DLL size and timestamp against the previous build. "BUILD SUCCESSFUL" is
+not evidence your change is in the binary.
+
+**A guard that matched its own comment.** The script inserting
+`FScopedMaterialisedInstances` was guarded on
+`!includes("FScopedMaterialisedInstances")`, and a doc comment inserted moments
+earlier *named that class*. The guard matched the comment and skipped the class
+entirely. Brace balance came back 0 and proved nothing, because nothing had been
+inserted. Only the compiler caught it. **Guard insertions on the declaration
+(`class Foo`), never on the bare name.**
+
+#### 7. What is next, in order
+
+1. **`.sbp` structural parser.** Today blueprints are read by counting class-name
+   strings in the inflated body. Parsing transforms unlocks reading the owner's
+   own style *and* verifying generated output. Companion-side, no build cycle.
+2. **Planner -> blueprint.** `FScopedMaterialisedInstances` is in substance
+   "spawn arbitrary buildables in a designer and serialise them". Point it at
+   computed transforms and it is a blueprint generator -- no holograms, no
+   clearance, no Z drift, and the game's loader rewires belts on placement.
+   `planCoalPower` is the tightest first candidate.
+3. **Measured rates.** Nothing yet compares a running factory against theory.
+4. **The proactive channel.** `ObserveWorld` already detects change and does
+   nothing with it. The hard part is not the analysis, it is the judgement to
+   speak rarely -- an assistant that comments on every foundation gets turned
+   off in a day.
+
+Current: 744 tests pass. DLL 793,088 bytes, 2026-08-20 22:45.

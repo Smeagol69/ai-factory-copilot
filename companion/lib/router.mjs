@@ -79,6 +79,7 @@ import {
 } from "./selection.mjs";
 import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
+import { formatSurvey, judgeSite, surveyResources } from "./survey.mjs";
 import {
   measureConnectors,
   solveBeltRoute,
@@ -1597,6 +1598,28 @@ export function parseWhereAmIRequest(question) {
   return WHERE_AM_I.test(text) ? {} : null;
 }
 
+/**
+ * "what resources are near me", "is my hub well placed", "survey this site".
+ *
+ * A radius may be given ("within 300m") and is honoured, but it can never
+ * see further than the capture itself -- surveyResources reports the capture
+ * radius so a caller cannot mistake "nothing captured" for "nothing there".
+ */
+const SITE_SURVEY =
+  /^(?:can you |could you |please )?(?:(?:survey|assess|scout|check|rate|judge)\s+(?:this\s+|my\s+|the\s+)?(?:site|spot|location|area|base|hub|place)|(?:what|which)\s+(?:resources|nodes|ore|ores)\s+(?:are\s+)?(?:near|nearby|around|close to)\s*(?:me|here|us|my hub|the hub)?|(?:is|was)\s+(?:this|my|the)\s+(?:hub|base|site|spot|location)\s+(?:a\s+)?(?:good|bad|well|badly|poorly)\s*(?:place|placed|spot|choice|located)?|what(?:'s| is)\s+(?:around|near)\s+(?:me|here))\s*$/i;
+
+const SURVEY_RADIUS = /(?:within|in|inside|under)\s+(\d{2,5})\s*(?:m|metres|meters)\b/i;
+
+export function parseSiteSurveyRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const radius = text.match(SURVEY_RADIUS);
+  // Strip the radius before matching the shape, so "what resources are near
+  // me within 300m" routes the same as the bare question.
+  const bare = text.replace(SURVEY_RADIUS, "").replace(/\s{2,}/g, " ").trim();
+  if (!SITE_SURVEY.test(bare)) return null;
+  return { radius_meters: radius ? Number(radius[1]) : null };
+}
+
 export function parseLookingAtRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   return WHAT_AM_I_LOOKING_AT.test(text) ? {} : null;
@@ -3069,6 +3092,34 @@ export function answerLocally(question, graph, services) {
 
   // "what am I looking at" — the crosshair target, which the capture already
   // resolves for placement.
+  // "what's around me", "is my hub well placed" -- read from the capture's
+  // resource nodes, never from a model. Node layout is exactly the kind of
+  // thing a model will answer confidently and wrongly.
+  {
+    const survey = parseSiteSurveyRequest(question);
+    if (survey && graph) {
+      const started = Date.now();
+      const result = surveyResources(graph.snapshot, {
+        radiusMeters: survey.radius_meters,
+      });
+      if (result.ok) {
+        const judgement = judgeSite(result);
+        return localAnswer(
+          formatSurvey(result, judgement),
+          "site_survey",
+          started,
+          "Resource nodes come from the capture; a model would invent them.",
+        );
+      }
+      return localAnswer(
+        "I could not find a point to survey from — the capture has no HUB and no player position.",
+        "site_survey",
+        started,
+        "No origin in the capture.",
+      );
+    }
+  }
+
   if (parseLookingAtRequest(question) && graph) {
     const started = Date.now();
     const target = graph.snapshot?.interaction_context?.preferred_target;

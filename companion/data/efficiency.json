@@ -33,6 +33,23 @@
     "pipes_note": "verified:false means these were NOT confirmed against this install -- the description regex that caught every belt caught no pipe. Treat as provisional; efficiency.test.mjs reports them as unconfirmed rather than passing them off as checked."
   },
 
+  "extraction": {
+    "$why_hardcoded": "Same reason as transport: the game states miner throughput only as prose in the item description ('Default extraction rate is 120 resources per minute'). Seeded from the player's own install, which is how Miner Mk.4 at 720/min got here -- a modded tier absent from vanilla.",
+    "miners": [
+      { "tier": 1, "name": "Miner Mk.1", "base_per_min": 60, "verified": true },
+      { "tier": 2, "name": "Miner Mk.2", "base_per_min": 120, "verified": true },
+      { "tier": 3, "name": "Miner Mk.3", "base_per_min": 240, "verified": true },
+      { "tier": 4, "name": "Miner Mk.4", "base_per_min": 720, "verified": true, "modded": true }
+    ],
+    "purity_multiplier": {
+      "verified": false,
+      "note": "The description says extraction 'varies based on node purity' but never gives the numbers, so these could not be confirmed against this install the way the base rates were. They are long-standing engine values, but unverified is unverified.",
+      "RP_Inpure": 0.5,
+      "RP_Normal": 1.0,
+      "RP_Pure": 2.0
+    }
+  },
+
   "overclock": {
     "$why_hardcoded": "Not present anywhere in snapshot content. These are engine constants.",
     "min_percent": 1,
