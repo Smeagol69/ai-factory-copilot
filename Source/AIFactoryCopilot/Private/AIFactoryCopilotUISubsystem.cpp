@@ -1,6 +1,14 @@
 #include "AIFactoryCopilotUISubsystem.h"
 #include "FGDismantleInterface.h"
 #include "FGLightweightBuildableSubsystem.h"
+#include "Buildables/FGBuildableFactory.h"
+#include "Buildables/FGBuildableFactoryBuilding.h"
+#include "Buildables/FGBuildableConveyorBase.h"
+#include "Buildables/FGBuildablePipeBase.h"
+#include "Buildables/FGBuildableConveyorAttachment.h"
+#include "Buildables/FGBuildableWire.h"
+#include "Buildables/FGBuildablePowerPole.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSlider.h"
 #include "EngineUtils.h"
 #include "Buildables/FGBuildable.h"
@@ -717,9 +725,64 @@ float UAIFactoryCopilotUISubsystem::MetresToSlider(float Metres)
  * approximation of it. That equality is the whole point: the preview is what
  * earns the right to export without the player having marked each piece.
  */
+namespace
+{
+    /**
+     * Which bucket a buildable class falls in.
+     *
+     * By hierarchy, not by name. Substring matching on class names is how
+     * `Build_Wall_Door_8x4_01_C` ends up counted as structure and
+     * `Build_WallMountedFrackingSmasher_C` ends up there with it.
+     *
+     * Transport and power are tested first because they are the narrow
+     * cases; structure before machines because the important fact --
+     * checked in the headers, not assumed -- is that
+     * AFGBuildableFactoryBuilding descends from AFGBuildable and NOT from
+     * AFGBuildableFactory. If it did, turning machines off would silently
+     * take every foundation and wall with it.
+     *
+     * Works on a UClass, so actors and lightweight instances classify
+     * through exactly the same path.
+     */
+    int32 CategoryIndexFor(const UClass* BuildableClass)
+    {
+        if (BuildableClass == nullptr)
+        {
+            return 4;
+        }
+        if (BuildableClass->IsChildOf(AFGBuildableConveyorBase::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildablePipeBase::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildableConveyorAttachment::StaticClass()))
+        {
+            return 2;
+        }
+        if (BuildableClass->IsChildOf(AFGBuildableWire::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildablePowerPole::StaticClass()))
+        {
+            return 3;
+        }
+        if (BuildableClass->IsChildOf(AFGBuildableFactoryBuilding::StaticClass()))
+        {
+            return 0;
+        }
+        if (BuildableClass->IsChildOf(AFGBuildableFactory::StaticClass()))
+        {
+            return 1;
+        }
+        // Beams, railings, catwalks, ladders, signs. No shared base class, so
+        // they land here -- which is why 'other' is a visible toggle with a
+        // count rather than an invisible default.
+        return 4;
+    }
+}
+
 void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
 {
     SelectionActorIds.Reset();
+    for (int32 Index = 0; Index < 5; ++Index)
+    {
+        SelectionCategoryCounts[Index] = 0;
+    }
 
     AFGPlayerController* Controller = GetLocalPlayerController();
     UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
@@ -754,8 +817,6 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
     // along and this test threw them away.
     const FBox SelectionBox(SelectionCentre - Half, SelectionCentre + Half);
 
-    int32 Structural = 0;
-    int32 Machines = 0;
     for (TActorIterator<AFGBuildable> It(World); It; ++It)
     {
         AFGBuildable* Buildable = *It;
@@ -768,10 +829,17 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
         // were never cached falls back to the old point test rather than being
         // dropped, so this can only ever select more than before, never less.
         const FBox ActorBounds = Buildable->GetCachedBounds();
-        const bool bActorOverlaps = ActorBounds.IsValid != 0
-            ? ActorBounds.Intersect(SelectionBox)
+        const bool bActorFits = ActorBounds.IsValid != 0
+            ? (bSelectionStrictFit
+                ? (SelectionBox.IsInsideOrOn(ActorBounds.Min) && SelectionBox.IsInsideOrOn(ActorBounds.Max))
+                : ActorBounds.Intersect(SelectionBox))
             : SelectionBox.IsInsideOrOn(Buildable->GetActorLocation());
-        if (!bActorOverlaps)
+        if (!bActorFits)
+        {
+            continue;
+        }
+        const int32 ActorCategory = CategoryIndexFor(Buildable->GetClass());
+        if (!SelectionCategoryEnabled[ActorCategory])
         {
             continue;
         }
@@ -783,15 +851,7 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
             continue;
         }
         SelectionActorIds.Add(Buildable->GetPathName());
-        if (ClassName.Contains(TEXT("Foundation")) || ClassName.Contains(TEXT("Wall")) ||
-            ClassName.Contains(TEXT("Pillar")) || ClassName.Contains(TEXT("Ramp")))
-        {
-            ++Structural;
-        }
-        else
-        {
-            ++Machines;
-        }
+        ++SelectionCategoryCounts[ActorCategory];
     }
 
     // The other half of the world. Foundations and walls are converted to
@@ -811,16 +871,24 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
                 const FRuntimeBuildableInstanceData& Instance = Instances[Index];
                 // BoundingBox is local space -- the field says so -- so it has to
                 // be moved onto the instance before it means anything.
-                const bool bInstanceOverlaps = Instance.BoundingBox.IsValid != 0
-                    ? SelectionBox.Intersect(Instance.BoundingBox.TransformBy(Instance.Transform))
-                    : SelectionBox.IsInsideOrOn(Instance.Transform.GetLocation());
-                if (!bInstanceOverlaps)
+                const FBox InstanceBounds = Instance.BoundingBox.IsValid != 0
+                    ? Instance.BoundingBox.TransformBy(Instance.Transform)
+                    : FBox(Instance.Transform.GetLocation(), Instance.Transform.GetLocation());
+                const bool bInstanceFits = bSelectionStrictFit
+                    ? (SelectionBox.IsInsideOrOn(InstanceBounds.Min) && SelectionBox.IsInsideOrOn(InstanceBounds.Max))
+                    : SelectionBox.Intersect(InstanceBounds);
+                if (!bInstanceFits)
+                {
+                    continue;
+                }
+                const int32 InstanceCategory = CategoryIndexFor(Pair.Key);
+                if (!SelectionCategoryEnabled[InstanceCategory])
                 {
                     continue;
                 }
                 SelectionLightweight.Add(TPair<TSubclassOf<AFGBuildable>, int32>(Pair.Key, Index));
                 ++LightweightCount;
-                ++Structural;
+                ++SelectionCategoryCounts[InstanceCategory];
             }
         }
     }
@@ -847,15 +915,31 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
 
     if (SelectionCountText.IsValid())
     {
+        // The breakdown is what makes the filters legible: a player who
+        // unticks Machines can see the number it removed, rather than
+        // guessing whether the filter did anything.
+        static const TCHAR* CategoryNames[5] =
+            { TEXT("structure"), TEXT("machines"), TEXT("transport"), TEXT("power"), TEXT("other") };
+        FString Breakdown;
+        for (int32 Index = 0; Index < 5; ++Index)
+        {
+            if (!Breakdown.IsEmpty())
+            {
+                Breakdown += TEXT("  ");
+            }
+            Breakdown += SelectionCategoryEnabled[Index]
+                ? FString::Printf(TEXT("%s %d"), CategoryNames[Index], SelectionCategoryCounts[Index])
+                : FString::Printf(TEXT("%s off"), CategoryNames[Index]);
+        }
         SelectionCountText->SetText(FText::FromString(FString::Printf(
-            TEXT("%d buildings  |  %d structure (%d lightweight), %d machines  |  %.0f x %.0f x %.0f m"),
+            TEXT("%d selected (%d lightweight)  |  %s  |  %.0f x %.0f x %.0f m%s"),
             SelectionActorIds.Num() + LightweightCount,
-            Structural,
             LightweightCount,
-            Machines,
+            *Breakdown,
             SelectionWidthM,
             SelectionDepthM,
-            SelectionHeightM)));
+            SelectionHeightM,
+            bSelectionStrictFit ? TEXT("  |  fully inside only") : TEXT(""))));
     }
 }
 
@@ -966,6 +1050,49 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
  * complaint was having to mark a megabase piece by piece, so anything that
  * makes them leave this panel mid-task defeats the point.
  */
+/**
+ * One labelled category toggle.
+ *
+ * Repaints on change rather than waiting for the next slider nudge, because
+ * the whole point is to see what the filter removed.
+ */
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::MakeCategoryToggle(
+    int32 CategoryIndex,
+    const FString& Label)
+{
+    return SNew(SHorizontalBox)
+        + SHorizontalBox::Slot()
+        .AutoWidth()
+        .VAlign(VAlign_Center)
+        [
+            SNew(SCheckBox)
+            .IsChecked_Lambda([this, CategoryIndex]()
+            {
+                return SelectionCategoryEnabled[CategoryIndex]
+                    ? ECheckBoxState::Checked
+                    : ECheckBoxState::Unchecked;
+            })
+            .OnCheckStateChanged_Lambda([this, CategoryIndex](ECheckBoxState State)
+            {
+                SelectionCategoryEnabled[CategoryIndex] = (State == ECheckBoxState::Checked);
+                if (bSelectionAnchored)
+                {
+                    RefreshSelectionPreview();
+                }
+            })
+        ]
+        + SHorizontalBox::Slot()
+        .AutoWidth()
+        .VAlign(VAlign_Center)
+        .Padding(3.0f, 0.0f, 10.0f, 0.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(Label))
+            .ColorAndOpacity(FLinearColor(0.72f, 0.78f, 0.85f, 1.0f))
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+        ];
+}
+
 TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
 {
     return SNew(SVerticalBox)
@@ -1063,6 +1190,69 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                         RefreshSelectionPreview();
                     })
                 ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 8.0f, 0.0f, 0.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot().AutoWidth()[ MakeCategoryToggle(0, TEXT("Structure")) ]
+            + SHorizontalBox::Slot().AutoWidth()[ MakeCategoryToggle(1, TEXT("Machines")) ]
+            + SHorizontalBox::Slot().AutoWidth()[ MakeCategoryToggle(2, TEXT("Belts/pipes")) ]
+            + SHorizontalBox::Slot().AutoWidth()[ MakeCategoryToggle(3, TEXT("Power")) ]
+            + SHorizontalBox::Slot().AutoWidth()[ MakeCategoryToggle(4, TEXT("Other")) ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 4.0f, 0.0f, 0.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .VAlign(VAlign_Center)
+            [
+                SNew(SCheckBox)
+                .IsChecked_Lambda([this]()
+                {
+                    return bSelectionStrictFit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                })
+                .OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+                {
+                    bSelectionStrictFit = (State == ECheckBoxState::Checked);
+                    if (bSelectionAnchored)
+                    {
+                        RefreshSelectionPreview();
+                    }
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .VAlign(VAlign_Center)
+            .Padding(3.0f, 0.0f, 12.0f, 0.0f)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString(TEXT("Only fully inside the box")))
+                .ColorAndOpacity(FLinearColor(0.72f, 0.78f, 0.85f, 1.0f))
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Move box here")))
+                .ToolTipText(FText::FromString(TEXT(
+                    "Re-centre the box on where you are standing now, keeping the slider sizes.")))
+                .OnClicked_Lambda([this]()
+                {
+                    // Re-anchor without clearing. Clearing would make the player
+                    // dial all three dimensions back in every time they walked
+                    // somewhere, which is the thing that makes a box selector
+                    // tedious on a large base.
+                    bSelectionAnchored = false;
+                    RefreshSelectionPreview();
+                    return FReply::Handled();
+                })
+            ]
         ]
         + SVerticalBox::Slot()
         .AutoHeight()

@@ -98,6 +98,26 @@ private:
      */
     TArray<TPair<TSubclassOf<class AFGBuildable>, int32>> SelectionLightweight;
     int32 LightweightCount = 0;
+
+    /**
+     * Which kinds of building a box accepts, indexed to match the order in
+     * CategoryIndexFor(): structure, machines, transport, power, other.
+     *
+     * All on by default, so a selection behaves exactly as before until the
+     * player chooses to narrow it. Turning a filter on should be their
+     * decision, not a surprise.
+     */
+    bool SelectionCategoryEnabled[5] = { true, true, true, true, true };
+    /** Tallies from the last preview, so the count line explains the filters. */
+    int32 SelectionCategoryCounts[5] = { 0, 0, 0, 0, 0 };
+    /**
+     * Require a building to sit entirely inside the box rather than merely
+     * touch it. Off by default because touching is what makes long pieces
+     * like pillars selectable at all; on, it is far more precise in a dense
+     * factory where boxes inevitably clip a neighbour.
+     */
+    bool bSelectionStrictFit = false;
+    TSharedRef<SWidget> MakeCategoryToggle(int32 CategoryIndex, const FString& Label);
     /** Demolish is destructive, so it arms on the first click and fires on the second. */
     double DemolishArmedAt = 0.0;
     void DemolishSelection();
