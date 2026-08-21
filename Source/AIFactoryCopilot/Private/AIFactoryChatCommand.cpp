@@ -1,4 +1,5 @@
 #include "AIFactoryChatCommand.h"
+#include "AIFactoryVision.h"
 
 #include "AIFactorySubsystem.h"
 #include "Command/CommandSender.h"
@@ -87,6 +88,20 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             Request.RadiusMeters,
             static_cast<unsigned long long>(Subsystem->GetWorldRevision()),
             Snapshot.bActorLimitReached ? TEXT(" [actor limit reached]") : TEXT("")));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("look"))
+    {
+        // On demand, so a player can hand over a view without enabling the
+        // timer at all. Reports the directory rather than the filename: the
+        // PNG does not exist yet when this returns.
+        auto* CommandPlayer = Sender->GetPlayer();
+        UWorld* CommandWorld = IsValid(CommandPlayer) ? CommandPlayer->GetWorld() : nullptr;
+        AIFactoryVision::RequestFrame(CommandWorld, TEXT("requested"), true);
+        Sender->SendChatMessage(FString::Printf(
+            TEXT("Capturing a frame to %s (the file lands a moment from now)."),
+            *AIFactoryVision::VisionDirectory()));
         return EExecutionStatus::COMPLETED;
     }
 

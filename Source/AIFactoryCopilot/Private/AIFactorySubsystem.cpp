@@ -1,4 +1,5 @@
 #include "AIFactorySubsystem.h"
+#include "AIFactoryVision.h"
 
 #include "AIFactoryActions.h"
 #include "AIFactoryBlueprintPreviewRCO.h"
@@ -413,6 +414,22 @@ void AAIFactorySubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AAIFactorySubsystem::ObserveWorld()
 {
+    // Vision rides the observer timer rather than owning one. The observer
+    // already ticks and already knows whether anything changed, so a second
+    // timer would just be another thing to keep in sync.
+    if (AIFactoryVision::IsEnabled())
+    {
+        const FAIFactorySettings Current = FAIFactorySettings::Load();
+        if (Current.VisionIntervalSeconds > 0.0f)
+        {
+            const double Now = FPlatformTime::Seconds();
+            if (Now - LastVisionCaptureSeconds >= Current.VisionIntervalSeconds)
+            {
+                LastVisionCaptureSeconds = Now;
+                AIFactoryVision::RequestFrame(GetWorld(), TEXT("timer"), Current.bVisionIncludeUI);
+            }
+        }
+    }
     const uint32 NewFingerprint = FAIFactorySnapshot::ComputeWorldFingerprint(GetWorld());
     if (NewFingerprint != WorldFingerprint)
     {
