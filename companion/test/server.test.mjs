@@ -336,7 +336,7 @@ test("ask endpoint records which solvers ran", async () => {
     body.solver_calls.map((call) => call.tool),
     ["diagnose_bottlenecks", "get_power_circuits"],
   );
-  assert.match(body.reply, /Deterministic solvers report 4 machine\(s\)/);
+  assert.match(body.reply, /Read from 4 stalled machines across 2 power circuits/);
 });
 
 test("ask endpoint rejects snapshots without the no-guessing policy", async () => {

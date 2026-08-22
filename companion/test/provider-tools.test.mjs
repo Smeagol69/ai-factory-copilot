@@ -980,9 +980,14 @@ test("power capacity does not accidentally require the transport solver", async 
 test("mock mode exercises the solvers so they can be verified without a model", async () => {
   const answer = await askMock(makeContext());
   assert.equal(answer.provider, "mock");
-  assert.match(answer.reply, /Deterministic solvers report 4 machine\(s\) with findings/);
-  assert.match(answer.reply, /power_capacity_deficit: 2/);
-  assert.match(answer.reply, /across 2 power circuit\(s\)/);
+  // The findings are narrated now rather than tallied: a consequence in the
+  // headline, the machines named, the provenance stated. Same guarantee as
+  // before -- the solvers ran and their output reached the reply -- but checked
+  // against prose a player can act on instead of a cause-count string.
+  assert.match(answer.reply, /Your circuit is over capacity/);
+  assert.match(answer.reply, /Affected: /);
+  assert.match(answer.reply, /Read from 4 stalled machines across 2 power circuits/);
+  assert.match(answer.reply, /from captured state/);
   assert.deepEqual(
     answer.solver_calls.map((call) => call.tool),
     ["diagnose_bottlenecks", "get_power_circuits"],
@@ -992,5 +997,5 @@ test("mock mode exercises the solvers so they can be verified without a model", 
 test("mock mode still answers when no graph was built", async () => {
   const answer = await askMock(makeContext({ graph: undefined }));
   assert.deepEqual(answer.solver_calls, []);
-  assert.doesNotMatch(answer.reply, /Deterministic solvers report/);
+  assert.doesNotMatch(answer.reply, /stalled machine|Nothing is stalled/);
 });

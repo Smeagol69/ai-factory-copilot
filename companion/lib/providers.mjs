@@ -11,6 +11,7 @@ import {
   openAIToolDefinitions,
   runSolverTool,
 } from "./tools.mjs";
+import { narrateFindings } from "./narrate.mjs";
 
 const DEFAULT_MAXIMUM_SOLVER_ROUNDS = 6;
 // A server-side search can pause a turn; each resume is bounded separately from
@@ -1506,12 +1507,14 @@ export async function askMock(context) {
     );
     const parsedBottlenecks = JSON.parse(bottlenecks.serialized);
     const parsedPower = JSON.parse(power.serialized);
-    const causes = Object.entries(parsedBottlenecks.cause_counts ?? {})
-      .map(([cause, count]) => `${cause}: ${count}`)
-      .join(", ");
-    solverText =
-      ` Deterministic solvers report ${parsedBottlenecks.reported_machine_count ?? 0} machine(s) with findings` +
-      `${causes ? ` (${causes})` : ""} across ${parsedPower.circuit_count ?? 0} power circuit(s).`;
+    // Narrated, not tallied. A list of cause counts is true and unreadable: it
+    // leads with a category instead of a consequence, presents symptoms as peers
+    // of the cause that produced them, and names no machine you could walk to.
+    // narrateFindings assembles the same facts into something actionable.
+    const narrated = narrateFindings(parsedBottlenecks, parsedPower);
+    solverText = narrated.text ? `
+
+${narrated.text}` : "";
   }
 
   return {
