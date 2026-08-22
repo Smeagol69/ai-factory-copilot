@@ -249,12 +249,23 @@ test("a conveyor is revalidated, charged, and accepted only after exact endpoint
   const finalRevalidation = belt.indexOf("hologram_revalidated_after_final_build_step");
   const cost = belt.indexOf("NormalizeActionCost(Belt->GetCost(true))");
   const exactReadback = belt.indexOf("const bool bExactEndpoints");
-  const exactGate = belt.indexOf("if (!bExactEndpoints)");
+  // The endpoints may now be repaired with SetConnection before the rollback --
+  // a belt that constructed but snapped to the wrong port is worth joining
+  // rather than dismantling. The gate moved to bEndpointsExact accordingly.
+  const repair = belt.indexOf("bool bEndpointsExact = bExactEndpoints");
+  const exactGate = belt.indexOf("if (!bEndpointsExact)");
   const charge = belt.indexOf("ChargeActionCost(Cost, Inventory)");
   const journal = belt.indexOf("RecordActionUndo(MoveTemp(Step))");
   assert.ok(finalStep >= 0 && finalStep < finalRevalidation && finalRevalidation < cost);
-  assert.ok(cost < exactReadback && exactReadback < exactGate);
+  assert.ok(cost < exactReadback && exactReadback < repair && repair < exactGate);
   assert.ok(exactGate < charge && charge < journal);
+
+  // The repair must not weaken the check it precedes: it is gated on the game's
+  // own CanConnectTo, it re-runs the same IsExactPair rather than assuming the
+  // join took, and it refuses to steal a port another machine already holds.
+  assert.match(belt, /BeltSide->CanConnectTo\(Wanted\)/);
+  assert.match(belt, /return IsExactPair\(BeltSide, Wanted\);/);
+  assert.match(belt, /Wanted->IsConnected\(\) && Wanted->GetConnection\(\) != BeltSide/);
 });
 
 test("the game rejects a locked belt recipe before spawning its hologram", () => {
