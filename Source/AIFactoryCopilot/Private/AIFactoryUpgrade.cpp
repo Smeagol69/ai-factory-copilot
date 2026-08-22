@@ -62,6 +62,83 @@ bool ParseTier(const FString& BuildableClassName, FString& OutFamily, int32& Out
     return false;
 }
 
+namespace
+{
+    /**
+     * family name -> the highest unlocked tier in it.
+     *
+     * Built once. The previous version walked all available recipes and all
+     * their products for *every* buildable asked about -- with 248 unlocked
+     * recipes and a 3,859-building selection that is around a million
+     * iterations per Upgrade click, recomputing one answer over and over.
+     */
+    TMap<FString, FUpgradeTarget> CachedFamilyTop;
+    int32 CachedRecipeCount = -1;
+
+    /**
+     * The available-recipe count is a sufficient cache key: recipes are only
+     * ever added, never removed, so unlocking Miner Mk.4 changes the count and
+     * the map rebuilds. It cannot go stale in the direction that matters.
+     */
+    const TMap<FString, FUpgradeTarget>& FamilyTopMap(AFGRecipeManager* Recipes)
+    {
+        const TArray<TSubclassOf<UFGRecipe>>& Available = Recipes->GetAllAvailableRecipes();
+        if (Available.Num() == CachedRecipeCount)
+        {
+            return CachedFamilyTop;
+        }
+
+        CachedFamilyTop.Reset();
+        for (const TSubclassOf<UFGRecipe>& Recipe : Available)
+        {
+            if (!IsValid(Recipe))
+            {
+                continue;
+            }
+            for (const FItemAmount& Product : UFGRecipe::GetProducts(Recipe))
+            {
+                // TSubclassOf's constructor does not verify the hierarchy, so a
+                // straight cast would hand a non-building descriptor to
+                // GetBuildableClass and read whatever overlapped.
+                UClass* const ProductClass = Product.ItemClass.Get();
+                if (ProductClass == nullptr ||
+                    !ProductClass->IsChildOf(UFGBuildingDescriptor::StaticClass()))
+                {
+                    continue;
+                }
+                const TSubclassOf<UFGBuildingDescriptor> Building(ProductClass);
+                const TSubclassOf<AFGBuildable> Candidate =
+                    UFGBuildingDescriptor::GetBuildableClass(Building);
+                if (!IsValid(Candidate))
+                {
+                    continue;
+                }
+
+                FString Family;
+                int32 Tier = 0;
+                if (!ParseTier(Candidate->GetName(), Family, Tier))
+                {
+                    continue;
+                }
+
+                FUpgradeTarget& Top = CachedFamilyTop.FindOrAdd(Family);
+                if (Tier > Top.Tier)
+                {
+                    Top.BuildableClass = Candidate;
+                    Top.Recipe = Recipe;
+                    Top.Tier = Tier;
+                }
+            }
+        }
+
+        CachedRecipeCount = Available.Num();
+        UE_LOG(LogAIFactoryCopilot, Verbose,
+            TEXT("Upgrade: cached %d tiered families from %d recipes"),
+            CachedFamilyTop.Num(), CachedRecipeCount);
+        return CachedFamilyTop;
+    }
+}
+
 FUpgradeTarget FindMaxTier(UWorld* World, TSubclassOf<AFGBuildable> BuildableClass)
 {
     FUpgradeTarget Target;
@@ -74,7 +151,7 @@ FUpgradeTarget FindMaxTier(UWorld* World, TSubclassOf<AFGBuildable> BuildableCla
     int32 CurrentTier = 0;
     if (!ParseTier(BuildableClass->GetName(), Family, CurrentTier))
     {
-        // Untiered building. Not a failure -- most of a base is foundations.
+        // Untiered. Not a failure -- most of a base is foundations.
         return Target;
     }
 
@@ -84,62 +161,12 @@ FUpgradeTarget FindMaxTier(UWorld* World, TSubclassOf<AFGBuildable> BuildableCla
         return Target;
     }
 
-    int32 BestTier = CurrentTier;
-    for (const TSubclassOf<UFGRecipe>& Recipe : Recipes->GetAllAvailableRecipes())
+    const FUpgradeTarget* Top = FamilyTopMap(Recipes).Find(Family);
+    if (Top == nullptr || Top->Tier <= CurrentTier)
     {
-        if (!IsValid(Recipe))
-        {
-            continue;
-        }
-        for (const FItemAmount& Product : UFGRecipe::GetProducts(Recipe))
-        {
-            // Only building descriptors resolve to a buildable class, which is
-            // what keeps items out of this entirely. Desc_GunpowderMk2_C is a
-            // tiered *item*, and a name-driven search would have tried to
-            // upgrade gunpowder.
-            // TSubclassOf's constructor does not verify the hierarchy: casting
-            // straight from the product would hand a non-building descriptor to
-            // GetBuildableClass and read whatever mBuildableClass happened to
-            // overlap. Check the class relationship explicitly.
-            UClass* const ProductClass = Product.ItemClass.Get();
-            if (ProductClass == nullptr ||
-                !ProductClass->IsChildOf(UFGBuildingDescriptor::StaticClass()))
-            {
-                continue;
-            }
-            const TSubclassOf<UFGBuildingDescriptor> Building(ProductClass);
-            const TSubclassOf<AFGBuildable> Candidate =
-                UFGBuildingDescriptor::GetBuildableClass(Building);
-            if (!IsValid(Candidate))
-            {
-                continue;
-            }
-
-            FString CandidateFamily;
-            int32 CandidateTier = 0;
-            if (!ParseTier(Candidate->GetName(), CandidateFamily, CandidateTier))
-            {
-                continue;
-            }
-            if (CandidateFamily != Family || CandidateTier <= BestTier)
-            {
-                continue;
-            }
-
-            BestTier = CandidateTier;
-            Target.BuildableClass = Candidate;
-            Target.Recipe = Recipe;
-            Target.Tier = CandidateTier;
-        }
+        // Already at the top of its family, which is the common case.
+        return Target;
     }
-
-    if (Target.IsValid())
-    {
-        UE_LOG(LogAIFactoryCopilot, Verbose,
-            TEXT("Upgrade: %s (Mk%d) -> %s (Mk%d)"),
-            *BuildableClass->GetName(), CurrentTier,
-            *Target.BuildableClass->GetName(), Target.Tier);
-    }
-    return Target;
+    return *Top;
 }
 }

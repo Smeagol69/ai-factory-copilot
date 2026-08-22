@@ -829,6 +829,7 @@ namespace
 void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
 {
     SelectionActorIds.Reset();
+    SelectionRecipeCounts.Reset();
     for (int32 Index = 0; Index < 5; ++Index)
     {
         SelectionCategoryCounts[Index] = 0;
@@ -905,6 +906,13 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
         }
         SelectionActorIds.Add(Buildable->GetPathName());
         ++SelectionCategoryCounts[ActorCategory];
+        // Tallied here rather than in a second pass: this loop already holds
+        // the buildable, and the cost line used to re-walk the entire world
+        // to find it again.
+        if (const TSubclassOf<UFGRecipe> Recipe = Buildable->GetBuiltWithRecipe())
+        {
+            SelectionRecipeCounts.FindOrAdd(Recipe) += 1;
+        }
     }
 
     // The other half of the world. Foundations and walls are converted to
@@ -942,6 +950,10 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
                 SelectionLightweight.Add(TPair<TSubclassOf<AFGBuildable>, int32>(Pair.Key, Index));
                 ++LightweightCount;
                 ++SelectionCategoryCounts[InstanceCategory];
+                if (const TSubclassOf<UFGRecipe> Recipe = Instance.BuiltWithRecipe)
+                {
+                    SelectionRecipeCounts.FindOrAdd(Recipe) += 1;
+                }
             }
         }
     }
@@ -1746,58 +1758,51 @@ void UAIFactoryCopilotUISubsystem::ApplyTypedDimension(int32 Axis, const FString
  * BuiltWithRecipe, and leaving foundations out of a build cost would understate
  * it enormously on exactly the selections that need the figure most.
  */
+/**
+ * What the selection would cost to rebuild.
+ *
+ * Formatting only. The recipes were tallied by the preview pass that already
+ * walked these buildings; this used to repeat that walk in full and then call
+ * GetIngredients once per building -- 4,443 lookups on one of the owner's
+ * selections, on every slider frame. Keyed by recipe, a thousand identical
+ * foundations cost one lookup.
+ *
+ * Borrowed from the SMART! panel, whose best line states what a placement will
+ * produce before you commit. The equivalent question for a mega-blueprint is
+ * not how many buildings but whether you can afford to place it.
+ */
 void UAIFactoryCopilotUISubsystem::RefreshSelectionCost()
 {
     if (!SelectionCostText.IsValid())
     {
         return;
     }
-
-    AFGPlayerController* Controller = GetLocalPlayerController();
-    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
-    if (!IsValid(World) || (SelectionActorIds.Num() + LightweightCount) == 0)
+    if (SelectionRecipeCounts.Num() == 0)
     {
         SelectionCostText->SetText(FText::GetEmpty());
         return;
     }
 
-    TMap<TSubclassOf<UFGItemDescriptor>, int64> Totals;
-    const auto Accumulate = [&Totals, World](TSubclassOf<UFGRecipe> Recipe)
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World))
     {
-        if (!IsValid(Recipe))
+        return;
+    }
+
+    TMap<TSubclassOf<UFGItemDescriptor>, int64> Totals;
+    for (const TPair<TSubclassOf<UFGRecipe>, int32>& Entry : SelectionRecipeCounts)
+    {
+        if (!IsValid(Entry.Key))
         {
-            return;
+            continue;
         }
-        for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(World, Recipe))
+        for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(World, Entry.Key))
         {
             if (IsValid(Ingredient.ItemClass))
             {
-                Totals.FindOrAdd(Ingredient.ItemClass) += Ingredient.Amount;
-            }
-        }
-    };
-
-    TSet<FString> Wanted(SelectionActorIds);
-    for (TActorIterator<AFGBuildable> It(World); It; ++It)
-    {
-        AFGBuildable* Buildable = *It;
-        if (IsValid(Buildable) && Wanted.Contains(Buildable->GetPathName()))
-        {
-            Accumulate(Buildable->GetBuiltWithRecipe());
-        }
-    }
-
-    if (AFGLightweightBuildableSubsystem* Lightweight =
-            AFGLightweightBuildableSubsystem::Get(World))
-    {
-        const TMap<TSubclassOf<AFGBuildable>, TArray<FRuntimeBuildableInstanceData>>& All =
-            Lightweight->GetAllLightweightBuildableInstances();
-        for (const TPair<TSubclassOf<AFGBuildable>, int32>& Entry : SelectionLightweight)
-        {
-            const TArray<FRuntimeBuildableInstanceData>* Bucket = All.Find(Entry.Key);
-            if (Bucket && Bucket->IsValidIndex(Entry.Value))
-            {
-                Accumulate((*Bucket)[Entry.Value].BuiltWithRecipe);
+                Totals.FindOrAdd(Ingredient.ItemClass) +=
+                    static_cast<int64>(Ingredient.Amount) * Entry.Value;
             }
         }
     }

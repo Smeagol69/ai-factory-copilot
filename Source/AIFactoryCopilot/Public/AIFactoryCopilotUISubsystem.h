@@ -123,6 +123,15 @@ private:
     TSharedPtr<class SEditableTextBox> WidthEntry;
     TSharedPtr<class SEditableTextBox> DepthEntry;
     TSharedPtr<class SEditableTextBox> HeightEntry;
+    /**
+     * Distinct build recipes in the selection, with counts.
+     *
+     * Filled by the preview pass that is already walking these buildings, so
+     * the cost line needs no world iteration of its own. Keyed by recipe
+     * rather than by building because the ingredient lookup is per recipe --
+     * a thousand identical foundations is one lookup, not a thousand.
+     */
+    TMap<TSubclassOf<class UFGRecipe>, int32> SelectionRecipeCounts;
     void RefreshSelectionCost();
     void SyncDimensionEntries();
     void ApplyTypedDimension(int32 Axis, const FString& Value);
