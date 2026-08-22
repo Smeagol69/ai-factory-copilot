@@ -101,7 +101,10 @@ try {
                 throw "The mod archive is missing '$entry'. The companion is not bundled; check RuntimeDependencies in AIFactoryCopilot.Build.cs."
             }
         }
-        $companionFileCount = @($modEntries | Where-Object { $_ -match '/companion/' }).Count
+        # Entries are relative -- "companion/server.mjs", no leading slash -- so an
+        # anchored pattern is required. The first version asked for "/companion/"
+        # and reported 0 files for a bundle that was entirely correct.
+        $companionFileCount = @($modEntries | Where-Object { $_ -match '(^|/)companion/' }).Count
         Write-Host "Bundled companion: $companionFileCount files inside the mod archive."
     }
     finally {
