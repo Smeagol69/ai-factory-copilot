@@ -1,4 +1,6 @@
 #include "AIFactoryCopilotUISubsystem.h"
+#include "AIFactoryUpgrade.h"
+#include "Hologram/FGHologram.h"
 #include "AIFactoryCompanion.h"
 #include "FGDismantleInterface.h"
 #include "FGLightweightBuildableSubsystem.h"
@@ -1385,6 +1387,23 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             .Padding(6.0f, 0.0f, 0.0f, 0.0f)
             [
                 SNew(SButton)
+                .Text(FText::FromString(TEXT("Upgrade")))
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .ToolTipText(FText::FromString(TEXT(
+                    "Replace every selected building with the highest tier you have unlocked. "
+                    "Connections are preserved. Costs materials.")))
+                .OnClicked_Lambda([this]()
+                {
+                    UpgradeSelection();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
                 .Text(FText::FromString(TEXT("Demolish")))
                 .ButtonColorAndOpacity(AIFactoryPalette::Danger)
                 .ForegroundColor(AIFactoryPalette::Text)
@@ -1810,4 +1829,163 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionCost()
         ++Shown;
     }
     SelectionCostText->SetText(FText::FromString(TEXT("Rebuild cost:  ") + Line));
+}
+
+/**
+ * Replace every selected building with the highest tier unlocked.
+ *
+ * TryUpgrade is the game's own swap -- what happens when a Mk.2 belt is built
+ * over a Mk.1 -- and it preserves connections. Dismantling and rebuilding would
+ * not, which is why this goes through a hologram rather than doing it directly.
+ *
+ * Armed like Demolish. It spends materials on every building it touches, and at
+ * the scale this selector reaches there is no undoing it.
+ *
+ * Lightweight instances are deliberately not upgraded. Foundations and walls are
+ * untiered, so there is nothing to upgrade them to, and materialising thousands
+ * of them to discover that would be a long freeze for no result.
+ */
+void UAIFactoryCopilotUISubsystem::UpgradeSelection()
+{
+    if (SelectionActorIds.Num() == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT(
+            "Nothing upgradable is selected. Structure is untiered — tick Machines or Belts/pipes."));
+        return;
+    }
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World))
+    {
+        return;
+    }
+
+    // Resolve first, so the armed message states the real number rather than the
+    // selection size. Most of a selection is usually already at top tier.
+    TArray<TPair<AFGBuildable*, AIFactoryUpgrade::FUpgradeTarget>> Planned;
+    TSet<FString> Wanted(SelectionActorIds);
+    for (TActorIterator<AFGBuildable> It(World); It; ++It)
+    {
+        AFGBuildable* Buildable = *It;
+        if (!IsValid(Buildable) || !Wanted.Contains(Buildable->GetPathName()))
+        {
+            continue;
+        }
+        const AIFactoryUpgrade::FUpgradeTarget Target =
+            AIFactoryUpgrade::FindMaxTier(World, Buildable->GetClass());
+        if (Target.IsValid() && Target.BuildableClass != Buildable->GetClass())
+        {
+            Planned.Add(TPair<AFGBuildable*, AIFactoryUpgrade::FUpgradeTarget>(Buildable, Target));
+        }
+    }
+
+    if (Planned.Num() == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(TEXT(
+            "Nothing to upgrade — all %d selected buildings are already at the highest tier you have unlocked."),
+            SelectionActorIds.Num()));
+        return;
+    }
+
+    const double Now = FPlatformTime::Seconds();
+    if (UpgradeArmedAt <= 0.0 || (Now - UpgradeArmedAt) > 5.0)
+    {
+        UpgradeArmedAt = Now;
+        // Name what changes, not just how many. "46 buildings" tells you nothing
+        // about whether the plan is what you meant.
+        TMap<FString, int32> Moves;
+        for (const TPair<AFGBuildable*, AIFactoryUpgrade::FUpgradeTarget>& Entry : Planned)
+        {
+            const FString Move = FString::Printf(TEXT("%s -> Mk%d"),
+                *Entry.Key->GetClass()->GetName().Replace(TEXT("Build_"), TEXT("")).Replace(TEXT("_C"), TEXT("")),
+                Entry.Value.Tier);
+            Moves.FindOrAdd(Move) += 1;
+        }
+        FString Summary;
+        int32 Shown = 0;
+        for (const TPair<FString, int32>& Move : Moves)
+        {
+            if (Shown >= 6)
+            {
+                Summary += FString::Printf(TEXT(", +%d more kinds"), Moves.Num() - Shown);
+                break;
+            }
+            Summary += (Shown > 0 ? TEXT(", ") : TEXT(""));
+            Summary += FString::Printf(TEXT("%d x %s"), Move.Value, *Move.Key);
+            ++Shown;
+        }
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(TEXT(
+            "Upgrade will replace %d of %d selected buildings: %s. This spends materials and cannot be undone. ")
+            TEXT("Click Upgrade again within five seconds to confirm."),
+            Planned.Num(), SelectionActorIds.Num(), *Summary));
+        return;
+    }
+    UpgradeArmedAt = 0.0;
+
+    int32 Upgraded = 0;
+    int32 Refused = 0;
+    for (const TPair<AFGBuildable*, AIFactoryUpgrade::FUpgradeTarget>& Entry : Planned)
+    {
+        AFGBuildable* Old = Entry.Key;
+        if (!IsValid(Old))
+        {
+            // A previous upgrade in this same pass may have consumed it: a belt
+            // swap can replace its neighbours.
+            continue;
+        }
+
+        AFGHologram* Hologram = AFGHologram::SpawnHologramFromRecipe(
+            Entry.Value.Recipe,
+            Controller,
+            Old->GetActorLocation(),
+            Controller->GetPawn());
+        if (!IsValid(Hologram))
+        {
+            ++Refused;
+            continue;
+        }
+
+        // TryUpgrade both tests and positions: it sets the hologram's transform
+        // from the actor it is replacing, so nothing here computes a placement.
+        FHitResult Hit;
+        Hit.HitObjectHandle = FActorInstanceHandle(Old);
+        Hit.ImpactPoint = Old->GetActorLocation();
+        Hit.Location = Old->GetActorLocation();
+        Hit.Normal = FVector::UpVector;
+        Hit.ImpactNormal = FVector::UpVector;
+
+        if (!Hologram->TryUpgrade(Hit) || !Hologram->IsUpgrade())
+        {
+            // Not an upgrade path the game recognises. Leave the building alone
+            // rather than dismantling and rebuilding, which would lose its
+            // connections and its contents.
+            Hologram->Destroy();
+            ++Refused;
+            continue;
+        }
+
+        TArray<AActor*> Children;
+        AActor* Constructed = Hologram->Construct(
+            Children,
+            AFGBuildableSubsystem::Get(World)->GetNewNetConstructionID());
+        Hologram->Destroy();
+
+        if (IsValid(Constructed))
+        {
+            ++Upgraded;
+        }
+        else
+        {
+            ++Refused;
+        }
+    }
+
+    AppendTranscript(TEXT("COPILOT"), FString::Printf(TEXT(
+        "Upgraded %d buildings.%s"),
+        Upgraded,
+        Refused > 0
+            ? *FString::Printf(TEXT(" %d were left alone — the game did not offer an upgrade path for them."), Refused)
+            : TEXT("")));
+    RefreshSelectionPreview();
 }

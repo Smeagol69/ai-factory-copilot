@@ -131,6 +131,9 @@ private:
     /** Demolish is destructive, so it arms on the first click and fires on the second. */
     double DemolishArmedAt = 0.0;
     void DemolishSelection();
+    /** Replace every selected building with the top tier unlocked. Armed, like Demolish. */
+    double UpgradeArmedAt = 0.0;
+    void UpgradeSelection();
 
     /**
      * A staged export, waiting on the game to materialise instances.
