@@ -44,6 +44,16 @@ struct FAIFactorySettings
      * budget on the assistant's convenience, and that is a choice to make
      * rather than one to discover.
      */
+    /**
+     * Start the bundled companion bridge when a world loads.
+     *
+     * On by default: the mod is one install now, and an assistant that
+     * reports itself offline until you find a second zip is not one. Turn it
+     * off if you run the bridge yourself -- the mod only ever stops a process
+     * it started, so both can coexist.
+     */
+    bool bAutoStartCompanion = true;
+
     bool bVisionEnabled = false;
     /** 0 disables the timer; frames can still be requested on demand. */
     float VisionIntervalSeconds = 0.0f;

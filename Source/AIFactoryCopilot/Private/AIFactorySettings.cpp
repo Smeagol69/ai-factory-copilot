@@ -70,6 +70,7 @@ FAIFactorySettings FAIFactorySettings::Load()
     Json->TryGetBoolField(TEXT("includeVisibleUiText"), Settings.bIncludeVisibleUiText);
     Json->TryGetBoolField(TEXT("uiWholeWorldSnapshot"), Settings.bUIWholeWorldSnapshot);
     Json->TryGetBoolField(TEXT("includeTerrain"), Settings.bIncludeTerrain);
+    Json->TryGetBoolField(TEXT("autoStartCompanion"), Settings.bAutoStartCompanion);
     Json->TryGetBoolField(TEXT("visionEnabled"), Settings.bVisionEnabled);
     Json->TryGetBoolField(TEXT("visionIncludeUI"), Settings.bVisionIncludeUI);
     ReadNumber(Json, TEXT("visionIntervalSeconds"), Settings.VisionIntervalSeconds);

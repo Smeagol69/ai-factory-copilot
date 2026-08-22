@@ -1,7 +1,11 @@
 [CmdletBinding()]
 param(
     [string]$StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject-502094',
-    [string]$OutputDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist')
+    [string]$OutputDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist'),
+
+    # The companion ships inside the mod zip now. This emits the old
+    # standalone bundle as well, for running the bridge on another machine.
+    [switch]$SeparateCompanionArtifact
 )
 
 $ErrorActionPreference = 'Stop'
@@ -77,8 +81,36 @@ try {
     }
 
     Copy-Item -LiteralPath $sourceModArchive -Destination $modArtifact -Force
-    Compress-Archive -LiteralPath (Get-ChildItem -LiteralPath $stageRoot -Force).FullName `
-        -DestinationPath $companionArtifact -CompressionLevel Optimal -Force
+
+    # Refuse to publish a mod zip that does not carry its own bridge. This is
+    # the whole point of the single-artifact release, and it is exactly the
+    # kind of thing that silently stops working when a Build.cs line is
+    # dropped -- the package still builds, and every install is broken.
+    $requiredModEntries = @(
+        'companion/server.mjs',
+        'companion/package.json',
+        'companion/lib/narrate.mjs',
+        'companion/lib/survey.mjs',
+        'companion/data/efficiency.json'
+    )
+    $modZip = [IO.Compression.ZipFile]::OpenRead($modArtifact)
+    try {
+        $modEntries = @($modZip.Entries.FullName | ForEach-Object { $_.Replace('\', '/') })
+        foreach ($entry in $requiredModEntries) {
+            if (-not ($modEntries | Where-Object { $_.EndsWith($entry) })) {
+                throw "The mod archive is missing '$entry'. The companion is not bundled; check RuntimeDependencies in AIFactoryCopilot.Build.cs."
+            }
+        }
+        $companionFileCount = @($modEntries | Where-Object { $_ -match '/companion/' }).Count
+        Write-Host "Bundled companion: $companionFileCount files inside the mod archive."
+    }
+    finally {
+        $modZip.Dispose()
+    }
+    if ($SeparateCompanionArtifact) {
+        Compress-Archive -LiteralPath (Get-ChildItem -LiteralPath $stageRoot -Force).FullName `
+            -DestinationPath $companionArtifact -CompressionLevel Optimal -Force
+    }
 
     $expectedCompanionEntries = @(
         'companion/server.mjs',
@@ -88,6 +120,7 @@ try {
         'docs/INSTALL.md',
         'LICENSE'
     )
+    if ($SeparateCompanionArtifact) {
     $companionZip = [IO.Compression.ZipFile]::OpenRead($companionArtifact)
     try {
         $entryNames = @($companionZip.Entries.FullName | ForEach-Object { $_.Replace('\', '/') })
@@ -100,8 +133,11 @@ try {
     finally {
         $companionZip.Dispose()
     }
+    }
 
-    @($modArtifact, $companionArtifact) | ForEach-Object {
+    $produced = @($modArtifact)
+    if ($SeparateCompanionArtifact) { $produced += $companionArtifact }
+    $produced | ForEach-Object {
         $hash = Get-FileHash -LiteralPath $_ -Algorithm SHA256
         "$($hash.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_))"
     } | Set-Content -LiteralPath $checksumsPath -Encoding ascii
@@ -115,6 +151,11 @@ finally {
     }
 }
 
-Write-Host "Mod release:       $modArtifact"
-Write-Host "Companion release: $companionArtifact"
-Write-Host "Checksums:          $checksumsPath"
+Write-Host ""
+Write-Host "Single-file release (mod + bundled companion):"
+Write-Host "  $modArtifact"
+if ($SeparateCompanionArtifact) {
+    Write-Host "Standalone companion (optional, for a second machine):"
+    Write-Host "  $companionArtifact"
+}
+Write-Host "Checksums: $checksumsPath"

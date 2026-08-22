@@ -1,4 +1,5 @@
 #include "AIFactorySubsystem.h"
+#include "AIFactoryCompanion.h"
 #include "AIFactoryVision.h"
 
 #include "AIFactoryActions.h"
@@ -369,6 +370,10 @@ void AAIFactorySubsystem::BeginPlay()
         ActorSpawnedHandle = World->AddOnActorSpawnedHandler(
             FOnActorSpawned::FDelegate::CreateUObject(this, &AAIFactorySubsystem::HandleActorSpawned));
 
+        // Before anything tries to reach the bridge. Non-blocking: if Node is
+        // missing this records a reason and moves on rather than stalling load.
+        AIFactoryCompanion::EnsureRunning();
+
         for (TActorIterator<AActor> It(World); It; ++It)
         {
             AttachActorObserver(*It);
@@ -408,6 +413,9 @@ void AAIFactorySubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
         }
     }
 
+    // Only ever stops a process this session launched. A bridge the player
+    // started in a terminal is theirs and is left alone.
+    AIFactoryCompanion::StopIfWeStartedIt();
     AIFactoryActions::ClearUndoJournal();
     Super::EndPlay(EndPlayReason);
 }

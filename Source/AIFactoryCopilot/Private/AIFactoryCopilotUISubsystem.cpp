@@ -1,4 +1,5 @@
 #include "AIFactoryCopilotUISubsystem.h"
+#include "AIFactoryCompanion.h"
 #include "FGDismantleInterface.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "Buildables/FGBuildableFactory.h"
@@ -632,6 +633,13 @@ FString UAIFactoryCopilotUISubsystem::GetReadyStatus() const
     const FString Keys = TEXT("Enter sends | Shift+Enter new line | Insert or Esc closes");
     if (!bBridgeAnswered && bBridgeEverTried)
     {
+        // Prefer the launcher's own reason. "Assistant offline" is true and
+        // useless; "Node.js was not found" is something a player can fix.
+        const FString LaunchError = AIFactoryCompanion::LastError();
+        if (!LaunchError.IsEmpty())
+        {
+            return LaunchError + TEXT(" | ") + Keys;
+        }
         return TEXT("Assistant offline — sliders and Save blueprint still work | ") + Keys;
     }
     return AreWriteActionsEnabled()

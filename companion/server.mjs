@@ -950,9 +950,34 @@ export function createBridgeServer({ env = process.env } = {}) {
   });
 }
 
-export function startBridge({ env = process.env } = {}) {
+export function startBridge({ env = process.env, onListenError = null } = {}) {
   const port = positiveInteger(env.AIFACTORY_PORT, 8142);
   const server = createBridgeServer({ env });
+
+  // A second instance is the normal case once the mod starts the bridge itself:
+  // the player may already have one running. Without this, `listen` throws an
+  // unhandled error and the process dies with a stack trace, which looks like a
+  // crash to anyone who did nothing wrong. Say what happened and exit clean.
+  server.on("error", (error) => {
+    if (error?.code === "EADDRINUSE") {
+      process.stdout.write(
+        `AI Factory Copilot bridge is already running on ${LOOPBACK_HOST}:${port}; ` +
+          `this instance is not needed and will exit.\n`,
+      );
+      if (onListenError) {
+        onListenError(error);
+        return;
+      }
+      process.exit(0);
+    }
+    process.stderr.write(`AI Factory Copilot bridge could not listen on ${port}: ${error?.message}\n`);
+    if (onListenError) {
+      onListenError(error);
+      return;
+    }
+    process.exit(1);
+  });
+
   server.listen(port, LOOPBACK_HOST, () => {
     process.stdout.write(
       `AI Factory Copilot bridge listening on http://${LOOPBACK_HOST}:${port} ` +
