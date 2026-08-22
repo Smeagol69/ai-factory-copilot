@@ -1,5 +1,8 @@
 #include "AIFactoryChatCommand.h"
 #include "AIFactoryVision.h"
+#include "AIFactoryNodeEdit.h"
+#include "Resources/FGResourceNodeBase.h"
+#include "Resources/FGResourceDescriptor.h"
 #include "AIFactoryTerrainScan.h"
 
 #include "AIFactorySubsystem.h"
@@ -89,6 +92,92 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             Request.RadiusMeters,
             static_cast<unsigned long long>(Subsystem->GetWorldRevision()),
             Snapshot.bActorLimitReached ? TEXT(" [actor limit reached]") : TEXT("")));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("node"))
+    {
+        auto* NodePlayer = Sender->GetPlayer();
+        UWorld* NodeWorld = IsValid(NodePlayer) ? NodePlayer->GetWorld() : nullptr;
+        if (!IsValid(NodeWorld))
+        {
+            Sender->SendChatMessage(TEXT("No world."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        // Listing costs nothing and is what someone types first.
+        const TMap<FString, TSubclassOf<UFGResourceDescriptor>> Known =
+            AIFactoryNodeEdit::KnownResources(NodeWorld);
+        if (!Arguments.IsValidIndex(1))
+        {
+            TArray<FString> Names;
+            for (const TPair<FString, TSubclassOf<UFGResourceDescriptor>>& Entry : Known)
+            {
+                Names.Add(Entry.Key);
+            }
+            Names.Sort();
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("Look at a node and run: /ai node <resource>. On this map: %s. ")
+                TEXT("Use 'original' to undo."),
+                *FString::Join(Names, TEXT(", "))));
+            return EExecutionStatus::COMPLETED;
+        }
+
+        // The node under the crosshair. Same trace the placement lane uses.
+        AFGResourceNodeBase* Target = nullptr;
+        if (APlayerController* Controller = Cast<APlayerController>(NodePlayer))
+        {
+            FHitResult Hit;
+            FVector Origin;
+            FRotator Rotation;
+            Controller->GetPlayerViewPoint(Origin, Rotation);
+            FCollisionQueryParams Params;
+            Params.AddIgnoredActor(Controller->GetPawn());
+            if (NodeWorld->LineTraceSingleByChannel(
+                    Hit, Origin, Origin + Rotation.Vector() * 5000.0, ECC_Visibility, Params))
+            {
+                Target = Cast<AFGResourceNodeBase>(Hit.GetActor());
+            }
+        }
+        if (!IsValid(Target))
+        {
+            Sender->SendChatMessage(TEXT(
+                "Look directly at a resource node and run it again — nothing under the crosshair is one."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        const FString Wanted = Arguments[1].ToLower();
+        TSubclassOf<UFGResourceDescriptor> Resource = nullptr;
+        if (Wanted != TEXT("original") && Wanted != TEXT("reset"))
+        {
+            const TSubclassOf<UFGResourceDescriptor>* Found = Known.Find(Wanted);
+            if (Found == nullptr)
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("No resource called '%s' exists on this map. Run /ai node with no argument to list them."),
+                    *Arguments[1]));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+            Resource = *Found;
+        }
+
+        FString Reason;
+        if (!AIFactoryNodeEdit::SetNodeResource(NodeWorld, Target, Resource, Reason))
+        {
+            Sender->SendChatMessage(FString::Printf(TEXT("Not changed: %s."), *Reason));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        // Name the original as well, so the way back is on screen rather than
+        // something to remember.
+        const TSubclassOf<UFGResourceDescriptor> Original = Target->GetResourceClassOriginal();
+        Sender->SendChatMessage(IsValid(Resource)
+            ? FString::Printf(
+                TEXT("This node now yields %s (originally %s). /ai node original puts it back."),
+                *UFGItemDescriptor::GetItemName(Resource).ToString(),
+                IsValid(Original) ? *UFGItemDescriptor::GetItemName(Original).ToString() : TEXT("unknown"))
+            : FString::Printf(TEXT("Node restored to %s."),
+                IsValid(Original) ? *UFGItemDescriptor::GetItemName(Original).ToString() : TEXT("its original resource")));
         return EExecutionStatus::COMPLETED;
     }
 
@@ -244,6 +333,6 @@ void AAIFactoryChatCommand::SendHelp(UCommandSender* Sender)
     Sender->SendChatMessage(TEXT("/ai <question> - chat using a fresh nearby snapshot, exact position, and current crosshair focus"));
     Sender->SendChatMessage(TEXT("/ai all <question> - chat using the whole-world live snapshot"));
     Sender->SendChatMessage(TEXT("/ai reset - clear this save/player conversation"));
-    Sender->SendChatMessage(TEXT("/ai status | scan [radius_m] | terrain [radius_m] [step_m] | look | export [radius_m|all]"));
+    Sender->SendChatMessage(TEXT("/ai status | scan | terrain [radius_m] [step_m] | look | node [resource] | export [radius_m|all]"));
     Sender->SendChatMessage(TEXT("Examples: /ai what should I do here?  /ai is this machine connected correctly?"));
 }
