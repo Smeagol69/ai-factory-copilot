@@ -117,6 +117,16 @@ private:
      * factory where boxes inevitably clip a neighbour.
      */
     bool bSelectionStrictFit = false;
+    /** What the selection would cost to rebuild, summed from real recipes. */
+    TSharedPtr<class STextBlock> SelectionCostText;
+    /** Typed entry beside each slider: a slider cannot hit exactly 48 m. */
+    TSharedPtr<class SEditableTextBox> WidthEntry;
+    TSharedPtr<class SEditableTextBox> DepthEntry;
+    TSharedPtr<class SEditableTextBox> HeightEntry;
+    void RefreshSelectionCost();
+    void SyncDimensionEntries();
+    void ApplyTypedDimension(int32 Axis, const FString& Value);
+    TSharedRef<SWidget> MakeDimensionEntry(int32 Axis);
     TSharedRef<SWidget> MakeCategoryToggle(int32 CategoryIndex, const FString& Label);
     /** Demolish is destructive, so it arms on the first click and fires on the second. */
     double DemolishArmedAt = 0.0;

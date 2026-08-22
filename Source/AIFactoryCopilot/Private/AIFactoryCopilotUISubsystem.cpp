@@ -12,6 +12,8 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSlider.h"
 #include "EngineUtils.h"
+#include "FGRecipe.h"
+#include "Resources/FGItemDescriptor.h"
 #include "Buildables/FGBuildable.h"
 #include "AIFactoryOverlay.h"
 #include "AIFactoryBlueprintExport.h"
@@ -835,7 +837,10 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
     APawn* Pawn = IsValid(Controller) ? Controller->GetPawn() : nullptr;
     if (!IsValid(World) || !IsValid(Pawn))
     {
-        if (SelectionCountText.IsValid())
+        SyncDimensionEntries();
+    RefreshSelectionCost();
+
+    if (SelectionCountText.IsValid())
         {
             SelectionCountText->SetText(FText::FromString(TEXT("No player to centre a selection on.")));
         }
@@ -1000,7 +1005,7 @@ void UAIFactoryCopilotUISubsystem::ClearSelectionPreview()
     }
     if (SelectionCountText.IsValid())
     {
-        SelectionCountText->SetText(FText::FromString(TEXT("Selection cleared.")));
+        SelectionCountText->SetText(FText::FromString(TEXT("Cleared. Drag a slider or type a size to start a new selection.")));
     }
 }
 
@@ -1025,7 +1030,7 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
     // structural half stayed invisible in the first place.
     if (SelectionActorIds.Num() + LightweightCount == 0)
     {
-        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Move a slider to preview a box first."));
+        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Set a size first — the box centres on where you stand."));
         return;
     }
 
@@ -1196,6 +1201,13 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                 + SHorizontalBox::Slot()
                 .AutoWidth()
                 .VAlign(VAlign_Center)
+                .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+                [
+                    MakeDimensionEntry(0)
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
                 .Padding(0.0f, 0.0f, 6.0f, 0.0f)
                 [
                     SNew(SBox)
@@ -1223,6 +1235,13 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                 + SHorizontalBox::Slot()
                 .AutoWidth()
                 .VAlign(VAlign_Center)
+                .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+                [
+                    MakeDimensionEntry(1)
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
                 .Padding(0.0f, 0.0f, 6.0f, 0.0f)
                 [
                     SNew(SBox)
@@ -1246,6 +1265,13 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                         SelectionHeightM = SliderToMetres(NewValue);
                         RefreshSelectionPreview();
                     })
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+                [
+                    MakeDimensionEntry(2)
                 ]
         ]
         + SVerticalBox::Slot()
@@ -1323,7 +1349,7 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             .VAlign(VAlign_Center)
             [
                 SAssignNew(SelectionCountText, STextBlock)
-                .Text(FText::FromString(TEXT("Move a slider to preview a selection.")))
+                .Text(FText::FromString(TEXT("Nothing selected. Drag a slider or type a size, then tick what to include.")))
                 .ColorAndOpacity(AIFactoryPalette::Orange)
                 .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
             ]
@@ -1382,6 +1408,19 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     return FReply::Handled();
                 })
             ]
+        ]
+        // What it would cost to rebuild. Borrowed from the SMART! panel, whose
+        // best line states what a placement will produce before you commit --
+        // the equivalent question for a mega-blueprint is not how many
+        // buildings but whether you can afford to place it.
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 4.0f, 0.0f, 0.0f)
+        [
+            SAssignNew(SelectionCostText, STextBlock)
+            .Text(FText::GetEmpty())
+            .ColorAndOpacity(AIFactoryPalette::TextMuted)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
         ];
 }
 
@@ -1498,7 +1537,7 @@ void UAIFactoryCopilotUISubsystem::BeginStagedExport(const FString& Name)
     }
     if (SelectionActorIds.Num() + LightweightCount == 0)
     {
-        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Move a slider to preview a box first."));
+        AppendTranscript(TEXT("COPILOT"), TEXT("Nothing is selected. Set a size first — the box centres on where you stand."));
         return;
     }
     if (!PendingExportName.IsEmpty())
@@ -1601,4 +1640,174 @@ void UAIFactoryCopilotUISubsystem::TickStagedExport()
     }
     ExportSelectionAsBlueprint();
     EndConversion();
+}
+
+/**
+ * One typed dimension field, paired with its slider.
+ *
+ * Axis 0/1/2 is width, depth, height. Committed on enter or focus loss, never
+ * per keystroke -- re-running the world query while someone is halfway through
+ * typing '120' would repaint a selection for '1' and then '12'.
+ */
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::MakeDimensionEntry(int32 Axis)
+{
+    TSharedPtr<SEditableTextBox>& Slot =
+        Axis == 0 ? WidthEntry : (Axis == 1 ? DepthEntry : HeightEntry);
+    return SNew(SBox)
+        .WidthOverride(56.0f)
+        [
+            SAssignNew(Slot, SEditableTextBox)
+            .Justification(ETextJustify::Right)
+            .SelectAllTextWhenFocused(true)
+            .OnTextCommitted_Lambda([this, Axis](const FText& NewText, ETextCommit::Type)
+            {
+                ApplyTypedDimension(Axis, NewText.ToString());
+            })
+        ];
+}
+
+/** Push the current metres into the boxes without fighting an active edit. */
+void UAIFactoryCopilotUISubsystem::SyncDimensionEntries()
+{
+    const TSharedPtr<SEditableTextBox> Boxes[3] = { WidthEntry, DepthEntry, HeightEntry };
+    const double Values[3] = { SelectionWidthM, SelectionDepthM, SelectionHeightM };
+    for (int32 Index = 0; Index < 3; ++Index)
+    {
+        // Never overwrite a box the player is typing in.
+        if (Boxes[Index].IsValid() && !Boxes[Index]->HasKeyboardFocus())
+        {
+            Boxes[Index]->SetText(FText::FromString(FString::Printf(TEXT("%.0f"), Values[Index])));
+        }
+    }
+}
+
+/**
+ * Accept a typed dimension.
+ *
+ * Rejects nonsense by leaving the value alone and resyncing, rather than
+ * clamping silently to something the player did not ask for -- a box that
+ * snaps 'abc' to 5 looks broken; one that snaps back to its old value reads
+ * as refusal.
+ */
+void UAIFactoryCopilotUISubsystem::ApplyTypedDimension(int32 Axis, const FString& Value)
+{
+    const FString Trimmed = Value.TrimStartAndEnd();
+    if (!Trimmed.IsNumeric())
+    {
+        SyncDimensionEntries();
+        return;
+    }
+    const double Metres = FMath::Clamp(FCString::Atod(*Trimmed), 5.0, 1000.0);
+    if (Axis == 0) { SelectionWidthM = Metres; }
+    else if (Axis == 1) { SelectionDepthM = Metres; }
+    else { SelectionHeightM = Metres; }
+
+    // Move the slider to match, or the two disagree the moment one is dragged.
+    const TSharedPtr<SSlider> Sliders[3] = { WidthSlider, DepthSlider, HeightSlider };
+    if (Sliders[Axis].IsValid())
+    {
+        Sliders[Axis]->SetValue(MetresToSlider(Metres));
+    }
+    SyncDimensionEntries();
+    RefreshSelectionPreview();
+}
+
+/**
+ * What the selection would cost to rebuild.
+ *
+ * Borrowed from the SMART! panel, whose best line is the one stating what a
+ * placement will produce before you commit to it. The equivalent question for
+ * a mega-blueprint is not "how many buildings" but "can I afford to place
+ * this", and a count answers the wrong one.
+ *
+ * Summed from each buildable's own GetBuiltWithRecipe through
+ * UFGRecipe::GetIngredients -- the game's numbers, not a table.
+ *
+ * Lightweight instances are counted too: their runtime data carries
+ * BuiltWithRecipe, and leaving foundations out of a build cost would understate
+ * it enormously on exactly the selections that need the figure most.
+ */
+void UAIFactoryCopilotUISubsystem::RefreshSelectionCost()
+{
+    if (!SelectionCostText.IsValid())
+    {
+        return;
+    }
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World) || (SelectionActorIds.Num() + LightweightCount) == 0)
+    {
+        SelectionCostText->SetText(FText::GetEmpty());
+        return;
+    }
+
+    TMap<TSubclassOf<UFGItemDescriptor>, int64> Totals;
+    const auto Accumulate = [&Totals, World](TSubclassOf<UFGRecipe> Recipe)
+    {
+        if (!IsValid(Recipe))
+        {
+            return;
+        }
+        for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(World, Recipe))
+        {
+            if (IsValid(Ingredient.ItemClass))
+            {
+                Totals.FindOrAdd(Ingredient.ItemClass) += Ingredient.Amount;
+            }
+        }
+    };
+
+    TSet<FString> Wanted(SelectionActorIds);
+    for (TActorIterator<AFGBuildable> It(World); It; ++It)
+    {
+        AFGBuildable* Buildable = *It;
+        if (IsValid(Buildable) && Wanted.Contains(Buildable->GetPathName()))
+        {
+            Accumulate(Buildable->GetBuiltWithRecipe());
+        }
+    }
+
+    if (AFGLightweightBuildableSubsystem* Lightweight =
+            AFGLightweightBuildableSubsystem::Get(World))
+    {
+        const TMap<TSubclassOf<AFGBuildable>, TArray<FRuntimeBuildableInstanceData>>& All =
+            Lightweight->GetAllLightweightBuildableInstances();
+        for (const TPair<TSubclassOf<AFGBuildable>, int32>& Entry : SelectionLightweight)
+        {
+            const TArray<FRuntimeBuildableInstanceData>* Bucket = All.Find(Entry.Key);
+            if (Bucket && Bucket->IsValidIndex(Entry.Value))
+            {
+                Accumulate((*Bucket)[Entry.Value].BuiltWithRecipe);
+            }
+        }
+    }
+
+    if (Totals.Num() == 0)
+    {
+        SelectionCostText->SetText(FText::FromString(
+            TEXT("Cost unavailable — none of these carry a build recipe.")));
+        return;
+    }
+
+    Totals.ValueSort([](int64 A, int64 B) { return A > B; });
+    FString Line;
+    int32 Shown = 0;
+    for (const TPair<TSubclassOf<UFGItemDescriptor>, int64>& Total : Totals)
+    {
+        if (Shown >= 5)
+        {
+            Line += FString::Printf(TEXT("  +%d more"), Totals.Num() - Shown);
+            break;
+        }
+        if (Shown > 0)
+        {
+            Line += TEXT("   ");
+        }
+        Line += FString::Printf(TEXT("%lld %s"),
+            Total.Value,
+            *UFGItemDescriptor::GetItemName(Total.Key).ToString());
+        ++Shown;
+    }
+    SelectionCostText->SetText(FText::FromString(TEXT("Rebuild cost:  ") + Line));
 }
