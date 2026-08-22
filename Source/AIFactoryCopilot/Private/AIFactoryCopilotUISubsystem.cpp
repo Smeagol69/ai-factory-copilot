@@ -86,6 +86,35 @@ namespace
     };
 }
 
+/**
+ * The game's own palette, so the panel does not announce itself as a mod.
+ *
+ * Satisfactory's HUD is warm and near-neutral: near-black grounds, one
+ * orange accent, off-white text. The panel previously used eleven ad-hoc
+ * colours, most of them blue-tinted greys, which is the single thing that
+ * makes an overlay look bolted on before you have read any of it.
+ *
+ * Greys here are deliberately warm-neutral -- blue is slightly *below* red
+ * and green rather than above -- which is what matches the game's chrome.
+ */
+namespace AIFactoryPalette
+{
+    /** FICSIT orange: the milestone rules, build-menu accents, hotbar edges. */
+    const FLinearColor Orange(0.98f, 0.58f, 0.16f, 1.0f);
+    /** The same orange at rule/edge weight. */
+    const FLinearColor OrangeRule(0.98f, 0.58f, 0.16f, 0.55f);
+    /** Panel ground. Nearly opaque -- the game's own panels barely show through. */
+    const FLinearColor Panel(0.021f, 0.022f, 0.024f, 0.955f);
+    /** Inset fields: transcript, text boxes. */
+    const FLinearColor Field(0.045f, 0.047f, 0.050f, 1.0f);
+    /** Buttons sit just above the panel ground, never lighter than the text. */
+    const FLinearColor Button(0.115f, 0.112f, 0.105f, 1.0f);
+    const FLinearColor Text(0.905f, 0.900f, 0.885f, 1.0f);
+    const FLinearColor TextMuted(0.545f, 0.535f, 0.510f, 1.0f);
+    const FLinearColor Danger(0.72f, 0.20f, 0.13f, 1.0f);
+    const FLinearColor Good(0.46f, 0.80f, 0.34f, 1.0f);
+}
+
 void UAIFactoryCopilotUISubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
@@ -166,7 +195,7 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                 SNew(SBorder)
                 .Padding(FMargin(18.0f))
                 .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
-                .BorderBackgroundColor(FLinearColor(0.025f, 0.035f, 0.045f, 0.985f))
+                .BorderBackgroundColor(AIFactoryPalette::Panel)
                 [
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot()
@@ -184,7 +213,7 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                             [
                                 SNew(STextBlock)
                                 .Text(FText::FromString(TEXT("AI FACTORY COPILOT")))
-                                .ColorAndOpacity(FLinearColor(0.92f, 0.96f, 1.0f, 1.0f))
+                                .ColorAndOpacity(AIFactoryPalette::Orange)
                                 .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 20))
                             ]
                             + SVerticalBox::Slot()
@@ -193,7 +222,7 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                             [
                                 SAssignNew(LiveStatusText, STextBlock)
                                 .Text(FText::FromString(TEXT("LIVE | waiting for a player")))
-                                .ColorAndOpacity(FLinearColor(0.25f, 0.86f, 0.63f, 1.0f))
+                                .ColorAndOpacity(AIFactoryPalette::Good)
                                 .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
                             ]
                         ]
@@ -202,6 +231,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .Padding(8.0f, 0.0f)
                         [
                             SNew(SButton)
+                            .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                            .ForegroundColor(AIFactoryPalette::Orange)
                             .Text(FText::FromString(TEXT("Reset")))
                             .OnClicked_Lambda([this]()
                             {
@@ -213,6 +244,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .AutoWidth()
                         [
                             SNew(SButton)
+                            .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                            .ForegroundColor(AIFactoryPalette::Orange)
                             .Text(FText::FromString(TEXT("Close")))
                             .OnClicked_Lambda([this]()
                             {
@@ -224,7 +257,10 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                     + SVerticalBox::Slot()
                     .AutoHeight()
                     [
-                        SNew(SSeparator)
+                        SNew(SBorder)
+                        .Padding(FMargin(0.0f, 1.0f))
+                        .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
+                        .BorderBackgroundColor(AIFactoryPalette::OrangeRule)
                     ]
                     + SVerticalBox::Slot()
                     .FillHeight(1.0f)
@@ -235,8 +271,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .IsReadOnly(true)
                         .AutoWrapText(true)
                         .AlwaysShowScrollbars(true)
-                        .BackgroundColor(FLinearColor(0.045f, 0.06f, 0.075f, 1.0f))
-                        .ForegroundColor(FLinearColor(0.92f, 0.94f, 0.96f, 1.0f))
+                        .BackgroundColor(AIFactoryPalette::Field)
+                        .ForegroundColor(AIFactoryPalette::Text)
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -246,8 +282,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .Text(FText::FromString(GetReadyStatus()))
                         .ColorAndOpacity(
                             bWritesEnabled
-                                ? FLinearColor(1.0f, 0.58f, 0.16f, 1.0f)
-                                : FLinearColor(0.62f, 0.68f, 0.73f, 1.0f))
+                                ? AIFactoryPalette::Orange
+                                : AIFactoryPalette::TextMuted)
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
                     ]
                     + SVerticalBox::Slot()
@@ -277,8 +313,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                                 .AutoWrapText(true)
                                 .AllowMultiLine(true)
                                 .ModiferKeyForNewLine(EModifierKey::Shift)
-                                .BackgroundColor(FLinearColor(0.045f, 0.06f, 0.075f, 1.0f))
-                                .ForegroundColor(FLinearColor(0.92f, 0.94f, 0.96f, 1.0f))
+                                .BackgroundColor(AIFactoryPalette::Field)
+                                .ForegroundColor(AIFactoryPalette::Text)
                                 .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
                                 {
                                     if (CommitType == ETextCommit::OnEnter)
@@ -292,6 +328,8 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .AutoWidth()
                         [
                             SNew(SButton)
+                            .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                            .ForegroundColor(AIFactoryPalette::Orange)
                             .Text(FText::FromString(TEXT("Send")))
                             .OnClicked_Lambda([this]()
                             {
@@ -611,8 +649,8 @@ void UAIFactoryCopilotUISubsystem::RefreshReadyStatus()
     RequestStatusText->SetText(FText::FromString(GetReadyStatus()));
     RequestStatusText->SetColorAndOpacity(
         bWritesEnabled
-            ? FLinearColor(1.0f, 0.58f, 0.16f, 1.0f)
-            : FLinearColor(0.62f, 0.68f, 0.73f, 1.0f));
+            ? AIFactoryPalette::Orange
+            : AIFactoryPalette::TextMuted);
 }
 
 AFGPlayerController* UAIFactoryCopilotUISubsystem::GetLocalPlayerController() const
@@ -902,7 +940,7 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
 
     FAIFactoryOverlayStyle Style;
     // Amber, so a selection reads differently from the green search overlay.
-    Style.Color = FLinearColor(1.0f, 0.62f, 0.15f, 1.0f);
+    Style.Color = AIFactoryPalette::Orange;
     Style.bDrawTracers = false;
     Style.LifetimeSeconds = 0.0f;
 
@@ -1088,7 +1126,7 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::MakeCategoryToggle(
         [
             SNew(STextBlock)
             .Text(FText::FromString(Label))
-            .ColorAndOpacity(FLinearColor(0.72f, 0.78f, 0.85f, 1.0f))
+            .ColorAndOpacity(AIFactoryPalette::Text)
             .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
         ];
 }
@@ -1102,8 +1140,19 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
         [
             SNew(STextBlock)
             .Text(FText::FromString(TEXT("SELECTION")))
-            .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+            .ColorAndOpacity(AIFactoryPalette::Orange)
             .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 9))
+        ]
+        // section rule: the game underlines every heading in orange, and that
+        // one line does more for belonging than any amount of colour matching.
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+        [
+            SNew(SBorder)
+            .Padding(FMargin(0.0f, 1.0f))
+            .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
+            .BorderBackgroundColor(AIFactoryPalette::OrangeRule)
         ]
         + SVerticalBox::Slot()
         .AutoHeight()
@@ -1119,7 +1168,7 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     [
                         SNew(STextBlock)
                         .Text(FText::FromString(TEXT("W")))
-                        .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+                        .ColorAndOpacity(AIFactoryPalette::Orange)
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
                     ]
                 ]
@@ -1146,7 +1195,7 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     [
                         SNew(STextBlock)
                         .Text(FText::FromString(TEXT("D")))
-                        .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+                        .ColorAndOpacity(AIFactoryPalette::Orange)
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
                     ]
                 ]
@@ -1173,7 +1222,7 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     [
                         SNew(STextBlock)
                         .Text(FText::FromString(TEXT("H")))
-                        .ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.70f, 1.0f))
+                        .ColorAndOpacity(AIFactoryPalette::Orange)
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
                     ]
                 ]
@@ -1232,13 +1281,15 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             [
                 SNew(STextBlock)
                 .Text(FText::FromString(TEXT("Only fully inside the box")))
-                .ColorAndOpacity(FLinearColor(0.72f, 0.78f, 0.85f, 1.0f))
+                .ColorAndOpacity(AIFactoryPalette::Text)
                 .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
             ]
             + SHorizontalBox::Slot()
             .AutoWidth()
             [
                 SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
                 .Text(FText::FromString(TEXT("Move box here")))
                 .ToolTipText(FText::FromString(TEXT(
                     "Re-centre the box on where you are standing now, keeping the slider sizes.")))
@@ -1265,7 +1316,7 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             [
                 SAssignNew(SelectionCountText, STextBlock)
                 .Text(FText::FromString(TEXT("Move a slider to preview a selection.")))
-                .ColorAndOpacity(FLinearColor(1.0f, 0.62f, 0.15f, 1.0f))
+                .ColorAndOpacity(AIFactoryPalette::Orange)
                 .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
             ]
             + SHorizontalBox::Slot()
@@ -1284,6 +1335,8 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             .Padding(6.0f, 0.0f, 0.0f, 0.0f)
             [
                 SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
                 .Text(FText::FromString(TEXT("Save blueprint")))
                 .OnClicked_Lambda([this]()
                 {
@@ -1299,7 +1352,8 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             [
                 SNew(SButton)
                 .Text(FText::FromString(TEXT("Demolish")))
-                .ButtonColorAndOpacity(FLinearColor(0.62f, 0.16f, 0.12f, 1.0f))
+                .ButtonColorAndOpacity(AIFactoryPalette::Danger)
+                .ForegroundColor(AIFactoryPalette::Text)
                 .OnClicked_Lambda([this]()
                 {
                     DemolishSelection();
@@ -1311,6 +1365,8 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
             .Padding(6.0f, 0.0f, 0.0f, 0.0f)
             [
                 SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::TextMuted)
                 .Text(FText::FromString(TEXT("Clear")))
                 .OnClicked_Lambda([this]()
                 {
