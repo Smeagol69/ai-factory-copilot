@@ -1039,6 +1039,50 @@ namespace
         Predicted->SetBoolField(
             TEXT("constructed_without_finishing_placement"),
             !bPlacementFinished && bReadyWithoutFinishing);
+
+        // The last step of placement, and one this mod has never run.
+        //
+        // AFGHologram::AdjustForGround is documented as "the last step in the
+        // placement ... usually for things such as updating legs on buildings",
+        // and the build gun runs it. Doing it here means the validation below
+        // sees the adjusted transform rather than the raw one.
+        //
+        // Skipped when the caller asked for an exact Z. `exact_z` exists so a
+        // plan can put a machine at a stated height; letting the ground move it
+        // afterwards would silently discard the request that was made, which is
+        // worse than not adjusting at all.
+        //
+        // Seeded with the current transform because the base implementation is a
+        // stub in the Starter Project -- whether every override writes both
+        // out-parameters is unknown. Seeding makes a hologram that ignores them
+        // stay put instead of jumping to the origin.
+        if (!bHonourRequestedZ)
+        {
+            const FVector BeforeGround = Hologram->GetActorLocation();
+            FVector AdjustedLocation = BeforeGround;
+            FRotator AdjustedRotation = Hologram->GetActorRotation();
+            Hologram->AdjustForGround(AdjustedLocation, AdjustedRotation);
+
+            const double MovedCm = FVector::Dist(AdjustedLocation, BeforeGround);
+            if (MovedCm > 0.01)
+            {
+                Hologram->SetActorLocationAndRotation(AdjustedLocation, AdjustedRotation);
+                Predicted->SetNumberField(
+                    TEXT("ground_adjust_moved_cm"),
+                    FMath::RoundToDouble(MovedCm * 10.0) / 10.0);
+            }
+            Predicted->SetBoolField(TEXT("ground_adjusted"), true);
+        }
+        else
+        {
+            // Reported either way, so a drifting placement can be told apart
+            // from one that was never offered the adjustment.
+            Predicted->SetBoolField(TEXT("ground_adjusted"), false);
+            Predicted->SetStringField(
+                TEXT("ground_adjust_skipped_reason"),
+                TEXT("caller requested an exact z"));
+        }
+
         Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
         HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);

@@ -11,62 +11,54 @@ game APIs solve a problem — not reading or copying an implementation.
 
 ---
 
-## The one finding that matters
+## Correction: we already do most of this
 
-**Smart! never bypasses the build gun. It extends it.**
+**An earlier version of this document claimed "Smart! never bypasses the build
+gun — we do" and made that the headline finding. That was wrong.** It was
+written from Smart!'s import list without first reading our own placement lane.
+Recorded rather than quietly edited, because the wrong version was pushed and
+may have been read.
 
-That is the whole architectural difference between it and our placement lane, and
-it explains most of what has gone wrong for us.
+`AIFactoryActions.cpp` already follows the build gun's lifecycle deliberately:
 
-Our path: spawn a hologram ourselves, set its transform, call `Construct`. The
-consequences have filled this project's log — Z drift we had to correct by
-measuring, clearance failures, belts that would not connect.
+    AFGHologram::SpawnHologramFromRecipe      with the build gun as owner
+    ResetConstructDisqualifiers
+    ValidatePlacementAndCost                  with the player's inventory
+    CanConstruct                              gate
+    DoMultiStepPlacement                      advanced while CanTakeNextBuildStep
+    Construct( children, Buildables->GetNewNetConstructionID() )
 
-Its path: hook the build gun's own build state, take the hologram the game
-already made, and add *child* holograms to it.
+The comment above that sequence names `Server_ConstructHologram` as the model
+it copies, and `CheckActionPreconditions` refuses to run at all under
+`NM_Client` (`not_server_authoritative`). So the "latent multiplayer bug in
+every placement action" claimed earlier is also wrong: we do not construct on
+clients, we decline.
 
-    ASFSmartHologram          the parent, owns grid / spacing / stagger
-      ASFSmartChildHologram          one placement
-      ASFSmartFactoryChildHologram   a machine
-      ASFSmartLogisticsChildHologram a belt, pipe or wire
-    FSFSmartBuildableAdapter / FSFSmartLogisticsAdapter
-                              normalise buildable kinds behind one interface
+What Smart! genuinely does differently is *where the holograms come from* — it
+adopts the ones the build gun already owns and multiplies them into children,
+while we spawn our own from a recipe. Both end at the same `Construct`. Its way
+is better for a mod that decorates the player's own build action; ours is
+better for placing something the player never aimed at. Neither is a bypass.
 
-`ASFSmartHologram::ReplaceChildWithSmartHologram` is the hinge: the game creates
-its normal child hologram, Smart! swaps in its own, and from then on it is inside
-the game's placement pipeline rather than alongside it.
+### The gap that is real
 
-It then lets the game do the judging. It calls, and does not reimplement:
-
-    AFGHologram::CheckValidPlacement    CheckClearance      CheckCanAfford
-    AFGHologram::AdjustForGround        GetClearanceData    CanBeZooped
-    AFGHologram::DoMultiStepPlacement   CanTakeNextBuildStep
-
-`AdjustForGround` is the one that stings. We spent a build cycle discovering a
-974 cm Z error and correcting it by measuring the drift and re-running the
-placement. The game has a function for exactly that, and Smart! calls it.
-
-## How it commits
+`AFGHologram::AdjustForGround` — **zero calls in our code**.
 
 ```cpp
-// Equipment/FGBuildGunBuild.h
-void SetActiveRecipe( TSubclassOf< UFGRecipe > recipe );                       // :171
-TSubclassOf< UFGRecipe > GetActiveRecipe() const;                              // :172
-TArray< FItemAmount > GetHologramCost() const;                                 // :201
-AFGHologram* GetHologram() const;                                              // :205
-void Server_ConstructHologram( FNetConstructionID clientNetConstructID,
-                               FConstructHologramMessage data );               // :209
+/**
+ * Adjust the placement for the ground, this should be the last step in the
+ * placement. Usually for things such as updating legs on buildings and such.
+ */
+virtual void AdjustForGround( FVector& out_adjustedLocation, FRotator& out_adjustedRotation );
 ```
 
-`Server_ConstructHologram` is the supported, server-authoritative, replicated
-construction path, paired with
-`AFGBuildableSubsystem::GetNewNetConstructionID`. Smart! also routes through
-`UFGRemoteCallObject`, so everything it does is multiplayer-correct by
-construction.
+The header says plainly that it should be the last step of placement, and we
+have never run it. Smart! does. This is one call, not an architecture.
 
-**We construct client-side and locally.** That works in single player and is a
-latent multiplayer bug in every placement action we have.
-
+It must not run when the caller asked for an exact Z: `exact_z` exists so a
+plan can put a machine at a stated height, and ground adjustment would fight
+it. Ground-adjust when the caller did not specify a height, honour the request
+when they did.
 ## Conveyor chains — this likely explains our crash
 
 Smart! calls all of these:
@@ -135,22 +127,26 @@ our clone lane does by hand.
 
 ## What to change here, in order
 
-1. **Route placement through the build gun.** `Server_ConstructHologram` with a
-   `FNetConstructionID`, instead of constructing locally. Fixes replication, and
-   probably makes the Z correction and several clearance workarounds unnecessary
-   — `AdjustForGround` already exists.
-2. **Manage conveyor chains on every belt operation.** Even if it is not the
-   cause of the crash, not doing it is unsound.
+Re-ranked after reading our own code. The original list led with routing
+placement through the build gun, which is largely already done.
+
+1. **Call `AdjustForGround` as the last placement step**, except when the
+   caller asked for an exact Z. One call; the header says it belongs there.
+2. **Manage conveyor chains on every belt operation.** `AddConveyor`,
+   `RemoveConveyor`, `MigrateConveyorGroupToChainActor`,
+   `RemoveChainActorFromConveyorGroup`. We touch chain membership never, and
+   it is the leading theory for the one unexplained crash in this log.
 3. **Connect belts by connector, not by hologram.**
-   `FindAllOverlappingConnections` → `CanConnectTo` → `SetConnection`.
-4. **Set recipes.** One call, and it is the difference between generating a pile
-   of smelters and generating a working iron line. Every planner in
-   `companion/lib` already computes recipes and has had no way to apply them.
+   `FindAllOverlappingConnections` → `CanConnectTo` → `SetConnection`. This is
+   the genuine capability gap — `place_belt` has never reliably connected.
+4. **Set recipes.** `AFGBuildableManufacturer::SetRecipe`, plus
+   `AFGRecipeManager::GetAvailableRecipesForProducer` for what a machine can
+   run. Every planner in `companion/lib` computes recipes already and has had
+   no way to apply them.
 
-Then the generated-blueprint chain has no unknowns left: spawn buildables in a
-designer (`FScopedMaterialisedInstances`, built), set their recipes, join their
+Then the generated-blueprint chain has no unknowns: spawn buildables in a
+designer (`FScopedMaterialisedInstances`, built), set recipes, join
 connectors, serialise with `SaveBlueprint` (built).
-
 ## From the panel, separately
 
 Already taken (`8278128`): typed numeric fields beside every slider, a live
