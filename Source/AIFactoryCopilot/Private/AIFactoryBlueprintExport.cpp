@@ -7,6 +7,8 @@
 #include "FGCharacterPlayer.h"
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
+#include "Buildables/FGBuildableConveyorBase.h"
+#include "FGBuildableSubsystem.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "EngineUtils.h"
 
@@ -262,6 +264,18 @@ namespace
                 AFGBuildable* Buildable = Spawned[Index];
                 if (IsValid(Buildable))
                 {
+                    // Materialised pieces are structural and so never chained,
+                    // but the guard is one cast and the failure it prevents is a
+                    // chain ticking a dead pointer.
+                    if (AFGBuildableConveyorBase* Conveyor =
+                            Cast<AFGBuildableConveyorBase>(Buildable))
+                    {
+                        if (AFGBuildableSubsystem* Buildables =
+                                AFGBuildableSubsystem::Get(Buildable->GetWorld()))
+                        {
+                            Buildables->RemoveConveyor(Conveyor);
+                        }
+                    }
                     Buildable->Destroy();
                 }
             }

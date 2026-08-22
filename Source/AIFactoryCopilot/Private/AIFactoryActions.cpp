@@ -546,6 +546,39 @@ namespace
      * Children first, so none is orphaned by the parent going away mid-walk,
      * and the array is copied because destroying a child mutates it.
      */
+    /**
+     * Destroy an actor without leaving a conveyor chain holding a dead pointer.
+     *
+     * A belt is not independent once it joins a chain: AFGConveyorChainActor
+     * owns and ticks it. Destroy() on a chained belt leaves the chain
+     * iterating a stale pointer, which is the shape of the one unattributed
+     * crash in this project's log -- AFGConveyorChainActor::Factory_Tick,
+     * 34 minutes after an export, no frame of ours on the stack.
+     *
+     * Smart! calls RemoveConveyor on every belt operation. We called it never.
+     * Whether or not it explains that crash, destroying a chained belt without
+     * telling the chain is unsound.
+     *
+     * Takes AActor* so every destroy site can route through it; the cast is
+     * free for the vast majority that are not conveyors.
+     */
+    void DestroyActorSafely(AActor* Actor)
+    {
+        if (!IsValid(Actor))
+        {
+            return;
+        }
+        if (AFGBuildableConveyorBase* Conveyor = Cast<AFGBuildableConveyorBase>(Actor))
+        {
+            if (AFGBuildableSubsystem* Buildables =
+                    AFGBuildableSubsystem::Get(Actor->GetWorld()))
+            {
+                Buildables->RemoveConveyor(Conveyor);
+            }
+        }
+        Actor->Destroy();
+    }
+
     void DestroyHologramTree(AFGHologram* Hologram)
     {
         if (!IsValid(Hologram))
@@ -1950,7 +1983,7 @@ FAIFactoryActionResult PlaceBuilding(
         }
         if (IsValid(Constructed) && !IsValid(RootBuildable))
         {
-            Constructed->Destroy();
+            DestroyActorSafely(Constructed);
         }
         for (const FAIFactoryLightweightUndoRef& Ref : NewLightweightMatches)
         {
@@ -2328,13 +2361,13 @@ FAIFactoryActionResult PlaceBlueprint(
         {
             if (IsValid(Constructed))
             {
-                Constructed->Destroy();
+                DestroyActorSafely(Constructed);
             }
             for (AActor* Child : ConstructedChildren)
             {
                 if (IsValid(Child))
                 {
-                    Child->Destroy();
+                    DestroyActorSafely(Child);
                 }
             }
         }
@@ -3083,7 +3116,74 @@ FAIFactoryActionResult PlaceBelt(
     Observed->SetStringField(TEXT("requested_from"), From->GetPathName());
     Observed->SetStringField(TEXT("requested_to"), To->GetPathName());
 
-    if (!bExactEndpoints)
+    // Try to repair before rolling back.
+    //
+    // A belt that constructed but snapped to the wrong port is a belt that
+    // exists; dismantling it loses real work over a fixable mistake. The
+    // supported repair is SetConnection gated by CanConnectTo, which the
+    // header describes as filtering out blocked and incompatible pairs -- so
+    // the game decides whether the join is legal, not this code.
+    //
+    // The strict check is not relaxed: the repair is re-verified with the same
+    // IsExactPair, and anything short of the requested pairing still falls
+    // through to the rollback below.
+    bool bEndpointsExact = bExactEndpoints;
+    if (!bEndpointsExact && IsValid(ConstructedBelt))
+    {
+        const auto Join = [&IsExactPair](
+            UFGFactoryConnectionComponent* BeltSide,
+            UFGFactoryConnectionComponent* Wanted) -> bool
+        {
+            if (!IsValid(BeltSide) || !IsValid(Wanted))
+            {
+                return false;
+            }
+            if (IsExactPair(BeltSide, Wanted))
+            {
+                return true;
+            }
+            if (!BeltSide->CanConnectTo(Wanted))
+            {
+                return false;
+            }
+            // Never steal a port another machine already owns. Fixing this
+            // belt by silently breaking a working line is a worse outcome
+            // than the failure being repaired.
+            if (Wanted->IsConnected() && Wanted->GetConnection() != BeltSide)
+            {
+                return false;
+            }
+            if (BeltSide->IsConnected())
+            {
+                BeltSide->ClearConnection();
+            }
+            BeltSide->SetConnection(Wanted);
+            return IsExactPair(BeltSide, Wanted);
+        };
+
+        const bool bJoinedTo = Join(Belt0, To);
+        const bool bJoinedFrom = Join(Belt1, From);
+        bEndpointsExact = bJoinedTo && bJoinedFrom;
+
+        // Reported separately from exact_requested_endpoints, which keeps its
+        // meaning: what the hologram achieved on its own. This says what the
+        // repair achieved afterwards.
+        Observed->SetBoolField(TEXT("endpoints_repaired"), bEndpointsExact);
+        Observed->SetBoolField(TEXT("endpoint_repair_joined_to"), bJoinedTo);
+        Observed->SetBoolField(TEXT("endpoint_repair_joined_from"), bJoinedFrom);
+        if (!bEndpointsExact)
+        {
+            Observed->SetStringField(
+                TEXT("endpoint_repair_failed_because"),
+                !bJoinedTo && !bJoinedFrom
+                    ? TEXT("neither end could be joined")
+                    : (!bJoinedTo
+                        ? TEXT("the destination port refused or is taken")
+                        : TEXT("the source port refused or is taken")));
+        }
+    }
+
+    if (!bEndpointsExact)
     {
         // Construct does not charge the player; successful actions charge only
         // after this readback. Raw dismantle is therefore required here. A
@@ -3102,7 +3202,7 @@ FAIFactoryActionResult PlaceBelt(
             }
             else
             {
-                Buildable->Destroy();
+                DestroyActorSafely(Buildable);
             }
         }
         Observed->SetBoolField(TEXT("from_connected_after_cleanup"), From->IsConnected());
