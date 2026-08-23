@@ -263,22 +263,27 @@ rules:
 
 - Existing vanilla nodes can be inspected and can use the game's reversible
   resource-class override, but are never moved, deleted, or adopted.
-- A future `AI Factory Copilot Creative Node` is a concrete mod-owned,
-  saveable, replicated resource-node actor. It will be spawned at its final
-  transform after terrain, collision, spacing, ownership, and resource-form
-  checks; it will save its own resource/purity/amount configuration; and it
-  can later be moved only by verified spawn-replacement or removed only when
-  unoccupied.
+- `AI Factory Copilot Creative Node` now exists in source as a concrete
+  mod-owned, saveable, replicated resource-node actor. Its native
+  `UFGBuildDescriptor → AFGHologram → Build Gun` handoff creates it only at
+  the final accepted transform, after resource-form, deposit-visual, terrain,
+  collision, and spacing checks. It persists its own resource/purity/infinite
+  configuration and can later move only by verified spawn-replacement or be
+  removed only when unoccupied.
 
-The native Build Gun supports generic actor descriptors and holograms, so the
-creative node can become a real hologram/click placement tool rather than a
-chat-only spawn. That custom descriptor/recipe must be packaged and registered
-before a save loads. There is no verified public way to inject dynamic nodes
-into the vanilla `AFGResourceNodeManager` or resource scanner, so those remain
-explicitly unsupported until independently proven; a Copilot marker is the
-safe map fallback. The staged proof is: preview → one server-spawned node →
-Miner Mk.1 attachment/output → save/reload → host/client replication → native
-Build-Gun wrapper → actions/undo.
+The implementation is described in
+[`CREATIVE_WORLD_EDITOR.md`](CREATIVE_WORLD_EDITOR.md). The source implementation
+exists, but it is **not yet a shipped claim**: the game must be closed so the
+branch can be compiled, packaged, and proven in a disposable live save. It uses the existing
+world-write opt-in and Satisfactory server-admin permission in multiplayer;
+the unlock it grants is persisted at world scope, never described as a
+per-player entitlement. There is no verified public way to inject dynamic
+nodes into the vanilla `AFGResourceNodeManager`, resource scanner, or map
+representation, so those remain explicitly unsupported until independently
+proven; a Copilot marker is the safe map fallback. The remaining proof is:
+native preview → node construction → Miner Mk.1 attachment/output →
+save/reload → client replication → re-arm/cancel race checks → a separately
+designed, unoccupied-only delete/undo path.
 
 ---
 

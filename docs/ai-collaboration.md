@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/creative-resource-node` | Establish the safe foundation for a true world-editor **Creative Resource Node**: a concrete, mod-owned, replicated and saveable solid-resource `AFGResourceNode` child with strict server configuration/readback and native Build Gun/hologram contract research. Scope: new isolated C++ node/editor types, narrow source-contract tests/docs, and any additive snapshot proof needed to distinguish mod-owned nodes. No vanilla-node move/delete/adoption, no private ResourceNodeManager/scanner injection, no liquid/gas resources, no direct client spawning, and no deployment while the game is open. Native Build Gun descriptor/hologram implementation proceeds only through verified engine seams. | claimed; implementation has not begun |
+| 2026-08-23 | Codex | `codex/creative-resource-node` | Establish the safe foundation for a true world-editor **Creative Resource Node**: a concrete, mod-owned, replicated and saveable solid-resource `AFGResourceNode` child with strict server configuration/readback and native Build Gun/hologram contract research. Scope: new isolated C++ node/editor types, narrow source-contract tests/docs, and any additive snapshot proof needed to distinguish mod-owned nodes. No vanilla-node move/delete/adoption, no private ResourceNodeManager/scanner injection, no liquid/gas resources, no direct client spawning, and no deployment while the game is open. Native Build Gun descriptor/hologram implementation proceeds only through verified engine seams. | implementation complete in source; **812/812** companion tests and exact SML 3.12.0 / FactoryGame CL 502094 header validation pass. C++ compile/package/deploy and the disposable live matrix remain pending while the game is open. |
 | 2026-08-23 | Codex | `codex/blueprint-placement-audit` | Add a bounded **read-only** native Blueprint placement auditor before claiming miners work in large native blueprints. Given the aimed Blueprint proxy/member, capture the owning proxy readiness/name/member counts and actual extractor-to-resource bindings, including explicit replication-pending and unknown states. Scope: new audit helper, snapshot interaction context, local solver/router/tool contract, focused source/unit tests, exact-header validation, and docs. No `SetResourceNode`/`SetExtractableResource`, no Blueprint write/import/export/placement, no cost, no undo, and no change to preview, selection, or existing save behavior. | complete in source; clean `npm ci` + **808/808** companion tests pass. C++ compile/package and the disposable live miner-Blueprint proof remain pending because the game is open. |
 | 2026-08-23 | Codex | `codex/blueprint-preview-library` | Fix the live-observed native Blueprint preview library seam only: capture Satisfactory's **active-session** Blueprint descriptor registry without a stateful refresh during ordinary chat, refresh only immediately before the requested server and owning-client lookup, and make the companion distinguish a disk entry from a Blueprint registered for the current session before the existing client Build Gun handoff. Scope is `AIFactorySubsystem`, `AIFactoryBlueprintPreviewRCO`, snapshot/bridge preview validation, focused source-contract tests, docs, and exact-header validation. No file copy/import, descriptor fabrication, world write, cost, or exporter/selection change. Preserve the native RCO and all no-placement/no-charge preview guarantees. | complete in source: 793 companion tests, exact SML 3.12.0 / FactoryGame CL 502094 header validation, and Shipping module compile pass; package/deploy and one active-session live preview remain pending |
 | 2026-08-23 | Codex | `codex/selection-overlay` | Real-time native Blueprint editor selection overlay: audit and add a dedicated, shipping-safe visual contract for the exact actor + lightweight structure selection the UI can export. The overlay must not silently drop objects; it draws the selection volume and every individual bound when feasible, or explicitly reports a condensed representation. Scope is `AIFactoryCopilotUISubsystem` / `AIFactoryOverlay`, focused source-contract tests, docs, and exact-header validation only. Preserve all current export, filter, selection, and Build Gun behavior. | complete in source; 784 companion tests, exact headers, and Shipping module compile pass; packaged live visual check pending |
@@ -4199,3 +4199,60 @@ C++ compile, package, DLL deployment, or live claim was made. Next live proof,
 after a closed-game build/deploy: place a disposable native Blueprint containing
 a miner on a compatible free node through the normal Build Gun, aim at the
 miner, run this audit, and require the exact bound node/resource readback.
+
+### Codex — 2026-08-23 creative resource-node world-editor handoff
+
+Branch: `codex/creative-resource-node`. This is an additive first native
+world-editor layer: `/ai node place <resource> [impure|normal|pure]` grants and
+arms a normal Build Gun hologram for a new **mod-owned** Creative Resource Node.
+It uses the verified generic seam `UFGBuildDescriptor → AFGHologram → normal
+Build Gun server construction`; no companion/direct spawn is involved. The
+concrete node is a static `AFGResourceNode` child with its own scene root,
+visibility collision box, clearance bounds, resource deposit visual,
+SaveGame/replicated resource+purity configuration, post-load restoration, and
+readback before it becomes extractor/portable-miner eligible. The ordinary
+snapshot already sees it as a miner-hostable `resource_node`, so solvers do not
+need a special guessed representation.
+
+The editor deliberately protects both safety and selection identity. It lists
+only registered solid resources that pass the same deposit-visual validation as
+placement; duplicate localized display names require class-qualified selection
+instead of iteration-order guessing. It cannot mutate a normal Build Gun
+construction after that construction has been clicked/pending. The per-player
+RCO observes both documented Build Gun state and recipe events, clearing a
+staged configuration on Escape/menu/dismantle/unequip/recipe switch so a later
+hologram cannot consume stale ore or purity.
+
+This is a real shared save write, so it is now behind the existing
+`allowWriteActions` opt-in. In multiplayer it additionally requires
+`AFGPlayerState::IsServerAdmin()` before any schematic/recipe/RCO mutation.
+The universal recipe fallback is save/world-scoped after authorized use, so it
+is explicitly documented as availability rather than a per-player permission.
+Existing vanilla nodes remain inspectable/retargetable through their old safe
+path, and that retarget command now uses the same central world-editor access
+gate, but this lane never moves, destroys, adopts, re-registers, scanner-injects
+or map-injects vanilla nodes.
+
+Documentation: `docs/CREATIVE_WORLD_EDITOR.md` has the player workflow,
+boundaries, permissions, and a six-part live test matrix; `GOALS.md`,
+`INSTALL.md`, and `README.md` link the feature to the normal write gate. Static
+source contracts cover the generic non-buildable descriptor/hologram, root and
+collision, persisted config, no forbidden vanilla APIs, cached spawn transform,
+Build Gun rearm/cancel guards, live-catalog filtering, and settings/admin gates
+before any global unlock or client handoff.
+
+Verification in this worktree: `cd companion; npm test` passes **812/812**;
+`./scripts/validate.ps1` passes exact SML 3.12.0 / FactoryGame CL 502094 header
+checks and repeats **812/812**. A separate header/UHT review verified
+`BeginDestroy`, dynamic delegate signatures, `GetIsPendingToBeConstructed`,
+admin checks, and settings access. These are source-level checks only. The game
+was deliberately left open, so no Starter Project sync, C++ compile, package,
+deploy, or live placement claim was made. Do not merge/release this as proven
+until the game is closed and the documented disposable-save matrix succeeds.
+
+Open boundaries: solid resource nodes only; no water/oil/gas/fracking, scanner
+or map-manager registration, delete/undo, draggable handles, Build Gun picker
+UI, direct Copilot-panel action, or dynamic Blueprint-created nodes. A future
+delete/undo lane must be explicitly limited to unoccupied mod-owned nodes and
+separately claimed. Avoid editing the new `AIFactoryCreativeNode*` types in the
+Blueprint/audit lanes; they are owned by this branch until integration.

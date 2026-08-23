@@ -1,6 +1,8 @@
 #include "AIFactoryChatCommand.h"
 #include "AIFactoryVision.h"
 #include "AIFactoryNodeEdit.h"
+#include "AIFactoryCreativeNodePlacement.h"
+#include "AIFactoryCreativeResourceNode.h"
 #include "Resources/FGResourceNodeBase.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "AIFactoryTerrainScan.h"
@@ -117,9 +119,76 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             }
             Names.Sort();
             Sender->SendChatMessage(FString::Printf(
-                TEXT("Look at a node and run: /ai node <resource>. On this map: %s. ")
-                TEXT("Use 'original' to undo."),
+                TEXT("Look at a node and run: /ai node <resource>. Registered solid resources: %s. ")
+                TEXT("Use 'original' to undo a vanilla-node override. To place a new mod-owned node anywhere, ")
+                TEXT("run /ai node place <resource> [impure|normal|pure]."),
                 *FString::Join(Names, TEXT(", "))));
+            return EExecutionStatus::COMPLETED;
+        }
+
+        if (Arguments[1].Equals(TEXT("place"), ESearchCase::IgnoreCase))
+        {
+            if (!Arguments.IsValidIndex(2))
+            {
+                Sender->SendChatMessage(TEXT(
+                    "Usage: /ai node place <resource> [impure|normal|pure]. "
+                    "The resource must be a registered solid resource descriptor."));
+                return EExecutionStatus::BAD_ARGUMENTS;
+            }
+
+            EResourcePurity Purity = RP_Normal;
+            int32 ResourceEnd = Arguments.Num();
+            const FString LastArgument = Arguments.Last().ToLower();
+            if (LastArgument == TEXT("impure"))
+            {
+                Purity = RP_Inpure;
+                --ResourceEnd;
+            }
+            else if (LastArgument == TEXT("normal"))
+            {
+                Purity = RP_Normal;
+                --ResourceEnd;
+            }
+            else if (LastArgument == TEXT("pure"))
+            {
+                Purity = RP_Pure;
+                --ResourceEnd;
+            }
+
+            TArray<FString> ResourceWords;
+            for (int32 Index = 2; Index < ResourceEnd; ++Index)
+            {
+                ResourceWords.Add(Arguments[Index]);
+            }
+            const FString WantedResource = FString::Join(ResourceWords, TEXT(" ")).ToLower();
+            const TSubclassOf<UFGResourceDescriptor>* const Found = Known.Find(WantedResource);
+            if (Found == nullptr)
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("No registered solid resource is called '%s'. Run /ai node with no argument to list them."),
+                    *FString::Join(ResourceWords, TEXT(" "))));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+
+            FString Reason;
+            if (!AIFactoryCreativeNodePlacement::ArmForPlayer(
+                    NodePlayer,
+                    *Found,
+                    Purity,
+                    Reason))
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("Creative node was not armed: %s."), *Reason));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("Creative %s (%s) node Build Gun arming was requested. ")
+                TEXT("Place the hologram where you want it; this creates a new mod-owned infinite node and does not alter a map node. ")
+                TEXT("Confirm the request by seeing the hologram; if it does not appear, equip the Build Gun and run the command again. ")
+                TEXT("If you have already clicked a placement, wait for that placement to finish before changing its resource."),
+                *UFGItemDescriptor::GetItemName(*Found).ToString(),
+                *StaticEnum<EResourcePurity>()->GetNameStringByValue(static_cast<int64>(Purity))));
             return EExecutionStatus::COMPLETED;
         }
 
@@ -144,7 +213,7 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             if (Found == nullptr)
             {
                 Sender->SendChatMessage(FString::Printf(
-                    TEXT("No resource called '%s' exists on this map. Run /ai node with no argument to list them."),
+                    TEXT("No registered solid resource is called '%s'. Run /ai node with no argument to list them."),
                     *Arguments[1]));
                 return EExecutionStatus::UNCOMPLETED;
             }
@@ -152,7 +221,7 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
         }
 
         FString Reason;
-        if (!AIFactoryNodeEdit::SetNodeResource(NodeWorld, Target, Resource, Reason))
+        if (!AIFactoryNodeEdit::SetNodeResource(NodePlayer, NodeWorld, Target, Resource, Reason))
         {
             Sender->SendChatMessage(FString::Printf(TEXT("Not changed: %s."), *Reason));
             return EExecutionStatus::UNCOMPLETED;
@@ -161,7 +230,12 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
         // Name the original as well, so the way back is on screen rather than
         // something to remember.
         const TSubclassOf<UFGResourceDescriptor> Original = Target->GetResourceClassOriginal();
-        Sender->SendChatMessage(IsValid(Resource)
+        const bool bCreativeTarget = Target->IsA<AAIFactoryCreativeResourceNode>();
+        Sender->SendChatMessage(IsValid(Resource) && bCreativeTarget
+            ? FString::Printf(
+                TEXT("This creative node now yields %s. It is a new mod-owned node, so it has no vanilla original to restore."),
+                *UFGItemDescriptor::GetItemName(Resource).ToString())
+            : IsValid(Resource)
             ? FString::Printf(
                 TEXT("This node now yields %s (originally %s). /ai node original puts it back."),
                 *UFGItemDescriptor::GetItemName(Resource).ToString(),
