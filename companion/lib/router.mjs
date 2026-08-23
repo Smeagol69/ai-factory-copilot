@@ -82,6 +82,11 @@ import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-f
 import { measureBuilding } from "./designer.mjs";
 import { formatSurvey, judgeSite, surveyResources } from "./survey.mjs";
 import {
+  assessBlueprintSite,
+  formatSiteAssessment,
+  judgeSite as judgeBlueprintSite,
+} from "./siting.mjs";
+import {
   measureConnectors,
   solveBeltRoute,
   solveCompatibleBeltCandidates,
@@ -1676,6 +1681,34 @@ const SITE_SURVEY =
 
 const SURVEY_RADIUS = /(?:within|in|inside|under)\s+(\d{2,5})\s*(?:m|metres|meters)\b/i;
 
+/**
+ * "will the coal plant fit here", "can I build X here", "does X fit rotated 90".
+ *
+ * The blueprint name is taken verbatim from the question, because a library
+ * reference can contain spaces and folders. Resolution is the inspector's job;
+ * this only decides that the question is a fit question and pulls out a name
+ * and an optional rotation.
+ */
+const SITE_FIT =
+  /^(?:can you |could you |please )?(?:(?:will|would|does|can)\s+(?:the\s+|my\s+|a\s+)?(.+?)\s+fit(?:\s+here)?|(?:can|could)\s+i\s+(?:build|place|put)\s+(?:the\s+|my\s+|a\s+)?(.+?)\s+here)\s*$/i;
+
+const FIT_ROTATION = /\b(?:rotated|turned|at)\s+(0|90|180|270)\s*(?:deg|degrees|°)?\b/i;
+
+export function parseSiteFitRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const rotation = text.match(FIT_ROTATION);
+  const bare = text.replace(FIT_ROTATION, "").replace(/\s{2,}/g, " ").trim();
+  const match = bare.match(SITE_FIT);
+  if (!match) return null;
+  const name = (match[1] ?? match[2] ?? "").trim();
+  if (name.length === 0) return null;
+  // A pronoun means the name is in the conversation, which a model can resolve
+  // and this route cannot. Declining sends it onward; answering "there is no
+  // blueprint called it" would be true and useless.
+  if (/^(?:it|this|that|the one|mine)$/i.test(name)) return null;
+  return { blueprint: name, rotation_deg: rotation ? Number(rotation[1]) : 0 };
+}
+
 export function parseSiteSurveyRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   const radius = text.match(SURVEY_RADIUS);
@@ -3158,6 +3191,41 @@ export function answerLocally(question, graph, services) {
 
   // "what am I looking at" — the crosshair target, which the capture already
   // resolves for placement.
+  // "will this blueprint fit here" -- a decoded footprint crossed with a probed
+  // terrain grid. Neither half can answer it alone, and a model asked this would
+  // answer from the blueprint's name and the general look of the landscape.
+  {
+    const fit = parseSiteFitRequest(question);
+    if (fit && graph) {
+      const started = Date.now();
+      // Same accessors the blueprint-layout route uses; the bridge owns all
+      // filesystem reads and the router only ever consumes what it is handed.
+      const inspection =
+        typeof services?.inspectBlueprint === "function"
+          ? services.inspectBlueprint(fit.blueprint)
+          : null;
+      const scan =
+        typeof services?.readTerrainScan === "function" ? services.readTerrainScan() : null;
+      if (!inspection?.available || scan === null) {
+        return localAnswer(
+          inspection === null
+            ? `I could not read a blueprint called "${fit.blueprint}". Ask me to list blueprints to see the exact names.`
+            : "There is no terrain scan yet. Run `/ai terrain` standing where you want to build, then ask again.",
+          "blueprint_site_fit",
+          started,
+          "A fit answer needs both a decoded blueprint and a probed site.",
+        );
+      }
+      const site = assessBlueprintSite(inspection, scan, { rotationDeg: fit.rotation_deg });
+      return localAnswer(
+        formatSiteAssessment(site, judgeBlueprintSite(site)),
+        "blueprint_site_fit",
+        started,
+        "Footprint from the decoded blueprint, ground from the terrain scan.",
+      );
+    }
+  }
+
   // "what's around me", "is my hub well placed" -- read from the capture's
   // resource nodes, never from a model. Node layout is exactly the kind of
   // thing a model will answer confidently and wrongly.

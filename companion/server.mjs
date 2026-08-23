@@ -686,7 +686,27 @@ export function createBridgeServer({ env = process.env } = {}) {
   const conveyorSpeedDivisor = Number.parseFloat(env.AIFACTORY_BELT_SPEED_DIVISOR ?? "") || 2;
   const listBlueprints = makeBlueprintReader(env);
   const inspectBlueprint = listBlueprints?.inspect ?? null;
-  const solverServices = { listBlueprints, inspectBlueprint };
+  // The terrain scan the mod writes. One fixed path that this bridge owns --
+  // no name, no argument, nothing a question can steer. A missing or
+  // half-written file returns null rather than throwing, because a scan is
+  // written by the game while this may be reading it.
+  const readTerrainScan = () => {
+    try {
+      const configured = env.AIFACTORY_TERRAIN_SCAN;
+      const fallback = env.LOCALAPPDATA
+        ? path.join(env.LOCALAPPDATA, "FactoryGame", "Saved", "AIFactoryCopilot", "Terrain", "latest.json")
+        : null;
+      const scanPath = configured || fallback;
+      if (!scanPath) return null;
+      const raw = fs.readFileSync(scanPath, "utf8");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed?.samples) && parsed.samples.length > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const solverServices = { listBlueprints, inspectBlueprint, readTerrainScan };
   const graphOptions = { conveyorSpeedDivisor };
   const sessions = new Map();
   // Running spend per chat session, so the panel can show a total alongside
