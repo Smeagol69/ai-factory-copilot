@@ -3882,3 +3882,13 @@ Build Gun on a different compatible node.
 Collaboration check: `origin/master` and `origin/claude/belt-routing` are both
 already contained by `origin/integrate/codex-blueprint-lanes` at `306de69`; no
 new Claude handoff or overlap was found before this work.
+
+### Codex — 2026-08-23 blueprint structural-read claim
+
+Starting `codex/blueprint-structure-parser` after the aimed-selection handoff.
+Scope: add a bounded, evidence-based structural inspection capability for native
+`.sbp` files so the companion can report what a blueprint contains and how it is
+arranged, rather than only header/class-reference counts. I will first prove the
+file-format seam against local native blueprints and choose a parser only if it
+can preserve the current no-guess / no-crash contract. This is companion-only:
+it will not change exporter, selector, Build Gun preview, or any world write.
