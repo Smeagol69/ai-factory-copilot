@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describeUnkeptPromise, WRITE_ACTION_KINDS } from "./lib/actions.mjs";
 import { listDesigns } from "./lib/designs.mjs";
-import { readBlueprint } from "./lib/blueprints.mjs";
+import { inspectBlueprintStructure, readBlueprint } from "./lib/blueprints.mjs";
 import { deriveAnalysisDigest, deriveSnapshotFacts } from "./lib/analysis.mjs";
 import { askMock, askProvider } from "./lib/providers.mjs";
 import {
@@ -24,6 +24,12 @@ import {
 import { SOLVER_TOOLS } from "./lib/tools.mjs";
 
 const LOOPBACK_HOST = "127.0.0.1";
+const MAXIMUM_BLUEPRINT_FILE_BYTES = 128 * 1024 * 1024;
+// The companion needs a matching config to decode a native blueprint, but that
+// text/menu file should never be allowed to turn a library scan into an
+// unbounded read. Native configs are tiny; two MiB leaves generous headroom
+// without treating an arbitrary file beside a blueprint as trusted input.
+const MAXIMUM_BLUEPRINT_CONFIG_BYTES = 2 * 1024 * 1024;
 const BRIDGE_PACKAGE = JSON.parse(
   fs.readFileSync(new URL("./package.json", import.meta.url), "utf8"),
 );
@@ -499,9 +505,15 @@ export function makeBlueprintReader(env = process.env) {
     : null;
   const root = configured || fallback;
   if (!root || !fs.existsSync(root)) return null;
+  const resolvedRoot = path.resolve(root);
+  const rootPrefix = `${resolvedRoot}${path.sep}`;
+  const insideRoot = (candidate) => candidate === resolvedRoot || candidate.startsWith(rootPrefix);
 
-  return function listBlueprints() {
-    const results = [];
+  // Disk discovery is deliberately rooted here instead of accepting a file path
+  // from a model tool. A blueprint name can only select among the player's own
+  // saved .sbp files below this configured library directory.
+  const discover = () => {
+    const discovered = [];
     const walk = (directory, depth) => {
       if (depth > 3) return;
       let entries = [];
@@ -511,25 +523,138 @@ export function makeBlueprintReader(env = process.env) {
         return;
       }
       for (const entry of entries) {
-        const full = path.join(directory, entry.name);
+        const full = path.resolve(directory, entry.name);
+        if (!insideRoot(full)) continue;
         if (entry.isDirectory()) {
           walk(full, depth + 1);
           continue;
         }
-        if (!entry.name.toLowerCase().endsWith(".sbp")) continue;
-        const name = entry.name.replace(/\.sbp$/i, "");
-        try {
-          const configPath = full.replace(/\.sbp$/i, ".sbpcfg");
-          const configBuffer = fs.existsSync(configPath) ? fs.readFileSync(configPath) : null;
-          results.push(readBlueprint(name, fs.readFileSync(full), configBuffer));
-        } catch (error) {
-          results.push({ name, error: error instanceof Error ? error.message : String(error) });
-        }
+        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".sbp")) continue;
+        discovered.push({
+          name: entry.name.replace(/\.sbp$/i, ""),
+          full,
+          config_path: full.replace(/\.sbp$/i, ".sbpcfg"),
+          relative_path: path.relative(resolvedRoot, full).replaceAll(path.sep, "/"),
+        });
       }
     };
-    walk(root, 0);
-    return results;
+    walk(resolvedRoot, 0);
+    return discovered.sort((left, right) => left.relative_path.localeCompare(right.relative_path));
   };
+
+  const readBuffers = (entry) => {
+    const stat = fs.statSync(entry.full);
+    if (stat.size > MAXIMUM_BLUEPRINT_FILE_BYTES) {
+      throw new Error(
+        `Blueprint is ${stat.size} bytes, above the ${MAXIMUM_BLUEPRINT_FILE_BYTES}-byte read limit.`,
+      );
+    }
+    let configBuffer = null;
+    if (fs.existsSync(entry.config_path)) {
+      // `.sbpcfg` is not discovered independently, so reject a link here as
+      // well. A model can choose only a saved blueprint name; it must never be
+      // able to follow a sibling link out of that configured library.
+      const configStat = fs.lstatSync(entry.config_path);
+      if (configStat.isSymbolicLink()) {
+        throw new Error("Blueprint config file is a symbolic link; refusing to read outside the configured library.");
+      }
+      if (!configStat.isFile()) {
+        throw new Error("Blueprint config path is not a regular file.");
+      }
+      if (configStat.size > MAXIMUM_BLUEPRINT_CONFIG_BYTES) {
+        throw new Error(
+          `Blueprint config is ${configStat.size} bytes, above the ${MAXIMUM_BLUEPRINT_CONFIG_BYTES}-byte read limit.`,
+        );
+      }
+      configBuffer = fs.readFileSync(entry.config_path);
+    }
+    return { sbp: fs.readFileSync(entry.full), sbpcfg: configBuffer };
+  };
+
+  const listBlueprints = function listBlueprints() {
+    return discover().map((entry) => {
+      try {
+        const buffers = readBuffers(entry);
+        return {
+          ...readBlueprint(entry.name, buffers.sbp, buffers.sbpcfg),
+          // This is a library identifier, not a path accepted by the bridge.
+          // It is emitted only after discovery and must match one of those
+          // entries exactly when a duplicate display name needs disambiguation.
+          relative_path: entry.relative_path,
+          blueprint_reference: entry.relative_path,
+        };
+      } catch (error) {
+        return {
+          name: entry.name,
+          relative_path: entry.relative_path,
+          blueprint_reference: entry.relative_path,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+  };
+
+  listBlueprints.inspect = (requestedName, options = {}) => {
+    const needle = typeof requestedName === "string" ? requestedName.trim() : "";
+    if (!needle) {
+      return {
+        available: false,
+        reason: "blueprint_name_required",
+        source: "none",
+        certainty: "unknown",
+      };
+    }
+    const entries = discover();
+    const exact = (value) => value.localeCompare(needle, undefined, { sensitivity: "accent" }) === 0;
+    // A reference comes only from `list_blueprints`; we compare it to the
+    // already-discovered string instead of resolving it as a filesystem path.
+    // Thus `../anything` and an absolute path cannot leave this library.
+    const referenceMatches = entries.filter((entry) => exact(entry.relative_path));
+    const matches = referenceMatches.length > 0
+      ? referenceMatches
+      : entries.filter((entry) => exact(entry.name));
+    if (matches.length === 0) {
+      return {
+        available: false,
+        blueprint_name: needle,
+        reason: "blueprint_not_found",
+        note: "Use the exact name or blueprint_reference returned by list_blueprints.",
+        source: "none",
+        certainty: "unknown",
+      };
+    }
+    if (matches.length > 1) {
+      return {
+        available: false,
+        blueprint_name: needle,
+        reason: "blueprint_name_ambiguous",
+        candidates: matches.map((entry) => ({ name: entry.name, relative_path: entry.relative_path })),
+        source: "none",
+        certainty: "unknown",
+      };
+    }
+    const entry = matches[0];
+    try {
+      const buffers = readBuffers(entry);
+      return {
+        ...inspectBlueprintStructure(entry.name, buffers.sbp, buffers.sbpcfg, options),
+        relative_path: entry.relative_path,
+        blueprint_reference: entry.relative_path,
+      };
+    } catch (error) {
+      return {
+        available: false,
+        blueprint_name: entry.name,
+        relative_path: entry.relative_path,
+        reason: "blueprint_file_unreadable",
+        diagnostic: error instanceof Error ? error.message : String(error),
+        source: "none",
+        certainty: "unknown",
+      };
+    }
+  };
+
+  return listBlueprints;
 }
 
 export function createBridgeServer({ env = process.env } = {}) {
@@ -560,7 +685,8 @@ export function createBridgeServer({ env = process.env } = {}) {
   const leanMaxCharacters = positiveInteger(env.AIFACTORY_LEAN_MAX_CHARS, 200_000);
   const conveyorSpeedDivisor = Number.parseFloat(env.AIFACTORY_BELT_SPEED_DIVISOR ?? "") || 2;
   const listBlueprints = makeBlueprintReader(env);
-  const solverServices = { listBlueprints };
+  const inspectBlueprint = listBlueprints?.inspect ?? null;
+  const solverServices = { listBlueprints, inspectBlueprint };
   const graphOptions = { conveyorSpeedDivisor };
   const sessions = new Map();
   // Running spend per chat session, so the panel can show a total alongside
@@ -594,6 +720,7 @@ export function createBridgeServer({ env = process.env } = {}) {
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
+          blueprint_layout_inspection: Boolean(inspectBlueprint),
           outside_references: {
             web_search: sourcePolicy.enabled && sourceCapability.webSearch,
             requested_but_unavailable:

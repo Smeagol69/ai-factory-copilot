@@ -3,6 +3,19 @@
 All notable changes to AI Factory Copilot are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- Added bounded, read-only structural inspection for native `.sbp` blueprints:
+  exact header evidence, decoded native `Build_*` entity class counts, saved transforms,
+  pivot bounds, and recipe evidence. It explicitly does not claim destination
+  terrain clearance, Build Gun hologram validity, or external topology.
+- Made saved-blueprint inspection safe for duplicate names by accepting only a
+  `blueprint_reference` emitted from the configured library, never an arbitrary
+  filesystem path.
+- Bundled the lock-pinned structural-parser dependency into the game companion
+  and made standalone installation materialise it transactionally before
+  replacing a working bridge.
+
 ## 1.0.0-beta.2 - 2026-08-16
 
 - Rebuilt the native mod against Satisfactory 1.2.4 / FactoryGame CL 502094,

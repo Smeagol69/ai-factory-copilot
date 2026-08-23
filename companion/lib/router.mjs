@@ -39,6 +39,7 @@ import {
   solveSiteSelection,
   solveTransportCapacity,
   solveUnlockStatus,
+  solveBlueprintLayout,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
 import { validatePlan } from "./actions.mjs";
@@ -458,6 +459,11 @@ function formatUnlocks(result) {
 function formatBlueprints(result) {
   const blueprints = result.blueprints ?? [];
   if (blueprints.length === 0) return "No saved blueprints were found.";
+  const names = new Map();
+  for (const blueprint of blueprints) {
+    const key = String(blueprint.name ?? "").toLocaleLowerCase();
+    names.set(key, (names.get(key) ?? 0) + 1);
+  }
   return `${blueprints.length} blueprint(s):\n\n${blueprints
     .slice(0, 15)
     .map((blueprint) => {
@@ -468,9 +474,43 @@ function formatBlueprints(result) {
           : blueprint.affordable_from_captured_player_inventories === false
             ? " — you are short materials"
             : "";
-      return `- **${blueprint.name}**${size ? ` (${size.x}×${size.y}×${size.z})` : ""}${affordable}`;
+      const duplicate = (names.get(String(blueprint.name ?? "").toLocaleLowerCase()) ?? 0) > 1;
+      const reference = blueprint.blueprint_reference ?? blueprint.relative_path;
+      const disambiguator = duplicate && reference ? ` — reference \`${reference}\`` : "";
+      return `- **${blueprint.name}**${size ? ` (${size.x}×${size.y}×${size.z})` : ""}${affordable}${disambiguator}`;
     })
     .join("\n")}`;
+}
+
+function formatBlueprintLayout(result) {
+  if (!result.available) {
+    if (result.reason === "blueprint_name_ambiguous" && Array.isArray(result.candidates)) {
+      const references = result.candidates
+        .map((entry) => `\`${entry.relative_path}\``)
+        .join(", ");
+      return `I found more than one saved blueprint with that name. Use one exact library reference: ${references}.`;
+    }
+    const detail = result.diagnostic ? ` ${result.diagnostic}` : "";
+    return `I can't inspect that saved blueprint: **${result.reason ?? "unknown"}**.${detail}`;
+  }
+  const decoded = result.decoded ?? {};
+  const classes = (result.buildable_classes ?? [])
+    .slice(0, 6)
+    .map((entry) => `${entry.count} ${entry.class_name}`)
+    .join(", ");
+  const bounds = result.pivot_bounds_cm;
+  const span = bounds?.span_cm
+    ? ` Its saved buildable pivots span ${round(bounds.span_cm.x / 100)} × ` +
+      `${round(bounds.span_cm.y / 100)} × ${round(bounds.span_cm.z / 100)} m.`
+    : " Its buildable pivot bounds were not available.";
+  const listed = result.buildables_returned ?? 0;
+  const omitted = result.buildables_truncated ?? 0;
+  return `**${result.blueprint_name}** decodes to **${decoded.buildable_count ?? 0} Build_* entities** ` +
+    `(${decoded.component_count ?? 0} components).${span}` +
+    (classes ? ` Most common classes: ${classes}.` : "") +
+    ` I returned ${listed} saved transform${listed === 1 ? "" : "s"}` +
+    (omitted > 0 ? ` and left ${omitted} out of this compact reply.` : ".") +
+    " These are native saved transforms, not proof that the blueprint will clear terrain or fit at a new location.";
 }
 
 
@@ -1388,6 +1428,32 @@ export function parseBlueprintListRequest(question) {
   // "blueprints with coal in the name" narrows the list rather than dumping it.
   const filter = text.match(/\b(?:named|called|with|containing|matching|for)\s+"?([a-z0-9 _-]{2,40}?)"?\s*(?:in (?:the|its) name)?$/i);
   return { name_contains: filter ? filter[1].trim() : null };
+}
+
+// This is deliberately narrower than the list route. It reads one exact saved
+// name, never a disk path, and has no placement/export verb; all build actions
+// retain their own confirmation and validation paths.
+const BLUEPRINT_LAYOUT_REQUEST = [
+  /^(?:please\s+)?(?:inspect|analyse|analyze|read)\s+(?:the\s+)?(?:layout|structure|contents)?\s*(?:of\s+)?(?:the\s+)?blue\s?print\s+["']?(.+?)["']?$/i,
+  /^(?:please\s+)?(?:show|what(?:'s| is))\s+(?:the\s+)?(?:layout|structure|contents|inside)\s+(?:of\s+)?(?:the\s+)?blue\s?print\s+["']?(.+?)["']?$/i,
+];
+
+export function parseBlueprintLayoutRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  const match = BLUEPRINT_LAYOUT_REQUEST.map((pattern) => text.match(pattern)).find(Boolean);
+  if (!match) return null;
+  const blueprintName = match[1].replace(/\s+/g, " ").trim();
+  // A returned library reference may contain forward slashes, but it is never
+  // resolved as a path. Block absolute and dot-segment spellings anyway so the
+  // local route cannot even express a traversal-shaped request.
+  const unsafeReference =
+    /(^|[\\/])\.\.?(?:[\\/]|$)/.test(blueprintName) ||
+    /^[\\/]/.test(blueprintName) ||
+    /^[A-Za-z]:[\\/]/.test(blueprintName) ||
+    blueprintName.includes("\\");
+  if (!blueprintName || blueprintName.length > 240 || unsafeReference) return null;
+  return { blueprint_name: blueprintName };
 }
 
 /**
@@ -3964,6 +4030,26 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "inspect blueprint <exact name>" — decode its saved transforms without a
+  // model. This remains read-only; it cannot turn into a placement request.
+  const blueprintLayout = parseBlueprintLayoutRequest(question);
+  if (blueprintLayout && graph) {
+    const started = Date.now();
+    const layout = solveBlueprintLayout(
+      graph,
+      blueprintLayout,
+      { inspectBlueprint: services?.inspectBlueprint },
+    );
+    return localAnswer(
+      formatBlueprintLayout(layout),
+      "inspect_blueprint_layout",
+      started,
+      layout.available
+        ? "Decoded the selected saved blueprint through the read-only native structural parser."
+        : "The native blueprint reader refused to infer data from an unavailable or unreadable file.",
+    );
+  }
+
   // "list blueprints" — read the folder rather than asking a model about it.
   const blueprintList = parseBlueprintListRequest(question);
   if (blueprintList && graph) {
@@ -3997,19 +4083,31 @@ export function answerLocally(question, graph, services) {
       );
     }
 
+    const names = new Map();
+    for (const entry of found) {
+      const key = String(entry.name ?? "").toLocaleLowerCase();
+      names.set(key, (names.get(key) ?? 0) + 1);
+    }
+    const hasDuplicates = [...names.values()].some((count) => count > 1);
     const lines = found.slice(0, 15).map((entry) => {
       const dimensions = entry.designer_dimensions;
       const size = dimensions ? ` — ${dimensions.x}×${dimensions.y} foundations` : "";
       const built = entry.game_changelist ? `, built on CL ${entry.game_changelist}` : "";
-      return `- **${entry.name}**${size}${built}`;
+      const duplicate = (names.get(String(entry.name ?? "").toLocaleLowerCase()) ?? 0) > 1;
+      const reference = entry.blueprint_reference ?? entry.relative_path;
+      const disambiguator = duplicate && reference ? ` — reference \`${reference}\`` : "";
+      return `- **${entry.name}**${size}${built}${disambiguator}`;
     });
     const more = found.length > lines.length ? `\n…and ${found.length - lines.length} more.` : "";
+    const hint = hasDuplicates
+      ? 'For a duplicate, say "inspect blueprint <reference>" using the listed reference; it is not a filesystem path.'
+      : 'Say "place <name> here" to put one down.';
 
     return localAnswer(
       `You have **${library.blueprint_count ?? found.length}** saved blueprint(s)` +
         (blueprintList.name_contains ? ` matching "${blueprintList.name_contains}"` : "") +
         `:\n\n${lines.join("\n")}${more}\n\n` +
-        'Say "place <name> here" to put one down.',
+        hint,
       "blueprint_library",
       started,
       "Read from the blueprint folder on disk, not from a model.",

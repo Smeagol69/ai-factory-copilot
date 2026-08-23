@@ -20,9 +20,11 @@ without the bridge. Only the assistant's answers need it.
    [official manual-install directions](https://docs.ficsit.app/satisfactory-modding/latest/ManualInstallDirections.html).
 3. Launch the game and press **Insert**.
 
-That is the whole installation. The bridge starts with the world and stops with
-it, and the mod only ever stops a bridge it started — one you run yourself is
-left alone.
+That is the whole installation. The mod archive includes the bridge's
+lock-pinned production dependency tree, so no manual `npm` command is needed
+for a normal SML install. The bridge starts with the world and stops with it,
+and the mod only ever stops a bridge it started — one you run yourself is left
+alone.
 
 Set `"autoStartCompanion": false` in `FactoryGame/Configs/AIFactoryCopilot.cfg`
 to turn the automatic launch off.
@@ -38,7 +40,9 @@ sessions, or to manage it as a service. Take
    ./scripts/install-companion.ps1
    ```
 
-   Node.js 20 or newer is required. The installer uses
+   Node.js 20 or newer is required. The installer materialises the exact
+   lock-pinned dependency graph in a staging directory before replacing an
+   existing runtime, then uses
    `%LOCALAPPDATA%\AI Factory Copilot\Companion` for a new install, preserves an
    already verified older location during upgrades, registers a limited-user
    logon task, verifies every runtime file by SHA-256, and waits for the health

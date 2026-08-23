@@ -101,5 +101,28 @@ if ((Get-Item -LiteralPath $archive).LastWriteTime -lt $packageStartedAt.AddSeco
     throw "The packaged archive timestamp was not refreshed by this run: $archive"
 }
 
+# The game auto-starts this bundled bridge, so its exact runtime dependencies
+# must be in the archive. install-to-starter.ps1 builds the tree from the lock;
+# assert the two required packages here rather than trusting a green UAT log.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archiveZip = [IO.Compression.ZipFile]::OpenRead($archive)
+try {
+    $archiveEntries = @($archiveZip.Entries.FullName | ForEach-Object { $_.Replace('\', '/') })
+    if (-not ($archiveEntries | Where-Object { $_.EndsWith('companion/package-lock.json') })) {
+        throw "Packaged archive is missing companion/package-lock.json: $archive"
+    }
+    foreach ($requiredDependency in @(
+        'companion/node_modules/@etothepii/satisfactory-file-parser/build/index.js',
+        'companion/node_modules/pako/index.js'
+    )) {
+        if (-not ($archiveEntries | Where-Object { $_.EndsWith($requiredDependency) })) {
+            throw "Packaged archive is missing bundled companion dependency '$requiredDependency'. Run install-to-starter.ps1 before packaging."
+        }
+    }
+}
+finally {
+    $archiveZip.Dispose()
+}
+
 Write-Host "Packaged archive: $archive"
 Write-Host "Installed game mod $($deployedDescriptor.SemVersion): $installedDescriptor"

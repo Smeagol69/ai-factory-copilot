@@ -57,6 +57,8 @@ $requiredFiles = @(
     'Config\Alpakit.ini',
     'Resources\Icon128.png',
     'companion\server.mjs',
+    'companion\package-lock.json',
+    'companion\lib\blueprints.mjs',
     'companion\lib\graph.mjs',
     'companion\lib\solvers.mjs',
     'companion\lib\tools.mjs',
@@ -194,6 +196,25 @@ if ($gameRoot) {
 
 Push-Location (Join-Path $root 'companion')
 try {
+    $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+    if (-not $nodeCommand) {
+        throw 'Node.js 20 or newer is required to validate the companion dependency lockfile.'
+    }
+    $nodeVersion = (& $nodeCommand.Source --version).Trim()
+    if ($nodeVersion -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 20) {
+        throw "AI Factory Copilot requires Node.js 20 or newer; found '$nodeVersion' at '$($nodeCommand.Source)'."
+    }
+    $npmPath = Join-Path (Split-Path -Parent $nodeCommand.Source) 'npm.cmd'
+    if (-not (Test-Path -LiteralPath $npmPath -PathType Leaf)) {
+        throw "npm.cmd was not found beside Node.js at '$($nodeCommand.Source)'. Install the complete Node.js distribution."
+    }
+    # Tests exercise a static native-blueprint parser import. Materialise its
+    # exact lock-pinned dependency graph first so validation cannot pass only
+    # because a developer happened to retain an old node_modules directory.
+    & $npmPath ci --ignore-scripts --no-audit --fund=false
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm ci failed with exit code $LASTEXITCODE while validating the companion."
+    }
     & node --test
     if ($LASTEXITCODE -ne 0) {
         throw "Companion tests failed with exit code $LASTEXITCODE."

@@ -10,6 +10,7 @@ import {
   parseClearRequest,
   parseExactBeltSolverRequest,
   parseAimedFactoryRequest,
+  parseBlueprintLayoutRequest,
   parseBlueprintListRequest,
   parseShowRequest,
   parseStructureRequest,
@@ -525,6 +526,66 @@ test("a library the bridge cannot read is reported, not guessed at", () => {
   const answer = answerLocally("list blueprints", buildGraph(buildFactorySnapshot()), {});
   assert.ok(answer);
   assert.match(answer.reply, /can't read your blueprint folder/i);
+});
+
+test("an explicit native-blueprint inspection stays local and read-only", () => {
+  for (const question of [
+    "inspect blueprint Coal power plant 2700MW v1.1",
+    "show the layout of blueprint Coal power plant 2700MW v1.1",
+    "what is inside blueprint Coal power plant 2700MW v1.1",
+  ]) {
+    assert.equal(
+      parseBlueprintLayoutRequest(question)?.blueprint_name,
+      "Coal power plant 2700MW v1.1",
+      question,
+    );
+  }
+  assert.equal(parseBlueprintLayoutRequest("inspect blueprint C:/not-a-blueprint"), null);
+  assert.equal(parseBlueprintLayoutRequest("place blueprint Coal power plant here"), null);
+
+  const answer = answerLocally("inspect blueprint Coal power plant 2700MW v1.1", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Coal power plant 2700MW v1.1",
+      decoded: { buildable_count: 36, component_count: 10 },
+      buildable_classes: [{ class_name: "GeneratorCoal", count: 36 }],
+      pivot_bounds_cm: { span_cm: { x: 7200, y: 7100, z: 2950 } },
+      buildables_returned: 36,
+      buildables_truncated: 0,
+      header: { build_cost: [] },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /36 Build_\* entities/i);
+  assert.match(answer.reply, /not proof.*clear terrain/i);
+});
+
+test("a listed blueprint reference disambiguates safely, but never accepts traversal", () => {
+  assert.deepEqual(
+    parseBlueprintLayoutRequest("inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp"),
+    { blueprint_name: "ai 2.0/Coal power plant 2700MW v1.1.sbp" },
+  );
+  assert.equal(parseBlueprintLayoutRequest("inspect blueprint ../Coal power plant"), null);
+  assert.equal(parseBlueprintLayoutRequest("inspect blueprint C:\\outside.sbp"), null);
+});
+
+test("blueprint lists display a safe reference only when names collide", () => {
+  const blueprint = (reference) => ({
+    name: "Coal plant",
+    relative_path: reference,
+    blueprint_reference: reference,
+    designer_dimensions: { x: 8, y: 8, z: 4 },
+    build_cost: [],
+    contents: { recipes: [] },
+    game_changelist: 502094,
+  });
+  const answer = answerLocally("list blueprints", graphOf(), {
+    listBlueprints: () => [blueprint("ai 2.0/Coal plant.sbp"), blueprint("BP test/Coal plant.sbp")],
+  });
+  assert.match(answer.reply, /reference `ai 2\.0\/Coal plant\.sbp`/i);
+  assert.match(answer.reply, /reference `BP test\/Coal plant\.sbp`/i);
 });
 
 /* ---------------- a factory from the aimed node, phrased naturally ---------------- */

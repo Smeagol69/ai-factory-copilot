@@ -1,163 +1,248 @@
 /**
  * Satisfactory blueprint files.
  *
- * A saved blueprint is a pair: `<name>.sbp` holds the header and the object
- * graph, `<name>.sbpcfg` holds the description shown in the build menu. Only the
- * header is decoded here — it carries the designer dimensions, the exact build
- * cost, and the game changelist the blueprint was authored on, which is enough to
- * tell the player what a blueprint costs, whether it fits, and whether it was
- * made for their game version.
+ * A native blueprint is a pair: `<name>.sbp` is its binary header and compressed
+ * object stream, while `<name>.sbpcfg` is its menu configuration. The quick
+ * library reader below consumes the official `FBlueprintHeader` layout exactly;
+ * the on-demand structure reader uses the pinned, read-only
+ * `satisfactory-file-parser` implementation for the compressed object stream.
  *
- * Layout, verified against two real blueprints authored on different game builds:
- *
- *   u32  save_version          (2)
- *   u32  header_size           (60)
- *   u32  game_changelist       (495413 / 491125)
- *   u32  dimension_x, y, z     (designer size in foundations)
- *   u32  cost_entry_count
- *   u32  reserved              (0)
- *   repeat cost_entry_count:
- *     u32   path_length        (bytes, including the null terminator)
- *     char  item_class_path[path_length]
- *     u32   amount
- *     u32   reserved           (0)
- *
- * The object graph after the cost list is not decoded. Reading it means
- * implementing Satisfactory's save serialiser; `satisfactory-file-parser`
- * already does, and is the intended route when per-building detail is needed.
+ * This split matters. A previous length-prefixed string scan accidentally read
+ * recipe references left in the header and then described the compressed body as
+ * an object graph. It could not prove positions or building counts. Do not turn a
+ * byte pattern into an in-game fact: use `inspectBlueprintStructure` when actual
+ * layout evidence is needed.
  */
 
-const SUPPORTED_SAVE_VERSION = 2;
-const COST_LIST_OFFSET = 24;
+import { Parser } from "@etothepii/satisfactory-file-parser";
+
+const SUPPORTED_BLUEPRINT_HEADER_VERSION = 2;
+const SAVE_VERSION_WITH_OBJECT_VERSION_DATA = 53;
+const INITIAL_HEADER_BYTES = 28;
 const MAXIMUM_COST_ENTRIES = 512;
-const MAXIMUM_PATH_LENGTH = 4096;
+const MAXIMUM_RECIPE_REFERENCES = 4096;
+const MAXIMUM_STRING_CODE_UNITS = 8192;
+const MAXIMUM_BUILDABLE_CLASSES = 200;
+const DEFAULT_MAXIMUM_BUILDABLES = 80;
+const MAXIMUM_BUILDABLES = 200;
+const PARSER_VERSION = "4.1.2";
 
 function shortName(itemClassPath) {
   const tail = String(itemClassPath).split(".").pop() ?? "";
   return tail.replace(/_C$/, "").replace(/^(Desc|Recipe|Build)_/, "");
 }
 
-/** Decodes the `.sbp` header and build cost. Throws only on a malformed file. */
+function requireBytes(buffer, offset, count, field) {
+  if (!Number.isInteger(offset) || !Number.isInteger(count) || offset < 0 || count < 0 || offset + count > buffer.length) {
+    throw new Error(`Blueprint is truncated while reading ${field}.`);
+  }
+}
+
+function readInt32(buffer, offset, field) {
+  requireBytes(buffer, offset, 4, field);
+  return buffer.readInt32LE(offset);
+}
+
+function readUint16(buffer, offset, field) {
+  requireBytes(buffer, offset, 2, field);
+  return buffer.readUInt16LE(offset);
+}
+
+function readUint32(buffer, offset, field) {
+  requireBytes(buffer, offset, 4, field);
+  return buffer.readUInt32LE(offset);
+}
+
+/** Reads Satisfactory's signed-length FString and returns its next byte offset. */
+function readFString(buffer, offset, field) {
+  const length = readInt32(buffer, offset, `${field} length`);
+  offset += 4;
+  if (length === 0) return { value: "", offset };
+
+  const codeUnits = Math.abs(length);
+  if (codeUnits > MAXIMUM_STRING_CODE_UNITS) {
+    throw new Error(`Blueprint ${field} length ${codeUnits} is not plausible.`);
+  }
+  const bytes = length > 0 ? codeUnits : codeUnits * 2;
+  requireBytes(buffer, offset, bytes, field);
+  const end = offset + bytes;
+
+  if (length > 0) {
+    if (buffer[end - 1] !== 0) throw new Error(`Blueprint ${field} is missing its UTF-8 terminator.`);
+    return { value: buffer.toString("utf8", offset, end - 1), offset: end };
+  }
+  if (buffer[end - 2] !== 0 || buffer[end - 1] !== 0) {
+    throw new Error(`Blueprint ${field} is missing its UTF-16 terminator.`);
+  }
+  return { value: buffer.toString("utf16le", offset, end - 2), offset: end };
+}
+
+function readObjectReference(buffer, offset, field) {
+  const level = readFString(buffer, offset, `${field} level name`);
+  const path = readFString(buffer, level.offset, `${field} path name`);
+  return {
+    value: { level_name: level.value, path_name: path.value },
+    offset: path.offset,
+  };
+}
+
+function readObjectVersionData(buffer, offset) {
+  const layoutVersion = readUint32(buffer, offset, "object version data layout version");
+  offset += 4;
+  const ue4Version = readInt32(buffer, offset, "object version data UE4 package version");
+  offset += 4;
+  const ue5Version = readInt32(buffer, offset, "object version data UE5 package version");
+  offset += 4;
+  const licenseeVersion = readInt32(buffer, offset, "object version data licensee version");
+  offset += 4;
+  const major = readUint16(buffer, offset, "object version data engine major");
+  offset += 2;
+  const minor = readUint16(buffer, offset, "object version data engine minor");
+  offset += 2;
+  const patch = readUint16(buffer, offset, "object version data engine patch");
+  offset += 2;
+  const changelist = readUint32(buffer, offset, "object version data engine changelist");
+  offset += 4;
+  const branch = readFString(buffer, offset, "object version data engine branch");
+  offset = branch.offset;
+  const customVersionCount = readInt32(buffer, offset, "object version data custom version count");
+  offset += 4;
+  if (customVersionCount < 0 || customVersionCount > MAXIMUM_COST_ENTRIES) {
+    throw new Error(`Blueprint custom version count ${customVersionCount} is not plausible.`);
+  }
+
+  const customVersions = [];
+  for (let index = 0; index < customVersionCount; index += 1) {
+    const guid = [0, 1, 2, 3].map((part) => {
+      const value = readUint32(buffer, offset, `custom version ${index} GUID ${part}`);
+      offset += 4;
+      return value.toString(16).padStart(8, "0");
+    });
+    const version = readInt32(buffer, offset, `custom version ${index} version`);
+    offset += 4;
+    customVersions.push({ guid: guid.join("-"), version });
+  }
+
+  return {
+    value: {
+      layout_version: layoutVersion,
+      package_file_version: { ue4: ue4Version, ue5: ue5Version },
+      licensee_version: licenseeVersion,
+      engine_version: { major, minor, patch, changelist, branch: branch.value },
+      custom_version_count: customVersions.length,
+      custom_versions: customVersions,
+    },
+    offset,
+  };
+}
+
+function compressedBodyInfo(buffer, offset) {
+  const byteCount = Math.max(0, buffer.length - offset);
+  if (byteCount < 8) {
+    return {
+      present: false,
+      bytes: byteCount,
+      chunk_header_sane: false,
+      note: "No complete compressed-blueprint chunk header remains after the decoded header.",
+    };
+  }
+  const packageFileTag = readUint32(buffer, offset, "compressed body package tag");
+  const chunkHeaderVersion = readUint32(buffer, offset + 4, "compressed body chunk header version");
+  return {
+    present: true,
+    bytes: byteCount,
+    package_file_tag: packageFileTag,
+    chunk_header_version: chunkHeaderVersion,
+    chunk_header_sane: chunkHeaderVersion === 0 || chunkHeaderVersion === 0x22222222,
+    note: "The remaining bytes are compressed blueprint data; they are not scanned as raw object records.",
+  };
+}
+
+/** Decodes the exact `FBlueprintHeader`. Throws on unsupported or malformed data. */
 export function parseBlueprintHeader(buffer) {
-  if (!buffer || buffer.length < COST_LIST_OFFSET + 8) {
+  if (!buffer || buffer.length < INITIAL_HEADER_BYTES) {
     throw new Error("Blueprint file is too short to contain a header.");
   }
 
-  const saveVersion = buffer.readUInt32LE(0);
-  const headerSize = buffer.readUInt32LE(4);
-  const gameChangelist = buffer.readUInt32LE(8);
+  const blueprintHeaderVersion = readInt32(buffer, 0, "blueprint header version");
+  if (blueprintHeaderVersion !== SUPPORTED_BLUEPRINT_HEADER_VERSION) {
+    throw new Error(
+      `Unsupported blueprint header version ${blueprintHeaderVersion}; only ${SUPPORTED_BLUEPRINT_HEADER_VERSION} is decoded safely.`,
+    );
+  }
+  const factorySaveCustomVersion = readInt32(buffer, 4, "factory save custom version");
+  const gameChangelist = readInt32(buffer, 8, "game changelist");
   const dimensions = {
-    x: buffer.readUInt32LE(12),
-    y: buffer.readUInt32LE(16),
-    z: buffer.readUInt32LE(20),
+    x: readInt32(buffer, 12, "designer dimension x"),
+    y: readInt32(buffer, 16, "designer dimension y"),
+    z: readInt32(buffer, 20, "designer dimension z"),
   };
-
-  const entryCount = buffer.readUInt32LE(COST_LIST_OFFSET);
-  if (entryCount > MAXIMUM_COST_ENTRIES) {
+  const entryCount = readInt32(buffer, 24, "cost entry count");
+  if (entryCount < 0 || entryCount > MAXIMUM_COST_ENTRIES) {
     throw new Error(`Blueprint declares ${entryCount} cost entries, which is not plausible.`);
   }
 
   const cost = [];
-  let offset = COST_LIST_OFFSET + 8;
-  let truncated = false;
+  let offset = INITIAL_HEADER_BYTES;
 
   for (let index = 0; index < entryCount; index += 1) {
-    if (offset + 4 > buffer.length) {
-      truncated = true;
-      break;
-    }
-    const pathLength = buffer.readUInt32LE(offset);
+    const reference = readObjectReference(buffer, offset, `cost entry ${index}`);
+    offset = reference.offset;
+    const amount = readInt32(buffer, offset, `cost entry ${index} amount`);
     offset += 4;
-    if (pathLength === 0 || pathLength > MAXIMUM_PATH_LENGTH || offset + pathLength + 8 > buffer.length) {
-      truncated = true;
-      break;
-    }
-    // The stored length includes the trailing null.
-    const itemClassPath = buffer.toString("utf8", offset, offset + pathLength - 1);
-    offset += pathLength;
-    const amount = buffer.readUInt32LE(offset);
-    offset += 8;
-
-    cost.push({ item_class: itemClassPath, item_name: shortName(itemClassPath), amount });
+    cost.push({
+      item_class: reference.value.path_name,
+      item_level_name: reference.value.level_name,
+      item_name: shortName(reference.value.path_name),
+      amount,
+    });
   }
 
+  const recipeCount = readInt32(buffer, offset, "recipe reference count");
+  offset += 4;
+  if (recipeCount < 0 || recipeCount > MAXIMUM_RECIPE_REFERENCES) {
+    throw new Error(`Blueprint declares ${recipeCount} recipe references, which is not plausible.`);
+  }
+  const recipeReferences = [];
+  for (let index = 0; index < recipeCount; index += 1) {
+    const reference = readObjectReference(buffer, offset, `recipe reference ${index}`);
+    offset = reference.offset;
+    recipeReferences.push({
+      recipe_class: reference.value.path_name,
+      recipe_level_name: reference.value.level_name,
+      recipe_name: shortName(reference.value.path_name),
+    });
+  }
+
+  let objectVersionData = null;
+  if (factorySaveCustomVersion >= SAVE_VERSION_WITH_OBJECT_VERSION_DATA) {
+    const result = readObjectVersionData(buffer, offset);
+    objectVersionData = result.value;
+    offset = result.offset;
+  }
+
+  const compressedBody = compressedBodyInfo(buffer, offset);
+
   return {
-    save_version: saveVersion,
-    header_size: headerSize,
+    blueprint_header_version: blueprintHeaderVersion,
+    factory_save_custom_version: factorySaveCustomVersion,
     game_changelist: gameChangelist,
     designer_dimensions: dimensions,
     build_cost: cost,
     cost_entry_count_declared: entryCount,
     cost_entries_read: cost.length,
-    cost_list_truncated: truncated,
-    object_graph_offset: offset,
-    object_graph_bytes: Math.max(0, buffer.length - offset),
+    recipe_reference_count_declared: recipeCount,
+    recipe_references: recipeReferences,
+    object_version_data: objectVersionData,
+    header_bytes: offset,
+    compressed_body_offset: offset,
+    compressed_body: compressedBody,
     object_graph_decoded: false,
     object_graph_note:
-      "Per-building layout is not decoded here. Use satisfactory-file-parser for the object graph.",
-    supported: saveVersion === SUPPORTED_SAVE_VERSION,
-    source: "parsed_from_sbp_header",
-    certainty: truncated ? "partial" : "authoritative",
-  };
-}
-
-/**
- * Recovers the class paths referenced in a blueprint's object graph.
- *
- * The graph is length-prefixed UE data. Fully decoding it means implementing
- * Satisfactory's save serialiser, which this does not attempt — but every object
- * the blueprint references appears as a length-prefixed `/Game/...` string, and
- * those can be recovered exactly by walking valid length prefixes. That yields
- * *what* a blueprint contains, with per-class counts. It does not yield where
- * anything sits: transforms stay unknown and are reported as such.
- */
-export function scanBlueprintReferences(buffer, startOffset = 0) {
-  const seen = new Map();
-  const limit = buffer.length - 8;
-
-  for (let offset = Math.max(0, startOffset); offset < limit; offset += 1) {
-    const length = buffer.readUInt32LE(offset);
-    if (length < 8 || length > 512 || offset + 4 + length > buffer.length) continue;
-    // A UE string field is null-terminated; require it before decoding.
-    if (buffer[offset + 4 + length - 1] !== 0) continue;
-
-    const text = buffer.toString("utf8", offset + 4, offset + 4 + length - 1);
-    if (!text.startsWith("/Game/") || !/^[\x20-\x7e]+$/.test(text)) continue;
-
-    seen.set(text, (seen.get(text) ?? 0) + 1);
-    offset += 3 + length;
-  }
-
-  const buildings = [];
-  const recipes = [];
-  const items = [];
-  const other = [];
-  for (const [classPath, count] of seen) {
-    const tail = classPath.split(".").pop() ?? "";
-    const entry = { class_path: classPath, name: shortName(classPath), occurrences: count };
-    if (tail.startsWith("Build_")) buildings.push(entry);
-    else if (tail.startsWith("Recipe_")) recipes.push(entry);
-    else if (tail.startsWith("Desc_")) items.push(entry);
-    else other.push(entry);
-  }
-  const byOccurrence = (a, b) => b.occurrences - a.occurrences;
-  buildings.sort(byOccurrence);
-  recipes.sort(byOccurrence);
-
-  return {
-    buildings,
-    recipes,
-    items,
-    other,
-    distinct_building_classes: buildings.length,
-    distinct_recipes: recipes.length,
-    method: "length_prefixed_class_path_scan_over_the_object_graph",
-    certainty: "class_paths_are_exact_counts_are_indicative",
-    counts_caveat:
-      "Occurrences count how often a class path appears in the graph, which is not necessarily the number of that building placed. Treat it as presence and rough weight, not an exact count.",
-    transforms: "not_decoded",
-    transforms_note:
-      "Positions and rotations require Satisfactory's save serialiser; satisfactory-file-parser implements it.",
+      "The blueprint object stream is compressed. Per-building layout is available only through the read-only structural parser.",
+    supported: true,
+    source: "parsed_from_exact_fblueprintheader",
+    certainty: "authoritative",
   };
 }
 
@@ -166,18 +251,41 @@ export function parseBlueprintConfig(buffer) {
   if (!buffer || buffer.length < 8) {
     return { description: null, certainty: "unknown" };
   }
-  const configVersion = buffer.readUInt32LE(0);
-  const length = buffer.readUInt32LE(4);
-  if (length === 0 || 8 + length > buffer.length + 1) {
-    return { config_version: configVersion, description: null, certainty: "unknown" };
+  try {
+    const configVersion = readInt32(buffer, 0, "blueprint config version");
+    const description = readFString(buffer, 4, "blueprint config description");
+    return {
+      config_version: configVersion,
+      description: description.value || null,
+      trailing_bytes: Math.max(0, buffer.length - description.offset),
+      source: "parsed_from_sbpcfg_header",
+      certainty: "authoritative_for_description",
+    };
+  } catch {
+    return { description: null, certainty: "unknown" };
   }
-  const end = Math.min(8 + length - 1, buffer.length);
+}
+
+function headerContents(header) {
+  const recipes = (header.recipe_references ?? [])
+    .filter((reference) => reference.recipe_class)
+    .map((reference) => ({
+    class_path: reference.recipe_class,
+    level_name: reference.recipe_level_name,
+    name: reference.recipe_name,
+    occurrences: null,
+    }));
   return {
-    config_version: configVersion,
-    description: buffer.toString("utf8", 8, end),
-    trailing_bytes: Math.max(0, buffer.length - (8 + length)),
-    source: "parsed_from_sbpcfg",
-    certainty: "authoritative",
+    recipes,
+    buildings: [],
+    distinct_recipes: recipes.length,
+    method: "exact_recipe_references_from_fblueprintheader",
+    certainty: "recipe_references_are_exact_presence_not_per_building_counts",
+    counts_caveat:
+      "Header recipe references prove the recipe classes used by the blueprint, but do not encode how many buildings use each recipe.",
+    transforms: "not_decoded",
+    transforms_note:
+      "Use the read-only structural parser for saved entity transforms and exact buildable counts.",
   };
 }
 
@@ -189,15 +297,250 @@ export function parseBlueprintConfig(buffer) {
 export function readBlueprint(name, sbpBuffer, sbpcfgBuffer = null, { scanContents = true } = {}) {
   const header = parseBlueprintHeader(sbpBuffer);
   const config = sbpcfgBuffer ? parseBlueprintConfig(sbpcfgBuffer) : null;
-  const contents = scanContents
-    ? scanBlueprintReferences(sbpBuffer, header.object_graph_offset)
-    : null;
+  const contents = scanContents ? headerContents(header) : null;
   return {
     name,
     ...header,
     description: config?.description ?? null,
     has_config: Boolean(sbpcfgBuffer),
     contents,
+  };
+}
+
+function exactArrayBuffer(buffer) {
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+function finiteVector(vector, keys) {
+  if (!vector || typeof vector !== "object") return null;
+  const result = {};
+  for (const key of keys) {
+    const value = Number(vector[key]);
+    if (!Number.isFinite(value)) return null;
+    result[key] = value;
+  }
+  return result;
+}
+
+/**
+ * The serializer exposes concrete entity class paths, not the runtime UClass
+ * hierarchy. Native buildables conventionally end in `Build_*_C`; preserve the
+ * classification caveat in the output rather than silently treating a naming
+ * convention as a proof for every future mod.
+ */
+function blueprintBuildableCandidate(object) {
+  if (object?.type !== "SaveEntity" || typeof object.typePath !== "string") return false;
+  const tail = object.typePath.split(".").pop() ?? "";
+  return tail.startsWith("Build_") && tail.endsWith("_C");
+}
+
+function builtWithRecipe(object) {
+  const reference = object?.properties?.mBuiltWithRecipe?.value;
+  if (!reference || typeof reference.pathName !== "string" || !reference.pathName) return null;
+  return {
+    recipe_class: reference.pathName,
+    recipe_level_name: typeof reference.levelName === "string" ? reference.levelName : "",
+    recipe_name: shortName(reference.pathName),
+  };
+}
+
+function readBuildableTransform(object) {
+  const translation = finiteVector(object?.transform?.translation, ["x", "y", "z"]);
+  const rotation = finiteVector(object?.transform?.rotation, ["x", "y", "z", "w"]);
+  const scale = finiteVector(object?.transform?.scale3d, ["x", "y", "z"]);
+  if (!translation || !rotation || !scale) return null;
+  return { translation_cm: translation, rotation_quat: rotation, scale3d: scale };
+}
+
+function pivotBounds(transforms) {
+  if (transforms.length === 0) return null;
+  const minimum = { ...transforms[0].translation_cm };
+  const maximum = { ...transforms[0].translation_cm };
+  for (const transform of transforms.slice(1)) {
+    for (const axis of ["x", "y", "z"]) {
+      minimum[axis] = Math.min(minimum[axis], transform.translation_cm[axis]);
+      maximum[axis] = Math.max(maximum[axis], transform.translation_cm[axis]);
+    }
+  }
+  return {
+    minimum_cm: minimum,
+    maximum_cm: maximum,
+    span_cm: {
+      x: maximum.x - minimum.x,
+      y: maximum.y - minimum.y,
+      z: maximum.z - minimum.z,
+    },
+    caveat: "These are saved buildable pivot locations, not collision or visual extents.",
+  };
+}
+
+function boundedMaximum(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(MAXIMUM_BUILDABLES, Math.max(1, Math.trunc(numeric)));
+}
+
+/**
+ * Reads the compressed object stream through a pinned parser without mutating the
+ * file or game. The returned individual entity list is deliberately bounded;
+ * aggregate class counts and pivot bounds cover every decoded buildable.
+ */
+export function inspectBlueprintStructure(
+  name,
+  sbpBuffer,
+  sbpcfgBuffer = null,
+  { maximumBuildables = DEFAULT_MAXIMUM_BUILDABLES } = {},
+) {
+  let header;
+  try {
+    header = parseBlueprintHeader(sbpBuffer);
+  } catch (error) {
+    return {
+      available: false,
+      blueprint_name: name,
+      reason: "blueprint_header_unreadable",
+      diagnostic: error instanceof Error ? error.message : String(error),
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+  if (!sbpcfgBuffer) {
+    return {
+      available: false,
+      blueprint_name: name,
+      reason: "blueprint_config_missing",
+      note: "The matching .sbpcfg file is required before the structural parser can safely decode this native blueprint.",
+      header,
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = Parser.ParseBlueprintFiles(
+      String(name),
+      exactArrayBuffer(sbpBuffer),
+      exactArrayBuffer(sbpcfgBuffer),
+      { throwErrors: true },
+    );
+  } catch (error) {
+    return {
+      available: false,
+      blueprint_name: name,
+      reason: "blueprint_parser_rejected_file",
+      diagnostic: error instanceof Error ? error.message : String(error),
+      header,
+      source: "pinned_satisfactory_file_parser",
+      certainty: "unknown",
+    };
+  }
+
+  const parserHeader = parsed?.header ?? {};
+  const dimensions = parserHeader.designerDimension ?? {};
+  if (
+    parserHeader.headerVersion !== header.blueprint_header_version ||
+    parserHeader.saveVersion !== header.factory_save_custom_version ||
+    parserHeader.buildVersion !== header.game_changelist ||
+    dimensions.x !== header.designer_dimensions.x ||
+    dimensions.y !== header.designer_dimensions.y ||
+    dimensions.z !== header.designer_dimensions.z
+  ) {
+    return {
+      available: false,
+      blueprint_name: name,
+      reason: "parser_header_disagrees_with_exact_header",
+      header,
+      parser_header: {
+        blueprint_header_version: parserHeader.headerVersion ?? null,
+        factory_save_custom_version: parserHeader.saveVersion ?? null,
+        game_changelist: parserHeader.buildVersion ?? null,
+        designer_dimensions: dimensions,
+      },
+      source: "pinned_satisfactory_file_parser",
+      certainty: "unknown",
+    };
+  }
+
+  const objects = Array.isArray(parsed?.objects) ? parsed.objects : [];
+  const entities = objects.filter((object) => object?.type === "SaveEntity");
+  const components = objects.filter((object) => object?.type === "SaveComponent");
+  const buildables = entities
+    .map((object, entityIndex) => ({ object, entity_index: entityIndex }))
+    .filter(({ object }) => blueprintBuildableCandidate(object));
+  const transformed = buildables
+    .map(({ object, entity_index }) => ({ object, entity_index, transform: readBuildableTransform(object) }))
+    .filter(({ transform }) => transform !== null);
+
+  const classCounts = new Map();
+  for (const { object } of buildables) {
+    classCounts.set(object.typePath, (classCounts.get(object.typePath) ?? 0) + 1);
+  }
+  const allClassCounts = [...classCounts.entries()]
+    .map(([class_path, count]) => ({ class_path, class_name: shortName(class_path), count }))
+    .sort((left, right) => right.count - left.count || left.class_path.localeCompare(right.class_path));
+  const maximum = boundedMaximum(maximumBuildables, DEFAULT_MAXIMUM_BUILDABLES);
+  const rows = transformed.slice(0, maximum).map(({ object, entity_index, transform }) => ({
+    entity_index,
+    class_path: object.typePath,
+    class_name: shortName(object.typePath),
+    instance_name: typeof object.instanceName === "string" ? object.instanceName : null,
+    transform,
+    built_with_recipe: builtWithRecipe(object),
+  }));
+  const objectsWithTrailingData = objects.filter(
+    (object) => Array.isArray(object?.trailingData) && object.trailingData.length > 0,
+  ).length;
+
+  return {
+    available: true,
+    blueprint_name: name,
+    parser: {
+      package: "@etothepii/satisfactory-file-parser",
+      version: PARSER_VERSION,
+      mode: "read_only",
+    },
+    header: {
+      blueprint_header_version: header.blueprint_header_version,
+      factory_save_custom_version: header.factory_save_custom_version,
+      game_changelist: header.game_changelist,
+      designer_dimensions: header.designer_dimensions,
+      description: typeof parsed?.config?.description === "string" ? parsed.config.description : null,
+      build_cost: header.build_cost,
+      recipe_references: header.recipe_references,
+    },
+    decoded: {
+      object_count: objects.length,
+      entity_count: entities.length,
+      component_count: components.length,
+      buildable_count: buildables.length,
+      buildable_identification:
+        "SaveEntity class-path basename matches the native Build_*_C convention.",
+      buildable_identification_caveat:
+        "The standalone blueprint file does not include runtime class hierarchy data, so a modded buildable that breaks this naming convention may not be counted here.",
+      buildables_with_finite_transform: transformed.length,
+      objects_with_opaque_trailing_data: objectsWithTrailingData,
+      opaque_property_data_note:
+        objectsWithTrailingData > 0
+          ? "Some decoded objects retain opaque property bytes. Their entity headers and transforms remain decoded; opaque property values are not interpreted."
+          : null,
+    },
+    buildable_classes: allClassCounts.slice(0, MAXIMUM_BUILDABLE_CLASSES),
+    distinct_buildable_classes: allClassCounts.length,
+    buildable_classes_truncated: Math.max(0, allClassCounts.length - MAXIMUM_BUILDABLE_CLASSES),
+    pivot_bounds_cm: pivotBounds(transformed.map(({ transform }) => transform)),
+    buildables: rows,
+    buildables_returned: rows.length,
+    buildables_truncated: Math.max(0, transformed.length - rows.length),
+    transform_coverage_caveat:
+      "Only native Build_* entities with finite saved transforms are listed. The blueprint file does not prove terrain clearance, hologram validity, or external connections at a destination.",
+    connection_topology: "not_interpreted",
+    source: "decoded_from_saved_native_blueprint",
+    certainty:
+      rows.length < transformed.length
+        ? "authoritative_summary_with_bounded_entity_list"
+        : "authoritative_for_decoded_entities",
   };
 }
 

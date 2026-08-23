@@ -49,6 +49,7 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.loopback_only, true);
   assert.equal(body.maximum_request_body_bytes, 256 * 1024 * 1024);
   assert.equal(body.conveyor_speed_divisor, 2);
+  assert.equal(body.blueprint_layout_inspection, false);
   assert.ok(body.solver_tools.includes("get_factory_summary"));
   assert.ok(body.solver_tools.includes("diagnose_bottlenecks"));
   assert.ok(body.solver_tools.includes("find_best_site"));

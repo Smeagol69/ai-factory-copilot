@@ -1674,6 +1674,8 @@ export function solveBlueprintLibrary(
       contents_caveat: entry.contents?.counts_caveat ?? null,
       transforms: entry.contents?.transforms ?? "not_decoded",
       name: entry.name,
+      relative_path: entry.relative_path ?? null,
+      blueprint_reference: entry.blueprint_reference ?? entry.relative_path ?? null,
       designer_dimensions: entry.designer_dimensions,
       authored_on_game_changelist: entry.game_changelist,
       authored_on_a_different_build:
@@ -1681,7 +1683,7 @@ export function solveBlueprintLibrary(
       description: entry.description,
       build_cost: entry.build_cost,
       ...pricing,
-      cost_list_truncated: entry.cost_list_truncated,
+      recipe_reference_count: entry.recipe_reference_count_declared ?? null,
       object_graph_decoded: entry.object_graph_decoded,
       object_graph_note: entry.object_graph_note,
     });
@@ -1698,11 +1700,70 @@ export function solveBlueprintLibrary(
     blueprints,
     unreadable_files: failures,
     what_is_known:
-      "Designer dimensions, exact build cost, the buildings it contains, the game build each blueprint was authored on, and its description.",
+      "Designer dimensions, exact build cost, exact header recipe references, the game build each blueprint was authored on, and its description.",
     what_is_not_known:
-      "Positions, rotations, and wiring inside a blueprint are not decoded. The buildings it contains are known from the build recipes it references; where they sit is not.",
+      "This fast library read does not decode entity positions, rotations, physical extents, or wiring. Call inspect_blueprint_layout for one exact blueprint; it returns bounded saved transforms and class counts, not a placement guarantee.",
     source: "parsed_from_saved_blueprint_files",
     certainty: "authoritative_for_header_and_cost",
+  };
+}
+
+/**
+ * Decodes one explicitly named native blueprint through the read-only bridge
+ * adapter. The adapter owns disk access; the solver adds live inventory pricing
+ * and keeps its failure modes explicit rather than treating an unreadable file
+ * as an empty factory.
+ */
+export function solveBlueprintLayout(
+  graph,
+  { blueprint_name = null, maximum_buildables = 80 } = {},
+  { inspectBlueprint = null } = {},
+) {
+  if (typeof inspectBlueprint !== "function") {
+    return {
+      solver: "blueprint_layout",
+      world_revision: graph.world_revision,
+      available: false,
+      reason: "blueprint_directory_not_configured",
+      note: "Set AIFACTORY_BLUEPRINT_DIR so the bridge can read the saved blueprint folder.",
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+  if (typeof blueprint_name !== "string" || !blueprint_name.trim()) {
+    return {
+      solver: "blueprint_layout",
+      world_revision: graph.world_revision,
+      available: false,
+      reason: "blueprint_name_required",
+        note: "Use the exact blueprint name or blueprint_reference returned by list_blueprints.",
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const structure = inspectBlueprint(blueprint_name.trim(), { maximumBuildables: maximum_buildables });
+  if (!structure?.available) {
+    return {
+      solver: "blueprint_layout",
+      world_revision: graph.world_revision,
+      ...(structure ?? {
+        available: false,
+        reason: "blueprint_reader_returned_no_result",
+        source: "none",
+        certainty: "unknown",
+      }),
+    };
+  }
+
+  const { totals } = playerInventories(graph);
+  return {
+    solver: "blueprint_layout",
+    world_revision: graph.world_revision,
+    ...structure,
+    ...costAgainstInventory(structure.header, totals),
+    source: "decoded_from_saved_native_blueprint",
+    certainty: structure.certainty,
   };
 }
 

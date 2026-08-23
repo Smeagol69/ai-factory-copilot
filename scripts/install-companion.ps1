@@ -19,6 +19,7 @@ $sourceLibrary = Join-Path $sourceRoot 'lib'
 $sourceRunner = Join-Path $PSScriptRoot 'run-companion.ps1'
 $sourceConfigurator = Join-Path $PSScriptRoot 'configure-companion.ps1'
 $sourcePackage = Join-Path $sourceRoot 'package.json'
+$sourceLock = Join-Path $sourceRoot 'package-lock.json'
 $sourceEnvironmentExample = Join-Path $sourceRoot '.env.example'
 
 function Resolve-NodePath {
@@ -64,6 +65,19 @@ function Resolve-PowerShellPath {
         }
     }
     throw 'Could not resolve a headless PowerShell executable for the scheduled task.'
+}
+
+function Resolve-NpmPath {
+    param([string]$ResolvedNodePath)
+
+    # npm must come from the same Node installation selected for the bridge.
+    # Falling back to a PATH npm can silently combine a different global npm,
+    # registry policy, or Node major with the runtime we just verified.
+    $candidate = Join-Path (Split-Path -Parent $ResolvedNodePath) 'npm.cmd'
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        return (Resolve-Path -LiteralPath $candidate).Path
+    }
+    throw "npm.cmd was not found beside the selected Node.js executable '$ResolvedNodePath'. Install the complete Node.js 20+ distribution and re-run this installer."
 }
 
 function Test-RecognizedCompanionInstall {
@@ -173,6 +187,7 @@ foreach ($requiredPath in @(
     $sourceRunner,
     $sourceConfigurator,
     $sourcePackage,
+    $sourceLock,
     $sourceEnvironmentExample
 )) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
@@ -224,6 +239,7 @@ $nodeVersion = (& $resolvedNodePath --version).Trim()
 if ($nodeVersion -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 20) {
     throw "AI Factory Copilot requires Node.js 20 or newer; found '$nodeVersion' at '$resolvedNodePath'."
 }
+$resolvedNpmPath = Resolve-NpmPath -ResolvedNodePath $resolvedNodePath
 $powerShellPath = Resolve-PowerShellPath
 $sourcePackageData = Get-Content -Raw -LiteralPath $sourcePackage | ConvertFrom-Json
 
@@ -274,6 +290,7 @@ foreach ($transactionPath in @($stageRoot, $backupRoot, $resolvedInstallRoot)) {
 $runtimeFiles = @(
     [pscustomobject]@{ Source = $sourceServer; Relative = 'server.mjs' },
     [pscustomobject]@{ Source = $sourcePackage; Relative = 'package.json' },
+    [pscustomobject]@{ Source = $sourceLock; Relative = 'package-lock.json' },
     [pscustomobject]@{ Source = $sourceEnvironmentExample; Relative = '.env.example' },
     [pscustomobject]@{ Source = $sourceRunner; Relative = 'run-companion.ps1' },
     [pscustomobject]@{ Source = $sourceConfigurator; Relative = 'configure-companion.ps1' }
@@ -304,6 +321,25 @@ try {
         if ($sourceHash -ne $stagedHash) {
             throw "Staged runtime file does not match its source: $stagedPath"
         }
+    }
+
+    # Dependencies are materialised in the candidate, before the working task
+    # or install is touched. A registry outage, corrupt lockfile, or missing
+    # parser therefore cannot take an already-working bridge offline.
+    Push-Location $stageRoot
+    try {
+        & $resolvedNpmPath ci --omit=dev --ignore-scripts --no-audit --fund=false
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm ci failed with exit code $LASTEXITCODE while preparing the companion candidate."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    $parserEntryRelative = 'node_modules\@etothepii\satisfactory-file-parser\build\index.js'
+    $stagedParserEntry = Join-Path $stageRoot $parserEntryRelative
+    if (-not (Test-Path -LiteralPath $stagedParserEntry -PathType Leaf)) {
+        throw "npm ci completed but the required structural parser was not staged: $stagedParserEntry"
     }
     @{
         schema = 'aifactory.companion.runtime'
@@ -430,6 +466,10 @@ try {
         if ($sourceHash -ne $installedHash) {
             throw "Installed runtime file does not match its source: $installedPath"
         }
+    }
+    $installedParserEntry = Join-Path $resolvedInstallRoot $parserEntryRelative
+    if (-not (Test-Path -LiteralPath $installedParserEntry -PathType Leaf)) {
+        throw "Installed companion is missing the required structural parser: $installedParserEntry"
     }
 
     $installSucceeded = $true

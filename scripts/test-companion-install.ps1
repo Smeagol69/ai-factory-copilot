@@ -31,6 +31,13 @@ try {
         $health.bridge_version -ne $expectedVersion) {
         throw 'The isolated companion returned invalid health metadata.'
     }
+    # The bridge statically imports the structural reader at startup, so a
+    # healthy process plus this exact staged entry proves a clean install has
+    # the dependency rather than merely source files that work in this repo.
+    $installedParser = Join-Path $testInstallRoot 'node_modules\@etothepii\satisfactory-file-parser\build\index.js'
+    if (-not (Test-Path -LiteralPath $installedParser -PathType Leaf)) {
+        throw "The isolated companion install is missing its structural parser: $installedParser"
+    }
     Write-Host "Isolated companion install passed on port $testPort."
 
     & (Join-Path $PSScriptRoot 'configure-companion.ps1') `

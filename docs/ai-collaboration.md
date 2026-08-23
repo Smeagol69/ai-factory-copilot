@@ -3892,3 +3892,104 @@ arranged, rather than only header/class-reference counts. I will first prove the
 file-format seam against local native blueprints and choose a parser only if it
 can preserve the current no-guess / no-crash contract. This is companion-only:
 it will not change exporter, selector, Build Gun preview, or any world write.
+
+### Codex — 2026-08-23 structural-read router crossing
+
+The structural-read lane needs one intentionally narrow `router.mjs` entry so a
+player can ask **"inspect blueprint <exact saved name>"** without spending a
+model call. It will only invoke the new read-only `solveBlueprintLayout` solver,
+accept no filesystem paths or write verbs, and leave the existing list/place/
+export blueprint routes untouched. This is disclosed because Claude has worked
+in the router historically; fetch showed no active Claude commit beyond the
+integrated baseline before this crossing.
+
+### Codex — 2026-08-23 structural-read duplicate-reference follow-up
+
+The player's real library contains duplicate display names in distinct folders
+(`ai 2.0` and `BP test`), including the supplied coal plant. I am extending the
+same **read-only** inspector to accept the exact `relative_path` returned by
+`list_blueprints` as a library reference when a display name is ambiguous. It
+will compare only against already-discovered in-root entries; it will not accept
+or resolve arbitrary filesystem paths, and it changes no exporter, Build Gun,
+or world write code.
+
+### Codex — 2026-08-23 blueprint structural-read handoff
+
+Completed on `codex/blueprint-structure-parser`; this is companion and package
+staging work only. It does **not** alter the native exporter, selection UI,
+Build Gun preview, or world-write path.
+
+What changed:
+
+- `companion/lib/blueprints.mjs` now decodes the exact `FBlueprintHeader`
+  layout (including signed `FString`, `FObjectReference`, and version data) and
+  delegates the compressed body to pinned
+  `@etothepii/satisfactory-file-parser@4.1.2` in a bounded, read-only adapter.
+  The old raw-compressed-byte class scan is gone; header recipe references are
+  exact presence evidence only, never per-building counts.
+- New `inspect_blueprint_layout` solver/tool/local route returns bounded saved
+  transforms, decoded native `Build_*` entity class counts, pivot bounds, and live inventory
+  pricing. It fails closed for corrupt headers, missing `.sbpcfg`, parser
+  disagreement, unreadable files, oversized files, links, and unknown names.
+  It explicitly says it cannot prove collision/terrain/hologram fit or external
+  wiring.
+- The real library has duplicate display names in `ai 2.0` and `BP test`.
+  Listing now supplies an in-root `blueprint_reference`; inspection compares it
+  only against the already-discovered entries, so a reference disambiguates but
+  is never resolved as a filesystem path. Traversal-shaped input is rejected.
+- Clean installs are complete: `package-lock.json`, transactional `npm ci`,
+  parser-entry checks, Starter Project staging, Build.cs runtime dependencies,
+  archive checks, validation, smoke tests, and player docs all agree. The mod
+  must ship `node_modules` because `AIFactoryCompanion.cpp` auto-starts
+  `PluginDir/companion/server.mjs`; the standalone companion artifact carries
+  the lockfile and installs its dependencies into a staging directory instead.
+
+Evidence:
+
+- `npm test`: **759/759** passing.
+- `scripts/validate.ps1`: exact SML 3.12.0 and FactoryGame CL 502094 header
+  checks plus all 759 tests passed.
+- `scripts/test-companion-install.ps1` completed its isolated install,
+  provider restart, and forced rollback path with the parser present.
+- `scripts/install-to-starter.ps1 -Force` materialised the pinned parser in the
+  Starter Project; `FactoryGameSteam Win64 Shipping -Module=AIFactoryCopilot`
+  succeeded.
+- The live installed bridge at `D:\Modding\Satisfactory\Companion` is healthy
+  on 8142, reports `blueprint_layout_inspection: true`, and decoded the actual
+  `ai 2.0/Coal power plant 2700MW v1.1.sbp` as 1,137 native `Build_*` entities
+  (first class `GeneratorCoal`) through the installed runtime.
+
+Current live-save status:
+
+- Normal saves exist under the Steam account folder as
+  `Playthrough_autosave_{0,1,2}.sav`; no BP-test save was loaded or changed.
+- Satisfactory was running during this handoff, so source was staged and the
+  module compiled but **not** packaged/deployed. Close the game before running
+  `scripts/package-local.ps1`, then inspect the archive for the bundled parser
+  and manually load the normal Playthrough save for the next in-game test.
+
+### Codex — 2026-08-23 live Playthrough structural-read verification
+
+The previous pending manual check is now complete against the **normal** save,
+not either blueprint test save. The game was at the main menu, then explicitly
+loaded `Playthrough_autosave_1` / session `Playthrough` (11 h 48 m). The
+authoritative capture recorded 254 actors, 4,043 recipes, 3,695 items, and 52
+loaded mods at revision 8; the bridge routing log identifies the session as
+`Persistent_Level:Playthrough:Smeagol`.
+
+In the in-game Insert panel, both read-only local routes succeeded with no
+provider call:
+
+- `list blueprints` returned the real library and correctly showed the safe
+  `ai 2.0/...` reference for the duplicate coal blueprint;
+- `inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp` decoded it as
+  1,137 buildable entities / 1,057 components, reported a 72 x 29.5 m pivot
+  span and 80 bounded saved transforms, and retained the caveat that this does
+  not prove terrain, collision, external wiring, or hologram fit.
+
+The live external companion reports bridge `1.0.0-beta.2` and advertises
+`blueprint_layout_inspection: true`. This proves the end-to-end read path,
+including duplicate-safe references, on the intended Playthrough session. The
+current source still needs the normal post-commit companion reinstall to carry
+the latest wording and packaging checks; the game remains open, so do not
+package or deploy the DLL until it is closed.

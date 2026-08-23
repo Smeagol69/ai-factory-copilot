@@ -71,6 +71,7 @@ factory arithmetic yourself:
 - where to put a HUB, base, or factory -> find_best_site;
 - how to build N per minute of something, or any scale-up -> plan_production;
 - what blueprints the player has, or what one costs -> list_blueprints;
+- the actual saved arrangement, transformed native Build_* entities, or class counts inside one native blueprint -> inspect_blueprint_layout; it carries a caveat for nonstandard modded class names. When list_blueprints reports duplicate names, pass its blueprint_reference rather than guessing;
 - current objective, active milestone, game phase, exact recipe availability,
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
@@ -486,7 +487,7 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
-    tools: ["list_blueprints", "design_factory_layout", "design_megabase_concept", "plan_production"],
+    tools: ["list_blueprints", "inspect_blueprint_layout", "design_factory_layout", "design_megabase_concept", "plan_production"],
   },
   {
     pattern: /\b(platform|raised deck|building shell|structural shell|walls? and (?:a )?roof)\b/i,
@@ -579,6 +580,8 @@ function evidenceRows(tool, parsed) {
       return parsed.planned === true ? [parsed] : [];
     case "list_blueprints":
       return Array.isArray(parsed.blueprints) ? parsed.blueprints : [];
+    case "inspect_blueprint_layout":
+      return parsed.available === true && parsed.source && parsed.certainty ? [parsed] : [];
     case "get_unlock_status":
       return parsed.source && parsed.certainty ? [parsed] : [];
     case "locate":
@@ -704,6 +707,9 @@ function solverTargetMatch(context, tool, args, parsed, rows) {
       ),
     );
   }
+  if (tool === "inspect_blueprint_layout" && typeof args?.blueprint_name === "string" && args.blueprint_name) {
+    checks.push(normalizedIncludes(parsed?.blueprint_name, args.blueprint_name));
+  }
   if (tool === "locate" && typeof args?.name_contains === "string" && args.name_contains) {
     checks.push(
       (rows ?? []).some(
@@ -769,7 +775,7 @@ export function solverEvidenceMetadata(context, tool, args, result) {
     parsed.routed === false ||
     parsed.planned === false ||
     parsed.designed === false ||
-    (tool === "list_blueprints" && parsed.available === false)
+    ((tool === "list_blueprints" || tool === "inspect_blueprint_layout") && parsed.available === false)
   ) {
     metadata.reason = "unknown_result";
     return metadata;
@@ -1716,6 +1722,7 @@ const SOLVER_TOOL_NAMES = [
   "get_power_circuits",
   "get_transport_capacity",
   "get_unlock_status",
+  "inspect_blueprint_layout",
   "list_blueprints",
   "locate",
   "plan_belt_route",

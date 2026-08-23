@@ -18,6 +18,7 @@ $sourceModArchive = Join-Path $StarterProjectPath 'Saved\ArchivedPlugins\AIFacto
 foreach ($requiredPath in @(
     $sourceModArchive,
     (Join-Path $root 'companion\server.mjs'),
+    (Join-Path $root 'companion\package-lock.json'),
     (Join-Path $root 'scripts\install-companion.ps1'),
     (Join-Path $root 'scripts\configure-companion.ps1'),
     (Join-Path $root 'scripts\run-companion.ps1'),
@@ -69,6 +70,7 @@ try {
 
     Copy-Item -LiteralPath (Join-Path $root 'companion\server.mjs') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\package.json') -Destination (Join-Path $stageRoot 'companion')
+    Copy-Item -LiteralPath (Join-Path $root 'companion\package-lock.json') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\.env.example') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\lib') -Destination (Join-Path $stageRoot 'companion') -Recurse
     foreach ($script in @('install-companion.ps1', 'configure-companion.ps1', 'run-companion.ps1')) {
@@ -89,9 +91,12 @@ try {
     $requiredModEntries = @(
         'companion/server.mjs',
         'companion/package.json',
+        'companion/package-lock.json',
         'companion/lib/narrate.mjs',
         'companion/lib/survey.mjs',
-        'companion/data/efficiency.json'
+        'companion/data/efficiency.json',
+        'companion/node_modules/@etothepii/satisfactory-file-parser/build/index.js',
+        'companion/node_modules/pako/index.js'
     )
     $modZip = [IO.Compression.ZipFile]::OpenRead($modArtifact)
     try {
@@ -117,6 +122,8 @@ try {
 
     $expectedCompanionEntries = @(
         'companion/server.mjs',
+        'companion/package.json',
+        'companion/package-lock.json',
         'companion/.env.example',
         'scripts/install-companion.ps1',
         'scripts/configure-companion.ps1',

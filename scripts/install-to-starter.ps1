@@ -54,7 +54,52 @@ $included = @(
 )
 foreach ($name in $included) {
     $source = Join-Path $sourceRoot $name
-    Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
+    if ($name -ne 'companion') {
+        Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
+        continue
+    }
+
+    # The companion's lockfile belongs in the packaged plugin, but a local
+    # developer's node_modules never does. Runtime installation materialises the
+    # exact lock-pinned graph below; copying local dependencies here would make
+    # archives depend on whichever machine last ran npm.
+    $companionDestination = Join-Path $destination 'companion'
+    New-Item -ItemType Directory -Path $companionDestination -Force | Out-Null
+    foreach ($item in Get-ChildItem -LiteralPath $source -Force | Where-Object { $_.Name -ne 'node_modules' }) {
+        Copy-Item -LiteralPath $item.FullName -Destination $companionDestination -Recurse -Force
+    }
+}
+
+# The game auto-starts the companion from the packaged mod, so UAT needs a real
+# production dependency tree in the Starter Project. Materialise it only after
+# copying clean source: it is reproducible from package-lock.json and never
+# inherits an arbitrary repository node_modules directory.
+$nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+if (-not $nodeCommand) {
+    throw 'Node.js 20 or newer is required to stage the bundled companion dependencies.'
+}
+$nodeVersion = (& $nodeCommand.Source --version).Trim()
+if ($nodeVersion -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 20) {
+    throw "AI Factory Copilot requires Node.js 20 or newer to stage the bundled companion; found '$nodeVersion' at '$($nodeCommand.Source)'."
+}
+$npmPath = Join-Path (Split-Path -Parent $nodeCommand.Source) 'npm.cmd'
+if (-not (Test-Path -LiteralPath $npmPath -PathType Leaf)) {
+    throw "npm.cmd was not found beside Node.js at '$($nodeCommand.Source)'. Install the complete Node.js distribution."
+}
+$companionDestination = Join-Path $destination 'companion'
+Push-Location $companionDestination
+try {
+    & $npmPath ci --omit=dev --ignore-scripts --no-audit --fund=false
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm ci failed with exit code $LASTEXITCODE while staging the bundled companion."
+    }
+}
+finally {
+    Pop-Location
+}
+$parserEntry = Join-Path $companionDestination 'node_modules\@etothepii\satisfactory-file-parser\build\index.js'
+if (-not (Test-Path -LiteralPath $parserEntry -PathType Leaf)) {
+    throw "The bundled companion dependency was not materialised: $parserEntry"
 }
 
 Write-Host "Installed AI Factory Copilot source to '$destination'."

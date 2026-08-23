@@ -9,9 +9,10 @@ async function json(relative) {
 }
 
 test("plugin and companion publish one exact semantic version", async () => {
-  const [plugin, companion] = await Promise.all([
+  const [plugin, companion, lockfile] = await Promise.all([
     json("AIFactoryCopilot.uplugin"),
     json("companion/package.json"),
+    json("companion/package-lock.json"),
   ]);
 
   assert.match(plugin.SemVersion, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
@@ -20,6 +21,8 @@ test("plugin and companion publish one exact semantic version", async () => {
   assert.equal(companion.version, plugin.SemVersion);
   assert.equal(plugin.IsBetaVersion, plugin.SemVersion.includes("-"));
   assert.equal(plugin.GameVersion, ">=502094");
+  assert.equal(companion.dependencies["@etothepii/satisfactory-file-parser"], "4.1.2");
+  assert.equal(lockfile.packages[""].dependencies["@etothepii/satisfactory-file-parser"], "4.1.2");
 });
 
 test("SML metadata links users to this project and its support tracker", async () => {
@@ -29,16 +32,27 @@ test("SML metadata links users to this project and its support tracker", async (
   assert.equal(plugin.Plugins.find(({ name, Name }) => (name ?? Name) === "SML")?.SemVersion, "^3.12.0");
 });
 
-test("the public companion bundle includes secure configuration tooling", async () => {
-  const [installer, configurator, packager] = await Promise.all([
+test("the public companion bundle installs its lock-pinned parser transactionally", async () => {
+  const [installer, configurator, packager, starterInstaller, moduleRules] = await Promise.all([
     readFile(new URL("scripts/install-companion.ps1", root), "utf8"),
     readFile(new URL("scripts/configure-companion.ps1", root), "utf8"),
     readFile(new URL("scripts/package-release.ps1", root), "utf8"),
+    readFile(new URL("scripts/install-to-starter.ps1", root), "utf8"),
+    readFile(new URL("Source/AIFactoryCopilot/AIFactoryCopilot.Build.cs", root), "utf8"),
   ]);
   assert.match(installer, /configure-companion\.ps1/);
+  assert.match(installer, /package-lock\.json/);
+  assert.match(installer, /npm\.cmd/);
+  assert.match(installer, /\bci\b/);
+  assert.match(installer, /satisfactory-file-parser[\\/]build[\\/]index\.js/);
   assert.match(configurator, /Read-Host .* -AsSecureString/);
   assert.doesNotMatch(configurator, /Write-Host.*ApiKey/i);
   assert.match(packager, /configure-companion\.ps1/);
+  assert.match(packager, /package-lock\.json/);
+  assert.match(packager, /satisfactory-file-parser[\\/]build[\\/]index\.js/);
+  assert.match(starterInstaller, /node_modules/);
+  assert.match(starterInstaller, /\bci\b/);
+  assert.match(moduleRules, /companion\/node_modules\/\.\.\./);
 });
 
 test("source packaging refuses a mismatched game and Starter Project", async () => {

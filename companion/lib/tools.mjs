@@ -31,6 +31,7 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveBlueprintLayout,
   solveProductionPlan,
   solveBlueprintLibrary,
   solveRecipeOptions,
@@ -220,7 +221,7 @@ export const SOLVER_TOOLS = [
   {
     name: "list_blueprints",
     description:
-      "The player's saved blueprints: designer dimensions, exact build cost priced against what they are carrying, the game build each was authored on, and its description. Use this when they ask what blueprints they have, what one costs, whether they can afford it, or whether it still matches their game version. The per-building layout inside a blueprint is not decoded.",
+      "The player's saved blueprints: designer dimensions, exact build cost priced against what they are carrying, exact header recipe references, the game build each was authored on, and its description. Duplicate names include a safe blueprint_reference that disambiguates one saved library entry without accepting a filesystem path. Use this when they ask what blueprints they have, what one costs, whether they can afford it, or whether it still matches their game version. Call inspect_blueprint_layout for actual saved positions or exact building counts in one blueprint.",
     parameters: {
       type: "object",
       properties: {
@@ -230,6 +231,27 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args, services) => solveBlueprintLibrary(graph, args, services ?? {}),
+  },
+  {
+    name: "inspect_blueprint_layout",
+    description:
+      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, and costs priced against current player inventories. It names the naming-convention caveat for nonstandard modded classes. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, or comparing its structure to a proposed factory. It does not prove terrain clearance, Build Gun hologram validity, external hookups, or connection topology at a new location.",
+    parameters: {
+      type: "object",
+      properties: {
+        blueprint_name: {
+          type: "string",
+          description: "Exact blueprint name, or the blueprint_reference returned by list_blueprints when names are duplicated. The bridge compares a reference only to its already-discovered library entries; it never resolves a filesystem path.",
+        },
+        maximum_buildables: {
+          type: "number",
+          description: "Maximum individual transformed buildables to return, from 1 through 200. Defaults to 80; aggregate counts still cover every decoded buildable.",
+        },
+      },
+      required: ["blueprint_name"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => solveBlueprintLayout(graph, args, services ?? {}),
   },
   {
     name: "get_unlock_status",
