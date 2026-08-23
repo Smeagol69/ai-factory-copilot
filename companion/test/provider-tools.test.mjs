@@ -13,7 +13,7 @@ import {
   userInput,
 } from "../lib/providers.mjs";
 import { runSolverTool } from "../lib/tools.mjs";
-import { buildFactorySnapshot } from "./fixtures/factory.mjs";
+import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
 const snapshot = buildFactorySnapshot();
 
@@ -59,6 +59,7 @@ test("system instructions require solver tools for quantitative claims", () => {
   assert.match(SYSTEM_INSTRUCTIONS, /Call the deterministic solver tools/);
   assert.match(SYSTEM_INSTRUCTIONS, /diagnose_bottlenecks/);
   assert.match(SYSTEM_INSTRUCTIONS, /find_belt_candidates/);
+  assert.match(SYSTEM_INSTRUCTIONS, /audit_blueprint_placement/);
   assert.match(SYSTEM_INSTRUCTIONS, /the solver\s*\n?is correct/);
 });
 
@@ -790,6 +791,89 @@ test("a complete zero-candidate census can ground a truthful absence", () => {
     ]),
     [],
   );
+});
+
+test("runtime Blueprint placement auditing has its own grounding and preserves replication-pending evidence", () => {
+  const question = "Check this blueprint placement and tell me whether its miner is bound.";
+  const context = makeContext({ question });
+  assert.deepEqual(missingRequiredSolverGrounding(question, []), [["audit_blueprint_placement"]]);
+
+  const pending = {
+    serialized: JSON.stringify({
+      solver: "blueprint_placement_audit",
+      available: true,
+      inspection_complete: false,
+      target_actor_id: SMELTER,
+      replication_state: "replication_pending",
+      source: "AFGBlueprintProxy and AFGBuildableResourceExtractorBase public accessors",
+      certainty: "partial",
+    }),
+    truncated: false,
+  };
+  const evidence = solverEvidenceMetadata(context, "audit_blueprint_placement", {}, pending);
+  assert.deepEqual(evidence, {
+    usable: true,
+    reason: "usable",
+    source: "AFGBlueprintProxy and AFGBuildableResourceExtractorBase public accessors",
+    certainty: "partial",
+    row_count: 1,
+    target_match: true,
+  });
+  assert.deepEqual(
+    missingRequiredSolverGrounding(question, [{ tool: "audit_blueprint_placement", evidence }]),
+    [],
+  );
+
+  const fallbackEvidence = solverEvidenceMetadata(
+    context,
+    "audit_blueprint_placement",
+    {},
+    {
+      ...pending,
+      serialized: JSON.stringify({
+        ...JSON.parse(pending.serialized),
+        target_actor_id: "Camera-visible Blueprint miner",
+        audited_actor_id: "Camera-visible Blueprint miner",
+        preferred_target_actor_id: SMELTER,
+        selected_from: "camera_visibility_trace_fallback",
+      }),
+    },
+  );
+  assert.equal(fallbackEvidence.usable, true);
+  assert.equal(fallbackEvidence.target_match, true);
+
+  const wrongTarget = solverEvidenceMetadata(
+    context,
+    "audit_blueprint_placement",
+    {},
+    {
+      ...pending,
+      serialized: JSON.stringify({
+        ...JSON.parse(pending.serialized),
+        target_actor_id: "A different aimed actor",
+      }),
+    },
+  );
+  assert.equal(wrongTarget.usable, false);
+  assert.equal(wrongTarget.reason, "target_mismatch");
+
+  const unavailable = solverEvidenceMetadata(
+    context,
+    "audit_blueprint_placement",
+    {},
+    {
+      serialized: JSON.stringify({
+        solver: "blueprint_placement_audit",
+        available: false,
+        reason: "preferred_target_is_not_a_native_blueprint_proxy_or_actor_member",
+        source: "AFGBlueprintProxy and AFGBuildableResourceExtractorBase public accessors",
+        certainty: "unknown",
+      }),
+      truncated: false,
+    },
+  );
+  assert.equal(unavailable.usable, false);
+  assert.equal(unavailable.reason, "unknown_result");
 });
 
 test("factory-overview claims require the captured factory summary", () => {

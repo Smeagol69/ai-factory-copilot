@@ -72,6 +72,7 @@ factory arithmetic yourself:
 - how to build N per minute of something, or any scale-up -> plan_production;
 - what blueprints the player has, or what one costs -> list_blueprints;
 - the actual saved arrangement, transformed native Build_* entities, or class counts inside one native blueprint -> inspect_blueprint_layout; it carries a caveat for nonstandard modded class names. When list_blueprints reports duplicate names, pass its blueprint_reference rather than guessing;
+- whether the placed native Blueprint instance the player is aiming at has finished proxy replication, how many runtime members it has, or whether its resource extractors are bound -> audit_blueprint_placement. This reads the live instance only, never a saved .sbp, and never changes the world. Treat replication_pending, partial observations, and unknown bindings as wait/unknown states — never as proof of zero miners or an unbound miner;
 - current objective, active milestone, game phase, exact recipe availability,
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
@@ -425,6 +426,8 @@ function envFlag(value, fallback) {
 
 const BELT_CANDIDATE_GROUNDING_PATTERN =
   /\b(?:free|unconnected)\b.{0,80}\b(?:belt|conveyor)\b|\b(?:belt|conveyor)\b.{0,80}\b(?:free|unconnected)\b/i;
+const BLUEPRINT_RUNTIME_AUDIT_GROUNDING_PATTERN =
+  /\b(?:audit|check|inspect)\b.{0,80}\b(?:this|that|aimed|placed|runtime)\b.{0,80}\bblue\s?print\b|\b(?:this|that)\b.{0,80}\bblue\s?print\b.{0,80}\b(?:miner|extractor)\b.{0,40}\bbound\b|\b(?:miner|extractor)\b.{0,40}\bbound\b.{0,80}\bblue\s?print\b/i;
 
 const GROUNDING_REQUIREMENTS = [
   {
@@ -582,6 +585,11 @@ function evidenceRows(tool, parsed) {
       return Array.isArray(parsed.blueprints) ? parsed.blueprints : [];
     case "inspect_blueprint_layout":
       return parsed.available === true && parsed.source && parsed.certainty ? [parsed] : [];
+    case "audit_blueprint_placement":
+      // A pending proxy is still useful evidence: it grounds the truthful
+      // answer that the instance has not replicated completely. The solver
+      // deliberately withholds member/extractor census fields in that state.
+      return parsed.available === true && parsed.source && parsed.certainty ? [parsed] : [];
     case "get_unlock_status":
       return parsed.source && parsed.certainty ? [parsed] : [];
     case "locate":
@@ -710,6 +718,19 @@ function solverTargetMatch(context, tool, args, parsed, rows) {
   if (tool === "inspect_blueprint_layout" && typeof args?.blueprint_name === "string" && args.blueprint_name) {
     checks.push(normalizedIncludes(parsed?.blueprint_name, args.blueprint_name));
   }
+  if (tool === "audit_blueprint_placement") {
+    const preferred = context?.snapshot?.interaction_context?.preferred_target?.actor_id;
+    if (preferred) {
+      // A use trace can deliberately hit the node underneath an extractor,
+      // while the camera sees the Blueprint member. The game reports both
+      // witnesses, so a read-only camera fallback remains grounded in the
+      // player's actual preferred target instead of being rejected as stale.
+      checks.push(
+        parsed?.target_actor_id === preferred ||
+          parsed?.preferred_target_actor_id === preferred,
+      );
+    }
+  }
   if (tool === "locate" && typeof args?.name_contains === "string" && args.name_contains) {
     checks.push(
       (rows ?? []).some(
@@ -775,7 +796,7 @@ export function solverEvidenceMetadata(context, tool, args, result) {
     parsed.routed === false ||
     parsed.planned === false ||
     parsed.designed === false ||
-    ((tool === "list_blueprints" || tool === "inspect_blueprint_layout") && parsed.available === false)
+    ((tool === "list_blueprints" || tool === "inspect_blueprint_layout" || tool === "audit_blueprint_placement") && parsed.available === false)
   ) {
     metadata.reason = "unknown_result";
     return metadata;
@@ -831,6 +852,13 @@ export function missingRequiredSolverGrounding(question, solverCalls = []) {
   // rest of the sentence (or inside the tool name itself). Requiring a second,
   // unrelated solver would defeat explicit deterministic dispatch.
   if (namedTools.length > 0) return missing;
+  // Runtime placement inspection is deliberately separate from the broad
+  // "blueprint" group below. A saved .sbp layout says nothing about whether
+  // the aimed instance's proxy has replicated or its miners are bound.
+  if (BLUEPRINT_RUNTIME_AUDIT_GROUNDING_PATTERN.test(String(question ?? ""))) {
+    if (!called.has("audit_blueprint_placement")) addMissing(["audit_blueprint_placement"]);
+    return missing;
+  }
   // The candidate solver consumes the current recipes internally. A phrase
   // such as "recipe-compatible free conveyor pairs" must not additionally
   // require the general recipe and transport tools just because those words
@@ -1722,6 +1750,7 @@ const SOLVER_TOOL_NAMES = [
   "get_power_circuits",
   "get_transport_capacity",
   "get_unlock_status",
+  "audit_blueprint_placement",
   "inspect_blueprint_layout",
   "list_blueprints",
   "locate",

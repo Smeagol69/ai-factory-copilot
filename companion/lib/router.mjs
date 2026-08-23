@@ -31,6 +31,7 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveBlueprintPlacementAudit,
   solveRecipeOptions,
   solveActorLookup,
   solveBuildRecipeLookup,
@@ -522,6 +523,100 @@ function formatBlueprintLayout(result) {
     ` I returned ${listed} saved transform${listed === 1 ? "" : "s"}` +
     (omitted > 0 ? ` and left ${omitted} out of this compact reply.` : ".") +
     " These are native saved transforms, not proof that the blueprint will clear terrain or fit at a new location.";
+}
+
+function auditWholeCount(value) {
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/** Format a runtime proxy audit without turning a partial replication sample into a census. */
+function formatBlueprintPlacementAudit(result) {
+  const subject = result.blueprint_name
+    ? `**${result.blueprint_name}**`
+    : "the aimed native Blueprint instance";
+
+  if (!result.available) {
+    const reason = result.reason ?? "unknown";
+    return `I can't audit ${subject}: **${reason}**. ` +
+      "Aim at the placed native Blueprint proxy or one of its actor-backed members and ask again. " +
+      "This did not read a saved .sbp file or change the world.";
+  }
+
+  if (!result.inspection_complete) {
+    const observed = result.observed ?? {};
+    const members = auditWholeCount(observed.member_count_observed);
+    const extractors = auditWholeCount(observed.extractor_count_observed);
+    const lightweightExtractors = auditWholeCount(observed.lightweight_extractor_count_uninspected);
+    const observedText = [
+      members === null ? null : `${members} member${members === 1 ? "" : "s"} observed`,
+      extractors === null ? null : `${extractors} resource extractor${extractors === 1 ? "" : "s"} observed`,
+    ].filter(Boolean).join(", ");
+    if (result.replication_state !== "replication_pending" && lightweightExtractors !== null && lightweightExtractors > 0) {
+      return `${subject} is fully registered, but ${lightweightExtractors} resource extractor` +
+        `${lightweightExtractors === 1 ? " is" : "s are"} stored as lightweight Blueprint members. ` +
+        "The game's public aim API cannot resolve those bindings, so they remain unknown — not unbound. " +
+        (observedText ? `The partial observation contains ${observedText}. ` : "") +
+        "This was read-only; nothing changed in the world.";
+    }
+    const state = result.replication_state === "replication_pending"
+      ? "is still replicating"
+      : "is not yet complete";
+    return `${subject} ${state}.` +
+      (observedText ? ` The game has only a partial observation (${observedText}),` : "") +
+      " so that is not proof of zero miners or an unbound miner. Wait for the Blueprint to settle, aim at it again, and re-run the audit. " +
+      "This was read-only; nothing changed in the world.";
+  }
+
+  const total = auditWholeCount(result.extractor_count);
+  const counts = result.extractor_binding_counts ?? {};
+  const bound = auditWholeCount(counts.bound);
+  const unbound = auditWholeCount(counts.unbound);
+  const pending = auditWholeCount(counts.replication_pending);
+  const unknown = auditWholeCount(counts.unknown);
+  if (total === null || bound === null || unbound === null || pending === null || unknown === null) {
+    return `${subject} is registered and ready, but the captured extractor totals are incomplete. ` +
+      "I cannot prove whether its miners are bound from this snapshot. This was read-only; nothing changed.";
+  }
+  if (total === 0) {
+    return `${subject} is fully registered and contains **0 resource extractors**. ` +
+      "There are no miner bindings to inspect on this runtime instance. This was read-only; nothing changed.";
+  }
+
+  const summary = [
+    `${bound} bound`,
+    `${unbound} unbound`,
+    `${pending} replication-pending`,
+    `${unknown} unknown`,
+  ].join(", ");
+  const detailLines = (result.extractors ?? [])
+    .filter((extractor) => extractor && typeof extractor === "object")
+    .slice(0, 6)
+    .map((extractor) => {
+      const name = extractor.actor_name ?? extractor.actor_id ?? "Unnamed extractor";
+      if (extractor.binding_state === "bound") {
+        const resource = extractor.resource_name ?? extractor.resource_class;
+        return resource
+          ? `- **${name}** → **${resource}**`
+          : `- **${name}** → bound resource (resource class was not captured)`;
+      }
+      if (extractor.binding_state === "unbound") return `- **${name}** → unbound`;
+      if (extractor.binding_state === "replication_pending") return `- **${name}** → replication pending (not a failure)`;
+      return `- **${name}** → unknown${extractor.reason ? ` (${extractor.reason})` : ""}`;
+    });
+  const detailsReturned = auditWholeCount(result.extractor_details_returned);
+  const omitted = auditWholeCount(result.extractor_details_capped_omitted);
+  const detailCaveat =
+    omitted && omitted > 0
+      ? ` The game returned details for ${detailsReturned ?? detailLines.length} and compacted ${omitted}; the totals above still cover all ${total}.`
+      : "";
+  const pendingCaveat = pending > 0 || unknown > 0
+    ? " Pending or unknown bindings are not treated as unbound."
+    : "";
+
+  return `${subject} is fully registered with **${total} resource extractor${total === 1 ? "" : "s"}**: ${summary}.` +
+    detailCaveat + pendingCaveat +
+    (detailLines.length > 0 ? `\n\n${detailLines.join("\n")}` : "") +
+    "\n\nThis inspected the placed runtime Blueprint only; it did not change the world.";
 }
 
 
@@ -1308,6 +1403,21 @@ export function parseBlueprintPreviewRequest(question) {
     .replace(/\s+/g, " ")
     .trim();
   return name.length >= 2 ? { name } : null;
+}
+
+// This is a runtime-instance audit, not a saved-blueprint lookup. Keep the
+// phrasings anchored so "inspect blueprint Coal Plant" remains a disk layout
+// request and never gets silently redirected to the thing under the crosshair.
+const BLUEPRINT_PLACEMENT_AUDIT_REQUEST = [
+  /^(?:can you |could you |please )?audit (?:this|that) (?:native )?blue\s?print(?: placement)?$/i,
+  /^(?:can you |could you |please )?check (?:this|that) (?:native )?blue\s?print placement$/i,
+  /^(?:can you |could you |please )?is (?:this|that) (?:native )?blue\s?print(?:['’]s)? (?:miner|extractor) bound$/i,
+];
+
+export function parseBlueprintPlacementAuditRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  return BLUEPRINT_PLACEMENT_AUDIT_REQUEST.some((pattern) => pattern.test(text)) ? {} : null;
 }
 
 export function parseBlueprintPlaceRequest(question) {
@@ -4034,6 +4144,21 @@ export function answerLocally(question, graph, services) {
     if (refusal) {
       return localAnswer(refusal, "clone_refused", started, "Refused by validation before anything ran.");
     }
+  }
+
+  // "audit this blueprint" — inspect the aimed *placed* runtime proxy. This
+  // remains before preview and saved-file routes because it names no library
+  // entry and must never emit a Build Gun handoff or any world action.
+  const blueprintPlacementAudit = parseBlueprintPlacementAuditRequest(question);
+  if (blueprintPlacementAudit && graph) {
+    const started = Date.now();
+    const audit = solveBlueprintPlacementAudit(graph);
+    return localAnswer(
+      formatBlueprintPlacementAudit(audit),
+      "audit_blueprint_placement",
+      started,
+      "Read the authoritative runtime Blueprint proxy observation from the aimed target; no action was emitted.",
+    );
   }
 
   // "preview <name> blueprint" — hand a saved blueprint to the requesting

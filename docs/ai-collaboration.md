@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/blueprint-placement-audit` | Add a bounded **read-only** native Blueprint placement auditor before claiming miners work in large native blueprints. Given the aimed Blueprint proxy/member, capture the owning proxy readiness/name/member counts and actual extractor-to-resource bindings, including explicit replication-pending and unknown states. Scope: new audit helper, snapshot interaction context, local solver/router/tool contract, focused source/unit tests, exact-header validation, and docs. No `SetResourceNode`/`SetExtractableResource`, no Blueprint write/import/export/placement, no cost, no undo, and no change to preview, selection, or existing save behavior. | claimed; implementation has not begun |
+| 2026-08-23 | Codex | `codex/blueprint-placement-audit` | Add a bounded **read-only** native Blueprint placement auditor before claiming miners work in large native blueprints. Given the aimed Blueprint proxy/member, capture the owning proxy readiness/name/member counts and actual extractor-to-resource bindings, including explicit replication-pending and unknown states. Scope: new audit helper, snapshot interaction context, local solver/router/tool contract, focused source/unit tests, exact-header validation, and docs. No `SetResourceNode`/`SetExtractableResource`, no Blueprint write/import/export/placement, no cost, no undo, and no change to preview, selection, or existing save behavior. | complete in source; clean `npm ci` + **808/808** companion tests pass. C++ compile/package and the disposable live miner-Blueprint proof remain pending because the game is open. |
 | 2026-08-23 | Codex | `codex/blueprint-preview-library` | Fix the live-observed native Blueprint preview library seam only: capture Satisfactory's **active-session** Blueprint descriptor registry without a stateful refresh during ordinary chat, refresh only immediately before the requested server and owning-client lookup, and make the companion distinguish a disk entry from a Blueprint registered for the current session before the existing client Build Gun handoff. Scope is `AIFactorySubsystem`, `AIFactoryBlueprintPreviewRCO`, snapshot/bridge preview validation, focused source-contract tests, docs, and exact-header validation. No file copy/import, descriptor fabrication, world write, cost, or exporter/selection change. Preserve the native RCO and all no-placement/no-charge preview guarantees. | complete in source: 793 companion tests, exact SML 3.12.0 / FactoryGame CL 502094 header validation, and Shipping module compile pass; package/deploy and one active-session live preview remain pending |
 | 2026-08-23 | Codex | `codex/selection-overlay` | Real-time native Blueprint editor selection overlay: audit and add a dedicated, shipping-safe visual contract for the exact actor + lightweight structure selection the UI can export. The overlay must not silently drop objects; it draws the selection volume and every individual bound when feasible, or explicitly reports a condensed representation. Scope is `AIFactoryCopilotUISubsystem` / `AIFactoryOverlay`, focused source-contract tests, docs, and exact-header validation only. Preserve all current export, filter, selection, and Build Gun behavior. | complete in source; 784 companion tests, exact headers, and Shipping module compile pass; packaged live visual check pending |
 | 2026-08-23 | Codex | `codex/buildgun-preview-contract` | Restore the missing direct local `preview_blueprint` Build Gun route and additive bridge-side standalone-plan guard for the already-integrated native client RCO. Add focused companion/source-contract tests, exact header validation entries, and goal/collaboration documentation; preserve Claude's UI/export/selection and the existing C++ implementation. | complete; 782 companion tests plus exact SML/FactoryGame header validation pass; visual in-game proof remains pending |
@@ -4150,3 +4150,51 @@ with no newer committed Claude handoff. Master includes the reflected belt
 endpoint work and the later exact-Z proof, but the full terrain-following
 17-belt Wire transaction remains a live-save test gap. Claude's uncommitted
 header-only node-edit experiment is intentionally not included.
+
+### Codex — 2026-08-23 native Blueprint placement-audit handoff
+
+The project had a critical unknown behind its unrestricted native Blueprint
+goal: placing a Blueprint that contains a miner is only useful if Satisfactory
+actually binds that placed extractor to the resource beneath it. Header reading
+cannot answer that. The new evidence path therefore reads a **placed runtime
+instance**, never a saved `.sbp` file and never a guessed relationship.
+
+`AIFactoryBlueprintAudit` is a private, read-only helper. It resolves a direct
+`AFGBlueprintProxy` or an actor-backed `AFGBuildable` member through the public
+`GetBlueprintProxy()` accessor, reads the proxy's `GetBlueprintName()`,
+`CollectBuildables()`, lightweight class/index count, and
+`AreProxyBuildingsRegisteredAndValid()` state, then reads each actor-backed
+extractor via public `GetExtractableResource()` and the resource interface.
+It returns bounded individual rows (32 at most) plus exact totals/omitted
+counts. It does not call `SetResourceNode`, `SetExtractableResource`, spawn,
+construct, dismantle, file I/O, cost, or undo APIs; the source-contract test
+pins that prohibition.
+
+Two correctness details are intentional. First, the normal cached usable hit
+for a miner can be its **resource node**, while the camera hit is the miner. If
+the normal target is not a proxy/member, the auditor tries the camera actor
+only as a separate read witness (`selected_from =
+camera_visibility_trace_fallback`); it never replaces `preferred_target` for
+placement. Both actor identities reach the bridge so provider grounding still
+proves the audit belongs to the player’s aim. Second, a null extractor
+interface is called `unbound` only when the ready proxy has authority. On a
+client it is `unknown`, because the extractor property replicates independently;
+before proxy readiness it is `replication_pending`. Lightweight extractor
+instances remain explicit unknown rather than being invented as actor objects.
+
+The bridge exposes this through `audit_blueprint_placement`, narrowly routed
+by `audit this blueprint`, `check this blueprint placement`, or `is this
+blueprint's miner bound`. It emits **zero actions**. Pending/partial samples
+return a wait/unknown response rather than an empty blueprint or an unbound
+miner. The provider prompt and grounding gate know this is a runtime instance
+audit, distinct from saved-file layout inspection.
+
+Verification in this worktree: after `npm ci` installed the lock-pinned parser
+locally (rather than resolving a stale user-level v3 parser), **808/808**
+companion tests pass. The five initial parser failures were environment-only;
+the fixture and lockfile were unchanged. Exact header validation entries now
+pin all audit accessors. The game remains open, so no Starter Project sync,
+C++ compile, package, DLL deployment, or live claim was made. Next live proof,
+after a closed-game build/deploy: place a disposable native Blueprint containing
+a miner on a compatible free node through the normal Build Gun, aim at the
+miner, run this audit, and require the exact bound node/resource readback.

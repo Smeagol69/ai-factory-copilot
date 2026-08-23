@@ -1786,6 +1786,216 @@ export function solveBlueprintLayout(
   };
 }
 
+/**
+ * Reads the native Blueprint proxy that the player is currently aiming at.
+ *
+ * This is deliberately distinct from solveBlueprintLayout: that solver reads
+ * a saved .sbp file, while this one only reports the authoritative runtime
+ * proxy/member observation the game placed in interaction_context. In
+ * particular, a proxy that is still replicating is not allowed to become a
+ * claim that it has zero miners or that an extractor is unbound.
+ */
+export function solveBlueprintPlacementAudit(graph) {
+  const worldRevision = graph?.world_revision ?? null;
+  const audit = graph?.snapshot?.interaction_context?.preferred_target?.blueprint_instance_audit;
+  const base = {
+    solver: "blueprint_placement_audit",
+    world_revision: worldRevision,
+  };
+
+  if (!audit || typeof audit !== "object" || Array.isArray(audit)) {
+    return {
+      ...base,
+      available: false,
+      reason: "blueprint_instance_audit_not_captured",
+      note: "Aim at a placed native Blueprint proxy or one of its actor-backed members, then ask again.",
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const source = typeof audit.source === "string" && audit.source ? audit.source : "none";
+  const capturedCertainty =
+    typeof audit.certainty === "string" && audit.certainty ? audit.certainty : "unknown";
+  const identity = {
+    target_actor_id: typeof audit.target_actor_id === "string" ? audit.target_actor_id : null,
+    audited_actor_id: typeof audit.audited_actor_id === "string" ? audit.audited_actor_id : null,
+    preferred_target_actor_id:
+      typeof audit.preferred_target_actor_id === "string" ? audit.preferred_target_actor_id : null,
+    camera_fallback_actor_id:
+      typeof audit.camera_fallback_actor_id === "string" ? audit.camera_fallback_actor_id : null,
+    selected_from: typeof audit.selected_from === "string" ? audit.selected_from : null,
+    target_relation: typeof audit.target_relation === "string" ? audit.target_relation : null,
+    blueprint_proxy_id: typeof audit.blueprint_proxy_id === "string" ? audit.blueprint_proxy_id : null,
+    blueprint_name: typeof audit.blueprint_name === "string" ? audit.blueprint_name : null,
+    proxy_has_authority:
+      typeof audit.proxy_has_authority === "boolean" ? audit.proxy_has_authority : null,
+  };
+
+  if (audit.available !== true) {
+    return {
+      ...base,
+      available: false,
+      ...identity,
+      reason:
+        typeof audit.reason === "string" && audit.reason
+          ? audit.reason
+          : "blueprint_instance_audit_unavailable",
+      source,
+      certainty: capturedCertainty,
+    };
+  }
+
+  const count = (value) => {
+    const parsed = finiteNumber(value);
+    return parsed !== null && parsed >= 0 && Number.isInteger(parsed) ? parsed : null;
+  };
+  const observed = {
+    actor_member_count_observed: count(audit.actor_member_count_observed),
+    lightweight_member_count_observed: count(audit.lightweight_member_count_observed),
+    member_count_observed: count(audit.member_count_observed),
+    extractor_count_observed: count(audit.extractor_count_observed),
+    actor_extractor_count_observed: count(audit.actor_extractor_count_observed),
+    lightweight_extractor_count_uninspected: count(audit.lightweight_extractor_count_uninspected),
+    extractor_details_returned: count(audit.extractor_details_returned),
+    extractor_details_capped_omitted: count(audit.extractor_details_capped_omitted),
+  };
+  const replicaState =
+    audit.replication_state === "ready" || audit.replication_state === "replication_pending"
+      ? audit.replication_state
+      : "unknown";
+  const proxyReady = audit.proxy_buildings_registered_and_valid === true;
+  const memberCountsComplete = audit.member_counts_complete === true;
+  const extractorObservationComplete = audit.extractor_observation_complete === true;
+  const ready =
+    replicaState === "ready" &&
+    proxyReady &&
+    memberCountsComplete &&
+    extractorObservationComplete;
+
+  // A partial proxy observation can mean replication is still in flight or
+  // that lightweight extractor members cannot be resolved through the public
+  // aim API. In either case its observed member/extractor counts are not a
+  // complete binding census. Do not surface individual binding states: a
+  // subset must not answer a question about the whole Blueprint.
+  if (!ready) {
+    return {
+      ...base,
+      available: true,
+      ...identity,
+      inspection_complete: false,
+      replication_state: replicaState,
+      proxy_buildings_registered_and_valid: proxyReady,
+      member_counts_complete: memberCountsComplete,
+      extractor_observation_complete: extractorObservationComplete,
+      observed,
+      reason:
+        typeof audit.reason === "string" && audit.reason
+          ? audit.reason
+          : typeof audit.binding_caveat === "string" && audit.binding_caveat
+            ? audit.binding_caveat
+            : "blueprint_proxy_replication_state_not_ready",
+      binding_caveat: typeof audit.binding_caveat === "string" ? audit.binding_caveat : null,
+      source,
+      certainty: capturedCertainty === "unknown" ? "unknown" : "partial",
+    };
+  }
+
+  const rawCounts = audit.extractor_binding_counts;
+  const bindingCounts = rawCounts && typeof rawCounts === "object" && !Array.isArray(rawCounts)
+    ? {
+        bound: count(rawCounts.bound),
+        unbound: count(rawCounts.unbound),
+        replication_pending: count(rawCounts.replication_pending),
+        unknown: count(rawCounts.unknown),
+      }
+    : null;
+  const actorMemberCount = count(audit.actor_member_count);
+  const lightweightMemberCount = count(audit.lightweight_member_count);
+  const memberCount = count(audit.member_count);
+  const extractorCount = count(audit.extractor_count);
+  const memberCountsConsistent =
+    actorMemberCount !== null &&
+    lightweightMemberCount !== null &&
+    memberCount !== null &&
+    actorMemberCount + lightweightMemberCount === memberCount;
+  const countsComplete =
+    memberCountsConsistent &&
+    extractorCount !== null &&
+    bindingCounts !== null &&
+    Object.values(bindingCounts).every((value) => value !== null) &&
+    Object.values(bindingCounts).reduce((sum, value) => sum + value, 0) === extractorCount;
+
+  if (!countsComplete) {
+    return {
+      ...base,
+      available: true,
+      ...identity,
+      inspection_complete: false,
+      replication_state: replicaState,
+      proxy_buildings_registered_and_valid: proxyReady,
+      member_counts_complete: memberCountsComplete,
+      extractor_observation_complete: extractorObservationComplete,
+      observed,
+      reason: "blueprint_audit_counts_incomplete",
+      source,
+      certainty: "partial",
+    };
+  }
+
+  const extractors = [];
+  let unparseableExtractorDetails = 0;
+  for (const entry of Array.isArray(audit.extractors) ? audit.extractors : []) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      unparseableExtractorDetails += 1;
+      continue;
+    }
+    const state = ["bound", "unbound", "replication_pending", "unknown"].includes(entry.binding_state)
+      ? entry.binding_state
+      : "unknown";
+    extractors.push({
+      actor_id: typeof entry.actor_id === "string" ? entry.actor_id : null,
+      actor_name: typeof entry.actor_name === "string" ? entry.actor_name : null,
+      actor_class_path: typeof entry.actor_class_path === "string" ? entry.actor_class_path : null,
+      extractor_type: typeof entry.extractor_type === "string" ? entry.extractor_type : null,
+      binding_state: state,
+      extractable_object_id:
+        typeof entry.extractable_object_id === "string" ? entry.extractable_object_id : null,
+      extractable_actor_id:
+        typeof entry.extractable_actor_id === "string" ? entry.extractable_actor_id : null,
+      resource_class: typeof entry.resource_class === "string" ? entry.resource_class : null,
+      resource_name: typeof entry.resource_name === "string" ? entry.resource_name : null,
+      reason: typeof entry.reason === "string" ? entry.reason : null,
+    });
+  }
+
+  return {
+    ...base,
+    available: true,
+    ...identity,
+    inspection_complete: true,
+    replication_state: "ready",
+    proxy_buildings_registered_and_valid: true,
+    member_counts_complete: true,
+    extractor_observation_complete: true,
+    actor_member_count: actorMemberCount,
+    lightweight_member_count: lightweightMemberCount,
+    member_count: memberCount,
+    extractor_count: extractorCount,
+    extractor_binding_counts: bindingCounts,
+    extractor_details_returned: observed.extractor_details_returned,
+    extractor_details_capped_omitted: observed.extractor_details_capped_omitted,
+    extractor_details_unparseable: unparseableExtractorDetails,
+    extractor_binding_states_fully_inspected:
+      typeof audit.extractor_binding_states_fully_inspected === "boolean"
+        ? audit.extractor_binding_states_fully_inspected
+        : null,
+    extractors,
+    source,
+    certainty: capturedCertainty,
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * 10. Production planning
  * ------------------------------------------------------------------ */

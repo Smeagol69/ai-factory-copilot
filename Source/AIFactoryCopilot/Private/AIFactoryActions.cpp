@@ -2,6 +2,7 @@
 #include "AIFactoryWaypointDisplay.h"
 
 #include "AIFactoryBlueprintExport.h"
+#include "AIFactoryBlueprintAudit.h"
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
@@ -2421,6 +2422,16 @@ FAIFactoryActionResult PlaceBlueprint(
     Observed->SetStringField(
         TEXT("blueprint_proxy_id"),
         IsValid(Proxy) ? Proxy->GetPathName() : TEXT(""));
+    // Placement is still reported by the game action executor, but the
+    // binding evidence comes from the same read-only helper used by later
+    // crosshair audits. A proxy that has not finished replication remains
+    // explicit `replication_pending`, never a fabricated unbound result.
+    AActor* AuditTarget = IsValid(Proxy)
+        ? static_cast<AActor*>(Proxy)
+        : (Placed.Num() > 0 ? static_cast<AActor*>(Placed[0]) : Constructed);
+    Observed->SetObjectField(
+        TEXT("blueprint_instance_audit"),
+        AIFactoryBlueprintAudit::Capture(AuditTarget));
     Observed->SetBoolField(TEXT("validated_by_blueprint_hologram"), true);
     Result.Observed = Observed;
 

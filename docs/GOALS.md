@@ -234,6 +234,52 @@ else rides the Build Gun.
 Nothing in the headers answers it. It needs one real `.sbp` containing a miner.
 Answer this before building anything large on top of an assumption.
 
+### Runtime placement evidence gate
+
+The game now has a narrow evidence path for settling that question safely. Aim
+at a *placed* native Blueprint proxy or an actor-backed member and ask
+`audit this blueprint` (or ask whether its miner is bound). The scanner reads
+the proxy's public readiness state, actor/lightweight member counts, and each
+actor-backed extractor's actual `GetExtractableResource()` relationship. A
+miner is reported **bound** only when the game supplies a valid extractable
+interface and resource descriptor. A proxy still replicating is never treated
+as an empty Blueprint, and a null client-side extractor binding remains
+**unknown**, not "unbound". If the game's usable hit is the resource node under
+a miner, the auditor preserves that normal target and uses the camera-visible
+miner only as a separate read-only witness.
+
+This is proof tooling, not a workaround: it never places, binds, repairs,
+exports, imports, costs, or dismantles anything. A disposable real-miner
+Blueprint placement still needs to pass this audit after a packaged live test
+before the project can claim that miner Blueprint placement works.
+
+### Creative world-editor nodes
+
+"Place a node anywhere" is possible safely only as **mod-owned creative
+content**, not by moving Coffee Stain's map nodes. Vanilla resource nodes are
+explicitly static replicated actors; moving one in place would violate their
+replication and map-manager lifecycle. The editor therefore has two distinct
+rules:
+
+- Existing vanilla nodes can be inspected and can use the game's reversible
+  resource-class override, but are never moved, deleted, or adopted.
+- A future `AI Factory Copilot Creative Node` is a concrete mod-owned,
+  saveable, replicated resource-node actor. It will be spawned at its final
+  transform after terrain, collision, spacing, ownership, and resource-form
+  checks; it will save its own resource/purity/amount configuration; and it
+  can later be moved only by verified spawn-replacement or removed only when
+  unoccupied.
+
+The native Build Gun supports generic actor descriptors and holograms, so the
+creative node can become a real hologram/click placement tool rather than a
+chat-only spawn. That custom descriptor/recipe must be packaged and registered
+before a save loads. There is no verified public way to inject dynamic nodes
+into the vanilla `AFGResourceNodeManager` or resource scanner, so those remain
+explicitly unsupported until independently proven; a Copilot marker is the
+safe map fallback. The staged proof is: preview → one server-spawned node →
+Miner Mk.1 attachment/output → save/reload → host/client replication → native
+Build-Gun wrapper → actions/undo.
+
 ---
 
 ## Standing rules

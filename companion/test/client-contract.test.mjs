@@ -477,6 +477,59 @@ test("extractors report the current extractable interface, not deprecated node s
   assert.doesNotMatch(snapshot, /Extractor->GetResourceNode\(\)/);
 });
 
+test("native Blueprint placement auditing stays evidence-only and handles a miner aim fallback", () => {
+  const audit = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintAudit.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const snapshot = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  // A resource node can be the game's usable hit while the camera trace sees
+  // the Blueprint miner. The fallback is evidence-only: it must not replace
+  // preferred_target for normal placement/action semantics.
+  assert.match(audit, /AIFactoryBlueprintAuditFindProxy/);
+  assert.match(audit, /camera_visibility_trace_fallback/);
+  assert.match(snapshot, /Capture\(PreferredActor, CameraHit\.GetActor\(\)\)/);
+  assert.match(actions, /SetObjectField\(\s*TEXT\("blueprint_instance_audit"\)/);
+
+  assert.match(audit, /AreProxyBuildingsRegisteredAndValid\(\)/);
+  assert.match(audit, /GetBlueprintProxy\(\)/);
+  assert.match(audit, /GetExtractableResource\(\)/);
+  assert.match(audit, /GetLightweightClassAndIndices\(\)/);
+  assert.match(audit, /proxy_has_authority/);
+  assert.match(audit, /extractable_resource_not_replicated_or_unbound/);
+
+  // This helper is a witness of Satisfactory's placement, never a repair or
+  // a second placement system. Keep all world-write APIs out of the source.
+  for (const forbidden of [
+    /SetResourceNode/,
+    /SetExtractableResource/,
+    /SpawnActor/,
+    /Construct\(/,
+    /Dismantle/,
+    /WriteFileToDisk/,
+    /ReadBlueprintFromDisc/,
+  ]) {
+    assert.doesNotMatch(audit, forbidden);
+  }
+});
+
 test("an unconfigured manufacturer stays an unknown cycle rate instead of crashing the snapshot", () => {
   const snapshot = fs.readFileSync(
     new URL(

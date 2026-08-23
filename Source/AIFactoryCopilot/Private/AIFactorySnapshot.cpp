@@ -2,6 +2,7 @@
 #include "FGLightweightBuildableSubsystem.h"
 
 #include "AIFactoryCopilotModule.h"
+#include "AIFactoryBlueprintAudit.h"
 #include "AIFactoryDataProvider.h"
 #include "AIFactorySettings.h"
 #include "AIFactoryTerrain.h"
@@ -1412,6 +1413,14 @@ namespace
             PreferredTarget->SetStringField(TEXT("actor_kind"), KindForActor(PreferredActor));
             PreferredTarget->SetObjectField(TEXT("actor_snapshot"), FocusActorJson(PreferredActor, Settings, World, TerrainBudget));
         }
+        // A native Blueprint proxy knows exactly which actor-backed members and
+        // lightweight pieces it owns. Capture its public replication and
+        // extractor-binding readback beside the aim target so the bridge can
+        // prove (or explicitly not yet prove) what happened after a normal
+        // Build Gun placement. This helper is read-only by contract.
+        PreferredTarget->SetObjectField(
+            TEXT("blueprint_instance_audit"),
+            AIFactoryBlueprintAudit::Capture(PreferredActor, CameraHit.GetActor()));
         Result->SetObjectField(TEXT("preferred_target"), PreferredTarget);
 
         // What the player has marked with the dismantle tool.

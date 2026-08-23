@@ -28,6 +28,7 @@ test("every solver tool has a name, description, and object schema", () => {
 test("exposes the roadmap solver set to the model", () => {
   const names = SOLVER_TOOLS.map((tool) => tool.name).sort();
   assert.deepEqual(names, [
+    "audit_blueprint_placement",
     "clear_highlight",
     "design_base",
     "design_composition",
@@ -99,6 +100,39 @@ test("dispatches the belt candidate census as a bounded read-only solver", () =>
   assert.ok(Array.isArray(parsed.candidates));
   assert.ok(parsed.candidates.length <= 3);
   assert.equal(parsed.returned_candidate_count, parsed.candidates.length);
+});
+
+test("dispatches the aimed runtime Blueprint placement audit without an action sink", () => {
+  const auditedGraph = buildGraph(buildFactorySnapshot());
+  auditedGraph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = {
+    available: true,
+    source: "AFGBlueprintProxy and AFGBuildableResourceExtractorBase public accessors",
+    certainty: "authoritative",
+    target_actor_id: SMELTER,
+    target_relation: "blueprint_proxy",
+    blueprint_proxy_id: SMELTER,
+    blueprint_name: "Runtime Test",
+    replication_state: "ready",
+    proxy_buildings_registered_and_valid: true,
+    member_counts_complete: true,
+    extractor_observation_complete: true,
+    actor_member_count: 0,
+    lightweight_member_count: 0,
+    member_count: 0,
+    extractor_count: 0,
+    extractor_binding_counts: { bound: 0, unbound: 0, replication_pending: 0, unknown: 0 },
+    extractor_details_returned: 0,
+    extractor_details_capped_omitted: 0,
+    extractors: [],
+  };
+
+  const result = runSolverTool(auditedGraph, "audit_blueprint_placement", {});
+  const parsed = JSON.parse(result.serialized);
+
+  assert.equal(result.name, "audit_blueprint_placement");
+  assert.equal(parsed.solver, "blueprint_placement_audit");
+  assert.equal(parsed.inspection_complete, true);
+  assert.equal(parsed.extractor_count, 0);
 });
 
 test("treats missing arguments as an empty query", () => {

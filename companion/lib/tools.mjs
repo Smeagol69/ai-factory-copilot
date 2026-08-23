@@ -31,6 +31,7 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveBlueprintPlacementAudit,
   solveBlueprintLayout,
   solveProductionPlan,
   solveBlueprintLibrary,
@@ -252,6 +253,13 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args, services) => solveBlueprintLayout(graph, args, services ?? {}),
+  },
+  {
+    name: "audit_blueprint_placement",
+    description:
+      "Audits the placed native Blueprint runtime instance the player is currently aiming at, not a saved .sbp file. Returns the proxy's replication/readiness state, complete actor/lightweight member counts only after replication is ready, and exact resource-extractor bindings when the game captured them. A replication-pending result is a wait state, never proof of zero miners or an unbound miner. This is read-only and emits no actions.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    run: (graph) => solveBlueprintPlacementAudit(graph),
   },
   {
     name: "get_unlock_status",

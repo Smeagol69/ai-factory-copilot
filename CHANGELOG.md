@@ -5,6 +5,13 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added a bounded, read-only runtime Blueprint-placement audit. A player can
+  ask whether the native Blueprint instance they are aiming at has finished
+  replication and whether its extractor members actually bound to resources.
+  The result comes from the placed proxy and extractors, preserves the real
+  crosshair/camera fallback used for miners, and reports pending or unknown
+  state instead of inventing an unbound miner. It never reads a saved file,
+  places anything, changes cost, or mutates the world.
 - Made native Blueprint Build-Gun preview session-aware. The companion now
   distinguishes a disk blueprint from one registered in Satisfactory's active
   save library, refuses cross-session files before promising a hologram, and
