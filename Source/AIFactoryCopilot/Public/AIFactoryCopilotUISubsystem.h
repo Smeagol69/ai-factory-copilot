@@ -2,6 +2,7 @@
 
 #include "Containers/Ticker.h"
 #include "CoreMinimal.h"
+#include "FGLightweightBuildableSubsystem.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "AIFactoryCopilotUISubsystem.generated.h"
 
@@ -93,10 +94,10 @@ private:
      *
      * Foundations and walls are not actors -- the subsystem owns them as
      * instance data -- so they are counted and removed through a separate
-     * path. Kept as class plus index because that pair is what the
-     * subsystem addresses them by; a pointer would be meaningless.
+     * path. The public stable ref protects against a reused runtime-array
+     * index between preview and export/dismantle.
      */
-    TArray<TPair<TSubclassOf<class AFGBuildable>, int32>> SelectionLightweight;
+    TArray<FLightweightBuildableInstanceRef> SelectionLightweight;
     int32 LightweightCount = 0;
 
     /**

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FGLightweightBuildableSubsystem.h"
 #include "Templates/SubclassOf.h"
 
 struct FAIFactoryActionContext;
@@ -38,13 +39,14 @@ namespace AIFactoryBlueprintExport
      * Foundations and walls are held by AFGLightweightBuildableSubsystem as
      * instance data rather than as actors, so a selection built from
      * TActorIterator captures a building's power poles and ladders and none
-     * of its shell. Each pair is the buildable class and its index in that
-     * class runtime array, which is how the subsystem addresses them.
+     * of its shell. A stable instance ref keeps the selection tied to the
+     * exact structural piece even if the subsystem later reuses an array
+     * index. A stale ref is refused rather than exporting a replacement.
      * Defaulted, so the bridge lane that passes only actors is unchanged.
      */
     FAIFactoryActionResult ExportSelection(
         const FAIFactoryActionContext& Context,
         const FString& BlueprintName,
         const TArray<AFGBuildable*>& Buildables,
-        const TArray<TPair<TSubclassOf<AFGBuildable>, int32>>& LightweightInstances = {});
+        const TArray<FLightweightBuildableInstanceRef>& LightweightInstances = {});
 }

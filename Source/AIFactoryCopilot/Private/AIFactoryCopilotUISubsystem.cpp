@@ -829,6 +829,8 @@ namespace
 void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
 {
     SelectionActorIds.Reset();
+    SelectionLightweight.Reset();
+    LightweightCount = 0;
     SelectionRecipeCounts.Reset();
     for (int32 Index = 0; Index < 5; ++Index)
     {
@@ -919,8 +921,6 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
     // lightweight instances and are not actors, so the iterator above cannot
     // see them -- a box over a whole building found three things and wrote a
     // blueprint that looked empty in the hologram.
-    SelectionLightweight.Reset();
-    LightweightCount = 0;
     if (AFGLightweightBuildableSubsystem* Lightweight =
             AFGLightweightBuildableSubsystem::Get(World))
     {
@@ -930,6 +930,10 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
             for (int32 Index = 0; Index < Instances.Num(); ++Index)
             {
                 const FRuntimeBuildableInstanceData& Instance = Instances[Index];
+                if (!Instance.IsValid())
+                {
+                    continue;
+                }
                 // BoundingBox is local space -- the field says so -- so it has to
                 // be moved onto the instance before it means anything.
                 const FBox InstanceBounds = Instance.BoundingBox.IsValid != 0
@@ -947,7 +951,13 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
                 {
                     continue;
                 }
-                SelectionLightweight.Add(TPair<TSubclassOf<AFGBuildable>, int32>(Pair.Key, Index));
+                FLightweightBuildableInstanceRef Ref;
+                Ref.Initialize(Lightweight, Pair.Key, Index);
+                if (!Ref.IsValid())
+                {
+                    continue;
+                }
+                SelectionLightweight.Add(MoveTemp(Ref));
                 ++LightweightCount;
                 ++SelectionCategoryCounts[InstanceCategory];
                 if (const TSubclassOf<UFGRecipe> Recipe = Instance.BuiltWithRecipe)
@@ -1011,6 +1021,14 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
 void UAIFactoryCopilotUISubsystem::ClearSelectionPreview()
 {
     SelectionActorIds.Reset();
+    SelectionLightweight.Reset();
+    LightweightCount = 0;
+    SelectionRecipeCounts.Reset();
+    for (int32 Index = 0; Index < 5; ++Index)
+    {
+        SelectionCategoryCounts[Index] = 0;
+    }
+    RefreshSelectionCost();
     bSelectionAnchored = false;
     AFGPlayerController* Controller = GetLocalPlayerController();
     if (UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr)
@@ -1523,25 +1541,15 @@ void UAIFactoryCopilotUISubsystem::DemolishSelection()
         }
     }
 
-    // Lightweight instances go through their own handle. Highest index first,
-    // because removing one shifts every index above it in that class's array.
+    // Lightweight refs preserve identity even if another removal makes the
+    // subsystem compact/reuse an array index, so removing this preview cannot
+    // spill into a structural piece that was never selected.
     int32 RemovedLightweight = 0;
-    if (AFGLightweightBuildableSubsystem* Lightweight =
-            AFGLightweightBuildableSubsystem::Get(World))
+    for (FLightweightBuildableInstanceRef& Ref : SelectionLightweight)
     {
-        SelectionLightweight.Sort([](const TPair<TSubclassOf<AFGBuildable>, int32>& A,
-                                     const TPair<TSubclassOf<AFGBuildable>, int32>& B)
+        if (Ref.IsValid() && Ref.Remove())
         {
-            return A.Value > B.Value;
-        });
-        for (const TPair<TSubclassOf<AFGBuildable>, int32>& Entry : SelectionLightweight)
-        {
-            FLightweightBuildableInstanceRef Ref;
-            Ref.Initialize(Lightweight, Entry.Key, Entry.Value);
-            if (Ref.IsValid() && Ref.Remove())
-            {
-                ++RemovedLightweight;
-            }
+            ++RemovedLightweight;
         }
     }
 

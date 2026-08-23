@@ -198,33 +198,32 @@ namespace
         FScopedMaterialisedInstances(
             UWorld* InWorld,
             AFGBuildableBlueprintDesigner* InDesigner,
-            const TArray<TPair<TSubclassOf<AFGBuildable>, int32>>& Instances)
+            const TArray<FLightweightBuildableInstanceRef>& Instances)
         {
-            if (!IsValid(InWorld) || !IsValid(InDesigner) || Instances.Num() == 0)
+            if (Instances.Num() == 0)
             {
                 return;
             }
-            AFGLightweightBuildableSubsystem* Subsystem =
-                AFGLightweightBuildableSubsystem::Get(InWorld);
-            if (!IsValid(Subsystem))
+            if (!IsValid(InWorld) || !IsValid(InDesigner))
             {
+                Missing = Instances.Num();
                 return;
             }
 
-            const TMap<TSubclassOf<AFGBuildable>, TArray<FRuntimeBuildableInstanceData>>& All =
-                Subsystem->GetAllLightweightBuildableInstances();
-
-            for (const TPair<TSubclassOf<AFGBuildable>, int32>& Entry : Instances)
+            for (const FLightweightBuildableInstanceRef& Instance : Instances)
             {
-                const TArray<FRuntimeBuildableInstanceData>* Bucket = All.Find(Entry.Key);
-                if (Bucket == nullptr || !Bucket->IsValidIndex(Entry.Value))
+                const FRuntimeBuildableInstanceData* Data =
+                    Instance.ResolveBuildableInstanceData();
+                const TSubclassOf<AFGBuildable> BuildableClass = Instance.GetBuildableClass();
+                if (Data == nullptr || !IsValid(BuildableClass))
                 {
-                    // The preview and the export are separate frames; an
-                    // instance removed in between is counted, not guessed at.
+                    // The preview and the export are separate frames. The
+                    // stable ref checks the cached identity/transform before
+                    // it lets us materialise anything, so an index that was
+                    // reused for another lightweight cannot be exported.
                     ++Missing;
                     continue;
                 }
-                const FRuntimeBuildableInstanceData& Data = (*Bucket)[Entry.Value];
 
                 FActorSpawnParameters Params;
                 Params.SpawnCollisionHandlingOverride =
@@ -233,7 +232,7 @@ namespace
                 Params.ObjectFlags |= RF_Transient;
 
                 AFGBuildable* Buildable =
-                    InWorld->SpawnActor<AFGBuildable>(Entry.Key, Data.Transform, Params);
+                    InWorld->SpawnActor<AFGBuildable>(BuildableClass, Data->Transform, Params);
                 if (!IsValid(Buildable))
                 {
                     ++Missing;
@@ -242,8 +241,8 @@ namespace
 
                 // Before BeginPlay. This is the only legal window; see above.
                 Buildable->SetInsideBlueprintDesigner(InDesigner);
-                Buildable->SetBuiltWithRecipe(Data.BuiltWithRecipe);
-                Buildable->FinishSpawning(Data.Transform);
+                Buildable->SetBuiltWithRecipe(Data->BuiltWithRecipe);
+                Buildable->FinishSpawning(Data->Transform);
 
                 if (!IsValid(Buildable))
                 {
@@ -252,7 +251,7 @@ namespace
                 }
                 // After FinishSpawning: this one touches components, which do
                 // not exist until the actor is fully constructed.
-                Buildable->SetCustomizationData_Native(Data.CustomizationData);
+                Buildable->SetCustomizationData_Native(Data->CustomizationData);
                 Spawned.Add(Buildable);
             }
         }
@@ -316,7 +315,7 @@ FAIFactoryActionResult ExportSelection(
     const FAIFactoryActionContext& Context,
     const FString& BlueprintName,
     const TArray<AFGBuildable*>& Buildables,
-    const TArray<TPair<TSubclassOf<AFGBuildable>, int32>>& LightweightInstances)
+    const TArray<FLightweightBuildableInstanceRef>& LightweightInstances)
 {
     const FString Action = TEXT("export_native_blueprint");
 
@@ -324,7 +323,7 @@ FAIFactoryActionResult ExportSelection(
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("blueprint_name_is_required"));
     }
-    if (Buildables.Num() == 0)
+    if (Buildables.Num() == 0 && LightweightInstances.Num() == 0)
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("nothing_was_selected"));
     }
@@ -347,6 +346,7 @@ FAIFactoryActionResult ExportSelection(
     const TSharedRef<FJsonObject> Predicted = MakeShared<FJsonObject>();
     Predicted->SetStringField(TEXT("blueprint_name"), BlueprintName);
     Predicted->SetNumberField(TEXT("selected_buildables"), Buildables.Num());
+    Predicted->SetNumberField(TEXT("selected_lightweight_buildables"), LightweightInstances.Num());
     Predicted->SetStringField(TEXT("designer"), Designer->GetPathName());
     Predicted->SetBoolField(TEXT("designer_had_buildings"), Designer->HasBuildings());
 
@@ -357,6 +357,24 @@ FAIFactoryActionResult ExportSelection(
         FAIFactoryActionResult Refusal = FAIFactoryActionResult::Refuse(
             Action,
             TEXT("the_blueprint_designer_is_not_empty_clear_it_first"));
+        Refusal.Predicted = Predicted;
+        return Refusal;
+    }
+
+    int32 InvalidLightweight = 0;
+    for (const FLightweightBuildableInstanceRef& Instance : LightweightInstances)
+    {
+        if (!Instance.IsValid())
+        {
+            ++InvalidLightweight;
+        }
+    }
+    Predicted->SetNumberField(TEXT("lightweight_invalid_before_export"), InvalidLightweight);
+    if (InvalidLightweight > 0)
+    {
+        FAIFactoryActionResult Refusal = FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("selected_lightweight_instance_changed_repreview_required"));
         Refusal.Predicted = Predicted;
         return Refusal;
     }
@@ -386,6 +404,12 @@ FAIFactoryActionResult ExportSelection(
     Predicted->SetNumberField(TEXT("lightweight_requested"), LightweightInstances.Num());
     Predicted->SetNumberField(TEXT("lightweight_materialised"), Materialised.Num());
     Predicted->SetNumberField(TEXT("lightweight_missing"), Materialised.NumMissing());
+    if (Materialised.NumMissing() > 0)
+    {
+        Result.Status = TEXT("failed");
+        Result.Reason = TEXT("selected_lightweight_instance_changed_repreview_required");
+        return Result;
+    }
 
     int32 Skipped = 0;
     {
@@ -408,10 +432,12 @@ FAIFactoryActionResult ExportSelection(
             }
         }
 
-        if (Membership.Num() == 0)
+        const int32 ExpectedAdopted = Buildables.Num() + LightweightInstances.Num();
+        if (Skipped > 0 || Membership.Num() != ExpectedAdopted)
         {
             Result.Status = TEXT("failed");
-            Result.Reason = TEXT("no_selected_buildable_could_be_adopted_by_the_designer");
+            Result.Reason = TEXT("one_or_more_selected_buildables_could_not_be_adopted_by_the_designer");
+            Predicted->SetNumberField(TEXT("adopted"), Membership.Num());
             Predicted->SetNumberField(TEXT("skipped"), Skipped);
             return Result;
         }
