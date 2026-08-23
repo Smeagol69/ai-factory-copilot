@@ -2175,30 +2175,50 @@ void UAIFactoryCopilotUISubsystem::UpgradeSelection()
 void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
 {
     FString Text;
+
+    // The panel-versus-chat point belongs only here, on the intercept, where
+    // someone has just made exactly that mistake. On the Help button it is
+    // preamble in front of the thing they asked for.
     if (bBecauseSlashWasTyped)
     {
         Text += TEXT(
-            "That is a chat command, and this box is not the chat console — it sends "
-            "questions to the assistant, so nothing ran.\n\n"
-            "Press **Enter** to open the game's chat, then type it there.\n\n");
+            "Chat commands do not run from this box — press **Enter** for the game's "
+            "chat and type it there. The full list:\n\n");
     }
 
     Text += TEXT(
-        "**Two places to type, and they do different things.**\n\n"
-        "*This box* — plain questions in your own words. No slash. \"what is this "
-        "machine\", \"what resources are near me\", \"is my hub well placed\".\n\n"
-        "*The game chat* (**Enter**) — commands that act on the world:\n\n"
-        "  `/aifactory look` — capture a screenshot for the assistant to read\n"
-        "  `/aifactory terrain [radius_m] [step_m]` — scan ground height, slope and water\n"
-        "  `/aifactory node` — list this map's resources\n"
-        "  `/aifactory node <resource>` — retarget the node you are looking at\n"
-        "  `/aifactory node original` — put that node back\n"
-        "  `/aifactory scan [radius_m]` — capture an actor snapshot\n"
-        "  `/aifactory export [radius_m|all]` — write the snapshot to disk\n"
-        "  `/aifactory status` — what the mod and bridge think is going on\n\n"
-        "**And most things need no typing at all.** The buttons above do the "
-        "selection work: size the box, tick what to include, then Save blueprint, "
-        "Upgrade, or Demolish.");
+        "**Chat commands.** `/ai` and `/aifactory` are the same thing.\n\n"
+
+        "**Looking at the world**\n"
+        "`/ai status` — world revision, bridge address, and the default scan radius. "
+        "Start here if something seems unresponsive.\n"
+        "`/ai scan [radius_m]` — capture the buildings and nodes around you and report "
+        "the counts. Nothing is written to disk.\n"
+        "`/ai export [radius_m|all]` — the same capture, written to disk so the "
+        "assistant can read it. Run this after building something if answers look stale.\n"
+        "`/ai terrain [radius_m] [step_m]` — probe ground height, slope and water on a "
+        "grid. Defaults to 120 m at 4 m spacing; expect a brief pause, it is thousands "
+        "of traces.\n"
+        "`/ai look` — screenshot the view for the assistant to read.\n\n"
+
+        "**Changing the world**\n"
+        "`/ai node` — list every resource that exists on this map.\n"
+        "`/ai node <resource>` — make the node under your crosshair yield that instead. "
+        "Aim at a node, not a deposit: a node's prompt names a purity, like "
+        "\"Limestone (Normal)\".\n"
+        "`/ai node original` — put that node back. The original is never overwritten, "
+        "so this always works.\n\n"
+
+        "**Asking**\n"
+        "`/ai ask <question>` — ask using a capture of the area around you.\n"
+        "`/ai askall <question>` — ask using the whole world. Slower, and the right "
+        "choice for questions about your entire factory.\n"
+        "`/ai all <question>` — the same as askall.\n"
+        "`/ai reset` — clear the conversation history.\n"
+        "`/ai help` — this list, in chat.\n\n"
+
+        "Also accepted in place of `/ai`: `/codex`, `/assistant`, `/aicopilot`, "
+        "`/factoryai`.");
 
     AppendTranscript(TEXT("COPILOT"), Text);
 }

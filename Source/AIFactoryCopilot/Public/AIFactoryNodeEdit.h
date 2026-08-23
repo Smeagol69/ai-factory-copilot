@@ -43,6 +43,17 @@ namespace AIFactoryNodeEdit
     TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownResources(UWorld* World);
 
     /**
+     * The resource node the player is aiming at, or null.
+     *
+     * Reads the character's cached use state first -- the same source that
+     * makes "Press E to start mining" appear -- and only then falls back to a
+     * visibility trace. A raw trace is not sufficient on its own: resource
+     * rocks are instanced meshes, so it hits an AbstractInstanceManager and
+     * never the node actor behind it.
+     */
+    class AFGResourceNodeBase* NodeUnderCrosshair(class APlayerController* Controller);
+
+    /**
      * Point a node at a different resource.
      *
      * @param Resource  nullptr clears the override and restores the original.

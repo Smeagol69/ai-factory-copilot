@@ -124,21 +124,11 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
         }
 
         // The node under the crosshair. Same trace the placement lane uses.
-        AFGResourceNodeBase* Target = nullptr;
-        if (APlayerController* Controller = Cast<APlayerController>(NodePlayer))
-        {
-            FHitResult Hit;
-            FVector Origin;
-            FRotator Rotation;
-            Controller->GetPlayerViewPoint(Origin, Rotation);
-            FCollisionQueryParams Params;
-            Params.AddIgnoredActor(Controller->GetPawn());
-            if (NodeWorld->LineTraceSingleByChannel(
-                    Hit, Origin, Origin + Rotation.Vector() * 5000.0, ECC_Visibility, Params))
-            {
-                Target = Cast<AFGResourceNodeBase>(Hit.GetActor());
-            }
-        }
+        // Resolved the way the game does. The previous version traced
+        // ECC_Visibility directly and hit an AbstractInstanceManager, so it
+        // reported nothing under a crosshair that was squarely on a node.
+        AFGResourceNodeBase* Target =
+            AIFactoryNodeEdit::NodeUnderCrosshair(Cast<APlayerController>(NodePlayer));
         if (!IsValid(Target))
         {
             Sender->SendChatMessage(TEXT(

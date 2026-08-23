@@ -2,12 +2,61 @@
 
 #include "AIFactoryCopilotModule.h"
 #include "EngineUtils.h"
+#include "FGCharacterPlayer.h"
+#include "GameFramework/PlayerController.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "Resources/FGResourceDeposit.h"
 #include "Resources/FGResourceNodeBase.h"
 
 namespace AIFactoryNodeEdit
 {
+AFGResourceNodeBase* NodeUnderCrosshair(APlayerController* Controller)
+{
+    if (!IsValid(Controller))
+    {
+        return nullptr;
+    }
+
+    // The game's own answer to "what am I pointing at". This is what puts
+    // "Press E to start mining Limestone (Normal)" on screen, so if the prompt
+    // is visible this resolves.
+    if (AFGCharacterPlayer* Character =
+            Cast<AFGCharacterPlayer>(Controller->GetPawn()))
+    {
+        if (FUseState* UseState = Character->GetCachedUseState();
+            UseState && UseState->bIsTraceHit)
+        {
+            if (AFGResourceNodeBase* Node =
+                    Cast<AFGResourceNodeBase>(UseState->UseHitResult.GetActor()))
+            {
+                return Node;
+            }
+        }
+    }
+
+    // Fallback only. On its own this fails for resource nodes: the rocks are
+    // instanced meshes, so the hit actor is an AbstractInstanceManager rather
+    // than the node. Kept because it still resolves a node whose use state has
+    // not been cached yet.
+    FVector ViewLocation;
+    FRotator ViewRotation;
+    Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
+    FHitResult Hit;
+    FCollisionQueryParams QueryParams(
+        SCENE_QUERY_STAT(AIFactoryNodeEditAimTrace), true, Controller->GetPawn());
+    if (UWorld* World = Controller->GetWorld())
+    {
+        World->LineTraceSingleByChannel(
+            Hit,
+            ViewLocation,
+            ViewLocation + ViewRotation.Vector() * 25000.0,
+            ECC_Visibility,
+            QueryParams);
+        return Cast<AFGResourceNodeBase>(Hit.GetActor());
+    }
+    return nullptr;
+}
+
 TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownResources(UWorld* World)
 {
     TMap<FString, TSubclassOf<UFGResourceDescriptor>> Result;
