@@ -193,6 +193,24 @@ time.**
 
 So the work is in **writing the file**, not in defeating the game's rules.
 
+### Active-session Blueprint truth
+
+The disk library is intentionally broader than the game library: it can retain
+blueprints from several saves, which is useful for read-only structural
+inspection and style study. The native Build Gun is narrower: it may only arm a
+descriptor registered by Satisfactory's `AFGBlueprintSubsystem` for the active
+save session. The scanner reads and records that authoritative descriptor
+registry without a stateful refresh on ordinary chat requests, so it cannot
+replace the player's current Build Gun selection. The bridge refuses a
+disk-only entry before it sends the Build Gun handoff; only the server and
+owning client refresh immediately before the preview lookup the player asked
+for. A partial registry is explicit unknown, never evidence of absence.
+
+That means a blueprint from another session remains readable but is never
+silently copied, fabricated, or claimed previewed. Explicit cross-session
+import is a future, separately-confirmed file operation; it is not a side
+effect of preview.
+
 ### The doors that are open
 
 | What | Where | Why it matters |

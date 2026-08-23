@@ -42,6 +42,7 @@ import {
   solveBlueprintLayout,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
+import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
 import {
   baseBuildActions,
@@ -482,7 +483,12 @@ function formatBlueprints(result) {
       const duplicate = (names.get(String(blueprint.name ?? "").toLocaleLowerCase()) ?? 0) > 1;
       const reference = blueprint.blueprint_reference ?? blueprint.relative_path;
       const disambiguator = duplicate && reference ? ` — reference \`${reference}\`` : "";
-      return `- **${blueprint.name}**${size ? ` (${size.x}×${size.y}×${size.z})` : ""}${affordable}${disambiguator}`;
+      const registration = blueprint.registered_in_current_session === false
+        ? " — not registered for this save's Build Gun"
+        : blueprint.registered_in_current_session === null
+          ? " — current-session Build Gun registration unknown"
+          : "";
+      return `- **${blueprint.name}**${size ? ` (${size.x}×${size.y}×${size.z})` : ""}${affordable}${disambiguator}${registration}`;
     })
     .join("\n")}`;
 }
@@ -4056,14 +4062,33 @@ export function answerLocally(question, graph, services) {
 
     if (matches.length === 1) {
       const chosen = matches[0];
+      const activeDescriptor = resolveCurrentSessionBlueprint(graph, chosen.name);
+      if (!activeDescriptor.registered) {
+        const reference = chosen.blueprint_reference ?? chosen.relative_path;
+        const diskReference = reference ? ` (disk reference \`${reference}\`)` : "";
+        const session = activeDescriptor.session_name
+          ? ` for the current **${activeDescriptor.session_name}** session`
+          : " for the current session";
+        const reason = activeDescriptor.reason === "blueprint_not_registered_for_current_session"
+          ? `Satisfactory has not registered it${session}`
+          : `the active Satisfactory Blueprint library was not proven complete${session}`;
+        return localAnswer(
+          `I found **${chosen.name}**${diskReference}, but ${reason}. ` +
+            "I did not send it to the Build Gun, so nothing was placed or charged. " +
+            "A blueprint in another save folder remains inspectable, but it must be registered in this save before native preview is safe.",
+          "blueprint_preview_refused",
+          started,
+          `Disk discovery and the active game-session descriptor registry disagree: ${activeDescriptor.reason}.`,
+        );
+      }
       const emitted = emitValidatedPlan(graph, services, [
-        { action: "preview_blueprint", blueprint_name: chosen.name },
+        { action: "preview_blueprint", blueprint_name: activeDescriptor.blueprint_name },
       ]);
       if (emitted) {
         const dimensions = chosen.designer_dimensions;
         const size = dimensions ? ` (${dimensions.x}×${dimensions.y}×${dimensions.z})` : "";
         return localAnswer(
-          `Requesting the native Build Gun preview for **${chosen.name}**${size}. ` +
+          `Requesting the native Build Gun preview for **${activeDescriptor.blueprint_name}**${size}. ` +
             "Nothing is being placed or charged: move, rotate, snap, inspect, and click to construct it with Satisfactory's normal hologram.",
           "blueprint_preview",
           started,
@@ -4211,7 +4236,12 @@ export function answerLocally(question, graph, services) {
       const duplicate = (names.get(String(entry.name ?? "").toLocaleLowerCase()) ?? 0) > 1;
       const reference = entry.blueprint_reference ?? entry.relative_path;
       const disambiguator = duplicate && reference ? ` — reference \`${reference}\`` : "";
-      return `- **${entry.name}**${size}${built}${disambiguator}`;
+      const registration = entry.registered_in_current_session === false
+        ? " — not registered for this save's Build Gun"
+        : entry.registered_in_current_session === null
+          ? " — current-session Build Gun registration unknown"
+          : "";
+      return `- **${entry.name}**${size}${built}${disambiguator}${registration}`;
     });
     const more = found.length > lines.length ? `\n…and ${found.length - lines.length} more.` : "";
     const hint = hasDuplicates

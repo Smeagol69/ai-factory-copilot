@@ -12,7 +12,16 @@ import {
 import { runSolverTool } from "../lib/tools.mjs";
 import { CONSTRUCTOR, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
-const graphOf = () => buildGraph(buildFactorySnapshot());
+const graphOf = (blueprintNames = ["Copper Module"]) => {
+  const graph = buildGraph(buildFactorySnapshot());
+  graph.snapshot.blueprint_library = {
+    available: true,
+    complete: true,
+    registered_descriptor_count: blueprintNames.length,
+    registered_blueprint_names: blueprintNames,
+  };
+  return graph;
+};
 const HERE = { x: 1000, y: 2000, z: 300 };
 
 /* ---------------- validation refuses before the game is asked ---------------- */
@@ -49,6 +58,61 @@ test("a native Build Gun preview is client-only and receives no world revision",
   assert.equal(result.action.expect_world_revision, undefined);
   assert.equal(result.checks.client_only, true);
   assert.equal(result.checks.world_write, false);
+  assert.equal(result.checks.current_session_blueprint_descriptor, "Copper Module");
+});
+
+test("a disk blueprint from another save is refused before a Build Gun handoff", () => {
+  const graph = graphOf(["Current Save Module"]);
+  graph.snapshot.world.session_name = "Playthrough";
+
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Coal power plant",
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "blueprint_not_registered_for_current_session");
+  assert.equal(result.blueprint_name, "Coal power plant");
+  assert.equal(result.session_name, "Playthrough");
+});
+
+test("an uncaptured active Blueprint registry is unknown, not treated as empty", () => {
+  const graph = buildGraph(buildFactorySnapshot());
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "blueprint_current_session_library_not_captured");
+});
+
+test("an active native descriptor arms even when disk metadata is absent or differently cased", () => {
+  const graph = graphOf(["Copper Module"]);
+  graph.services = {
+    blueprints: [{
+      name: "copper module",
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      build_cost: [],
+    }],
+  };
+
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "COPPER MODULE",
+  });
+
+  assert.equal(result.valid, true, result.reason);
+  assert.equal(result.action.blueprint_name, "Copper Module");
+  assert.deepEqual(result.checks.designer_dimensions, { x: 4, y: 4, z: 2 });
+
+  graph.services.blueprints = [{ name: "Archived Copper Module" }];
+  const withoutDiskMetadata = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+  });
+  assert.equal(withoutDiskMetadata.valid, true, withoutDiskMetadata.reason);
+  assert.equal(withoutDiskMetadata.checks.disk_library_metadata, "not_captured_or_not_matched");
 });
 
 test("a client Build Gun preview cannot share a transaction with another action", () => {

@@ -47,6 +47,15 @@ void UAIFactoryBlueprintPreviewRCO::ClientPreviewBlueprint_Implementation(
     AFGBlueprintSubsystem* Blueprints = IsValid(World)
         ? AFGBlueprintSubsystem::Get(World)
         : nullptr;
+    // The server refreshes before dispatch, but Blueprint descriptors are a
+    // local client concern too. Repeat the public active-session refresh here
+    // so a normal Satisfactory file transfer that completed between the RPC
+    // and this lookup can register itself without a fabricated descriptor.
+    if (IsValid(Blueprints))
+    {
+        Blueprints->RefreshBlueprintsAndDescriptors();
+        Blueprints->RefreshBlueprintRecipeRequirements();
+    }
     UFGBlueprintDescriptor* Descriptor = IsValid(Blueprints)
         ? Blueprints->GetBlueprintDescriptorByNameString(BlueprintName)
         : nullptr;

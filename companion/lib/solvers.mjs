@@ -9,6 +9,10 @@
 
 import { costAgainstInventory } from "./blueprints.mjs";
 import {
+  getCurrentSessionBlueprintRegistry,
+  resolveCurrentSessionBlueprint,
+} from "./blueprint-session.mjs";
+import {
   buildGraph,
   distanceMeters,
   finiteNumber,
@@ -1638,6 +1642,7 @@ export function solveBlueprintLibrary(
   const gameChangelist = finiteNumber(graph.snapshot?.world?.game_changelist);
   const entries = listBlueprints();
   const needle = name_contains ? String(name_contains).toLowerCase() : null;
+  const currentSessionRegistry = getCurrentSessionBlueprintRegistry(graph);
 
   const blueprints = [];
   const failures = [];
@@ -1649,6 +1654,7 @@ export function solveBlueprintLibrary(
     if (needle && !String(entry.name).toLowerCase().includes(needle)) continue;
 
     const pricing = costAgainstInventory(entry, totals);
+    const registration = resolveCurrentSessionBlueprint(graph, entry.name);
 
     // A blueprint references the build recipes of what it contains, so the
     // recipe list resolves to the actual buildings via the catalog.
@@ -1686,6 +1692,12 @@ export function solveBlueprintLibrary(
       recipe_reference_count: entry.recipe_reference_count_declared ?? null,
       object_graph_decoded: entry.object_graph_decoded,
       object_graph_note: entry.object_graph_note,
+      registered_in_current_session: currentSessionRegistry.available
+        ? registration.registered
+        : null,
+      current_session_registration_reason: registration.registered
+        ? null
+        : registration.reason,
     });
     if (blueprints.length >= Math.max(1, Math.trunc(limit) || 25)) break;
   }
@@ -1699,8 +1711,15 @@ export function solveBlueprintLibrary(
     total_files_seen: entries.length,
     blueprints,
     unreadable_files: failures,
+    current_session_library: {
+      available: currentSessionRegistry.available,
+      complete: currentSessionRegistry.complete,
+      session_name: currentSessionRegistry.session_name,
+      registered_descriptor_count: currentSessionRegistry.descriptor_count ?? null,
+      reason: currentSessionRegistry.available ? null : currentSessionRegistry.reason,
+    },
     what_is_known:
-      "Designer dimensions, exact build cost, exact header recipe references, the game build each blueprint was authored on, and its description.",
+      "Designer dimensions, exact build cost, exact header recipe references, the game build each blueprint was authored on, its description, and whether Satisfactory has registered its name for the current session's native Build Gun.",
     what_is_not_known:
       "This fast library read does not decode entity positions, rotations, physical extents, or wiring. Call inspect_blueprint_layout for one exact blueprint; it returns bounded saved transforms and class counts, not a placement guarantee.",
     source: "parsed_from_saved_blueprint_files",

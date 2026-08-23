@@ -19,7 +19,16 @@ import {
 } from "../lib/router.mjs";
 import { buildFactorySnapshot, MINER, SMELTER } from "./fixtures/factory.mjs";
 
-const graphOf = () => buildGraph(buildFactorySnapshot());
+const graphOf = (blueprintNames = []) => {
+  const graph = buildGraph(buildFactorySnapshot());
+  graph.snapshot.blueprint_library = {
+    available: true,
+    complete: true,
+    registered_descriptor_count: blueprintNames.length,
+    registered_blueprint_names: blueprintNames,
+  };
+  return graph;
+};
 
 test("parses only an explicit aimed Mk.1 factory write", () => {
   for (const question of [
@@ -63,7 +72,7 @@ test("an explicit native Build Gun preview is not mistaken for placement or list
 
 test("previewing a saved blueprint emits only a client Build Gun handoff", () => {
   const emitted = [];
-  const answer = answerLocally("preview the Coal power plant blueprint", graphOf(), {
+  const answer = answerLocally("preview the Coal power plant blueprint", graphOf(["Coal power plant"]), {
     listBlueprints: () => [{
       name: "Coal power plant",
       designer_dimensions: { x: 12, y: 12, z: 6 },
@@ -80,6 +89,28 @@ test("previewing a saved blueprint emits only a client Build Gun handoff", () =>
     blueprint_name: "Coal power plant",
     commit: true,
   }]);
+});
+
+test("a disk blueprint outside the current save is never promised to the Build Gun", () => {
+  const emitted = [];
+  const graph = graphOf(["Playthrough Starter"]);
+  graph.snapshot.world.session_name = "Playthrough";
+  const answer = answerLocally("preview the Coal power plant blueprint", graph, {
+    listBlueprints: () => [{
+      name: "Coal power plant",
+      relative_path: "BP test/Coal power plant.sbp",
+      blueprint_reference: "BP test/Coal power plant.sbp",
+      designer_dimensions: { x: 12, y: 12, z: 6 },
+      build_cost: [],
+    }],
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.ok(answer);
+  assert.equal(answer.local.solver, "blueprint_preview_refused");
+  assert.match(answer.reply, /not registered.*Playthrough/i);
+  assert.match(answer.reply, /nothing was placed or charged/i);
+  assert.deepEqual(emitted, []);
 });
 
 test("oversized plan refusals report the requested count", () => {

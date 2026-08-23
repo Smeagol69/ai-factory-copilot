@@ -188,6 +188,15 @@ namespace
         AFGBlueprintSubsystem* Blueprints = IsValid(World)
             ? AFGBlueprintSubsystem::Get(World)
             : nullptr;
+        // The bridge has already checked the freshly captured active-session
+        // descriptor registry, but an export or file transfer can complete in
+        // the gap before this client handoff. Refresh the game's own registry
+        // again rather than inventing a descriptor or accepting a disk path.
+        if (IsValid(Blueprints))
+        {
+            Blueprints->RefreshBlueprintsAndDescriptors();
+            Blueprints->RefreshBlueprintRecipeRequirements();
+        }
         UFGBlueprintDescriptor* Descriptor = IsValid(Blueprints)
             ? Blueprints->GetBlueprintDescriptorByNameString(BlueprintName)
             : nullptr;
@@ -199,7 +208,7 @@ namespace
                 BlueprintName,
                 TEXT("blueprint_not_found")));
             return FString::Printf(
-                TEXT("Blueprint preview was not sent because %s is not in the game's blueprint library."),
+                TEXT("Blueprint preview was not sent because %s is not registered in this save's active Blueprint library."),
                 *BlueprintName);
         }
         if (!Descriptor->GetRecipeRequirementsAreMet())

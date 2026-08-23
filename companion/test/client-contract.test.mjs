@@ -69,6 +69,56 @@ test("a saved blueprint can be armed in the requesting player's native Build Gun
   assert.ok(dispatch >= 0 && normalExecute > dispatch);
 });
 
+test("native Blueprint preview refreshes only when the player requests a native preview", () => {
+  const subsystem = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp", import.meta.url),
+    "utf8",
+  );
+  const rco = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintPreviewRCO.cpp", import.meta.url),
+    "utf8",
+  );
+  const snapshot = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp", import.meta.url),
+    "utf8",
+  );
+
+  const dispatchStart = subsystem.indexOf("FString DispatchClientBlueprintPreview(");
+  const dispatchEnd = subsystem.indexOf("FString DescribeActionResults(", dispatchStart);
+  const dispatch = subsystem.slice(dispatchStart, dispatchEnd);
+  const clientStart = rco.indexOf("void UAIFactoryBlueprintPreviewRCO::ClientPreviewBlueprint_Implementation(");
+  const client = rco.slice(clientStart);
+  assert.ok(dispatchStart >= 0 && dispatchEnd > dispatchStart);
+  assert.ok(clientStart >= 0);
+
+  for (const source of [dispatch, client]) {
+    const refresh = source.indexOf("RefreshBlueprintsAndDescriptors()");
+    const requirements = source.indexOf("RefreshBlueprintRecipeRequirements()", refresh);
+    const lookup = source.indexOf("GetBlueprintDescriptorByNameString", requirements);
+    assert.ok(
+      refresh >= 0 && refresh < requirements && requirements < lookup,
+      "refresh and recipe requirements must precede descriptor lookup",
+    );
+    assert.doesNotMatch(source, /ReadBlueprintFromDisc|WriteFileToDisk|CopyFile/);
+  }
+
+  assert.match(snapshot, /TSharedRef<FJsonObject> BlueprintLibraryJson\(UWorld\* World\)/);
+  assert.match(snapshot, /AFGBlueprintSubsystem::GetBlueprintDescriptors\(Descriptors, World\)/);
+  assert.match(snapshot, /SetArrayField\(TEXT\("registered_blueprint_names"\), RegisteredNames\)/);
+  assert.match(snapshot, /Root->SetObjectField\(TEXT\("blueprint_library"\), BlueprintLibraryJson\(World\)\)/);
+  const snapshotLibraryStart = snapshot.indexOf("TSharedRef<FJsonObject> BlueprintLibraryJson(");
+  const snapshotLibraryEnd = snapshot.indexOf("FAIFactorySnapshotResult FAIFactorySnapshot::Build(", snapshotLibraryStart);
+  const snapshotLibrary = snapshot.slice(snapshotLibraryStart, snapshotLibraryEnd);
+  assert.ok(snapshotLibraryStart >= 0 && snapshotLibraryEnd > snapshotLibraryStart);
+  assert.doesNotMatch(
+    snapshotLibrary,
+    /BlueprintSubsystem->RefreshBlueprintsAndDescriptors|BlueprintSubsystem->RefreshBlueprintRecipeRequirements/,
+  );
+  assert.match(snapshotLibrary, /SetBoolField\(TEXT\("refreshed_before_capture"\), false\)/);
+  assert.match(snapshotLibrary, /SetBoolField\(TEXT\("complete"\), InvalidDescriptorCount == 0\)/);
+  assert.doesNotMatch(snapshot, /WriteFileToDisk|ReadBlueprintFromDisc|CopyFile/);
+});
+
 test("the game defers step-referenced building and belt preflight until actors exist", () => {
   const actions = fs.readFileSync(
     new URL(

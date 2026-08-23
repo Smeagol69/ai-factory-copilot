@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/blueprint-preview-library` | Fix the live-observed native Blueprint preview library seam only: refresh Satisfactory's **active session** Blueprint descriptor cache before both the server and owning-client lookup, and make the companion distinguish a disk entry from a Blueprint registered for the current session before the existing client Build Gun handoff. Scope is `AIFactorySubsystem`, `AIFactoryBlueprintPreviewRCO`, snapshot/bridge preview validation, focused source-contract tests, docs, and exact-header validation. No file copy/import, descriptor fabrication, world write, cost, or exporter/selection change. Preserve the native RCO and all no-placement/no-charge preview guarantees. | in progress; scope refined from refresh-only after live Playthrough evidence showed a cross-session disk-library mismatch |
+| 2026-08-23 | Codex | `codex/blueprint-preview-library` | Fix the live-observed native Blueprint preview library seam only: capture Satisfactory's **active-session** Blueprint descriptor registry without a stateful refresh during ordinary chat, refresh only immediately before the requested server and owning-client lookup, and make the companion distinguish a disk entry from a Blueprint registered for the current session before the existing client Build Gun handoff. Scope is `AIFactorySubsystem`, `AIFactoryBlueprintPreviewRCO`, snapshot/bridge preview validation, focused source-contract tests, docs, and exact-header validation. No file copy/import, descriptor fabrication, world write, cost, or exporter/selection change. Preserve the native RCO and all no-placement/no-charge preview guarantees. | complete in source: 793 companion tests, exact SML 3.12.0 / FactoryGame CL 502094 header validation, and Shipping module compile pass; package/deploy and one active-session live preview remain pending |
 | 2026-08-23 | Codex | `codex/selection-overlay` | Real-time native Blueprint editor selection overlay: audit and add a dedicated, shipping-safe visual contract for the exact actor + lightweight structure selection the UI can export. The overlay must not silently drop objects; it draws the selection volume and every individual bound when feasible, or explicitly reports a condensed representation. Scope is `AIFactoryCopilotUISubsystem` / `AIFactoryOverlay`, focused source-contract tests, docs, and exact-header validation only. Preserve all current export, filter, selection, and Build Gun behavior. | complete in source; 784 companion tests, exact headers, and Shipping module compile pass; packaged live visual check pending |
 | 2026-08-23 | Codex | `codex/buildgun-preview-contract` | Restore the missing direct local `preview_blueprint` Build Gun route and additive bridge-side standalone-plan guard for the already-integrated native client RCO. Add focused companion/source-contract tests, exact header validation entries, and goal/collaboration documentation; preserve Claude's UI/export/selection and the existing C++ implementation. | complete; 782 companion tests plus exact SML/FactoryGame header validation pass; visual in-game proof remains pending |
 | 2026-08-23 | Codex | `codex/terrain-coverage-integrity` | Fail-closed terrain-coverage integrity for Claude's new decoded-blueprint × terrain assessment: `companion/lib/siting.mjs` and focused tests only. Require demonstrated coverage of the complete rotated blueprint footprint before any flat/workable judgment; preserve the existing scan, fit route, output schema, and all game/UI placement work. | complete; 776 companion tests pass after a clean local `npm ci`; no C++ or game write changed |
@@ -4106,3 +4106,46 @@ does **not** contain the restored deterministic Build Gun preview route. After
 the next shared integration/package is published, restart that exact bridge
 from the current integration/package before any live preview test. Do not use a
 visual result from the stale process as evidence against the native feature.
+
+### Codex — 2026-08-23 active-session Blueprint preview library handoff
+
+The live Playthrough preview failure was a **scope mismatch**, not a Build Gun
+or placement failure. The companion's disk reader could see
+`blueprints/BP test/claude test v1.sbp`, while the active Playthrough native
+Blueprint subsystem had no descriptor for it. Satisfactory correctly refused
+the server handoff with `blueprint_not_found`.
+
+The bridge now captures the native `AFGBlueprintSubsystem` descriptor registry
+as a separate authoritative `blueprint_library` witness and allows
+`preview_blueprint` only when the requested name is proven registered there.
+It keeps disk files readable for structural inspection, but a disk-only
+cross-save file now gets a clear no-action response naming the active session
+instead of promising a hologram. A partial descriptor list is explicit unknown,
+not evidence that a named Blueprint is absent. Conversely, disk metadata is no
+longer allowed to veto a valid native descriptor: its name matching is
+case-insensitive and it only enriches size/cost information.
+
+One review correction matters for the editor: the snapshot **does not** call
+`RefreshBlueprintsAndDescriptors()` on every chat request. That public refresh
+rebuilds descriptor state and could disturb a player already using a native
+Blueprint hologram. It is invoked only in `DispatchClientBlueprintPreview` and
+the owning client's RCO immediately before their authoritative descriptor
+lookups, which is an explicit player preview request. There is no file copy,
+descriptor fabrication, world write, item charge, or undo state change in this
+lane.
+
+Verification: clean lockfile install, `npm test` **793/793**, exact SML 3.12.0
+/ FactoryGame CL 502094 source/header validation, and a FactoryGameSteam
+Shipping module compile all passed. The game was closed while compiling. After
+this shared integration is packaged, test `preview claude test v1 blueprint`
+in Playthrough and require the new pre-handoff cross-session refusal (zero
+client action); then test a Blueprint genuinely registered in Playthrough and
+confirm the normal native Build Gun hologram. Do not silently copy a test file
+into Playthrough just to manufacture that second test.
+
+Coordination audit at this handoff: `origin/master` is `60b32e7` and already
+contained by this lane; `origin/claude/belt-routing` remains stale at `42703d8`
+with no newer committed Claude handoff. Master includes the reflected belt
+endpoint work and the later exact-Z proof, but the full terrain-following
+17-belt Wire transaction remains a live-save test gap. Claude's uncommitted
+header-only node-edit experiment is intentionally not included.

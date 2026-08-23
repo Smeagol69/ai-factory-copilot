@@ -13,6 +13,7 @@
  */
 
 import { distanceMeters } from "./graph.mjs";
+import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { lastPreview } from "./selection.mjs";
 
 /**
@@ -616,27 +617,44 @@ export function validateAction(graph, proposal) {
     const name = String(proposal.blueprint_name ?? "").trim();
     if (!name) return reject(kind, "blueprint_name_is_required");
 
+    // Disk discovery covers every saved session so the player can inspect old
+    // factories. The native Build Gun cannot: it accepts only the descriptors
+    // registered by Satisfactory for the *current* session. Do not turn a
+    // cross-save disk match into a false promise that a hologram was armed.
+    // The game refreshes and repeats this exact lookup immediately before its
+    // client RCO handoff, so this is an early, evidence-based refusal rather
+    // than a replacement for the authoritative check.
+    const activeDescriptor = resolveCurrentSessionBlueprint(graph, name);
+    if (!activeDescriptor.registered) {
+      return reject(kind, activeDescriptor.reason, {
+        blueprint_name: name,
+        session_name: activeDescriptor.session_name ?? null,
+        registered_descriptor_count: activeDescriptor.registered_descriptor_count ?? null,
+        candidates: activeDescriptor.candidates ?? [],
+      });
+    }
+
     // This is a client-only selection, not a server construction request. The
-    // bridge normally has the library service and can catch spelling mistakes
-    // here; the game repeats the descriptor lookup immediately before it sends
-    // the owning client's RCO message.
+    // bridge's disk library is useful metadata (dimensions and costs), but it
+    // is deliberately never a second gate: it scans every save folder and can
+    // lag or spell a descriptor differently. A freshly captured native
+    // descriptor is the only bridge-side authority, and the game refreshes and
+    // verifies it again before it sends the client RCO.
     const library = graph?.services?.blueprints ?? null;
     if (Array.isArray(library) && library.length > 0) {
-      const match = library.find((entry) => entry.name === name);
-      if (!match) {
-        const needle = name.toLowerCase();
-        const near = library
-          .filter((entry) => String(entry.name).toLowerCase().includes(needle))
-          .slice(0, 5)
-          .map((entry) => entry.name);
-        return reject(kind, "blueprint_not_in_library", {
-          blueprint_name: name,
-          did_you_mean: near,
-        });
+      const expected = activeDescriptor.blueprint_name.toLocaleLowerCase();
+      const match = library.find(
+        (entry) => String(entry?.name ?? "").trim().toLocaleLowerCase() === expected,
+      );
+      if (match) {
+        checks.designer_dimensions = match.designer_dimensions;
+        checks.build_cost_entries = match.build_cost?.length ?? 0;
+      } else {
+        checks.disk_library_metadata = "not_captured_or_not_matched";
       }
-      checks.designer_dimensions = match.designer_dimensions;
-      checks.build_cost_entries = match.build_cost?.length ?? 0;
     }
+    checks.current_session_blueprint_descriptor = activeDescriptor.blueprint_name;
+    checks.current_session_name = activeDescriptor.session_name;
 
     return {
       valid: true,
@@ -645,7 +663,11 @@ export function validateAction(graph, proposal) {
       // This is intentionally always dispatched. It is equivalent to opening
       // the Build Gun's native blueprint picker, and never performs a world
       // write, spends items, changes the undo stack, or needs a revision stamp.
-      action: { action: kind, blueprint_name: name, commit: true },
+      action: {
+        action: kind,
+        blueprint_name: activeDescriptor.blueprint_name,
+        commit: true,
+      },
     };
   }
 

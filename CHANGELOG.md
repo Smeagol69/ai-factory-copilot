@@ -5,6 +5,13 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Made native Blueprint Build-Gun preview session-aware. The companion now
+  distinguishes a disk blueprint from one registered in Satisfactory's active
+  save library, refuses cross-session files before promising a hologram, and
+  reads the current native registry without disturbing the player's Build Gun
+  during normal chat capture. Only the requested server handoff and owning
+  client refresh the descriptor cache before lookup. Preview still never copies
+  files, spends items, changes the world, or creates an undo entry.
 - Added bounded, read-only structural inspection for native `.sbp` blueprints:
   exact header evidence, decoded native `Build_*` entity class counts, saved transforms,
   pivot bounds, and recipe evidence. It explicitly does not claim destination

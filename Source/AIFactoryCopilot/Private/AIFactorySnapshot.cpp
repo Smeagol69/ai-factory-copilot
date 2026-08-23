@@ -28,6 +28,8 @@
 #include "EngineUtils.h"
 #include "FGFactoryConnectionComponent.h"
 #include "FGCharacterPlayer.h"
+#include "FGBlueprintSubsystem.h"
+#include "FGFactoryBlueprintTypes.h"
 #include "Equipment/FGBuildGun.h"
 #include "Equipment/FGBuildGunDismantle.h"
 #include "FGGamePhase.h"
@@ -1774,6 +1776,95 @@ namespace
         Progression->SetObjectField(TEXT("todo_lists"), Todo);
         return Progression;
     }
+
+    /**
+     * The disk library can contain Blueprint files from several saves, while
+     * the native Build Gun accepts only descriptors registered by the active
+     * `AFGBlueprintSubsystem`. Read that registry as it stands so the bridge
+     * can refuse a cross-session file before it makes a false promise to arm a
+     * hologram. In particular, do not call RefreshBlueprintsAndDescriptors
+     * during an ordinary chat capture: that stateful operation rebuilds the
+     * player's active native Blueprint selection. The explicit preview action
+     * refreshes immediately before its own lookup instead, which is both
+     * authoritative and an operation the player explicitly requested.
+     *
+     * This changes no world actor, inventory, cost, undo state, Blueprint file,
+     * or Build Gun selection.
+     */
+    TSharedRef<FJsonObject> BlueprintLibraryJson(UWorld* World)
+    {
+        const TSharedRef<FJsonObject> Library = MakeShared<FJsonObject>();
+        Library->SetStringField(
+            TEXT("source"),
+            TEXT("AFGBlueprintSubsystem active-session descriptor registry"));
+        Library->SetStringField(TEXT("certainty"), TEXT("authoritative"));
+        Library->SetBoolField(TEXT("available"), false);
+        Library->SetBoolField(TEXT("complete"), false);
+
+        if (!IsValid(World))
+        {
+            Library->SetStringField(TEXT("reason"), TEXT("world_unavailable"));
+            return Library;
+        }
+
+        AFGBlueprintSubsystem* BlueprintSubsystem = AFGBlueprintSubsystem::Get(World);
+        if (!IsValid(BlueprintSubsystem))
+        {
+            Library->SetStringField(TEXT("reason"), TEXT("blueprint_subsystem_unavailable"));
+            return Library;
+        }
+
+        TArray<UFGBlueprintDescriptor*> Descriptors;
+        AFGBlueprintSubsystem::GetBlueprintDescriptors(Descriptors, World);
+
+        TArray<FString> Names;
+        int32 InvalidDescriptorCount = 0;
+        for (UFGBlueprintDescriptor* Descriptor : Descriptors)
+        {
+            if (!IsValid(Descriptor))
+            {
+                ++InvalidDescriptorCount;
+                continue;
+            }
+
+            FString Name = Descriptor->GetBlueprintNameAsString();
+            Name.TrimStartAndEndInline();
+            if (Name.IsEmpty())
+            {
+                ++InvalidDescriptorCount;
+                continue;
+            }
+            Names.Add(MoveTemp(Name));
+        }
+        Names.Sort();
+
+        TArray<TSharedPtr<FJsonValue>> RegisteredNames;
+        RegisteredNames.Reserve(Names.Num());
+        for (const FString& Name : Names)
+        {
+            RegisteredNames.Add(MakeShared<FJsonValueString>(Name));
+        }
+
+        Library->SetStringField(
+            TEXT("certainty"),
+            InvalidDescriptorCount == 0 ? TEXT("authoritative") : TEXT("partial"));
+        Library->SetBoolField(TEXT("available"), true);
+        // A list which skipped even one registered descriptor cannot prove an
+        // absence. The bridge treats that as unknown rather than falsely
+        // refusing a Blueprint the game may still know.
+        Library->SetBoolField(TEXT("complete"), InvalidDescriptorCount == 0);
+        Library->SetBoolField(TEXT("refreshed_before_capture"), false);
+        if (InvalidDescriptorCount > 0)
+        {
+            Library->SetStringField(
+                TEXT("reason"),
+                TEXT("one_or_more_registered_blueprint_descriptors_could_not_be_named"));
+        }
+        Library->SetNumberField(TEXT("registered_descriptor_count"), Descriptors.Num());
+        Library->SetNumberField(TEXT("invalid_descriptor_count"), InvalidDescriptorCount);
+        Library->SetArrayField(TEXT("registered_blueprint_names"), RegisteredNames);
+        return Library;
+    }
 }
 
 FAIFactorySnapshotResult FAIFactorySnapshot::Build(
@@ -1827,6 +1918,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     WorldInfo->SetObjectField(TEXT("scan_center"), VectorJson(Request.Center));
     WorldInfo->SetNumberField(TEXT("scan_radius_meters"), Request.bUseRadius ? Request.RadiusMeters : -1.0);
     Root->SetObjectField(TEXT("world"), WorldInfo);
+    Root->SetObjectField(TEXT("blueprint_library"), BlueprintLibraryJson(World));
 
     FTerrainProbeBudget TerrainBudget;
     if (Settings.bIncludeTerrain)
