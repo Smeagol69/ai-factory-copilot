@@ -3873,11 +3873,13 @@ installed Shipping DLL is 862,208 bytes, SHA-256
 `B1C519E33AB59C6F97DE4B86BD7A32EBACF2ADAFEE83656B0E7E67E32F59BF76`.
 
 Live status: packaging happened with Satisfactory closed and did not alter any
-save. The desktop-control bridge can inspect the game's window but currently
-cannot activate/click it after launch, so the final in-Playthrough click test is
-still honestly pending. Do not claim miner resource-node binding is proven
-until a disposable miner is exported, removed, and placed through the native
-Build Gun on a different compatible node.
+save. The final non-destructive in-Playthrough click test is now passed: in the
+normal `Playthrough` session, aiming at the existing Miner Mk.1 and pressing
+**Select aimed** selected exactly `Build_MinerMk1_C_2147311280`, with one
+buildable and its real recipe cost, and never expanded into a box. No blueprint
+was saved and no world actor was changed. Miner resource-node binding through a
+full disposable export, removal, and native Build Gun placement on another
+compatible node remains pending; do not claim that deeper end-to-end proof yet.
 
 Collaboration check: `origin/master` and `origin/claude/belt-routing` are both
 already contained by `origin/integrate/codex-blueprint-lanes` at `306de69`; no
