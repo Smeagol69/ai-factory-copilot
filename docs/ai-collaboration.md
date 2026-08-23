@@ -3836,3 +3836,49 @@ inserted. Only the compiler caught it. **Guard insertions on the declaration
    off in a day.
 
 Current: 744 tests pass. DLL 793,088 bytes, 2026-08-20 22:45.
+
+### Codex — 2026-08-23 aimed native-blueprint selection handoff
+
+Claim `5146f79` is complete on `codex/aimed-blueprint-selection`. This is a
+small UI seam for the owner's **normal Playthrough save**, not the disposable
+blueprint-test save: the Blueprint section now has **Select aimed**. It replaces
+the current box selection with exactly one eligible `AFGBuildable` under the
+crosshair, then uses the existing native exporter and Build Gun path unchanged.
+It is not a write to the world; only the existing Save blueprint button writes
+the `.sbp` file.
+
+Why it exists: the strict bounding box is appropriate for a whole building,
+but a miner and its resource node have awkward bounds. A player can now aim at
+the miner rather than guessing a tiny box. The target order is the game's
+authoritative cached usable hit, then a visibility trace. A buildable-only
+request deliberately discards a valid non-buildable use target (for example a
+resource node) so it can still trace to the miner behind it.
+
+Safety properties retained:
+
+- an aimed selection clears actor ids, lightweight refs, category counts, and
+  cost state first; it can never retain hidden structure from an earlier box;
+- it never silently expands to a nearby box;
+- Blueprint Designers and pieces already inside one are refused;
+- visible category filters still apply;
+- the existing orange selection overlay is capped at exactly one actor and the
+  normal recipe-cost calculation is refreshed.
+
+Verification: exact CL 502094 header/API review, `npm test` **761/761**,
+`scripts/validate.ps1` (SML 3.12.0 and FactoryGame 502094), Editor and Shipping
+builds, plus UAT cook/archive/deploy all passed. The deployed archive is
+15,911,967 bytes, SHA-256
+`182A96C11A76784F7EA2D0EF5814141ADCBC8342599438152C55D25AB856D6F9`; the
+installed Shipping DLL is 862,208 bytes, SHA-256
+`B1C519E33AB59C6F97DE4B86BD7A32EBACF2ADAFEE83656B0E7E67E32F59BF76`.
+
+Live status: packaging happened with Satisfactory closed and did not alter any
+save. The desktop-control bridge can inspect the game's window but currently
+cannot activate/click it after launch, so the final in-Playthrough click test is
+still honestly pending. Do not claim miner resource-node binding is proven
+until a disposable miner is exported, removed, and placed through the native
+Build Gun on a different compatible node.
+
+Collaboration check: `origin/master` and `origin/claude/belt-routing` are both
+already contained by `origin/integrate/codex-blueprint-lanes` at `306de69`; no
+new Claude handoff or overlap was found before this work.

@@ -7,6 +7,7 @@
 #include "AIFactoryCopilotUISubsystem.generated.h"
 
 class AAIFactorySubsystem;
+class AActor;
 class AFGPlayerController;
 class IInputProcessor;
 class SEditableTextBox;
@@ -165,6 +166,14 @@ private:
     /** Re-query the box, repaint the highlight, update the count. */
     void RefreshSelectionPreview();
     void ClearSelectionPreview();
+    /**
+     * The exact currently aimed actor, from the game's usable-hit state or
+     * visibility trace. A buildable-only query deliberately falls through
+     * when the usable target is a resource node or another non-buildable.
+     */
+    AActor* GetAimedActor(bool bRequireBuildable = false) const;
+    /** Replace the preview with exactly one eligible buildable under the crosshair. */
+    void SelectAimedBuildable();
     void ExportSelectionAsBlueprint();
     /** Slider position 0..1 mapped to a usable range of metres. */
     static float SliderToMetres(float Normalised);

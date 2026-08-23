@@ -561,6 +561,62 @@ bool UAIFactoryCopilotUISubsystem::Tick(const float DeltaTime)
     return true;
 }
 
+/**
+ * Use the same target hierarchy for a one-piece blueprint selection that the
+ * live status line shows: Satisfactory's own usable hit is more precise than
+ * a generic visibility trace, and the trace is only the fallback for a
+ * buildable without a use prompt.
+ */
+AActor* UAIFactoryCopilotUISubsystem::GetAimedActor(const bool bRequireBuildable) const
+{
+    AFGPlayerController* PlayerController = GetLocalPlayerController();
+    APawn* Pawn = IsValid(PlayerController) ? PlayerController->GetPawn() : nullptr;
+    if (!IsValid(PlayerController) || !IsValid(Pawn))
+    {
+        return nullptr;
+    }
+
+    AActor* FocusActor = nullptr;
+    if (AFGCharacterPlayer* Character =
+            Cast<AFGCharacterPlayer>(PlayerController->GetControlledCharacter()))
+    {
+        if (FUseState* UseState = Character->GetCachedUseState();
+            UseState && UseState->bIsTraceHit)
+        {
+            FocusActor = UseState->UseHitResult.GetActor();
+        }
+    }
+
+    // The usable target of a miner can be the resource node rather than the
+    // miner itself. For an exact blueprint selection that is not enough: let
+    // the visibility trace have a chance to resolve the actual buildable.
+    if (bRequireBuildable && !IsValid(Cast<AFGBuildable>(FocusActor)))
+    {
+        FocusActor = nullptr;
+    }
+
+    if (!IsValid(FocusActor))
+    {
+        FVector ViewLocation;
+        FRotator ViewRotation;
+        PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
+        FHitResult Hit;
+        FCollisionQueryParams QueryParams(
+            SCENE_QUERY_STAT(AIFactoryCopilotUIAimedSelectionTrace), true, Pawn);
+        if (UWorld* World = PlayerController->GetWorld())
+        {
+            World->LineTraceSingleByChannel(
+                Hit,
+                ViewLocation,
+                ViewLocation + ViewRotation.Vector() * 25000.0,
+                ECC_Visibility,
+                QueryParams);
+            FocusActor = Hit.GetActor();
+        }
+    }
+    return IsValid(FocusActor) ? FocusActor : nullptr;
+}
+
 void UAIFactoryCopilotUISubsystem::UpdateLiveStatus()
 {
     if (!LiveStatusText.IsValid())
@@ -576,34 +632,7 @@ void UAIFactoryCopilotUISubsystem::UpdateLiveStatus()
         return;
     }
 
-    AActor* FocusActor = nullptr;
-    if (AFGCharacterPlayer* Character = Cast<AFGCharacterPlayer>(PlayerController->GetControlledCharacter()))
-    {
-        if (FUseState* UseState = Character->GetCachedUseState();
-            UseState && UseState->bIsTraceHit)
-        {
-            FocusActor = UseState->UseHitResult.GetActor();
-        }
-    }
-
-    if (!IsValid(FocusActor))
-    {
-        FVector ViewLocation;
-        FRotator ViewRotation;
-        PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
-        FHitResult Hit;
-        FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(AIFactoryCopilotUILiveTrace), true, Pawn);
-        if (UWorld* World = PlayerController->GetWorld())
-        {
-            World->LineTraceSingleByChannel(
-                Hit,
-                ViewLocation,
-                ViewLocation + ViewRotation.Vector() * 25000.0,
-                ECC_Visibility,
-                QueryParams);
-            FocusActor = Hit.GetActor();
-        }
-    }
+    AActor* FocusActor = GetAimedActor();
 
     const FVector Location = Pawn->GetActorLocation() / 100.0;
     const FString FocusName = IsValid(FocusActor) ? FocusActor->GetName() : TEXT("nothing");
@@ -1042,6 +1071,94 @@ void UAIFactoryCopilotUISubsystem::ClearSelectionPreview()
 }
 
 /**
+ * Select one building the player deliberately has under their crosshair.
+ *
+ * This is deliberately not a tiny box: a miner's resource-node footprint and
+ * cached bounds make a strict box selection awkward, and silently widening a
+ * user's exact request would be worse than asking them to aim again. Sliders
+ * remain the route for a whole floor or base; touching a slider after this
+ * starts a fresh box preview as the panel already says.
+ */
+void UAIFactoryCopilotUISubsystem::SelectAimedBuildable()
+{
+    AFGBuildable* Buildable = Cast<AFGBuildable>(GetAimedActor(true));
+    if (!IsValid(Buildable))
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT(
+            "Aim directly at one built machine, belt, power piece, or structure, then choose Select aimed."));
+        return;
+    }
+
+    const FString ClassName = Buildable->GetClass()->GetName();
+    if (ClassName.Contains(TEXT("BlueprintDesigner")))
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT(
+            "The Blueprint Designer cannot be part of the blueprint it is writing. Aim at a factory building instead."));
+        return;
+    }
+    if (Buildable->IsBuildableInsideBlueprintDesigner())
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT(
+            "That building already belongs to a Blueprint Designer. Aim at a buildable in the world instead."));
+        return;
+    }
+
+    const int32 Category = CategoryIndexFor(Buildable->GetClass());
+    if (!SelectionCategoryEnabled[Category])
+    {
+        static const TCHAR* CategoryNames[5] =
+            { TEXT("Structure"), TEXT("Machines"), TEXT("Belts/pipes"), TEXT("Power"), TEXT("Other") };
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(
+            TEXT("That aimed building is %s, but its selection filter is off. Turn it on, then select it again."),
+            CategoryNames[Category]));
+        return;
+    }
+
+    // Clear makes the exact selection a replacement rather than a hidden
+    // addition to the last box. It also resets stable lightweight refs so an
+    // aimed actor can never serialize an invisible old foundation selection.
+    ClearSelectionPreview();
+    SelectionActorIds.Add(Buildable->GetPathName());
+    ++SelectionCategoryCounts[Category];
+    if (const TSubclassOf<UFGRecipe> Recipe = Buildable->GetBuiltWithRecipe())
+    {
+        SelectionRecipeCounts.FindOrAdd(Recipe) += 1;
+    }
+    RefreshSelectionCost();
+
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (IsValid(World))
+    {
+        FAIFactoryOverlayQuery Query;
+        Query.ActorIds = SelectionActorIds;
+        Query.MaxResults = 1;
+        Query.RadiusMeters = 1.0;
+
+        FAIFactoryOverlayStyle Style;
+        Style.Color = AIFactoryPalette::Orange;
+        Style.bDrawTracers = false;
+        Style.LifetimeSeconds = 0.0f;
+        AIFactoryOverlay::Draw(
+            World,
+            Cast<AFGCharacterPlayer>(Controller->GetPawn()),
+            TEXT("selection"),
+            Query,
+            Style);
+    }
+
+    if (SelectionCountText.IsValid())
+    {
+        SelectionCountText->SetText(FText::FromString(FString::Printf(
+            TEXT("1 selected exactly: %s | move a slider to start a new box selection"),
+            *Buildable->GetName())));
+    }
+    AppendTranscript(TEXT("COPILOT"), FString::Printf(
+        TEXT("Selected **%s** exactly. This is ready to save as a native blueprint."),
+        *Buildable->GetName()));
+}
+
+/**
  * Export exactly what is lit up.
  *
  * Calls the exporter directly rather than going through the bridge: the ids
@@ -1367,6 +1484,23 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     // tedious on a large base.
                     bSelectionAnchored = false;
                     RefreshSelectionPreview();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .Text(FText::FromString(TEXT("Select aimed")))
+                .ToolTipText(FText::FromString(TEXT(
+                    "Replace the current selection with exactly the buildable under your crosshair. "
+                    "This never expands into a box.")))
+                .OnClicked_Lambda([this]()
+                {
+                    SelectAimedBuildable();
                     return FReply::Handled();
                 })
             ]
