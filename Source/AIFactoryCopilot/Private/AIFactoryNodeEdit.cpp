@@ -3,6 +3,7 @@
 #include "AIFactoryCopilotModule.h"
 #include "EngineUtils.h"
 #include "Resources/FGResourceDescriptor.h"
+#include "Resources/FGResourceDeposit.h"
 #include "Resources/FGResourceNodeBase.h"
 
 namespace AIFactoryNodeEdit
@@ -59,6 +60,27 @@ bool SetNodeResource(
     if (World->GetNetMode() == NM_Client)
     {
         OutReason = TEXT("only the host can change a node");
+        return false;
+    }
+
+    // A deposit is not a node, and the class hierarchy hides that:
+    // AFGResourceDeposit derives from AFGResourceNode, so a plain cast accepts
+    // one happily. Deposits are the finite hand-mined lumps -- retargeting one
+    // yields a few items by hand and nothing a miner can ever stand on.
+    //
+    // This is not a rare misfire. Around the owner's hub the capture counts 19
+    // deposits against 10 nodes, so aiming at a deposit is the *likely* outcome.
+    // It cost a real debugging session: the override applied correctly, the rock
+    // read "Coal", the node beside it still read "Limestone", and it looked like
+    // the feature was broken.
+    if (Node->IsA<AFGResourceDeposit>())
+    {
+        OutReason = TEXT(
+            "that is a resource deposit, not a node. Deposits are the small finite "
+            "lumps you hand-mine; a miner cannot be built on one, so changing what "
+            "it yields gains you almost nothing. Aim at the larger node -- its "
+            "prompt names a purity, like \"Limestone (Normal)\", where a deposit's "
+            "does not");
         return false;
     }
 
