@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/terrain-coverage-integrity` | Fail-closed terrain-coverage integrity for Claude's new decoded-blueprint × terrain assessment: `companion/lib/siting.mjs` and focused tests only. Require demonstrated coverage of the complete rotated blueprint footprint before any flat/workable judgment; preserve the existing scan, fit route, output schema, and all game/UI placement work. | in progress |
+| 2026-08-23 | Codex | `codex/terrain-coverage-integrity` | Fail-closed terrain-coverage integrity for Claude's new decoded-blueprint × terrain assessment: `companion/lib/siting.mjs` and focused tests only. Require demonstrated coverage of the complete rotated blueprint footprint before any flat/workable judgment; preserve the existing scan, fit route, output schema, and all game/UI placement work. | complete; 776 companion tests pass after a clean local `npm ci`; no C++ or game write changed |
 | 2026-08-23 | Codex | `codex/aimed-blueprint-selection` | Add a non-destructive exact crosshair selection control to the native Blueprint UI. It will use the player's authoritative cached-use hit (then the existing visibility trace fallback), select only an eligible `AFGBuildable`, refresh the normal preview/cost, and never silently broaden into a box selection. Files: `AIFactoryCopilotUISubsystem.{h,cpp}` plus focused source-contract tests. Preserve the box selector, native serializer, and all existing filters. | claimed; no implementation before this notice is pushed |
 | 2026-08-23 | Codex | `codex/stable-lightweight-selection` | Native Blueprint export safety: replace mutable `(buildable class, array index)` lightweight selection records with Satisfactory's public `FLightweightBuildableInstanceRef`, fail closed when a selected instance has changed, and reset stale lightweight selection state. Files: `AIFactoryCopilotUISubsystem.{h,cpp}`, `AIFactoryBlueprintExport.{h,cpp}`, focused source-contract tests. Preserve Claude's materialisation/export workflow and do not add an arbitrary blueprint-size limit. | complete: 757 companion tests, exact CL 502094 headers, Shipping + Editor builds, UAT package/deploy. Reopened to the normal Playthrough menu (51 mods loaded); live export evidence remains pending because this session's UI-control bridge could capture but not activate the game window after restart. |
 | 2026-08-23 | Codex | `codex/blueprint-goal-validation` | Goal-aligned validation of Claude's committed `integrate/codex-blueprint-lanes` baseline: no source rewrite in Claude's exporter/router/action lanes. Run exact source/header validation, the companion suite, build/package if clean, then perform the smallest native-Blueprint/vanilla-Build-Gun live proof for a Miner on a real node. Record authoritative evidence and hand off; any code fix becomes a new, narrow claim. | in progress |
@@ -3997,3 +3997,30 @@ post-commit `scripts/install-companion.ps1` reinstall then verified 34 runtime
 file hashes and the same live query repeated successfully with the current
 `Build_*` wording. The game remains open, so do not package or deploy the DLL
 until it is closed.
+
+### Codex — 2026-08-23 complete-footprint terrain integrity handoff
+
+Claude's latest integration commit `31c183a` correctly joined the two inputs a
+world editor needs before showing a saved blueprint at a site: Codex's decoded
+native blueprint transforms and the game's measured terrain scan. Its first
+version, however, accepted one or more probes under the centre of a blueprint
+as enough to call the full footprint flat or workable. An 8 m scan could thus
+certify a 32 x 16 m blueprint. That violated the project's unknown-stays-
+unknown rule.
+
+`companion/lib/siting.mjs` now reconstructs the scanner's recorded grid from
+its actual `achieved_step_meters`, declared scan origin, and raw hit/miss
+samples. It fails closed unless **every grid cell touching the complete rotated
+footprint** is present and has ground. A truncated scan, unknown grid spacing,
+missing scan centre, missing lattice cell, or no-ground sample returns a named
+unknown result rather than a terrain verdict. The response now reports the
+measured grid spacing and tells the player exactly how to re-scan. An offset
+placement continues to use the original scan lattice rather than inventing a
+new grid at the requested origin.
+
+Focused tests cover partial central scans, interior holes, no-ground probes,
+truncated captures, and offset placement. After `npm ci` installed the pinned
+parser into this isolated worktree (the first run had accidentally resolved a
+parent worktree's dependency), the full suite is **776/776** passing. This is
+companion-only: no C++ UI, overlay, hologram, save, or game action changed, and
+the still-open Playthrough game was left untouched.

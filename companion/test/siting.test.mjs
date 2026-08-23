@@ -21,7 +21,13 @@ function scan({ shape = () => ({}), radiusCm = 4000 } = {}) {
       samples.push({ x, y, z: 10000, slope_deg: 0, water: false, ...shape(x, y) });
     }
   }
-  return { center: { x: 0, y: 0, z: 10000 }, achieved_step_meters: 4, samples };
+  return {
+    center: { x: 0, y: 0, z: 10000 },
+    radius_meters: radiusCm / 100,
+    achieved_step_meters: 4,
+    truncated: false,
+    samples,
+  };
 }
 
 test("footprint comes from the blueprint's own decoded bounds", () => {
@@ -35,6 +41,17 @@ test("a quarter turn swaps width and depth", () => {
   assert.equal(site.footprint_m.width, 16);
   assert.equal(site.footprint_m.depth, 32);
   assert.equal(site.rotation_deg, 90);
+});
+
+test("an offset blueprint is checked against the scan lattice, not a made-up new grid", () => {
+  const site = assessBlueprintSite(blueprint, scan(), {
+    // Deliberately not a 4 m multiple: the sample lattice is still centred on
+    // the scan, not on every prospective blueprint placement.
+    origin: { x: 1000, y: 0 },
+  });
+  assert.equal(site.ok, true);
+  assert.equal(site.centre_cm.x, 1000);
+  assert.equal(judgeSite(site).verdict, "flat");
 });
 
 test("a rotation the game cannot snap to is refused, not approximated", () => {
@@ -85,13 +102,47 @@ test("only ground under the footprint is judged, not the whole scan", () => {
   assert.equal(judgeSite(site).verdict, "flat");
 });
 
-test("a footprint reaching past the scan says so instead of judging a fragment", () => {
+test("a footprint reaching past the scan stays unknown instead of judging its centre fragment", () => {
   const site = assessBlueprintSite(blueprint, scan({ radiusCm: 400 }));
   // 32 m wide against an 8 m scan: the probes present are not the footprint.
-  assert.equal(site.ok, true, "a small scan still has probes under the centre");
+  assert.equal(site.ok, false);
+  assert.equal(site.reason, "footprint_scan_coverage_incomplete");
+  assert.match(formatSiteAssessment(site, judgeSite(site)), /Only .* terrain grid probes cover this footprint/);
   const tiny = assessBlueprintSite(blueprint, { center: { x: 900000, y: 0 }, samples: [] });
   assert.equal(tiny.ok, false);
   assert.equal(tiny.reason, "no_terrain_scan");
+});
+
+test("one missing lattice cell inside the footprint keeps the site unknown", () => {
+  const incomplete = scan();
+  incomplete.samples = incomplete.samples.filter((sample) => sample.x !== 0 || sample.y !== 0);
+
+  const site = assessBlueprintSite(blueprint, incomplete);
+  assert.equal(site.ok, false);
+  assert.equal(site.reason, "footprint_scan_coverage_incomplete");
+  assert.equal(site.required_probes, 45);
+  assert.equal(site.recorded_probes, 44);
+});
+
+test("a probe that did not find ground cannot turn the remaining footprint flat", () => {
+  const site = assessBlueprintSite(
+    blueprint,
+    scan({ shape: (x, y) => (x === 0 && y === 0 ? { hit: false } : {}) }),
+  );
+
+  assert.equal(site.ok, false);
+  assert.equal(site.reason, "footprint_ground_coverage_incomplete");
+  assert.equal(site.missing_ground_probes, 1);
+  assert.match(formatSiteAssessment(site, judgeSite(site)), /stays unknown rather than being called flat/);
+});
+
+test("a truncated terrain scan never certifies a blueprint site", () => {
+  const truncated = { ...scan(), truncated: true };
+  const site = assessBlueprintSite(blueprint, truncated);
+
+  assert.equal(site.ok, false);
+  assert.equal(site.reason, "terrain_scan_truncated");
+  assert.match(formatSiteAssessment(site, judgeSite(site)), /cut short/);
 });
 
 test("the levelling estimate is stated in foundations, not centimetres", () => {
@@ -107,6 +158,7 @@ test("it never claims the game will accept the placement", () => {
   const text = formatSiteAssessment(site, judgeSite(site));
   assert.match(text, /Clearance against existing buildings/);
   assert.match(text, /not modelled here/);
+  assert.match(text, /at 4 m spacing/);
 });
 
 test("a missing terrain scan tells the player how to get one", () => {
