@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/selection-overlay` | Real-time native Blueprint editor selection overlay: audit and add a dedicated, shipping-safe visual contract for the exact actor + lightweight structure selection the UI can export. The overlay must not silently drop objects; it will draw the selection volume and bounded individual geometry when feasible, or explicitly report a condensed representation. Scope is `AIFactoryCopilotUISubsystem` / `AIFactoryOverlay`, focused source-contract tests, docs, and exact-header validation only. Preserve all current export, filter, selection, and Build Gun behavior. | claimed; no implementation before this notice is pushed |
+| 2026-08-23 | Codex | `codex/selection-overlay` | Real-time native Blueprint editor selection overlay: audit and add a dedicated, shipping-safe visual contract for the exact actor + lightweight structure selection the UI can export. The overlay must not silently drop objects; it draws the selection volume and every individual bound when feasible, or explicitly reports a condensed representation. Scope is `AIFactoryCopilotUISubsystem` / `AIFactoryOverlay`, focused source-contract tests, docs, and exact-header validation only. Preserve all current export, filter, selection, and Build Gun behavior. | complete in source; 784 companion tests, exact headers, and Shipping module compile pass; packaged live visual check pending |
 | 2026-08-23 | Codex | `codex/buildgun-preview-contract` | Restore the missing direct local `preview_blueprint` Build Gun route and additive bridge-side standalone-plan guard for the already-integrated native client RCO. Add focused companion/source-contract tests, exact header validation entries, and goal/collaboration documentation; preserve Claude's UI/export/selection and the existing C++ implementation. | complete; 782 companion tests plus exact SML/FactoryGame header validation pass; visual in-game proof remains pending |
 | 2026-08-23 | Codex | `codex/terrain-coverage-integrity` | Fail-closed terrain-coverage integrity for Claude's new decoded-blueprint × terrain assessment: `companion/lib/siting.mjs` and focused tests only. Require demonstrated coverage of the complete rotated blueprint footprint before any flat/workable judgment; preserve the existing scan, fit route, output schema, and all game/UI placement work. | complete; 776 companion tests pass after a clean local `npm ci`; no C++ or game write changed |
 | 2026-08-23 | Codex | `codex/aimed-blueprint-selection` | Add a non-destructive exact crosshair selection control to the native Blueprint UI. It will use the player's authoritative cached-use hit (then the existing visibility trace fallback), select only an eligible `AFGBuildable`, refresh the normal preview/cost, and never silently broaden into a box selection. Files: `AIFactoryCopilotUISubsystem.{h,cpp}` plus focused source-contract tests. Preserve the box selector, native serializer, and all existing filters. | claimed; no implementation before this notice is pushed |
@@ -4059,3 +4059,49 @@ the running Playthrough and deployed DLL were not touched. The remaining proof
 is visual, in the normal Playthrough: after installing the companion update,
 arm one known saved blueprint and confirm its native Build Gun hologram moves,
 rotates, snaps, and only constructs after the player's normal click.
+
+### Codex — 2026-08-23 exact world-editor selection-overlay handoff
+
+The Blueprint editor could already export actors and lightweight instances from
+one selection, but its orange preview was not the same selection: it re-queried
+only actors through the generic overlay, which caps results at 500 and cannot
+draw lightweight foundations or walls. A large export could therefore look
+partly selected even though the saved blueprint contained far more pieces.
+
+`AIFactoryOverlay::DrawSelection()` now accepts the exact `FBox` bounds that
+the UI used to accept each actor or lightweight instance. It always draws the
+full selection volume. For selections of at most 2,048 valid pieces it draws
+every individual bound in one `ULineBatchComponent::DrawLines` batch. For a
+larger selection (or unavailable individual bounds), it deliberately draws
+only the exact volume and reports the number condensed; it never draws a quiet
+prefix. The UI states which representation is on screen, including an empty or
+renderer-unavailable state. Clearing/replacing selection still clears the same
+named overlay, so an old box cannot remain after a new selection.
+
+This is a display-only editor improvement: no actor is spawned, adopted,
+destroyed, costed, or serialized by the overlay. It preserves all existing
+filters, exact aimed selection, exporter, native Blueprint save, and Build Gun
+handoff behavior. The official CL 502094 headers prove the three seams used:
+`AFGBuildable::GetCachedBounds`,
+`AFGLightweightBuildableSubsystem::GetAllLightweightBuildableInstances`, and
+`ULineBatchComponent::DrawLines(TArrayView<FBatchedLine>)`.
+
+Verification in `codex/selection-overlay`: clean `npm ci`, **784/784**
+companion tests, exact SML 3.12.0 / FactoryGame CL 502094 header validation,
+and a FactoryGameSteam Shipping module compile. The remaining live proof is
+visual: select actor-only, lightweight-only, more-than-500, more-than-2,048,
+and then empty-after-nonempty regions in the normal Playthrough; confirm the
+panel wording matches what is actually drawn before claiming a live editor
+test.
+
+### Codex — 2026-08-23 bridge provenance coordination
+
+Collaboration audit found no newer Claude commit: Claude's local integration
+checkout is `31c183a`, already an ancestor of the shared integration branch.
+The shared branch contains Codex's later terrain-integrity and Build Gun
+contract commits, currently through `54f41ac`. The process currently owning
+localhost port 8142 was manually started from Claude's older checkout, so it
+does **not** contain the restored deterministic Build Gun preview route. After
+the next shared integration/package is published, restart that exact bridge
+from the current integration/package before any live preview test. Do not use a
+visual result from the stale process as evidence against the native feature.

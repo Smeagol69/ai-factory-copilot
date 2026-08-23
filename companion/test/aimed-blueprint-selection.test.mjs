@@ -24,7 +24,9 @@ test("the native Blueprint UI can select exactly the aimed buildable", () => {
   assert.match(select, /SelectionActorIds\.Add\(Buildable->GetPathName\(\)\)/);
   assert.match(select, /ClearSelectionPreview\(\)/);
   assert.match(select, /RefreshSelectionCost\(\)/);
-  assert.match(select, /Query\.MaxResults = 1/);
+  assert.match(select, /AIFactoryOverlay::DrawSelection\(/);
+  assert.match(select, /ExactEntries/);
+  assert.doesNotMatch(select, /Query\.MaxResults/);
   assert.doesNotMatch(select, /RefreshSelectionPreview\(\)/);
 });
 

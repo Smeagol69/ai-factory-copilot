@@ -277,6 +277,7 @@ without disclosing the crossing.
 |---|---|---|
 | Native `.sbp` exporter | Claude | **working** — 94 buildings exported and placed |
 | Build Gun preview handoff | Codex | **integrated and contract-covered** — client-only native Build Gun handoff; visual in-game proof remains pending |
+| Exact world-editor selection overlay | Codex | **source complete** — accurate actor + lightweight bounds to 2,048 pieces; above that, an exact selection volume and explicit condensed status rather than a deceptive partial preview |
 | Unrestricted designer | open | may be unnecessary now the exporter works from the world |
 | Router / companion | Claude | 710 tests; web library removed, box preview added |
 | Placement C++ | Claude | Z fix proven live |

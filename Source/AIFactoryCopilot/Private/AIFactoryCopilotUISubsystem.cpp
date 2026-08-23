@@ -930,6 +930,11 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
     // snapshot showed none as actors -- they were in the lightweight map all
     // along and this test threw them away.
     const FBox SelectionBox(SelectionCentre - Half, SelectionCentre + Half);
+    // Keep the exact same geometry that decided membership. Re-querying actors
+    // in the generic highlight path used different bounds and had no way to
+    // represent lightweight foundations or walls, so its picture could not
+    // truthfully stand for what this editor will export.
+    TArray<FAIFactorySelectionOverlayEntry> SelectionOverlayEntries;
 
     for (TActorIterator<AFGBuildable> It(World); It; ++It)
     {
@@ -965,6 +970,15 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
             continue;
         }
         SelectionActorIds.Add(Buildable->GetPathName());
+        const FBox VisualBounds = ActorBounds.IsValid != 0
+            ? ActorBounds
+            : FBox(
+                Buildable->GetActorLocation() - FVector(60.0, 60.0, 60.0),
+                Buildable->GetActorLocation() + FVector(60.0, 60.0, 60.0));
+        FAIFactorySelectionOverlayEntry ActorEntry;
+        ActorEntry.Origin = VisualBounds.GetCenter();
+        ActorEntry.Extent = VisualBounds.GetExtent();
+        SelectionOverlayEntries.Add(MoveTemp(ActorEntry));
         ++SelectionCategoryCounts[ActorCategory];
         // Tallied here rather than in a second pass: this loop already holds
         // the buildable, and the cost line used to re-walk the entire world
@@ -1016,6 +1030,10 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
                     continue;
                 }
                 SelectionLightweight.Add(MoveTemp(Ref));
+                FAIFactorySelectionOverlayEntry LightweightEntry;
+                LightweightEntry.Origin = InstanceBounds.GetCenter();
+                LightweightEntry.Extent = InstanceBounds.GetExtent();
+                SelectionOverlayEntries.Add(MoveTemp(LightweightEntry));
                 ++LightweightCount;
                 ++SelectionCategoryCounts[InstanceCategory];
                 if (const TSubclassOf<UFGRecipe> Recipe = Instance.BuiltWithRecipe)
@@ -1025,26 +1043,46 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
             }
         }
     }
-    FAIFactoryOverlayQuery Query;
-    Query.ActorIds = SelectionActorIds;
-    // MaxResults caps the draw, so it has to admit everything the box caught
-    // or the highlight would show less than an export writes -- and that
-    // equality is the only reason a preview can stand in for marking each piece.
-    Query.MaxResults = FMath::Max(1, SelectionActorIds.Num());
-    Query.RadiusMeters = 1.0;
-
     FAIFactoryOverlayStyle Style;
     // Amber, so a selection reads differently from the green search overlay.
     Style.Color = AIFactoryPalette::Orange;
     Style.bDrawTracers = false;
+    Style.bDrawPillars = false;
     Style.LifetimeSeconds = 0.0f;
 
-    AIFactoryOverlay::Draw(
+    const FAIFactorySelectionOverlayResult SelectionOverlay = AIFactoryOverlay::DrawSelection(
         World,
-        Cast<AFGCharacterPlayer>(Pawn),
         TEXT("selection"),
-        Query,
+        SelectionBox,
+        SelectionOverlayEntries,
         Style);
+
+    FString VisualStatus;
+    if (!SelectionOverlay.bDrawn)
+    {
+        VisualStatus = FString::Printf(
+            TEXT("  |  preview unavailable: %s"),
+            *SelectionOverlay.Reason);
+    }
+    else if (SelectionOverlay.bCondensed)
+    {
+        VisualStatus = SelectionOverlay.InvalidBoundsCount > 0
+            ? FString::Printf(
+                TEXT("  |  orange selection volume shown; %d individual outlines condensed (%d bounds unavailable)"),
+                SelectionOverlay.CondensedCount,
+                SelectionOverlay.InvalidBoundsCount)
+            : FString::Printf(
+                TEXT("  |  orange selection volume shown; %d individual outlines condensed"),
+                SelectionOverlay.CondensedCount);
+    }
+    else if (SelectionOverlay.SelectedCount == 0)
+    {
+        VisualStatus = TEXT("  |  orange selection volume is empty");
+    }
+    else
+    {
+        VisualStatus = TEXT("  |  orange outlines show every selected piece");
+    }
 
     if (SelectionCountText.IsValid())
     {
@@ -1065,14 +1103,15 @@ void UAIFactoryCopilotUISubsystem::RefreshSelectionPreview()
                 : FString::Printf(TEXT("%s off"), CategoryNames[Index]);
         }
         SelectionCountText->SetText(FText::FromString(FString::Printf(
-            TEXT("%d selected (%d lightweight)  |  %s  |  %.0f x %.0f x %.0f m%s"),
+            TEXT("%d selected (%d lightweight)  |  %s  |  %.0f x %.0f x %.0f m%s%s"),
             SelectionActorIds.Num() + LightweightCount,
             LightweightCount,
             *Breakdown,
             SelectionWidthM,
             SelectionDepthM,
             SelectionHeightM,
-            bSelectionStrictFit ? TEXT("  |  fully inside only") : TEXT(""))));
+            bSelectionStrictFit ? TEXT("  |  fully inside only") : TEXT(""),
+            *VisualStatus)));
     }
 }
 
@@ -1159,20 +1198,26 @@ void UAIFactoryCopilotUISubsystem::SelectAimedBuildable()
     UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
     if (IsValid(World))
     {
-        FAIFactoryOverlayQuery Query;
-        Query.ActorIds = SelectionActorIds;
-        Query.MaxResults = 1;
-        Query.RadiusMeters = 1.0;
-
         FAIFactoryOverlayStyle Style;
         Style.Color = AIFactoryPalette::Orange;
         Style.bDrawTracers = false;
+        Style.bDrawPillars = false;
         Style.LifetimeSeconds = 0.0f;
-        AIFactoryOverlay::Draw(
+        const FBox CachedBounds = Buildable->GetCachedBounds();
+        const FBox ExactSelectionVolume = CachedBounds.IsValid != 0
+            ? CachedBounds
+            : FBox(
+                Buildable->GetActorLocation() - FVector(60.0, 60.0, 60.0),
+                Buildable->GetActorLocation() + FVector(60.0, 60.0, 60.0));
+        FAIFactorySelectionOverlayEntry ExactEntry;
+        ExactEntry.Origin = ExactSelectionVolume.GetCenter();
+        ExactEntry.Extent = ExactSelectionVolume.GetExtent();
+        const TArray<FAIFactorySelectionOverlayEntry> ExactEntries = { ExactEntry };
+        AIFactoryOverlay::DrawSelection(
             World,
-            Cast<AFGCharacterPlayer>(Controller->GetPawn()),
             TEXT("selection"),
-            Query,
+            ExactSelectionVolume,
+            ExactEntries,
             Style);
     }
 
