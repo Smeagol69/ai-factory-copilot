@@ -276,7 +276,7 @@ without disclosing the crossing.
 | Lane | Owner | State |
 |---|---|---|
 | Native `.sbp` exporter | Claude | **working** — 94 buildings exported and placed |
-| Build Gun preview handoff | Codex | **needs a manual merge** — conflicts with the export contract |
+| Build Gun preview handoff | Codex | **integrated and contract-covered** — client-only native Build Gun handoff; visual in-game proof remains pending |
 | Unrestricted designer | open | may be unnecessary now the exporter works from the world |
 | Router / companion | Claude | 710 tests; web library removed, box preview added |
 | Placement C++ | Claude | Z fix proven live |
@@ -356,10 +356,13 @@ Two lanes are already rebased onto `integrate/codex-blueprint-lanes`:
 - `native-blueprint-export-contract` — one noticeboard conflict, resolved by
   keeping both claim rows
 
-`buildgun-preview` is **not** rebased. It conflicts with the export contract in
-`companion/lib/actions.mjs` and `companion/lib/tools.mjs`, because both lanes
-add an action kind to the same enum and the same tool description. The two
-actions are complementary and both belong:
+The former `buildgun-preview` feature branch was deliberately not rebased: it
+conflicted with the export contract in `companion/lib/actions.mjs` and
+`companion/lib/tools.mjs`, because both lanes added an action kind to the same
+enum and the same tool description. Its compatible runtime implementation is
+now integrated with the export contract; the route, standalone-action guard,
+and verified public-header/source contracts are covered by regression tests.
+The two actions remain complementary:
 
     enum: [..., "place_blueprint", "preview_blueprint", "export_native_blueprint", ...]
 

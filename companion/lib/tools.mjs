@@ -826,7 +826,7 @@ export const SOLVER_TOOLS = [
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
-              blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
+              blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
               selection_source: {
                 type: "string",
                 enum: ["dismantle_selection", "box_selection"],

@@ -12,6 +12,7 @@ import {
   parseAimedFactoryRequest,
   parseBlueprintLayoutRequest,
   parseBlueprintListRequest,
+  parseBlueprintPreviewRequest,
   parseShowRequest,
   parseStructureRequest,
   routeQuestion,
@@ -45,6 +46,40 @@ test("an explicit aimed Mk.1 factory can leave its belts to the player", () => {
   assert.equal(parsed?.skip_belts, true);
   assert.equal(parsed?.raw_text, question);
   assert.equal(parseAimedFactoryRequest(question), null, "the strict route owns tiered no-belt requests");
+});
+
+test("an explicit native Build Gun preview is not mistaken for placement or listing", () => {
+  assert.deepEqual(
+    parseBlueprintPreviewRequest("preview the Coal power plant 2700MW v1.1 blueprint"),
+    { name: "Coal power plant 2700MW v1.1" },
+  );
+  assert.deepEqual(
+    parseBlueprintPreviewRequest("arm my Steel Works in my build gun"),
+    { name: "Steel Works" },
+  );
+  assert.equal(parseBlueprintPreviewRequest("list my blueprints"), null);
+  assert.equal(parseBlueprintPreviewRequest("place the Coal power plant blueprint here"), null);
+});
+
+test("previewing a saved blueprint emits only a client Build Gun handoff", () => {
+  const emitted = [];
+  const answer = answerLocally("preview the Coal power plant blueprint", graphOf(), {
+    listBlueprints: () => [{
+      name: "Coal power plant",
+      designer_dimensions: { x: 12, y: 12, z: 6 },
+      build_cost: [],
+    }],
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.ok(answer);
+  assert.equal(answer.local.solver, "blueprint_preview");
+  assert.match(answer.reply, /Nothing is being placed or charged/i);
+  assert.deepEqual(emitted, [{
+    action: "preview_blueprint",
+    blueprint_name: "Coal power plant",
+    commit: true,
+  }]);
 });
 
 test("oversized plan refusals report the requested count", () => {

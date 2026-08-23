@@ -1109,6 +1109,31 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
     };
   }
 
+  // A native Blueprint Build Gun preview is deliberately neither a world write
+  // nor an overlay.  It is a one-player input hand-off: the server verifies the
+  // descriptor then asks that player's local Build Gun to select it.  Keeping
+  // it completely alone prevents a model from making a harmless-looking client
+  // preview appear to be part of a committed construction transaction.  The
+  // game repeats this exact partition before it sends the RCO.
+  const clientPreviews = actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action));
+  if (clientPreviews.length > 0 && clientPreviews.length !== actions.length) {
+    return {
+      valid: false,
+      reason: "client_preview_must_be_a_standalone_action",
+      actions: [],
+      note:
+        "A native Build Gun preview is local to one player and cannot share a transaction with another action.",
+    };
+  }
+  if (clientPreviews.length > 1) {
+    return {
+      valid: false,
+      reason: "only_one_client_blueprint_preview_per_request",
+      actions: [],
+      note: "One Build Gun can display one active blueprint hologram at a time.",
+    };
+  }
+
   const committedWrites = actions.filter(
     (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
   );
@@ -1157,8 +1182,11 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
       (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
     ).length,
     overlays: actions.filter((action) => OVERLAY_ACTION_KINDS.includes(action.action)).length,
+    client_previews: clientPreviews.length,
     execution:
-      "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
+      clientPreviews.length > 0
+        ? "Sent to the requesting player's native Build Gun only. It does not construct, spend items, mutate the world, or create an undo transaction."
+        : "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
   };
 }
 
@@ -1180,6 +1208,7 @@ export function summarizePlan(graph, plan) {
   const nativeExports = plan.actions.filter(
     (action) => action.action === "export_native_blueprint",
   ).length;
+  const clientPreviews = plan.actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action)).length;
 
   return {
     ...plan,
@@ -1188,7 +1217,9 @@ export function summarizePlan(graph, plan) {
       by_kind: byKind,
       irreversible_steps: irreversible,
       reversible:
-        irreversible === 0 && nativeExports === 0
+        clientPreviews > 0
+          ? "This only arms the requesting player's normal Blueprint Build Gun; it does not change the world."
+          : irreversible === 0 && nativeExports === 0
           ? "Every step in this plan can be undone with undo_last."
           : [
               ...(irreversible > 0
@@ -1198,6 +1229,7 @@ export function summarizePlan(graph, plan) {
                 ? [`${nativeExports} native blueprint export step(s) write files and cannot be undone with undo_last.`]
                 : []),
             ].join(" "),
+      client_preview_steps: clientPreviews,
     },
   };
 }

@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   ACTION_KINDS,
+  CLIENT_ACTION_KINDS,
   describeUnkeptPromise,
   summarizePlan,
   validateAction,
@@ -21,6 +22,53 @@ test("refuses an action the mod cannot execute", () => {
   assert.equal(result.valid, false);
   assert.equal(result.reason, "unsupported_action");
   assert.deepEqual(result.supported, ACTION_KINDS);
+});
+
+test("a native Build Gun preview is client-only and receives no world revision", () => {
+  const graph = graphOf();
+  graph.services = {
+    blueprints: [{
+      name: "Copper Module",
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      build_cost: [],
+    }],
+  };
+
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+    // Deliberately ignored: this action always means selecting a local Build
+    // Gun hologram, never a server construction preview/commit choice.
+    commit: false,
+  });
+
+  assert.equal(result.valid, true, result.reason);
+  assert.deepEqual(CLIENT_ACTION_KINDS, ["preview_blueprint"]);
+  assert.equal(result.action.action, "preview_blueprint");
+  assert.equal(result.action.commit, true);
+  assert.equal(result.action.expect_world_revision, undefined);
+  assert.equal(result.checks.client_only, true);
+  assert.equal(result.checks.world_write, false);
+});
+
+test("a client Build Gun preview cannot share a transaction with another action", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "preview_blueprint", blueprint_name: "Copper Module" },
+    { action: "teleport_player", target: HERE, commit: true },
+  ]);
+  assert.equal(plan.valid, false);
+  assert.equal(plan.reason, "client_preview_must_be_a_standalone_action");
+  assert.deepEqual(plan.actions, []);
+});
+
+test("a native Build Gun preview tells callers it does not mutate the world", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "preview_blueprint", blueprint_name: "Copper Module" },
+  ]);
+  assert.equal(plan.valid, true, plan.reason);
+  assert.equal(plan.client_previews, 1);
+  assert.match(plan.execution, /does not construct, spend items, mutate the world/i);
+  assert.match(summarizePlan(graphOf(), plan).summary.reversible, /does not change the world/i);
 });
 
 test("a placement without an explicit z is refused, not defaulted to zero", () => {

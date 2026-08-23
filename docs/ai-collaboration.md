@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/buildgun-preview-contract` | Restore additive regression coverage and correct the handoff/docs for the already-integrated native `preview_blueprint` Build Gun route. Scope: focused companion/source-contract tests, exact header validation entries, and goal/collaboration documentation only; preserve Claude's current UI/export/selection and all runtime behavior. No action schema or C++ implementation rewrite. | in progress |
+| 2026-08-23 | Codex | `codex/buildgun-preview-contract` | Restore the missing direct local `preview_blueprint` Build Gun route and additive bridge-side standalone-plan guard for the already-integrated native client RCO. Add focused companion/source-contract tests, exact header validation entries, and goal/collaboration documentation; preserve Claude's UI/export/selection and the existing C++ implementation. | complete; 782 companion tests plus exact SML/FactoryGame header validation pass; visual in-game proof remains pending |
 | 2026-08-23 | Codex | `codex/terrain-coverage-integrity` | Fail-closed terrain-coverage integrity for Claude's new decoded-blueprint × terrain assessment: `companion/lib/siting.mjs` and focused tests only. Require demonstrated coverage of the complete rotated blueprint footprint before any flat/workable judgment; preserve the existing scan, fit route, output schema, and all game/UI placement work. | complete; 776 companion tests pass after a clean local `npm ci`; no C++ or game write changed |
 | 2026-08-23 | Codex | `codex/aimed-blueprint-selection` | Add a non-destructive exact crosshair selection control to the native Blueprint UI. It will use the player's authoritative cached-use hit (then the existing visibility trace fallback), select only an eligible `AFGBuildable`, refresh the normal preview/cost, and never silently broaden into a box selection. Files: `AIFactoryCopilotUISubsystem.{h,cpp}` plus focused source-contract tests. Preserve the box selector, native serializer, and all existing filters. | claimed; no implementation before this notice is pushed |
 | 2026-08-23 | Codex | `codex/stable-lightweight-selection` | Native Blueprint export safety: replace mutable `(buildable class, array index)` lightweight selection records with Satisfactory's public `FLightweightBuildableInstanceRef`, fail closed when a selected instance has changed, and reset stale lightweight selection state. Files: `AIFactoryCopilotUISubsystem.{h,cpp}`, `AIFactoryBlueprintExport.{h,cpp}`, focused source-contract tests. Preserve Claude's materialisation/export workflow and do not add an arbitrary blueprint-size limit. | complete: 757 companion tests, exact CL 502094 headers, Shipping + Editor builds, UAT package/deploy. Reopened to the normal Playthrough menu (51 mods loaded); live export evidence remains pending because this session's UI-control bridge could capture but not activate the game window after restart. |
@@ -4025,3 +4025,36 @@ parser into this isolated worktree (the first run had accidentally resolved a
 parent worktree's dependency), the full suite is **776/776** passing. This is
 companion-only: no C++ UI, overlay, hologram, save, or game action changed, and
 the still-open Playthrough game was left untouched.
+
+### Codex — 2026-08-23 native Build Gun preview contract handoff
+
+The native preview RCO and client-local Build Gun implementation were already
+present in the integration branch, but two bridge-side seams had been lost
+while the old feature branch diverged:
+
+- `parseBlueprintPreviewRequest()` existed but was never reached by
+  `answerLocally()`. Explicit phrases such as `preview the Coal power plant
+  blueprint` and `arm my Steel Works in my build gun` now resolve the saved
+  blueprint locally, emit only `preview_blueprint`, and answer free of a model
+  call. Ambiguous names still refuse rather than selecting the wrong build.
+- The bridge now mirrors the game server's `client_preview_must_be_a_standalone_action`
+  gate. A native preview cannot share a plan with construction, a teleport, or
+  an overlay, and only one can be requested because the Build Gun has one
+  active hologram. The emitted plan explicitly records that it is a
+  client-only handoff: no construction, item cost, world mutation, or undo
+  transaction.
+
+No fake hologram or direct placement was added. The existing RCO calls the
+official `AFGBuildGun::SetDesiredBlueprint()` then `GotoBuildState()` on the
+requesting local player, so Satisfactory retains its normal move, snap,
+rotate, nudge, affordability, and click-to-construct behavior. The companion
+tool description, action validation, direct-route tests, static C++ contract
+test, and exact Starter Project header validation now cover this connection.
+
+Verification in this isolated worktree: `npm ci`, `npm test` (**782/782**),
+and `scripts/validate.ps1` all passed against SML 3.12.0 / FactoryGame CL
+502094. This changes only bridge behavior and test/documentation contracts;
+the running Playthrough and deployed DLL were not touched. The remaining proof
+is visual, in the normal Playthrough: after installing the companion update,
+arm one known saved blueprint and confirm its native Build Gun hologram moves,
+rotates, snaps, and only constructs after the player's normal click.

@@ -4030,6 +4030,53 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "preview <name> blueprint" — hand a saved blueprint to the requesting
+  // player's real Build Gun. This is deliberately before direct placement:
+  // preview is a local, non-writing choice and must never be mistaken for
+  // permission to stamp a whole module into the world.
+  const blueprintPreview = parseBlueprintPreviewRequest(question);
+  if (blueprintPreview && graph) {
+    const started = Date.now();
+    const library = typeof services?.listBlueprints === "function" ? services.listBlueprints() : [];
+    const needle = blueprintPreview.name.toLowerCase();
+    const exact = library.filter((entry) => String(entry.name).toLowerCase() === needle);
+    const partial = library.filter((entry) => String(entry.name).toLowerCase().includes(needle));
+    const matches = exact.length > 0 ? exact : partial;
+
+    if (matches.length > 1) {
+      return localAnswer(
+        `"${blueprintPreview.name}" matches ${matches.length} blueprints, so I have not guessed:\n` +
+          matches.slice(0, 6).map((entry) => `- ${entry.name}`).join("\n") +
+          "\n\nSay the full name.",
+        "blueprint_preview_refused",
+        started,
+        "Ambiguous saved-blueprint name; nothing was sent to the Build Gun.",
+      );
+    }
+
+    if (matches.length === 1) {
+      const chosen = matches[0];
+      const emitted = emitValidatedPlan(graph, services, [
+        { action: "preview_blueprint", blueprint_name: chosen.name },
+      ]);
+      if (emitted) {
+        const dimensions = chosen.designer_dimensions;
+        const size = dimensions ? ` (${dimensions.x}×${dimensions.y}×${dimensions.z})` : "";
+        return localAnswer(
+          `Requesting the native Build Gun preview for **${chosen.name}**${size}. ` +
+            "Nothing is being placed or charged: move, rotate, snap, inspect, and click to construct it with Satisfactory's normal hologram.",
+          "blueprint_preview",
+          started,
+          "The saved-blueprint name was resolved from the local library; the game owns the hologram and eventual construction.",
+        );
+      }
+      const refusal = describePlanRejection();
+      if (refusal) {
+        return localAnswer(refusal, "blueprint_preview_refused", started, "Refused by validation before the client handoff.");
+      }
+    }
+  }
+
   // "place <name> here" — one hologram, and the game wires its insides itself.
   const blueprintPlace = parseBlueprintPlaceRequest(question);
   if (blueprintPlace && graph) {
