@@ -3990,6 +3990,7 @@ provider call:
 The live external companion reports bridge `1.0.0-beta.2` and advertises
 `blueprint_layout_inspection: true`. This proves the end-to-end read path,
 including duplicate-safe references, on the intended Playthrough session. The
-current source still needs the normal post-commit companion reinstall to carry
-the latest wording and packaging checks; the game remains open, so do not
-package or deploy the DLL until it is closed.
+post-commit `scripts/install-companion.ps1` reinstall then verified 34 runtime
+file hashes and the same live query repeated successfully with the current
+`Build_*` wording. The game remains open, so do not package or deploy the DLL
+until it is closed.
