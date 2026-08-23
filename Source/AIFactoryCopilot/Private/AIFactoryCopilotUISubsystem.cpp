@@ -236,6 +236,22 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .Padding(8.0f, 0.0f)
                         [
                             SNew(SButton)
+                            .Text(FText::FromString(TEXT("Help")))
+                            .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                            .ForegroundColor(AIFactoryPalette::Orange)
+                            .ToolTipText(FText::FromString(TEXT(
+                                "What to type here, what to type in the game chat, and the command list.")))
+                            .OnClicked_Lambda([this]()
+                            {
+                                ShowCommandHelp(false);
+                                return FReply::Handled();
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(8.0f, 0.0f)
+                        [
+                            SNew(SButton)
                             .ButtonColorAndOpacity(AIFactoryPalette::Button)
                             .ForegroundColor(AIFactoryPalette::Orange)
                             .Text(FText::FromString(TEXT("Reset")))
@@ -457,6 +473,19 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
     FString Question = InputBox->GetText().ToString().TrimStartAndEnd();
     if (Question.IsEmpty())
     {
+        return;
+    }
+
+    // A slash command typed here cannot work: this box sends a question to the
+    // assistant, and chat commands are run by the game's own console. Answering
+    // locally costs nothing and catches the mistake where it happens -- the
+    // alternative is a model politely answering something adjacent while the
+    // command never runs, which is indistinguishable from a broken feature.
+    if (Question.StartsWith(TEXT("/")))
+    {
+        InputBox->SetText(FText::GetEmpty());
+        AppendTranscript(TEXT("YOU"), Question);
+        ShowCommandHelp(true);
         return;
     }
 
@@ -2135,4 +2164,41 @@ void UAIFactoryCopilotUISubsystem::UpgradeSelection()
             ? *FString::Printf(TEXT(" %d were left alone — the game did not offer an upgrade path for them."), Refused)
             : TEXT("")));
     RefreshSelectionPreview();
+}
+
+/**
+ * The two input paths, and what belongs in each.
+ *
+ * Written out rather than linked to documentation, because the moment someone
+ * needs this they are in a game with a panel open, not reading a README.
+ */
+void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
+{
+    FString Text;
+    if (bBecauseSlashWasTyped)
+    {
+        Text += TEXT(
+            "That is a chat command, and this box is not the chat console — it sends "
+            "questions to the assistant, so nothing ran.\n\n"
+            "Press **Enter** to open the game's chat, then type it there.\n\n");
+    }
+
+    Text += TEXT(
+        "**Two places to type, and they do different things.**\n\n"
+        "*This box* — plain questions in your own words. No slash. \"what is this "
+        "machine\", \"what resources are near me\", \"is my hub well placed\".\n\n"
+        "*The game chat* (**Enter**) — commands that act on the world:\n\n"
+        "  `/aifactory look` — capture a screenshot for the assistant to read\n"
+        "  `/aifactory terrain [radius_m] [step_m]` — scan ground height, slope and water\n"
+        "  `/aifactory node` — list this map's resources\n"
+        "  `/aifactory node <resource>` — retarget the node you are looking at\n"
+        "  `/aifactory node original` — put that node back\n"
+        "  `/aifactory scan [radius_m]` — capture an actor snapshot\n"
+        "  `/aifactory export [radius_m|all]` — write the snapshot to disk\n"
+        "  `/aifactory status` — what the mod and bridge think is going on\n\n"
+        "**And most things need no typing at all.** The buttons above do the "
+        "selection work: size the box, tick what to include, then Save blueprint, "
+        "Upgrade, or Demolish.");
+
+    AppendTranscript(TEXT("COPILOT"), Text);
 }

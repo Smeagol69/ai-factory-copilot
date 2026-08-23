@@ -181,6 +181,7 @@ private:
 
     void BuildPanel();
     void ShowPanel();
+    void ShowCommandHelp(bool bBecauseSlashWasTyped);
     void SubmitQuestion();
     void ClearConversation();
     void AppendTranscript(const FString& Speaker, const FString& Text);
