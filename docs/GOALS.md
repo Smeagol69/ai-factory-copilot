@@ -302,8 +302,11 @@ valid binding. A real save/reload test remains the release gate, because these
 facts are pinned to this game build.
 
 The implementation has an exact CL 502094 Shipping compile and source-contract
-coverage plus a successful packaged Editor cook. It is deliberately **not yet
-called working**: the required disposable-save proof is Designer placement →
+coverage. A successful earlier package proved that the unsafe native detour was
+gone, but it predates the final fail-closed miner-restore hardening and must not
+be deployed or released. It is deliberately **not yet called working**: after
+Satisfactory closes, rebuild first, then run the required disposable-save proof:
+Designer placement →
 Miner snap → archive write → Designer reload → native Blueprint placement →
 extractor binding audit → save/reload → dismantle, plus a host/client Designer
 check. The game must be closed before the new DLL can be deployed for that
