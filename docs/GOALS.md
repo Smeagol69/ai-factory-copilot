@@ -283,11 +283,23 @@ extractors.
 A package cook exposed one engine/SML incompatibility before it reached the
 game: some generated `SetExtractableResource` implementations are too short
 for SML's native trampoline. The anchor deliberately does **not** hook that
-method. Instead, immediately before a native save or Blueprint archive it
-enumerates extractors and records only those whose authoritative live
-extractable-interface pointer equals this anchor's own transient node. That is
-an exact identity relationship, not a proximity, class, or name inference; it
-also avoids a module-load crash. The repaired Editor cook completed cleanly.
+method. It uses the engine's own `IFGExtractableResourceInterface::SetIsOccupied`
+claim notification to queue an exact next-tick reconciliation: it records only
+extractors whose authoritative live extractable-interface pointer equals this
+anchor's own transient node. A second exact-pointer scan immediately before a
+native save or Blueprint archive is a fallback. This is an identity
+relationship, not a proximity, class, or name inference; it also avoids a
+module-load crash. The repaired Editor cook completed cleanly.
+
+For the matching installed CL 502094 binary, the lifecycle ordering has also
+been verified rather than inferred: Blueprint archive calls each root's
+`PreSerializedToBlueprint` before it collects/serializes objects, and world
+save calls every `PreSaveGame` before serializing then every `PostSaveGame`
+afterward. Rebind is fail-closed: an explicitly recorded Miner is restored
+only when both of its resource references are empty and this anchor's
+single-extractor node is vacant; a stale mapping may never overwrite another
+valid binding. A real save/reload test remains the release gate, because these
+facts are pinned to this game build.
 
 The implementation has an exact CL 502094 Shipping compile and source-contract
 coverage plus a successful packaged Editor cook. It is deliberately **not yet

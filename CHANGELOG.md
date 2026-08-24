@@ -19,6 +19,10 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   extractor-interface bindings Satisfactory already made at the native
   save/Blueprint archive boundary. The package cook now loads cleanly; the
   required disposable live proof remains outstanding.
+- Hardened Resource Anchor restoration: a recorded Miner is restored only if
+  its current and legacy resource references are empty and the anchor node is
+  vacant. A stale saved entry can no longer overwrite a live miner binding or
+  create a second claim on the one-extractor node.
 - Repaired a const-reference compilation error in the read-only native
   Blueprint placement auditor.
 - Added a bounded, read-only runtime Blueprint-placement audit. A player can

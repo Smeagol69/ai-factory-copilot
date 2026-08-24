@@ -54,6 +54,8 @@ public:
     virtual bool ShouldSave_Implementation() const override { return false; }
     virtual void GetClearanceData_Implementation(
         TArray<FFGClearanceData>& OutData) const override;
+    virtual void SetIsOccupied(bool Occupied) override;
+    virtual bool CanBecomeOccupied() const override { return true; }
     virtual bool CanPlaceResourceExtractor() const override;
 
     bool Configure(
@@ -97,6 +99,8 @@ class AIFACTORYCOPILOT_API AAIFactoryBlueprintResourceAnchor final : public AFGB
 {
     GENERATED_BODY()
 
+    friend class AAIFactoryBlueprintAnchorNode;
+
 public:
     AAIFactoryBlueprintResourceAnchor();
 
@@ -139,6 +143,8 @@ private:
      * anchor-owned node. This is an identity check, never a proximity search.
      */
     void SynchronizeBoundExtractorsFromRuntimeNode();
+    void ScheduleBoundExtractorSynchronization();
+    void CompleteBoundExtractorSynchronization();
     bool HasBoundExtractorOnRuntimeNode() const;
     bool DisconnectBoundExtractorsFromRuntimeNode();
     void ScheduleExactRebind();
@@ -158,8 +164,9 @@ private:
     FAIFactoryBlueprintResourceAnchorConfiguration mConfiguration;
 
     /**
-     * Blueprint-safe identity mapping: each reference is an authored
-     * buildable in the same native Blueprint root set, never a spatial guess.
+     * Persisted identity mapping. Entries are recorded only from an exact live
+     * extractor→node pointer relation, never from a spatial guess; restore
+     * still refuses an extractor that is bound anywhere else.
      */
     UPROPERTY(SaveGame)
     TArray<TObjectPtr<AFGBuildableResourceExtractorBase>> mBoundExtractors;
@@ -172,6 +179,7 @@ private:
     TArray<TWeakObjectPtr<AFGBuildableResourceExtractorBase>> mTemporarilyDisconnectedExtractors;
 
     bool bRebindScheduled = false;
+    bool bBoundExtractorSynchronizationScheduled = false;
 
     UFUNCTION()
     void OnRep_Configuration();

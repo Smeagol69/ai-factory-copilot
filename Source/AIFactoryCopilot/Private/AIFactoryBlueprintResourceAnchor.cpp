@@ -132,6 +132,27 @@ void AAIFactoryBlueprintAnchorNode::GetClearanceData_Implementation(
     OutData.Add(Clearance);
 }
 
+void AAIFactoryBlueprintAnchorNode::SetIsOccupied(const bool Occupied)
+{
+    Super::SetIsOccupied(Occupied);
+
+    if (!Occupied)
+    {
+        return;
+    }
+
+    // IFGExtractableResourceInterface documents this as the notification that
+    // a miner has claimed the resource. The engine has already selected this
+    // exact node. Reconcile next tick so the complete spawned extractor is
+    // visible to the actor iterator; the archive-time scan remains a
+    // correctness fallback if a user saves during that construction frame.
+    if (AAIFactoryBlueprintResourceAnchor* const Anchor =
+            Cast<AAIFactoryBlueprintResourceAnchor>(GetOwner()))
+    {
+        Anchor->ScheduleBoundExtractorSynchronization();
+    }
+}
+
 bool AAIFactoryBlueprintAnchorNode::CanPlaceResourceExtractor() const
 {
     FString Reason;
@@ -389,10 +410,10 @@ void AAIFactoryBlueprintResourceAnchor::PreSerializedToBlueprint()
 
     // SML cannot safely detour SetExtractableResource on every supported
     // engine build (some generated implementations are too small for its
-    // trampoline). At this authoritative serializer boundary we can instead
-    // read the exact native binding the engine already made. It is a pointer
-    // identity comparison against this anchor's own transient node, so it
-    // cannot accidentally capture a nearby miner or resource node.
+    // trampoline). This per-actor archive callback is therefore a fallback
+    // read of the exact native binding the engine already made. It is a
+    // pointer identity comparison against this anchor's own transient node,
+    // so it cannot accidentally capture a nearby miner or resource node.
     SynchronizeBoundExtractorsFromRuntimeNode();
     TemporarilyDisconnectBoundExtractorsForSerialization(TEXT("Blueprint archive"));
 }
@@ -642,6 +663,26 @@ void AAIFactoryBlueprintResourceAnchor::SynchronizeBoundExtractorsFromRuntimeNod
     }
 }
 
+void AAIFactoryBlueprintResourceAnchor::ScheduleBoundExtractorSynchronization()
+{
+    if (!HasAuthority() || bBoundExtractorSynchronizationScheduled || !IsValid(GetWorld()))
+    {
+        return;
+    }
+
+    bBoundExtractorSynchronizationScheduled = true;
+    GetWorld()->GetTimerManager().SetTimerForNextTick(
+        FTimerDelegate::CreateUObject(
+            this,
+            &AAIFactoryBlueprintResourceAnchor::CompleteBoundExtractorSynchronization));
+}
+
+void AAIFactoryBlueprintResourceAnchor::CompleteBoundExtractorSynchronization()
+{
+    bBoundExtractorSynchronizationScheduled = false;
+    SynchronizeBoundExtractorsFromRuntimeNode();
+}
+
 bool AAIFactoryBlueprintResourceAnchor::HasBoundExtractorOnRuntimeNode() const
 {
     if (!IsValid(mRuntimeNode))
@@ -753,14 +794,29 @@ void AAIFactoryBlueprintResourceAnchor::RebindRecordedExtractors()
             continue;
         }
 
-        if (Extractor->GetExtractableResource().GetObject() != mRuntimeNode)
+        if (Extractor->GetExtractableResource().GetObject() == mRuntimeNode)
         {
-            // This is a persisted explicit anchor↔miner relationship from the
-            // same .sbp root set.  It is never a nearest-node or nearest-miner
-            // guess, and the extractor's own setter claims occupancy.
-            Extractor->SetExtractableResource(Resource);
+            continue;
         }
 
+        // A persisted mapping is authority to restore a deliberately detached
+        // miner, not authority to steal a miner the loaded world has already
+        // bound elsewhere. The native setter stores its interface before it
+        // considers occupancy, so call it only for a wholly unbound extractor
+        // and only while this one-extractor node is still vacant.
+        if (Extractor->GetExtractableResource().GetObject() != nullptr ||
+            Extractor->GetResourceNode() != nullptr ||
+            !mRuntimeNode->CanBecomeOccupied() ||
+            mRuntimeNode->IsOccupied())
+        {
+            UE_LOG(LogAIFactoryCopilot, Warning,
+                TEXT("Blueprint Resource Anchor %s left extractor %s unchanged because it or the anchor node was already occupied"),
+                *GetPathName(),
+                *Extractor->GetPathName());
+            continue;
+        }
+
+        Extractor->SetExtractableResource(Resource);
         if (Extractor->GetExtractableResource().GetObject() != mRuntimeNode)
         {
             UE_LOG(LogAIFactoryCopilot, Warning,
@@ -787,7 +843,25 @@ void AAIFactoryBlueprintResourceAnchor::RestoreTemporarilyDisconnectedExtractors
         if (AFGBuildableResourceExtractorBase* const Extractor = WeakExtractor.Get();
             IsValid(Extractor) && Extractor->GetWorld() == GetWorld())
         {
+            if (Extractor->GetExtractableResource().GetObject() != nullptr ||
+                Extractor->GetResourceNode() != nullptr ||
+                !mRuntimeNode->CanBecomeOccupied() ||
+                mRuntimeNode->IsOccupied())
+            {
+                UE_LOG(LogAIFactoryCopilot, Error,
+                    TEXT("Blueprint Resource Anchor %s could not safely restore temporarily detached extractor %s"),
+                    *GetPathName(),
+                    *Extractor->GetPathName());
+                continue;
+            }
             Extractor->SetExtractableResource(Resource);
+            if (Extractor->GetExtractableResource().GetObject() != mRuntimeNode)
+            {
+                UE_LOG(LogAIFactoryCopilot, Error,
+                    TEXT("Blueprint Resource Anchor %s failed to restore temporarily detached extractor %s"),
+                    *GetPathName(),
+                    *Extractor->GetPathName());
+            }
         }
     }
     mTemporarilyDisconnectedExtractors.Reset();
