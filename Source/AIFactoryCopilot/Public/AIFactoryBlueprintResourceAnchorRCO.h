@@ -6,6 +6,7 @@
 #include "AIFactoryBlueprintResourceAnchorRCO.generated.h"
 
 class AFGBuildGun;
+class AFGRecipeManager;
 class UFGRecipe;
 class UFGResourceDescriptor;
 
@@ -34,10 +35,25 @@ private:
     UFUNCTION()
     void HandleBuildGunRecipeChanged(TSubclassOf<UFGRecipe> NewRecipe);
 
+    UFUNCTION()
+    void HandleRecipeAvailable(TSubclassOf<UFGRecipe> NewRecipe);
+
     void ObserveBuildGun(AFGBuildGun* BuildGun);
     void StopObservingBuildGun();
+    void ObserveRecipeManager(AFGRecipeManager* RecipeManager);
+    void StopObservingRecipeManager();
+    void TryArmPendingBlueprintResourceAnchor();
+    void SchedulePendingArmRetry();
+    void ClearDeferredArm();
+    void CancelPendingArmAndConfiguration();
 
     TWeakObjectPtr<AFGBuildGun> mObservedBuildGun;
+    TWeakObjectPtr<AFGRecipeManager> mObservedRecipeManager;
+
+    TSubclassOf<UFGResourceDescriptor> mPendingResource;
+    TEnumAsByte<EResourcePurity> mPendingPurity = RP_Normal;
+    int32 mArmRetryFramesRemaining = 0;
+    bool bArmRetryScheduled = false;
 
     UPROPERTY(Replicated)
     bool bForceNetField_AIFactoryBlueprintResourceAnchorRCO = false;

@@ -208,7 +208,10 @@ normal Miner hologram has nothing valid to attach to. The experimental
 normal Build Gun. Place that anchor inside a native Designer, then place a
 Miner Mk.1–Mk.3 on its visible node using the ordinary Miner hologram. The
 anchor records the exact miner relationship so it can rebuild that same node
-when the Blueprint is reopened or placed.
+when the Blueprint is reopened or placed. Save the Blueprint only after the
+Miner has visibly snapped: the anchor records bindings by reading the exact
+native extractor-interface relationship at Satisfactory's archive boundary,
+not by guessing from distance or a class name.
 
 It does not make an extractor free-form: the game still owns its normal
 resource, occupancy, cost, snapping, and construct-disqualifier checks. Pumps,

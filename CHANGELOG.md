@@ -13,6 +13,12 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   guessing nearest nodes. It is compile- and contract-validated but remains
   gated on a packaged disposable-save/host-client proof before being called a
   working release feature.
+- Removed a packaging-discovered unsafe SML detour from the Resource Anchor
+  lifecycle. Some supported generated `SetExtractableResource` implementations
+  are too short for a safe trampoline, so anchors now discover only the exact
+  extractor-interface bindings Satisfactory already made at the native
+  save/Blueprint archive boundary. The package cook now loads cleanly; the
+  required disposable live proof remains outstanding.
 - Repaired a const-reference compilation error in the read-only native
   Blueprint placement auditor.
 - Added a bounded, read-only runtime Blueprint-placement audit. A player can

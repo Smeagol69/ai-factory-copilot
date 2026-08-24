@@ -591,8 +591,15 @@ test("Blueprint Designer miner support keeps the native node and extractor contr
   }
   assert.match(anchor, /mBlacklistedDesignerBuildables\.RemoveAtSwap/);
   assert.match(anchor, /mCanBePlacedInBlueprintDesigner/);
+  assert.match(anchor, /SynchronizeBoundExtractorsFromRuntimeNode\(\)/);
+  assert.match(anchor, /TActorIterator<AFGBuildableResourceExtractorBase>/);
+  assert.match(anchor, /Extractor->GetExtractableResource\(\)\.GetObject\(\) == mRuntimeNode/);
   assert.match(anchor, /DisconnectExtractableResource\(\)/);
   assert.match(anchor, /Extractor->GetResourceNode\(\) == nullptr/);
+  assert.match(anchorHeader, /CanDismantle_Implementation\(\) const override/);
+  assert.match(anchor, /return Super::CanDismantle_Implementation\(\) && !HasBoundExtractorOnRuntimeNode\(\)/);
+  assert.match(anchor, /if \(!CanDismantle_Implementation\(\)\)/);
+  assert.match(anchor, /could not fully detach extractor/);
   assert.match(anchor, /PreSaveGame_Implementation[\s\S]*TemporarilyDisconnectBoundExtractorsForSerialization/);
   assert.match(anchor, /PostSaveGame_Implementation[\s\S]*RestoreTemporarilyDisconnectedExtractors/);
   assert.match(anchor, /SetExtractableResource\(Resource\)/);
@@ -605,8 +612,13 @@ test("Blueprint Designer miner support keeps the native node and extractor contr
   assert.match(hologram, /mCanBePlacedInBlueprintDesigner = true/);
   assert.match(hologram, /ConfigureAnchor\(mRequestedResource, mRequestedPurity/);
   assert.match(rco, /BuildGun->GotoBuildState\(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass\(\)\)/);
+  assert.match(rco, /RecipeManager->IsRecipeAvailable\(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass\(\)\)/);
+  assert.match(rco, /mOnRecipeAvailable\.AddUniqueDynamic/);
+  assert.match(rco, /SetTimerForNextTick/);
+  assert.match(rco, /BlueprintAnchorRecipeReplicationRetryFrames/);
   assert.doesNotMatch(rco, /SpawnActor|Construct\(/);
   assert.match(worldModule, /EnableVanillaMinersInBlueprintDesigner\(GetWorld\(\)\)/);
+  assert.doesNotMatch(anchor, /SUBSCRIBE_METHOD|UNSUBSCRIBE_METHOD|NativeHookManager/);
 });
 
 test("an unconfigured manufacturer stays an unknown cycle rate instead of crashing the snapshot", () => {

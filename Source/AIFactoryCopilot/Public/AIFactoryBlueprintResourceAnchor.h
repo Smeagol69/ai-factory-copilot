@@ -104,6 +104,7 @@ public:
         TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual bool CanDismantle_Implementation() const override;
     virtual void Dismantle_Implementation() override;
     virtual void PreSaveGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
     virtual void PostSaveGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
@@ -127,25 +128,19 @@ public:
         return mRuntimeNode.Get();
     }
 
-    /**
-     * Called only after Satisfactory's own extractor binding succeeds.  It
-     * records an exact object relationship; rebind never searches by distance
-     * or chooses a nearby miner.
-     */
-    void RegisterBoundExtractor(AFGBuildableResourceExtractorBase* Extractor);
-
-    /** Native hook target registered by the module at startup. */
-    static void ObserveExtractorBinding(
-        AFGBuildableResourceExtractorBase* Extractor,
-        TScriptInterface<class IFGExtractableResourceInterface> Extractable);
-
     /** Called per world after the Blueprint subsystem is initialized. */
     static void EnableVanillaMinersInBlueprintDesigner(UWorld* World);
 
 private:
     bool EnsureRuntimeNode(FString& OutReason);
     void DestroyRuntimeNode();
-    void DisconnectBoundExtractorsFromRuntimeNode();
+    /**
+     * Records only miners whose live extractable interface is this exact
+     * anchor-owned node. This is an identity check, never a proximity search.
+     */
+    void SynchronizeBoundExtractorsFromRuntimeNode();
+    bool HasBoundExtractorOnRuntimeNode() const;
+    bool DisconnectBoundExtractorsFromRuntimeNode();
     void ScheduleExactRebind();
     void CompleteDeferredRebind();
     void RebindRecordedExtractors();
@@ -181,6 +176,3 @@ private:
     UFUNCTION()
     void OnRep_Configuration();
 };
-
-/** Installed once by the game module before any player Build Gun holograms exist. */
-void RegisterAIFactoryBlueprintResourceAnchorHooks();

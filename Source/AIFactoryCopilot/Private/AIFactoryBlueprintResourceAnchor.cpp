@@ -6,11 +6,11 @@
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "FGBlueprintSubsystem.h"
 #include "Hologram/FGHologram.h"
 #include "Net/UnrealNetwork.h"
-#include "Patching/NativeHookManager.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "TimerManager.h"
@@ -306,6 +306,17 @@ void AAIFactoryBlueprintResourceAnchor::EndPlay(const EEndPlayReason::Type EndPl
 {
     if (HasAuthority())
     {
+        // EndPlay can also be reached by map teardown or a forced rollback,
+        // after normal dismantle validation is no longer available.  Make one
+        // best-effort native detach before the transient node disappears.  A
+        // failed detach is logged explicitly; the normal player-facing path
+        // is prevented earlier by CanDismantle_Implementation.
+        if (!DisconnectBoundExtractorsFromRuntimeNode())
+        {
+            UE_LOG(LogAIFactoryCopilot, Error,
+                TEXT("Blueprint Resource Anchor %s reached EndPlay with an extractor that could not be fully detached"),
+                *GetPathName());
+        }
         DestroyRuntimeNode();
     }
     else
@@ -315,13 +326,38 @@ void AAIFactoryBlueprintResourceAnchor::EndPlay(const EEndPlayReason::Type EndPl
     Super::EndPlay(EndPlayReason);
 }
 
+bool AAIFactoryBlueprintResourceAnchor::CanDismantle_Implementation() const
+{
+    // Never allow an anchor to be dismantled out from under a live native
+    // Miner.  The miner must be dismantled first, which leaves no SaveGame
+    // resource pointer for this transient node to invalidate.  This is a
+    // gate on the exact current runtime relation, not on stale saved entries.
+    return Super::CanDismantle_Implementation() && !HasBoundExtractorOnRuntimeNode();
+}
+
 void AAIFactoryBlueprintResourceAnchor::Dismantle_Implementation()
 {
     // A miner stores the resource interface as a SaveGame reference.  Release
     // only the exact miners this anchor owns before destroying the transient
     // node, so a manual anchor dismantle cannot leave a miner pointing at a
     // destroyed actor.  This deliberately never searches for nearby miners.
-    DisconnectBoundExtractorsFromRuntimeNode();
+    // The game normally calls CanDismantle before this method. Repeat the
+    // exact guard for direct interface callers and avoid turning a race or a
+    // failed native detach into a destroyed-node reference.
+    if (!CanDismantle_Implementation())
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Blueprint Resource Anchor %s refused dismantle while a bound Miner still targets its runtime node"),
+            *GetPathName());
+        return;
+    }
+    if (!DisconnectBoundExtractorsFromRuntimeNode())
+    {
+        UE_LOG(LogAIFactoryCopilot, Error,
+            TEXT("Blueprint Resource Anchor %s refused dismantle because an extractor did not fully detach"),
+            *GetPathName());
+        return;
+    }
     DestroyRuntimeNode();
     Super::Dismantle_Implementation();
 }
@@ -334,6 +370,7 @@ void AAIFactoryBlueprintResourceAnchor::PreSaveGame_Implementation(
     // therefore need the same full detach/readback rule as a .sbp archive;
     // otherwise either extractor SaveGame pointer could retain a transient
     // actor across a normal world save.
+    SynchronizeBoundExtractorsFromRuntimeNode();
     TemporarilyDisconnectBoundExtractorsForSerialization(TEXT("world save"));
     Super::PreSaveGame_Implementation(SaveVersion, GameVersion);
 }
@@ -350,6 +387,13 @@ void AAIFactoryBlueprintResourceAnchor::PreSerializedToBlueprint()
 {
     Super::PreSerializedToBlueprint();
 
+    // SML cannot safely detour SetExtractableResource on every supported
+    // engine build (some generated implementations are too small for its
+    // trampoline). At this authoritative serializer boundary we can instead
+    // read the exact native binding the engine already made. It is a pointer
+    // identity comparison against this anchor's own transient node, so it
+    // cannot accidentally capture a nearby miner or resource node.
+    SynchronizeBoundExtractorsFromRuntimeNode();
     TemporarilyDisconnectBoundExtractorsForSerialization(TEXT("Blueprint archive"));
 }
 
@@ -459,38 +503,6 @@ bool AAIFactoryBlueprintResourceAnchor::ConfigureAnchor(
     FlushNetDormancy();
     ForceNetUpdate();
     return true;
-}
-
-void AAIFactoryBlueprintResourceAnchor::RegisterBoundExtractor(
-    AFGBuildableResourceExtractorBase* const Extractor)
-{
-    if (!HasAuthority() || !IsValid(Extractor) || !IsValid(mRuntimeNode) ||
-        Extractor->GetWorld() != GetWorld() ||
-        Extractor->GetExtractableResource().GetObject() != mRuntimeNode)
-    {
-        return;
-    }
-    mBoundExtractors.AddUnique(Extractor);
-}
-
-void AAIFactoryBlueprintResourceAnchor::ObserveExtractorBinding(
-    AFGBuildableResourceExtractorBase* const Extractor,
-    const TScriptInterface<IFGExtractableResourceInterface> Extractable)
-{
-    if (!IsValid(Extractor) || !IsValid(Extractable.GetObject()))
-    {
-        return;
-    }
-
-    AAIFactoryBlueprintAnchorNode* const Node =
-        Cast<AAIFactoryBlueprintAnchorNode>(Extractable.GetObject());
-    AAIFactoryBlueprintResourceAnchor* const Anchor = IsValid(Node)
-        ? Cast<AAIFactoryBlueprintResourceAnchor>(Node->GetOwner())
-        : nullptr;
-    if (IsValid(Anchor))
-    {
-        Anchor->RegisterBoundExtractor(Extractor);
-    }
 }
 
 void AAIFactoryBlueprintResourceAnchor::EnableVanillaMinersInBlueprintDesigner(UWorld* const World)
@@ -609,27 +621,79 @@ void AAIFactoryBlueprintResourceAnchor::DestroyRuntimeNode()
     }
 }
 
-void AAIFactoryBlueprintResourceAnchor::DisconnectBoundExtractorsFromRuntimeNode()
+void AAIFactoryBlueprintResourceAnchor::SynchronizeBoundExtractorsFromRuntimeNode()
 {
-    if (!HasAuthority() || !IsValid(mRuntimeNode))
+    UWorld* const World = GetWorld();
+    if (!HasAuthority() || !IsValid(World) || !IsValid(mRuntimeNode))
     {
         return;
     }
 
+    for (TActorIterator<AFGBuildableResourceExtractorBase> It(World); It; ++It)
+    {
+        AFGBuildableResourceExtractorBase* const Extractor = *It;
+        if (IsValid(Extractor) &&
+            Extractor->GetExtractableResource().GetObject() == mRuntimeNode)
+        {
+            // The resource interface is the engine's authoritative ownership
+            // relationship. No location, class, or name heuristic is used.
+            mBoundExtractors.AddUnique(Extractor);
+        }
+    }
+}
+
+bool AAIFactoryBlueprintResourceAnchor::HasBoundExtractorOnRuntimeNode() const
+{
+    if (!IsValid(mRuntimeNode))
+    {
+        return false;
+    }
+
+    UWorld* const World = GetWorld();
+    if (!IsValid(World))
+    {
+        return false;
+    }
+
+    for (TActorIterator<AFGBuildableResourceExtractorBase> It(World); It; ++It)
+    {
+        AFGBuildableResourceExtractorBase* const Extractor = *It;
+        if (IsValid(Extractor) && Extractor->GetWorld() == GetWorld() &&
+            Extractor->GetExtractableResource().GetObject() == mRuntimeNode)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AAIFactoryBlueprintResourceAnchor::DisconnectBoundExtractorsFromRuntimeNode()
+{
+    if (!HasAuthority() || !IsValid(mRuntimeNode))
+    {
+        return true;
+    }
+
+    SynchronizeBoundExtractorsFromRuntimeNode();
+    bool bAllDetached = true;
     for (AFGBuildableResourceExtractorBase* const Extractor : mBoundExtractors)
     {
         if (IsValid(Extractor) && Extractor->GetWorld() == GetWorld() &&
             Extractor->GetExtractableResource().GetObject() == mRuntimeNode)
         {
-            if (!Extractor->DisconnectExtractableResource())
+            if (!Extractor->DisconnectExtractableResource() ||
+                Extractor->GetExtractableResource().GetObject() != nullptr ||
+                Extractor->GetResourceNode() != nullptr)
             {
-                UE_LOG(LogAIFactoryCopilot, Warning,
-                    TEXT("Blueprint Resource Anchor %s could not detach extractor %s during dismantle"),
+                bAllDetached = false;
+                UE_LOG(LogAIFactoryCopilot, Error,
+                    TEXT("Blueprint Resource Anchor %s could not fully detach extractor %s before destroying its runtime node"),
                     *GetPathName(),
                     *Extractor->GetPathName());
             }
         }
     }
+    return bAllDetached;
 }
 
 void AAIFactoryBlueprintResourceAnchor::ScheduleExactRebind()
@@ -662,6 +726,7 @@ void AAIFactoryBlueprintResourceAnchor::CompleteDeferredRebind()
         return;
     }
     RebindRecordedExtractors();
+    SynchronizeBoundExtractorsFromRuntimeNode();
 }
 
 void AAIFactoryBlueprintResourceAnchor::RebindRecordedExtractors()
@@ -751,32 +816,4 @@ AAIFactoryBlueprintResourceAnchor::MakeExtractableInterface(
 void AAIFactoryBlueprintResourceAnchor::OnRep_Configuration()
 {
     UpdateAnchorVisual();
-}
-
-namespace
-{
-    void RegisterBlueprintResourceAnchorHooks()
-    {
-        static bool bRegistered = false;
-        if (bRegistered)
-        {
-            return;
-        }
-        bRegistered = true;
-
-        SUBSCRIBE_METHOD_AFTER(
-            AFGBuildableResourceExtractorBase::SetExtractableResource,
-            [](AFGBuildableResourceExtractorBase* Extractor,
-                TScriptInterface<IFGExtractableResourceInterface> Extractable)
-            {
-                AAIFactoryBlueprintResourceAnchor::ObserveExtractorBinding(
-                    Extractor,
-                    Extractable);
-            });
-    }
-}
-
-void RegisterAIFactoryBlueprintResourceAnchorHooks()
-{
-    RegisterBlueprintResourceAnchorHooks();
 }

@@ -6,8 +6,18 @@
 #include "AIFactoryCopilotModule.h"
 #include "Equipment/FGBuildGun.h"
 #include "FGCharacterPlayer.h"
+#include "FGRecipeManager.h"
 #include "Net/UnrealNetwork.h"
 #include "Resources/FGResourceDescriptor.h"
+#include "TimerManager.h"
+
+namespace
+{
+    // The RCO arrives on the PlayerController channel, while recipe updates
+    // arrive through AFGRecipeManager replication.  Give that independent
+    // channel a short, bounded window to reach a remote client.
+    constexpr int32 BlueprintAnchorRecipeReplicationRetryFrames = 180;
+}
 
 UAIFactoryBlueprintResourceAnchorRCO::UAIFactoryBlueprintResourceAnchorRCO()
 {
@@ -16,7 +26,7 @@ UAIFactoryBlueprintResourceAnchorRCO::UAIFactoryBlueprintResourceAnchorRCO()
 
 void UAIFactoryBlueprintResourceAnchorRCO::BeginDestroy()
 {
-    AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
+    CancelPendingArmAndConfiguration();
     StopObservingBuildGun();
     Super::BeginDestroy();
 }
@@ -41,17 +51,7 @@ void UAIFactoryBlueprintResourceAnchorRCO::ClientArmBlueprintResourceAnchor_Impl
         return;
     }
 
-    AFGCharacterPlayer* const Player = GetOwnerPlayerCharacter();
-    AFGBuildGun* const BuildGun = IsValid(Player) ? Player->GetBuildGun() : nullptr;
-    if (!IsValid(BuildGun))
-    {
-        UE_LOG(LogAIFactoryCopilot, Warning,
-            TEXT("Blueprint Resource Anchor Build Gun handoff could not find the requesting player's Build Gun"));
-        return;
-    }
-
-    ObserveBuildGun(BuildGun);
-    AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
+    CancelPendingArmAndConfiguration();
     if (!AAIFactoryBlueprintResourceAnchorHologram::SetPendingLocalConfiguration(
             GetWorld(), Resource, Purity, Reason))
     {
@@ -61,22 +61,114 @@ void UAIFactoryBlueprintResourceAnchorRCO::ClientArmBlueprintResourceAnchor_Impl
         return;
     }
 
+    mPendingResource = Resource;
+    mPendingPurity = Purity;
+    mArmRetryFramesRemaining = BlueprintAnchorRecipeReplicationRetryFrames;
+    TryArmPendingBlueprintResourceAnchor();
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::TryArmPendingBlueprintResourceAnchor()
+{
+    bArmRetryScheduled = false;
+    if (!IsValid(mPendingResource))
+    {
+        return;
+    }
+
+    UWorld* const World = GetWorld();
+    if (!IsValid(World))
+    {
+        SchedulePendingArmRetry();
+        return;
+    }
+
+    FString Reason;
+    if (!AAIFactoryBlueprintResourceAnchorHologram::SetPendingLocalConfiguration(
+            World, mPendingResource, mPendingPurity, Reason))
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Blueprint Resource Anchor Build Gun handoff lost its staged configuration: %s"),
+            *Reason);
+        CancelPendingArmAndConfiguration();
+        return;
+    }
+
+    AFGRecipeManager* const RecipeManager = AFGRecipeManager::Get(World);
+    AFGCharacterPlayer* const Player = GetOwnerPlayerCharacter();
+    AFGBuildGun* const BuildGun = IsValid(Player) ? Player->GetBuildGun() : nullptr;
+    if (IsValid(BuildGun))
+    {
+        // Keep watching while the recipe is still in flight: changing away
+        // from Build mode cancels the pending handoff instead of unexpectedly
+        // arming this recipe later.
+        ObserveBuildGun(BuildGun);
+    }
+    if (!IsValid(RecipeManager) || !IsValid(BuildGun) ||
+        !RecipeManager->IsRecipeAvailable(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass()))
+    {
+        if (IsValid(RecipeManager))
+        {
+            ObserveRecipeManager(RecipeManager);
+        }
+        SchedulePendingArmRetry();
+        return;
+    }
+
     // This is the documented client-side Build Gun path.  It creates the
     // normal hologram and later calls Satisfactory's server construction RPC.
     BuildGun->GotoBuildState(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass());
-    if (!BuildGun->CompareActiveRecipeTo(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass()))
+    if (BuildGun->CompareActiveRecipeTo(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass()))
     {
-        AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
-        UE_LOG(LogAIFactoryCopilot, Warning,
-            TEXT("Blueprint Resource Anchor Build Gun handoff did not activate its recipe"));
+        // Keep the hologram configuration staged until the normal Build Gun
+        // state/recipe callbacks say the player left this recipe, but no
+        // longer retain a recipe-manager retry subscription.
+        ClearDeferredArm();
+        return;
     }
+
+    SchedulePendingArmRetry();
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::SchedulePendingArmRetry()
+{
+    if (!IsValid(mPendingResource) || bArmRetryScheduled)
+    {
+        return;
+    }
+    if (mArmRetryFramesRemaining-- <= 0 || !IsValid(GetWorld()))
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Blueprint Resource Anchor Build Gun handoff timed out waiting for the recipe or Build Gun"));
+        CancelPendingArmAndConfiguration();
+        return;
+    }
+
+    bArmRetryScheduled = true;
+    GetWorld()->GetTimerManager().SetTimerForNextTick(
+        FTimerDelegate::CreateUObject(
+            this,
+            &UAIFactoryBlueprintResourceAnchorRCO::TryArmPendingBlueprintResourceAnchor));
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::ClearDeferredArm()
+{
+    bArmRetryScheduled = false;
+    mArmRetryFramesRemaining = 0;
+    mPendingResource = nullptr;
+    StopObservingRecipeManager();
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::CancelPendingArmAndConfiguration()
+{
+    ClearDeferredArm();
+    AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
 }
 
 void UAIFactoryBlueprintResourceAnchorRCO::HandleBuildGunStateChanged(const EBuildGunState NewState)
 {
     if (NewState != EBuildGunState::BGS_BUILD)
     {
-        AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
+        CancelPendingArmAndConfiguration();
     }
 }
 
@@ -85,7 +177,17 @@ void UAIFactoryBlueprintResourceAnchorRCO::HandleBuildGunRecipeChanged(
 {
     if (NewRecipe != UAIFactoryBlueprintResourceAnchorRecipe::StaticClass())
     {
-        AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
+        CancelPendingArmAndConfiguration();
+    }
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::HandleRecipeAvailable(
+    const TSubclassOf<UFGRecipe> NewRecipe)
+{
+    if (NewRecipe == UAIFactoryBlueprintResourceAnchorRecipe::StaticClass() &&
+        IsValid(mPendingResource))
+    {
+        TryArmPendingBlueprintResourceAnchor();
     }
 }
 
@@ -96,7 +198,6 @@ void UAIFactoryBlueprintResourceAnchorRCO::ObserveBuildGun(AFGBuildGun* const Bu
         return;
     }
 
-    AAIFactoryBlueprintResourceAnchorHologram::ClearPendingLocalConfiguration(GetWorld());
     StopObservingBuildGun();
     if (!IsValid(BuildGun))
     {
@@ -120,4 +221,33 @@ void UAIFactoryBlueprintResourceAnchorRCO::StopObservingBuildGun()
             this, &UAIFactoryBlueprintResourceAnchorRCO::HandleBuildGunRecipeChanged);
     }
     mObservedBuildGun.Reset();
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::ObserveRecipeManager(
+    AFGRecipeManager* const RecipeManager)
+{
+    if (mObservedRecipeManager.Get() == RecipeManager)
+    {
+        return;
+    }
+
+    StopObservingRecipeManager();
+    if (!IsValid(RecipeManager))
+    {
+        return;
+    }
+
+    mObservedRecipeManager = RecipeManager;
+    RecipeManager->mOnRecipeAvailable.AddUniqueDynamic(
+        this, &UAIFactoryBlueprintResourceAnchorRCO::HandleRecipeAvailable);
+}
+
+void UAIFactoryBlueprintResourceAnchorRCO::StopObservingRecipeManager()
+{
+    if (AFGRecipeManager* const RecipeManager = mObservedRecipeManager.Get())
+    {
+        RecipeManager->mOnRecipeAvailable.RemoveDynamic(
+            this, &UAIFactoryBlueprintResourceAnchorRCO::HandleRecipeAvailable);
+    }
+    mObservedRecipeManager.Reset();
 }

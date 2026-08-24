@@ -280,12 +280,22 @@ extractors.
   `Build_MinerMk3_C`. It does not enable portable miners, pumps, oil extractors,
   fracking, or modded extractor classes.
 
+A package cook exposed one engine/SML incompatibility before it reached the
+game: some generated `SetExtractableResource` implementations are too short
+for SML's native trampoline. The anchor deliberately does **not** hook that
+method. Instead, immediately before a native save or Blueprint archive it
+enumerates extractors and records only those whose authoritative live
+extractable-interface pointer equals this anchor's own transient node. That is
+an exact identity relationship, not a proximity, class, or name inference; it
+also avoids a module-load crash. The repaired Editor cook completed cleanly.
+
 The implementation has an exact CL 502094 Shipping compile and source-contract
-coverage. It is deliberately **not yet called working**: the required packaged
-disposable-save proof is Designer placement → Miner snap → archive write →
-Designer reload → native Blueprint placement → extractor binding audit →
-save/reload → dismantle, plus a host/client Designer check. The game must be
-closed before the new DLL can be packaged and deployed for that test.
+coverage plus a successful packaged Editor cook. It is deliberately **not yet
+called working**: the required disposable-save proof is Designer placement →
+Miner snap → archive write → Designer reload → native Blueprint placement →
+extractor binding audit → save/reload → dismantle, plus a host/client Designer
+check. The game must be closed before the new DLL can be deployed for that
+test.
 
 ### Creative world-editor nodes
 
