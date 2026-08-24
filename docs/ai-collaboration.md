@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-23 | Codex | `codex/creative-resource-node` | Live-reproduced Insert-panel handoff recovery: restore every Slate user's focus to the game viewport when the Copilot panel closes, and forward only the documented `/ai node place …` command from that panel through SML's existing server RPC. Scope: `AIFactoryCopilotUISubsystem`, focused source-contract tests, and Creative Node instructions. No arbitrary slash-command forwarding, no direct client command execution/spawn, no weakening of world-edit/admin/unlock gates, and no deployment while Satisfactory is running. | claimed; source edit begins only after this notice is pushed |
+| 2026-08-23 | Codex | `codex/creative-resource-node` | Live-reproduced Insert-panel handoff recovery: restore every Slate user's focus to the game viewport when the Copilot panel closes, and forward only the documented `/ai node place …` command from that panel through SML's existing server RPC. Scope: `AIFactoryCopilotUISubsystem`, focused source-contract tests, and Creative Node instructions. No arbitrary slash-command forwarding, no direct client command execution/spawn, no weakening of world-edit/admin/unlock gates, and no deployment while Satisfactory is running. | complete in source and deployed: **814/814** companion tests, exact headers, Editor + Shipping/UAT package. Live startup is clean; repeated in-save focus and command/hologram proof remain explicitly pending because the desktop control bridge could not foreground the launched game. |
 | 2026-08-23 | Codex | `codex/creative-resource-node` | Establish the safe foundation for a true world-editor **Creative Resource Node**: a concrete, mod-owned, replicated and saveable solid-resource `AFGResourceNode` child with strict server configuration/readback and native Build Gun/hologram contract research. Scope: new isolated C++ node/editor types, narrow source-contract tests/docs, and any additive snapshot proof needed to distinguish mod-owned nodes. No vanilla-node move/delete/adoption, no private ResourceNodeManager/scanner injection, no liquid/gas resources, no direct client spawning, and no deployment while the game is open. Native Build Gun descriptor/hologram implementation proceeds only through verified engine seams. | implementation complete in source; **812/812** companion tests and exact SML 3.12.0 / FactoryGame CL 502094 header validation pass. C++ compile/package/deploy and the disposable live matrix remain pending while the game is open. |
 | 2026-08-23 | Codex | `codex/creative-resource-node` | Narrow build-unblock: correct the proven const-reference compile error in the already-integrated, read-only `AIFactoryBlueprintAudit.cpp` only, so the closed-game native Creative Resource Node package can proceed. No behavior/schema/tool/action/editor change; run the actual Unreal build after the one-line type correction. | claimed after closed-game packaging exposed C2664 at `AIFactoryBlueprintAuditSetExtractorDetail`; implementation pending |
 | 2026-08-23 | Codex | `codex/blueprint-placement-audit` | Add a bounded **read-only** native Blueprint placement auditor before claiming miners work in large native blueprints. Given the aimed Blueprint proxy/member, capture the owning proxy readiness/name/member counts and actual extractor-to-resource bindings, including explicit replication-pending and unknown states. Scope: new audit helper, snapshot interaction context, local solver/router/tool contract, focused source/unit tests, exact-header validation, and docs. No `SetResourceNode`/`SetExtractableResource`, no Blueprint write/import/export/placement, no cost, no undo, and no change to preview, selection, or existing save behavior. | complete in source; clean `npm ci` + **808/808** companion tests pass. C++ compile/package and the disposable live miner-Blueprint proof remain pending because the game is open. |
@@ -4288,3 +4288,54 @@ Gun test of `/ai node place copper ore normal`, clear-ground construct, resource
 readback, and Miner Mk.1 compatibility. Claude's uncommitted `SpawnNodeLike`
 experiment remains deliberately excluded; do not merge or revive it while this
 native Build Gun path is being tested.
+
+### Codex — 2026-08-23 panel handoff and second package checkpoint
+
+The first live smoke test exposed a real UI defect before it could exercise the
+Creative Node: `ShowPanel()` gives **all** Slate users focus to the editable
+text box, while `HidePanel()` previously restored only the local controller's
+`FInputModeGameOnly` operation. In the running BP test world, Insert/Escape
+left the game without usable Escape, Tab, or native chat input. This is now
+fixed narrowly in commit `653ddc1`: after removing the viewport widget and
+selecting game-only input, `HidePanel()` calls the exact UE 5.6
+`FSlateApplication::SetAllUserFocusToGameViewport(EFocusCause::SetDirectly)`.
+It deliberately preserves the existing balanced move/look input suppression
+and does not use `ResetIgnoreInputFlags()`, which could clear another UI's
+independent lock.
+
+The same commit makes the documented **and only** panel-side chat exception
+work: `/ai node place <resource> [impure|normal|pure]`. It token-checks that
+exact `ai node place` prefix and sends the stripped command through the
+already-present `USMLRemoteCallObject::HandleChatCommand` reliable **Server**
+RPC. SML then calls its normal `AChatCommandSubsystem::RunChatCommand` with the
+player's real command sender. This retains the creative-node server-authority,
+write-switch, multiplayer-admin, resource/unlock, RCO, and native Build Gun
+hologram checks. No other slash command is forwarded, and no local UI code
+directly executes a chat command or spawns an actor. The panel clears/hides only
+after the RPC is queued; native chat remains the source of the server's actual
+arming result. `docs/CREATIVE_WORLD_EDITOR.md` and the in-game Help text say so.
+
+Verification: the new focused source-contract tests pin both the all-user
+viewport focus restore and the exact three-token/SML-RPC allowlist. `npm test`
+and `scripts/validate.ps1` pass **814/814**, with exact SML 3.12.0 / FactoryGame
+CL 502094 header compatibility. After the game was cleanly closed, the source
+was synced into the matching Starter Project; FactoryEditor compiled, and the
+Shipping UAT package completed `BUILD SUCCESSFUL` / `ExitCode=0` in 2m24s.
+The new archive is
+`Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`,
+18,676,565 bytes, SHA-256
+`D96BD7390A657F10EC3C0C8533F5C6ECE558A0CAE550145B2FE9C41F08BA934E`.
+The built and deployed Shipping DLLs are both 1,008,640 bytes with matching
+SHA-256 `FFE7B62B5378F985634A85312F628D954AABC7921B06970D53D8EA6DE8F81945`.
+
+Live startup is now verified: Satisfactory reached the main menu with Mod
+Loader `v3.12.0+827` and **51 loaded mods**. Its current log shows
+`Mounting Mod plugin AIFactoryCopilot`, `AI Factory Copilot module loaded`, and
+`AIFactoryCopilot: 1.0.0-beta.2`, with no fatal/crash entry. The game is left at
+the menu; no save was loaded or mutated in this smoke test. The remaining live
+matrix is intentionally still pending: this desktop session can capture the
+launched game but rejected foreground input, so it could not truthfully verify
+the repeated Insert/Escape control recovery, the panel's SML command relay,
+the green/red node hologram, construction, readback, or Miner Mk.1 use. Start
+with those in the disposable BP test save when input control is available; do
+not infer them from the successful package or menu startup.
