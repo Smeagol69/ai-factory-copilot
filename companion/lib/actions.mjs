@@ -13,6 +13,8 @@
  */
 
 import { distanceMeters } from "./graph.mjs";
+import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
+import { lastPreview } from "./selection.mjs";
 
 /**
  * How many actions one reply may carry.
@@ -33,6 +35,10 @@ export const WRITE_ACTION_KINDS = [
   "teleport_player",
   "place_building",
   "place_blueprint",
+  // Exports the exact set the player marked with the game's dismantle tool as
+  // a native .sbp. This writes a durable file, so it is a write even though it
+  // does not place or remove anything in the world.
+  "export_native_blueprint",
   // Runs a conveyor between two existing connection components. `plan_belt_route`
   // chooses and measures the pair; this builds it. Addressed by connection
   // component rather than by actor, because an actor id does not say which of a
@@ -65,7 +71,23 @@ export const WRITE_ACTION_KINDS = [
 export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight", "clear_holograms"];
 
 /** Everything the mod knows how to execute. */
-export const ACTION_KINDS = [...WRITE_ACTION_KINDS, ...OVERLAY_ACTION_KINDS];
+
+/**
+ * Actions that affect only the requesting player's local controls.
+ *
+ * `preview_blueprint` deliberately constructs nothing. The server verifies
+ * the saved blueprint, then sends the owning client a small RCO message and
+ * that client selects the Blueprint recipe in its own Build Gun. The
+ * hologram, snapping, rotation, affordability and eventual construction all
+ * stay Satisfactory's, which is the entire point -- it is the vanilla
+ * placement experience, reached from here.
+ */
+export const CLIENT_ACTION_KINDS = ["preview_blueprint"];
+export const ACTION_KINDS = [
+  ...WRITE_ACTION_KINDS,
+  ...OVERLAY_ACTION_KINDS,
+  ...CLIENT_ACTION_KINDS,
+];
 
 /** Beyond this the player almost certainly meant something else. */
 const MAX_TELEPORT_METERS = 200_000;
@@ -156,6 +178,114 @@ function vector(input) {
   const z = finite(input.z);
   if (x === null || y === null) return null;
   return { x, y, z: z === null ? 0 : z };
+}
+
+/** A bounds vector has three dimensions; silently making its Z zero corrupts a blueprint envelope. */
+function explicitVector(input) {
+  const result = vector(input);
+  return result && finite(input?.z) !== null ? result : null;
+}
+
+/**
+ * The bridge does not get to make up a factory region. The only v1 export
+ * source is the exact set the player has marked in Satisfactory's dismantle
+ * state. It is deliberately a selection rather than a radius: a radius would
+ * sweep in neighbouring factories, power lines, or scenery that the player
+ * did not ask to package.
+ *
+ * The emitted envelope is a capture witness, not an instruction for the game.
+ * The native executor must re-resolve every actor and recompute these bounds
+ * immediately before calling the BlueprintSubsystem; the bridge cannot know
+ * about a proxy, lightweight instance, or resource anchor that changed after
+ * this capture.
+ */
+function resolveNativeBlueprintExportSelection(graph, proposedIds) {
+  const selection = graph?.snapshot?.interaction_context?.dismantle_selection;
+  if (selection?.available !== true) {
+    return { ok: false, reason: "dismantle_selection_is_not_available" };
+  }
+
+  if (!Array.isArray(proposedIds) || proposedIds.length === 0) {
+    return { ok: false, reason: "selected_actor_ids_are_required" };
+  }
+
+  const markedIds = Array.isArray(selection.actor_ids)
+    ? selection.actor_ids.map((id) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+  if (markedIds.length === 0) {
+    return { ok: false, reason: "dismantle_selection_is_empty" };
+  }
+  if (new Set(markedIds).size !== markedIds.length) {
+    return { ok: false, reason: "dismantle_selection_has_duplicate_actor_ids" };
+  }
+
+  const selectionCount = finite(selection.count);
+  if (selectionCount !== null && (!Number.isInteger(selectionCount) || selectionCount !== markedIds.length)) {
+    return {
+      ok: false,
+      reason: "dismantle_selection_count_does_not_match_actor_ids",
+      selection_count: selection.count,
+      actor_id_count: markedIds.length,
+    };
+  }
+
+  const requestedIds = proposedIds.map((id) => String(id ?? "").trim()).filter(Boolean);
+  if (requestedIds.length !== proposedIds.length || new Set(requestedIds).size !== requestedIds.length) {
+    return { ok: false, reason: "selected_actor_ids_must_be_unique_nonempty_strings" };
+  }
+  const markedSet = new Set(markedIds);
+  if (requestedIds.length !== markedIds.length || requestedIds.some((id) => !markedSet.has(id))) {
+    return {
+      ok: false,
+      reason: "selected_actor_ids_must_exactly_match_dismantle_selection",
+      marked_actor_count: markedIds.length,
+      requested_actor_count: requestedIds.length,
+    };
+  }
+
+  const minimum = { x: Infinity, y: Infinity, z: Infinity };
+  const maximum = { x: -Infinity, y: -Infinity, z: -Infinity };
+  const missingActors = [];
+  const nonBuildables = [];
+  const missingBounds = [];
+
+  for (const actorId of markedIds) {
+    const raw = graph?.nodes?.get(actorId)?.raw;
+    if (!raw) {
+      missingActors.push(actorId);
+      continue;
+    }
+    if (raw.kind !== "buildable") {
+      nonBuildables.push(actorId);
+      continue;
+    }
+    const origin = explicitVector(raw.bounds?.origin);
+    const extent = explicitVector(raw.bounds?.extent);
+    if (!origin || !extent || extent.x < 0 || extent.y < 0 || extent.z < 0) {
+      missingBounds.push(actorId);
+      continue;
+    }
+    for (const axis of ["x", "y", "z"]) {
+      minimum[axis] = Math.min(minimum[axis], origin[axis] - extent[axis]);
+      maximum[axis] = Math.max(maximum[axis], origin[axis] + extent[axis]);
+    }
+  }
+
+  if (missingActors.length > 0) {
+    return { ok: false, reason: "selected_actor_is_not_in_the_captured_world", actor_ids: missingActors };
+  }
+  if (nonBuildables.length > 0) {
+    return { ok: false, reason: "native_blueprint_selection_contains_non_buildables", actor_ids: nonBuildables };
+  }
+  if (missingBounds.length > 0) {
+    return { ok: false, reason: "selected_actor_bounds_are_not_captured", actor_ids: missingBounds };
+  }
+
+  return {
+    ok: true,
+    actorIds: markedIds,
+    bounds: { minimum, maximum, units: "unreal_centimeters" },
+  };
 }
 
 /**
@@ -480,6 +610,147 @@ export function validateAction(graph, proposal) {
         yaw: finite(proposal.yaw) ?? 0,
         commit: proposal.commit === true,
       }, proposal),
+    };
+  }
+
+  if (kind === "preview_blueprint") {
+    const name = String(proposal.blueprint_name ?? "").trim();
+    if (!name) return reject(kind, "blueprint_name_is_required");
+
+    // Disk discovery covers every saved session so the player can inspect old
+    // factories. The native Build Gun cannot: it accepts only the descriptors
+    // registered by Satisfactory for the *current* session. Do not turn a
+    // cross-save disk match into a false promise that a hologram was armed.
+    // The game refreshes and repeats this exact lookup immediately before its
+    // client RCO handoff, so this is an early, evidence-based refusal rather
+    // than a replacement for the authoritative check.
+    const activeDescriptor = resolveCurrentSessionBlueprint(graph, name);
+    if (!activeDescriptor.registered) {
+      return reject(kind, activeDescriptor.reason, {
+        blueprint_name: name,
+        session_name: activeDescriptor.session_name ?? null,
+        registered_descriptor_count: activeDescriptor.registered_descriptor_count ?? null,
+        candidates: activeDescriptor.candidates ?? [],
+      });
+    }
+
+    // This is a client-only selection, not a server construction request. The
+    // bridge's disk library is useful metadata (dimensions and costs), but it
+    // is deliberately never a second gate: it scans every save folder and can
+    // lag or spell a descriptor differently. A freshly captured native
+    // descriptor is the only bridge-side authority, and the game refreshes and
+    // verifies it again before it sends the client RCO.
+    const library = graph?.services?.blueprints ?? null;
+    if (Array.isArray(library) && library.length > 0) {
+      const expected = activeDescriptor.blueprint_name.toLocaleLowerCase();
+      const match = library.find(
+        (entry) => String(entry?.name ?? "").trim().toLocaleLowerCase() === expected,
+      );
+      if (match) {
+        checks.designer_dimensions = match.designer_dimensions;
+        checks.build_cost_entries = match.build_cost?.length ?? 0;
+      } else {
+        checks.disk_library_metadata = "not_captured_or_not_matched";
+      }
+    }
+    checks.current_session_blueprint_descriptor = activeDescriptor.blueprint_name;
+    checks.current_session_name = activeDescriptor.session_name;
+
+    return {
+      valid: true,
+      warnings,
+      checks: { ...checks, client_only: true, world_write: false },
+      // This is intentionally always dispatched. It is equivalent to opening
+      // the Build Gun's native blueprint picker, and never performs a world
+      // write, spends items, changes the undo stack, or needs a revision stamp.
+      action: {
+        action: kind,
+        blueprint_name: activeDescriptor.blueprint_name,
+        commit: true,
+      },
+    };
+  }
+
+  if (kind === "export_native_blueprint") {
+    const name = String(proposal.blueprint_name ?? "").trim();
+    if (!name) return reject(kind, "blueprint_name_is_required");
+
+    // Do not accept a model-proposed box, radius, or arbitrary actor list.
+    // The player made this selection in the game's own multi-select tool, and
+    // its captured membership is the only source this action serialises.
+    // Two sources, both player-made. The dismantle tool is the game's own
+    // multi-select. A box selection is one the player sized and saw lit up in
+    // their world before confirming -- the preview is the consent, and it is
+    // verified here against what was actually shown rather than trusted from
+    // the proposal. A model still cannot invent a region: ids that were never
+    // previewed are refused exactly as an arbitrary list always was.
+    if (proposal.selection_source === "box_selection") {
+      const preview = lastPreview();
+      if (!preview || preview.actor_ids.length === 0) {
+        return reject(kind, "box_selection_requires_a_preview_first");
+      }
+      const shown = new Set(preview.actor_ids);
+      const asked = Array.isArray(proposal.selected_actor_ids) ? proposal.selected_actor_ids : [];
+      const unseen = asked.filter((id) => !shown.has(String(id)));
+      if (asked.length === 0 || unseen.length > 0) {
+        return reject(kind, "box_selection_must_match_what_was_previewed", {
+          previewed: preview.actor_ids.length,
+          requested: asked.length,
+          not_previewed: unseen.length,
+        });
+      }
+    } else if (proposal.selection_source !== "dismantle_selection") {
+      return reject(kind, "native_blueprint_export_requires_a_player_made_selection");
+    }
+    // Each source resolves its own way. The dismantle resolver checks the
+    // proposal against the capture's live multi-select, which a previewed box
+    // does not have and never will -- running it here refused every box
+    // export with `dismantle_selection_is_not_available`.
+    let selection;
+    if (proposal.selection_source === "box_selection") {
+      const previewed = lastPreview();
+      selection = {
+        ok: true,
+        actorIds: proposal.selected_actor_ids.map((id) => String(id)),
+        bounds: previewed?.box ?? null,
+      };
+    } else {
+      selection = resolveNativeBlueprintExportSelection(graph, proposal.selected_actor_ids);
+      if (!selection.ok) return reject(kind, selection.reason, selection);
+    }
+
+    warnings.push(
+      "This is a request to the native game-side exporter, not proof that an .sbp was written. " +
+        "The game re-checks every selected actor, proxy group, lightweight instance, resource anchor, " +
+        "and archive write before reporting an outcome.",
+    );
+    return {
+      valid: true,
+      warnings,
+      checks: {
+        ...checks,
+        selection_source: proposal.selection_source,
+        selected_actor_count: selection.actorIds.length,
+        captured_selection_bounds_cm: selection.bounds,
+        bounds_are_capture_evidence_only: true,
+        arbitrary_export_size_cap: "none",
+      },
+      action: bindWorldRevision(
+        graph,
+        {
+          action: kind,
+          blueprint_name: name,
+          selection_source: proposal.selection_source,
+          selected_actor_ids: selection.actorIds,
+          selected_actor_count: selection.actorIds.length,
+          // The executor must recompute this from the live actors. Carrying the
+          // capture's bounds makes a stale or unexpectedly expanded selection
+          // diagnosable without treating bridge geometry as authority.
+          captured_selection_bounds_cm: selection.bounds,
+          commit: proposal.commit === true,
+        },
+        proposal,
+      ),
     };
   }
 
@@ -860,6 +1131,31 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
     };
   }
 
+  // A native Blueprint Build Gun preview is deliberately neither a world write
+  // nor an overlay.  It is a one-player input hand-off: the server verifies the
+  // descriptor then asks that player's local Build Gun to select it.  Keeping
+  // it completely alone prevents a model from making a harmless-looking client
+  // preview appear to be part of a committed construction transaction.  The
+  // game repeats this exact partition before it sends the RCO.
+  const clientPreviews = actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action));
+  if (clientPreviews.length > 0 && clientPreviews.length !== actions.length) {
+    return {
+      valid: false,
+      reason: "client_preview_must_be_a_standalone_action",
+      actions: [],
+      note:
+        "A native Build Gun preview is local to one player and cannot share a transaction with another action.",
+    };
+  }
+  if (clientPreviews.length > 1) {
+    return {
+      valid: false,
+      reason: "only_one_client_blueprint_preview_per_request",
+      actions: [],
+      note: "One Build Gun can display one active blueprint hologram at a time.",
+    };
+  }
+
   const committedWrites = actions.filter(
     (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
   );
@@ -871,6 +1167,21 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
       actions: [],
       note:
         "A dismantle cannot be rolled back, so it cannot share a committed transaction with another write.",
+    };
+  }
+  // A native export writes a durable `.sbp` / `.sbpcfg`, not an undo-journal
+  // entry. Keep it single-step so an archive failure or name collision cannot
+  // be mistaken for a reversible construction transaction.
+  const nativeExports = committedWrites.filter(
+    (action) => action.action === "export_native_blueprint",
+  );
+  if (nativeExports.length > 0 && committedWrites.length > 1) {
+    return {
+      valid: false,
+      reason: "native_blueprint_export_must_be_a_standalone_commit",
+      actions: [],
+      note:
+        "A native blueprint export writes a file and cannot be reversed by undo_last, so it must be the only committed write in its transaction.",
     };
   }
   const undoSteps = committedWrites.filter((action) => action.action === "undo_last");
@@ -893,8 +1204,11 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
       (action) => action.commit && WRITE_ACTION_KINDS.includes(action.action),
     ).length,
     overlays: actions.filter((action) => OVERLAY_ACTION_KINDS.includes(action.action)).length,
+    client_previews: clientPreviews.length,
     execution:
-      "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
+      clientPreviews.length > 0
+        ? "Sent to the requesting player's native Build Gun only. It does not construct, spend items, mutate the world, or create an undo transaction."
+        : "Preflighted and executed in order by the mod, server-side. Reversible writes are rolled back as one transaction if a later step fails. Each step is re-validated there and read back after committing.",
   };
 }
 
@@ -913,6 +1227,10 @@ export function summarizePlan(graph, plan) {
   }
 
   const irreversible = plan.actions.filter((action) => action.action === "dismantle").length;
+  const nativeExports = plan.actions.filter(
+    (action) => action.action === "export_native_blueprint",
+  ).length;
+  const clientPreviews = plan.actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action)).length;
 
   return {
     ...plan,
@@ -921,9 +1239,19 @@ export function summarizePlan(graph, plan) {
       by_kind: byKind,
       irreversible_steps: irreversible,
       reversible:
-        irreversible === 0
+        clientPreviews > 0
+          ? "This only arms the requesting player's normal Blueprint Build Gun; it does not change the world."
+          : irreversible === 0 && nativeExports === 0
           ? "Every step in this plan can be undone with undo_last."
-          : `${irreversible} dismantle step(s) cannot be undone by the copilot.`,
+          : [
+              ...(irreversible > 0
+                ? [`${irreversible} dismantle step(s) cannot be undone by the copilot.`]
+                : []),
+              ...(nativeExports > 0
+                ? [`${nativeExports} native blueprint export step(s) write files and cannot be undone with undo_last.`]
+                : []),
+            ].join(" "),
+      client_preview_steps: clientPreviews,
     },
   };
 }

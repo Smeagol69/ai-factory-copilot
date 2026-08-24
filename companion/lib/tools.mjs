@@ -31,6 +31,8 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveBlueprintPlacementAudit,
+  solveBlueprintLayout,
   solveProductionPlan,
   solveBlueprintLibrary,
   solveRecipeOptions,
@@ -220,7 +222,7 @@ export const SOLVER_TOOLS = [
   {
     name: "list_blueprints",
     description:
-      "The player's saved blueprints: designer dimensions, exact build cost priced against what they are carrying, the game build each was authored on, and its description. Use this when they ask what blueprints they have, what one costs, whether they can afford it, or whether it still matches their game version. The per-building layout inside a blueprint is not decoded.",
+      "The player's saved blueprints: designer dimensions, exact build cost priced against what they are carrying, exact header recipe references, the game build each was authored on, and its description. Duplicate names include a safe blueprint_reference that disambiguates one saved library entry without accepting a filesystem path. Use this when they ask what blueprints they have, what one costs, whether they can afford it, or whether it still matches their game version. Call inspect_blueprint_layout for actual saved positions or exact building counts in one blueprint.",
     parameters: {
       type: "object",
       properties: {
@@ -230,6 +232,34 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args, services) => solveBlueprintLibrary(graph, args, services ?? {}),
+  },
+  {
+    name: "inspect_blueprint_layout",
+    description:
+      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, and costs priced against current player inventories. It names the naming-convention caveat for nonstandard modded classes. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, or comparing its structure to a proposed factory. It does not prove terrain clearance, Build Gun hologram validity, external hookups, or connection topology at a new location.",
+    parameters: {
+      type: "object",
+      properties: {
+        blueprint_name: {
+          type: "string",
+          description: "Exact blueprint name, or the blueprint_reference returned by list_blueprints when names are duplicated. The bridge compares a reference only to its already-discovered library entries; it never resolves a filesystem path.",
+        },
+        maximum_buildables: {
+          type: "number",
+          description: "Maximum individual transformed buildables to return, from 1 through 200. Defaults to 80; aggregate counts still cover every decoded buildable.",
+        },
+      },
+      required: ["blueprint_name"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => solveBlueprintLayout(graph, args, services ?? {}),
+  },
+  {
+    name: "audit_blueprint_placement",
+    description:
+      "Audits the placed native Blueprint runtime instance the player is currently aiming at, not a saved .sbp file. Returns the proxy's replication/readiness state, complete actor/lightweight member counts only after replication is ready, and exact resource-extractor bindings when the game captured them. A replication-pending result is a wait state, never proof of zero miners or an unbound miner. This is read-only and emits no actions.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    run: (graph) => solveBlueprintPlacementAudit(graph),
   },
   {
     name: "get_unlock_status",
@@ -785,7 +815,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list, and never say an .sbp was written until the game reports it. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -797,14 +827,24 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
+                enum: ["place_building", "place_blueprint", "preview_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
-              blueprint_name: { type: "string", description: "place_blueprint: exact name from list_blueprints." },
+              blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
+              selection_source: {
+                type: "string",
+                enum: ["dismantle_selection", "box_selection"],
+                description: "export_native_blueprint: dismantle_selection for the game's own multi-select, or box_selection for a region the player sized and previewed. Never invent either; box_selection is refused unless the ids match a preview the player was shown.",
+              },
+              selected_actor_ids: {
+                type: "array",
+                items: { type: "string" },
+                description: "export_native_blueprint: every actor_id currently marked in the captured dismantle selection, exactly once. The bridge rejects a subset, addition, radius, or invented id.",
+              },
               actor_id: { type: "string", description: "dismantle: the actor_id to remove." },
               name: { type: "string", description: "waypoint: the label shown on the map and compass." },
               item_class: { type: "string", description: "give_item: exact item class_path or display name." },

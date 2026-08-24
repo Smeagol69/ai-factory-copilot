@@ -1,7 +1,11 @@
 [CmdletBinding()]
 param(
     [string]$StarterProjectPath = 'D:\Modding\Satisfactory\StarterProject-502094',
-    [string]$OutputDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist')
+    [string]$OutputDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'dist'),
+
+    # The companion ships inside the mod zip now. This emits the old
+    # standalone bundle as well, for running the bridge on another machine.
+    [switch]$SeparateCompanionArtifact
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +18,7 @@ $sourceModArchive = Join-Path $StarterProjectPath 'Saved\ArchivedPlugins\AIFacto
 foreach ($requiredPath in @(
     $sourceModArchive,
     (Join-Path $root 'companion\server.mjs'),
+    (Join-Path $root 'companion\package-lock.json'),
     (Join-Path $root 'scripts\install-companion.ps1'),
     (Join-Path $root 'scripts\configure-companion.ps1'),
     (Join-Path $root 'scripts\run-companion.ps1'),
@@ -65,6 +70,7 @@ try {
 
     Copy-Item -LiteralPath (Join-Path $root 'companion\server.mjs') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\package.json') -Destination (Join-Path $stageRoot 'companion')
+    Copy-Item -LiteralPath (Join-Path $root 'companion\package-lock.json') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\.env.example') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\lib') -Destination (Join-Path $stageRoot 'companion') -Recurse
     foreach ($script in @('install-companion.ps1', 'configure-companion.ps1', 'run-companion.ps1')) {
@@ -77,17 +83,54 @@ try {
     }
 
     Copy-Item -LiteralPath $sourceModArchive -Destination $modArtifact -Force
-    Compress-Archive -LiteralPath (Get-ChildItem -LiteralPath $stageRoot -Force).FullName `
-        -DestinationPath $companionArtifact -CompressionLevel Optimal -Force
+
+    # Refuse to publish a mod zip that does not carry its own bridge. This is
+    # the whole point of the single-artifact release, and it is exactly the
+    # kind of thing that silently stops working when a Build.cs line is
+    # dropped -- the package still builds, and every install is broken.
+    $requiredModEntries = @(
+        'companion/server.mjs',
+        'companion/package.json',
+        'companion/package-lock.json',
+        'companion/lib/narrate.mjs',
+        'companion/lib/survey.mjs',
+        'companion/data/efficiency.json',
+        'companion/node_modules/@etothepii/satisfactory-file-parser/build/index.js',
+        'companion/node_modules/pako/index.js'
+    )
+    $modZip = [IO.Compression.ZipFile]::OpenRead($modArtifact)
+    try {
+        $modEntries = @($modZip.Entries.FullName | ForEach-Object { $_.Replace('\', '/') })
+        foreach ($entry in $requiredModEntries) {
+            if (-not ($modEntries | Where-Object { $_.EndsWith($entry) })) {
+                throw "The mod archive is missing '$entry'. The companion is not bundled; check RuntimeDependencies in AIFactoryCopilot.Build.cs."
+            }
+        }
+        # Entries are relative -- "companion/server.mjs", no leading slash -- so an
+        # anchored pattern is required. The first version asked for "/companion/"
+        # and reported 0 files for a bundle that was entirely correct.
+        $companionFileCount = @($modEntries | Where-Object { $_ -match '(^|/)companion/' }).Count
+        Write-Host "Bundled companion: $companionFileCount files inside the mod archive."
+    }
+    finally {
+        $modZip.Dispose()
+    }
+    if ($SeparateCompanionArtifact) {
+        Compress-Archive -LiteralPath (Get-ChildItem -LiteralPath $stageRoot -Force).FullName `
+            -DestinationPath $companionArtifact -CompressionLevel Optimal -Force
+    }
 
     $expectedCompanionEntries = @(
         'companion/server.mjs',
+        'companion/package.json',
+        'companion/package-lock.json',
         'companion/.env.example',
         'scripts/install-companion.ps1',
         'scripts/configure-companion.ps1',
         'docs/INSTALL.md',
         'LICENSE'
     )
+    if ($SeparateCompanionArtifact) {
     $companionZip = [IO.Compression.ZipFile]::OpenRead($companionArtifact)
     try {
         $entryNames = @($companionZip.Entries.FullName | ForEach-Object { $_.Replace('\', '/') })
@@ -100,8 +143,11 @@ try {
     finally {
         $companionZip.Dispose()
     }
+    }
 
-    @($modArtifact, $companionArtifact) | ForEach-Object {
+    $produced = @($modArtifact)
+    if ($SeparateCompanionArtifact) { $produced += $companionArtifact }
+    $produced | ForEach-Object {
         $hash = Get-FileHash -LiteralPath $_ -Algorithm SHA256
         "$($hash.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_))"
     } | Set-Content -LiteralPath $checksumsPath -Encoding ascii
@@ -115,6 +161,11 @@ finally {
     }
 }
 
-Write-Host "Mod release:       $modArtifact"
-Write-Host "Companion release: $companionArtifact"
-Write-Host "Checksums:          $checksumsPath"
+Write-Host ""
+Write-Host "Single-file release (mod + bundled companion):"
+Write-Host "  $modArtifact"
+if ($SeparateCompanionArtifact) {
+    Write-Host "Standalone companion (optional, for a second machine):"
+    Write-Host "  $companionArtifact"
+}
+Write-Host "Checksums: $checksumsPath"

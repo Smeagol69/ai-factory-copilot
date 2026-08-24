@@ -1,9 +1,14 @@
 # Installation and packaging
 
-AI Factory Copilot has two local pieces: the SML mod loaded by Satisfactory and
-the loopback-only Node companion that talks to the selected model provider. The
+AI Factory Copilot is **one install**. The loopback-only Node companion that
+runs the solvers ships inside the mod and starts itself when a world loads. The
 public beta targets the Windows Steam/Epic client. Dedicated-server and Linux
 targets are not claimed yet.
+
+**Node.js 20 or newer must be on the system** — it is the only external
+requirement. Without it the mod still loads and the panel says so in as many
+words; sliders, selection, blueprint export, terrain scan and vision all work
+without the bridge. Only the assistant's answers need it.
 
 ## Player installation
 
@@ -13,14 +18,31 @@ targets are not claimed yet.
    Prereleases are not auto-downloaded; for a GitHub beta, use the packaged
    `AIFactoryCopilot-<version>-Windows.zip` and the
    [official manual-install directions](https://docs.ficsit.app/satisfactory-modding/latest/ManualInstallDirections.html).
-3. Extract `AIFactoryCopilot-Companion-<version>-Windows.zip` to a temporary
-   folder, open PowerShell there, and run:
+3. Launch the game and press **Insert**.
+
+That is the whole installation. The mod archive includes the bridge's
+lock-pinned production dependency tree, so no manual `npm` command is needed
+for a normal SML install. The bridge starts with the world and stops with it,
+and the mod only ever stops a bridge it started — one you run yourself is left
+alone.
+
+Set `"autoStartCompanion": false` in `FactoryGame/Configs/AIFactoryCopilot.cfg`
+to turn the automatic launch off.
+
+## Optional: running the companion yourself
+
+Only needed to run the bridge on another machine, to keep it alive between game
+sessions, or to manage it as a service. Take
+`AIFactoryCopilot-Companion-<version>-Windows.zip` from a release built with
+`-SeparateCompanionArtifact`, extract it, open PowerShell there, and run:
 
    ```powershell
    ./scripts/install-companion.ps1
    ```
 
-   Node.js 20 or newer is required. The installer uses
+   Node.js 20 or newer is required. The installer materialises the exact
+   lock-pinned dependency graph in a staging directory before replacing an
+   existing runtime, then uses
    `%LOCALAPPDATA%\AI Factory Copilot\Companion` for a new install, preserves an
    already verified older location during upgrades, registers a limited-user
    logon task, verifies every runtime file by SHA-256, and waits for the health

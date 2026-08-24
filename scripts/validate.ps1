@@ -54,9 +54,13 @@ $requiredFiles = @(
     'Source\AIFactoryCopilot\Public\AIFactorySubsystem.h',
     'Source\AIFactoryCopilot\Public\AIFactoryDataProvider.h',
     'Source\AIFactoryCopilot\Private\AIFactorySnapshot.cpp',
+    'Source\AIFactoryCopilot\Private\AIFactoryBlueprintAudit.h',
+    'Source\AIFactoryCopilot\Private\AIFactoryBlueprintAudit.cpp',
     'Config\Alpakit.ini',
     'Resources\Icon128.png',
     'companion\server.mjs',
+    'companion\package-lock.json',
+    'companion\lib\blueprints.mjs',
     'companion\lib\graph.mjs',
     'companion\lib\solvers.mjs',
     'companion\lib\tools.mjs',
@@ -112,6 +116,8 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableManufacturer.h'; Pattern = 'GetCurrentRecipe' },
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableManufacturer.h'; Pattern = 'void SetRecipe' },
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableManufacturer.h'; Pattern = 'GetAvailableRecipes' },
+        @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildable.h'; Pattern = 'FBox GetCachedBounds' },
+        @{ Path = 'Source\FactoryGame\Public\FGLightweightBuildableSubsystem.h'; Pattern = 'GetAllLightweightBuildableInstances' },
         @{ Path = 'Source\FactoryGame\Public\FGRecipe.h'; Pattern = 'static bool IsProducedIn' },
         @{ Path = 'Source\FactoryGame\Public\FGFactoryConnectionComponent.h'; Pattern = 'GetConnection' },
         @{ Path = 'Source\FactoryGame\Public\FGSchematicManager.h'; Pattern = 'GetAllPurchasedSchematics' },
@@ -131,8 +137,21 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'ValidatePlacementAndCost' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetConstructDisqualifiers' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGBlueprintHologram.h'; Pattern = 'SetBlueprintDescriptor' },
+        @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'void GotoBuildState' },
+        @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'void SetDesiredBlueprint' },
+        @{ Path = 'Source\FactoryGame\Public\FGRemoteCallObject.h'; Pattern = 'GetOwnerPlayerCharacter' },
+        @{ Path = 'Mods\SML\Source\SML\Public\Module\GameInstanceModule.h'; Pattern = 'TArray<TSubclassOf<class UFGRemoteCallObject>> RemoteCallObjects' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintSettings.h'; Pattern = 'mBlueprintRecipeClass' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'void RefreshBlueprintsAndDescriptors' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'void RefreshBlueprintRecipeRequirements' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'static void GetBlueprintDescriptors' },
+        @{ Path = 'Source\FactoryGame\Public\FGFactoryBlueprintTypes.h'; Pattern = 'FString GetBlueprintNameAsString' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'CollectBuildables' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'AreProxyBuildingsRegisteredAndValid' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'GetLightweightClassAndIndices' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'GetBlueprintName' },
+        @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildable.h'; Pattern = 'GetBlueprintProxy' },
+        @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableResourceExtractorBase.h'; Pattern = 'GetExtractableResource' },
         @{ Path = 'Source\FactoryGame\Public\FGBuildableSubsystem.h'; Pattern = 'GetNewNetConstructionID' },
         @{ Path = 'Source\FactoryGame\Public\FGPowerCircuit.h'; Pattern = 'GetPowerProductionCapacity' },
         @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableConveyorBase.h'; Pattern = 'ITEM_SPACING' },
@@ -148,6 +167,7 @@ if ($upstream) {
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Components\TextBlock.h'; Pattern = 'FText GetText' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Core\Public\Math\Transform.h'; Pattern = 'GetTypeHash\(const TTransform' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Json\Public\Dom\JsonObject.h'; Pattern = 'TryGetNumberField\(FStringView FieldName, int32& OutNumber\)' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Components\LineBatchComponent.h'; Pattern = 'void DrawLines\(TArrayView<FBatchedLine> InLines\)' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Components\LineBatchComponent.h'; Pattern = 'ClearBatch\(uint32 InBatchID\)' }
         @{ Path = 'Mods\SML\Source\SML\Private\ModLoading\ModLoadingLibrary.cpp'; Pattern = 'Resources/Icon128.png' }
     )
@@ -194,6 +214,25 @@ if ($gameRoot) {
 
 Push-Location (Join-Path $root 'companion')
 try {
+    $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+    if (-not $nodeCommand) {
+        throw 'Node.js 20 or newer is required to validate the companion dependency lockfile.'
+    }
+    $nodeVersion = (& $nodeCommand.Source --version).Trim()
+    if ($nodeVersion -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 20) {
+        throw "AI Factory Copilot requires Node.js 20 or newer; found '$nodeVersion' at '$($nodeCommand.Source)'."
+    }
+    $npmPath = Join-Path (Split-Path -Parent $nodeCommand.Source) 'npm.cmd'
+    if (-not (Test-Path -LiteralPath $npmPath -PathType Leaf)) {
+        throw "npm.cmd was not found beside Node.js at '$($nodeCommand.Source)'. Install the complete Node.js distribution."
+    }
+    # Tests exercise a static native-blueprint parser import. Materialise its
+    # exact lock-pinned dependency graph first so validation cannot pass only
+    # because a developer happened to retain an old node_modules directory.
+    & $npmPath ci --ignore-scripts --no-audit --fund=false
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm ci failed with exit code $LASTEXITCODE while validating the companion."
+    }
     & node --test
     if ($LASTEXITCODE -ne 0) {
         throw "Companion tests failed with exit code $LASTEXITCODE."

@@ -33,6 +33,92 @@ test("the game refuses stale or oversized action plans whole", () => {
   assert.doesNotMatch(subsystem, /Requested\.SetNum\(/);
 });
 
+test("a saved blueprint can be armed in the requesting player's native Build Gun", () => {
+  const subsystem = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp", import.meta.url),
+    "utf8",
+  );
+  const rcoHeader = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Public/AIFactoryBlueprintPreviewRCO.h", import.meta.url),
+    "utf8",
+  );
+  const rco = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintPreviewRCO.cpp", import.meta.url),
+    "utf8",
+  );
+  const gameInstanceModule = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryGameInstanceModule.cpp", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(rcoHeader, /UFUNCTION\(Client, Reliable\)\s*void ClientPreviewBlueprint/);
+  assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryBlueprintPreviewRCO::StaticClass\(\)\)/);
+  assert.match(rco, /GetOwnerPlayerCharacter\(\)/);
+  assert.match(rco, /BuildGun->SetDesiredBlueprint\(BlueprintName\)/);
+  assert.match(rco, /BuildGun->GotoBuildState\(BlueprintRecipe\)/);
+  assert.match(rco, /BuildGun->IsBlueprintDescriptorActive\(Descriptor\)/);
+  assert.doesNotMatch(rco, /Server_GotoBuildState|Server_SetDesiredBlueprint/);
+
+  assert.match(subsystem, /DispatchClientBlueprintPreview\(/);
+  assert.match(subsystem, /PreviewRCO->ClientPreviewBlueprint\(BlueprintName\)/);
+  assert.match(subsystem, /client_preview_must_be_a_standalone_action/);
+  assert.match(subsystem, /game_client_blueprint_preview_dispatched/);
+  assert.match(subsystem, /TEXT\("world_mutated"\), false/);
+  const dispatch = subsystem.indexOf("DispatchClientBlueprintPreview(");
+  const normalExecute = subsystem.indexOf("AIFactoryActions::ExecutePlan(", dispatch);
+  assert.ok(dispatch >= 0 && normalExecute > dispatch);
+});
+
+test("native Blueprint preview refreshes only when the player requests a native preview", () => {
+  const subsystem = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp", import.meta.url),
+    "utf8",
+  );
+  const rco = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintPreviewRCO.cpp", import.meta.url),
+    "utf8",
+  );
+  const snapshot = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp", import.meta.url),
+    "utf8",
+  );
+
+  const dispatchStart = subsystem.indexOf("FString DispatchClientBlueprintPreview(");
+  const dispatchEnd = subsystem.indexOf("FString DescribeActionResults(", dispatchStart);
+  const dispatch = subsystem.slice(dispatchStart, dispatchEnd);
+  const clientStart = rco.indexOf("void UAIFactoryBlueprintPreviewRCO::ClientPreviewBlueprint_Implementation(");
+  const client = rco.slice(clientStart);
+  assert.ok(dispatchStart >= 0 && dispatchEnd > dispatchStart);
+  assert.ok(clientStart >= 0);
+
+  for (const source of [dispatch, client]) {
+    const refresh = source.indexOf("RefreshBlueprintsAndDescriptors()");
+    const requirements = source.indexOf("RefreshBlueprintRecipeRequirements()", refresh);
+    const lookup = source.indexOf("GetBlueprintDescriptorByNameString", requirements);
+    assert.ok(
+      refresh >= 0 && refresh < requirements && requirements < lookup,
+      "refresh and recipe requirements must precede descriptor lookup",
+    );
+    assert.doesNotMatch(source, /ReadBlueprintFromDisc|WriteFileToDisk|CopyFile/);
+  }
+
+  assert.match(snapshot, /TSharedRef<FJsonObject> BlueprintLibraryJson\(UWorld\* World\)/);
+  assert.match(snapshot, /AFGBlueprintSubsystem::GetBlueprintDescriptors\(Descriptors, World\)/);
+  assert.match(snapshot, /SetArrayField\(TEXT\("registered_blueprint_names"\), RegisteredNames\)/);
+  assert.match(snapshot, /Root->SetObjectField\(TEXT\("blueprint_library"\), BlueprintLibraryJson\(World\)\)/);
+  const snapshotLibraryStart = snapshot.indexOf("TSharedRef<FJsonObject> BlueprintLibraryJson(");
+  const snapshotLibraryEnd = snapshot.indexOf("FAIFactorySnapshotResult FAIFactorySnapshot::Build(", snapshotLibraryStart);
+  const snapshotLibrary = snapshot.slice(snapshotLibraryStart, snapshotLibraryEnd);
+  assert.ok(snapshotLibraryStart >= 0 && snapshotLibraryEnd > snapshotLibraryStart);
+  assert.doesNotMatch(
+    snapshotLibrary,
+    /BlueprintSubsystem->RefreshBlueprintsAndDescriptors|BlueprintSubsystem->RefreshBlueprintRecipeRequirements/,
+  );
+  assert.match(snapshotLibrary, /SetBoolField\(TEXT\("refreshed_before_capture"\), false\)/);
+  assert.match(snapshotLibrary, /SetBoolField\(TEXT\("complete"\), InvalidDescriptorCount == 0\)/);
+  assert.doesNotMatch(snapshot, /WriteFileToDisk|ReadBlueprintFromDisc|CopyFile/);
+});
+
 test("the game defers step-referenced building and belt preflight until actors exist", () => {
   const actions = fs.readFileSync(
     new URL(
@@ -249,12 +335,23 @@ test("a conveyor is revalidated, charged, and accepted only after exact endpoint
   const finalRevalidation = belt.indexOf("hologram_revalidated_after_final_build_step");
   const cost = belt.indexOf("NormalizeActionCost(Belt->GetCost(true))");
   const exactReadback = belt.indexOf("const bool bExactEndpoints");
-  const exactGate = belt.indexOf("if (!bExactEndpoints)");
+  // The endpoints may now be repaired with SetConnection before the rollback --
+  // a belt that constructed but snapped to the wrong port is worth joining
+  // rather than dismantling. The gate moved to bEndpointsExact accordingly.
+  const repair = belt.indexOf("bool bEndpointsExact = bExactEndpoints");
+  const exactGate = belt.indexOf("if (!bEndpointsExact)");
   const charge = belt.indexOf("ChargeActionCost(Cost, Inventory)");
   const journal = belt.indexOf("RecordActionUndo(MoveTemp(Step))");
   assert.ok(finalStep >= 0 && finalStep < finalRevalidation && finalRevalidation < cost);
-  assert.ok(cost < exactReadback && exactReadback < exactGate);
+  assert.ok(cost < exactReadback && exactReadback < repair && repair < exactGate);
   assert.ok(exactGate < charge && charge < journal);
+
+  // The repair must not weaken the check it precedes: it is gated on the game's
+  // own CanConnectTo, it re-runs the same IsExactPair rather than assuming the
+  // join took, and it refuses to steal a port another machine already holds.
+  assert.match(belt, /BeltSide->CanConnectTo\(Wanted\)/);
+  assert.match(belt, /return IsExactPair\(BeltSide, Wanted\);/);
+  assert.match(belt, /Wanted->IsConnected\(\) && Wanted->GetConnection\(\) != BeltSide/);
 });
 
 test("the game rejects a locked belt recipe before spawning its hologram", () => {
@@ -332,6 +429,39 @@ test("lightweight foundations are detected exactly, materialized for dependent s
   );
 });
 
+test("native blueprint placement retains a valid lightweight-only proxy", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const blueprintStart = actions.indexOf("FAIFactoryActionResult PlaceBlueprint(");
+  const blueprintEnd = actions.indexOf("FAIFactoryActionResult GiveItem(", blueprintStart);
+  const blueprint = actions.slice(blueprintStart, blueprintEnd);
+
+  assert.match(blueprint, /Proxy->GetLightweightClassAndIndices\(\)/);
+  assert.match(blueprint, /Proxy->AreProxyBuildingsRegisteredAndValid\(\)/);
+  assert.match(blueprint, /blueprint_proxy_lightweight_readback_not_ready/);
+  assert.match(blueprint, /lightweight_buildings_placed/);
+  assert.match(blueprint, /actor_buildings_placed/);
+
+  const lightweightReadback = blueprint.indexOf(
+    "Proxy->AreProxyBuildingsRegisteredAndValid()",
+  );
+  const successGate = blueprint.indexOf("const bool bHasPlacedLightweights");
+  const cleanup = blueprint.indexOf("blueprint_proxy_lightweight_readback_not_ready");
+  const charge = blueprint.indexOf("ChargeActionCost(Cost, Inventory)");
+  assert.ok(
+    lightweightReadback >= 0 &&
+      lightweightReadback < successGate &&
+      successGate < cleanup &&
+      cleanup < charge,
+    "a valid lightweight proxy must pass readback before cost charging; only an unready proxy is cleaned up",
+  );
+});
+
 test("extractors report the current extractable interface, not deprecated node state", () => {
   const snapshot = fs.readFileSync(
     new URL(
@@ -345,6 +475,59 @@ test("extractors report the current extractable interface, not deprecated node s
   assert.match(snapshot, /Extractor->GetExtractorTypeName\(\)/);
   assert.match(snapshot, /ExtractableInterface->GetResourceClass\(\)/);
   assert.doesNotMatch(snapshot, /Extractor->GetResourceNode\(\)/);
+});
+
+test("native Blueprint placement auditing stays evidence-only and handles a miner aim fallback", () => {
+  const audit = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintAudit.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const snapshot = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  // A resource node can be the game's usable hit while the camera trace sees
+  // the Blueprint miner. The fallback is evidence-only: it must not replace
+  // preferred_target for normal placement/action semantics.
+  assert.match(audit, /AIFactoryBlueprintAuditFindProxy/);
+  assert.match(audit, /camera_visibility_trace_fallback/);
+  assert.match(snapshot, /Capture\(PreferredActor, CameraHit\.GetActor\(\)\)/);
+  assert.match(actions, /SetObjectField\(\s*TEXT\("blueprint_instance_audit"\)/);
+
+  assert.match(audit, /AreProxyBuildingsRegisteredAndValid\(\)/);
+  assert.match(audit, /GetBlueprintProxy\(\)/);
+  assert.match(audit, /GetExtractableResource\(\)/);
+  assert.match(audit, /GetLightweightClassAndIndices\(\)/);
+  assert.match(audit, /proxy_has_authority/);
+  assert.match(audit, /extractable_resource_not_replicated_or_unbound/);
+
+  // This helper is a witness of Satisfactory's placement, never a repair or
+  // a second placement system. Keep all world-write APIs out of the source.
+  for (const forbidden of [
+    /SetResourceNode/,
+    /SetExtractableResource/,
+    /SpawnActor/,
+    /Construct\(/,
+    /Dismantle/,
+    /WriteFileToDisk/,
+    /ReadBlueprintFromDisc/,
+  ]) {
+    assert.doesNotMatch(audit, forbidden);
+  }
 });
 
 test("an unconfigured manufacturer stays an unknown cycle rate instead of crashing the snapshot", () => {
@@ -466,4 +649,30 @@ test("the requested Z is honoured only when the caller asks", () => {
   const lift = actions.indexOf("Hit.ImpactPoint.Z = WantedZ", guard);
   const instigator = actions.indexOf("SetConstructionInstigator", guard);
   assert.ok(guard >= 0 && lift > guard && instigator > lift);
+});
+
+test("a hologram that mounts at an offset is corrected by measurement, once", () => {
+  const actions = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp", import.meta.url),
+    "utf8",
+  );
+
+  // A Conveyor Merger came back +101 cm twice with snap_accepted false and
+  // snapped_building "none". Nothing snapped it; it mounts a metre above
+  // whatever surface it is handed, the way it sits on a foundation, so
+  // replaying its captured world position made it add that offset again.
+  //
+  // The correction is measured, not tabulated: lower the hit by the drift that
+  // was actually observed. A per-class offset table would be a guess that rots.
+  assert.ok(actions.includes("requested_z_first_pass_drift_cm"));
+  assert.ok(actions.includes("Hit.ImpactPoint.Z -= DriftCm;"));
+
+  // Kept only if it helped, and undone if it did not -- a hologram that
+  // ignores the hit must not be left worse off than before it was touched.
+  assert.ok(actions.includes("requested_z_corrected"));
+  assert.ok(actions.includes("requested_z_correction_rejected"));
+  assert.ok(actions.includes("FMath::Abs(CorrectedDrift) < FMath::Abs(DriftCm)"));
+
+  // One pass. Oscillating would be worse than reporting the residue honestly.
+  assert.equal(actions.match(/Hit\.ImpactPoint\.Z -= DriftCm;/g).length, 1);
 });

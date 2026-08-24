@@ -1,6 +1,9 @@
 #include "AIFactorySubsystem.h"
+#include "AIFactoryCompanion.h"
+#include "AIFactoryVision.h"
 
 #include "AIFactoryActions.h"
+#include "AIFactoryBlueprintPreviewRCO.h"
 #include "AIFactoryCopilotModule.h"
 #include "AIFactoryWaypointDisplay.h"
 #include "Command/ChatCommandLibrary.h"
@@ -9,6 +12,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "FGCharacterPlayer.h"
+#include "FGBlueprintSubsystem.h"
 #include "FGGameState.h"
 #include "FGPlayerController.h"
 #include "HAL/FileManager.h"
@@ -91,6 +95,160 @@ namespace
             return TEXT("action_was_not_accepted");
         }
         return FString();
+    }
+
+    bool IsClientBlueprintPreviewAction(const TSharedPtr<FJsonValue>& Value)
+    {
+        const TSharedPtr<FJsonObject>* Object = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Object) || !Object)
+        {
+            return false;
+        }
+        FString Action;
+        return (*Object)->TryGetStringField(TEXT("action"), Action) &&
+            Action == TEXT("preview_blueprint");
+    }
+
+    TSharedPtr<FJsonValue> MakeClientBlueprintPreviewResult(
+        const bool bAccepted,
+        const FString& Status,
+        const FString& BlueprintName,
+        const FString& Reason = FString())
+    {
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        Result->SetStringField(TEXT("action"), TEXT("preview_blueprint"));
+        Result->SetBoolField(TEXT("accepted"), bAccepted);
+        Result->SetBoolField(TEXT("committed"), false);
+        Result->SetBoolField(TEXT("client_only"), true);
+        Result->SetBoolField(TEXT("world_mutated"), false);
+        Result->SetStringField(TEXT("status"), Status);
+        if (!BlueprintName.IsEmpty())
+        {
+            Result->SetStringField(TEXT("blueprint_name"), BlueprintName);
+        }
+        if (!Reason.IsEmpty())
+        {
+            Result->SetStringField(TEXT("reason"), Reason);
+        }
+        return MakeShared<FJsonValueObject>(Result);
+    }
+
+    FString DispatchClientBlueprintPreview(
+        UWorld* World,
+        UCommandSender* Sender,
+        const TSharedPtr<FJsonValue>& Value,
+        TArray<TSharedPtr<FJsonValue>>& OutResults)
+    {
+        const TSharedPtr<FJsonObject>* Action = nullptr;
+        if (!Value.IsValid() || !Value->TryGetObject(Action) || !Action)
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                FString(),
+                TEXT("preview_blueprint_action_is_not_an_object")));
+            return TEXT("Blueprint preview was not sent: the action payload was invalid.");
+        }
+
+        bool bCommit = false;
+        FString BlueprintName;
+        (*Action)->TryGetBoolField(TEXT("commit"), bCommit);
+        (*Action)->TryGetStringField(TEXT("blueprint_name"), BlueprintName);
+        BlueprintName.TrimStartAndEndInline();
+        if (!bCommit)
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                BlueprintName,
+                TEXT("preview_blueprint_requires_client_dispatch")));
+            return TEXT("Blueprint preview was not sent because it was not marked for client dispatch.");
+        }
+        if (BlueprintName.IsEmpty())
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                BlueprintName,
+                TEXT("blueprint_name_is_required")));
+            return TEXT("Blueprint preview was not sent because no blueprint name was supplied.");
+        }
+
+        AFGPlayerController* PlayerController = IsValid(Sender) ? Sender->GetPlayer() : nullptr;
+        if (!IsValid(PlayerController))
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                BlueprintName,
+                TEXT("no_requesting_player_controller")));
+            return TEXT("Blueprint preview was not sent because the requesting player is unavailable.");
+        }
+
+        AFGBlueprintSubsystem* Blueprints = IsValid(World)
+            ? AFGBlueprintSubsystem::Get(World)
+            : nullptr;
+        // The bridge has already checked the freshly captured active-session
+        // descriptor registry, but an export or file transfer can complete in
+        // the gap before this client handoff. Refresh the game's own registry
+        // again rather than inventing a descriptor or accepting a disk path.
+        if (IsValid(Blueprints))
+        {
+            Blueprints->RefreshBlueprintsAndDescriptors();
+            Blueprints->RefreshBlueprintRecipeRequirements();
+        }
+        UFGBlueprintDescriptor* Descriptor = IsValid(Blueprints)
+            ? Blueprints->GetBlueprintDescriptorByNameString(BlueprintName)
+            : nullptr;
+        if (!IsValid(Descriptor))
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                BlueprintName,
+                TEXT("blueprint_not_found")));
+            return FString::Printf(
+                TEXT("Blueprint preview was not sent because %s is not registered in this save's active Blueprint library."),
+                *BlueprintName);
+        }
+        if (!Descriptor->GetRecipeRequirementsAreMet())
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                BlueprintName,
+                TEXT("blueprint_contains_locked_recipes")));
+            return FString::Printf(
+                TEXT("Blueprint preview was not sent because %s contains recipes the player has not unlocked."),
+                *BlueprintName);
+        }
+
+        UAIFactoryBlueprintPreviewRCO* PreviewRCO =
+            Cast<UAIFactoryBlueprintPreviewRCO>(
+                PlayerController->GetRemoteCallObjectOfClass(
+                    UAIFactoryBlueprintPreviewRCO::StaticClass()));
+        if (!IsValid(PreviewRCO))
+        {
+            OutResults.Add(MakeClientBlueprintPreviewResult(
+                false,
+                TEXT("refused"),
+                BlueprintName,
+                TEXT("blueprint_preview_rco_unavailable")));
+            return TEXT("Blueprint preview was not sent because the client preview channel is not ready yet.");
+        }
+
+        // This is the one cross-network boundary. The RCO's Client RPC then
+        // uses only FGBuildGun's documented local-player APIs. Nothing in this
+        // server action creates a hologram, spends inventory, or changes world
+        // state.
+        PreviewRCO->ClientPreviewBlueprint(BlueprintName);
+        OutResults.Add(MakeClientBlueprintPreviewResult(
+            true,
+            TEXT("client_preview_dispatched"),
+            BlueprintName));
+        return FString::Printf(
+            TEXT("Blueprint preview was sent to the requesting client's native Build Gun for %s. Nothing was placed or charged."),
+            *BlueprintName);
     }
 
     FString DescribeActionResults(const TArray<TSharedPtr<FJsonValue>>& Results)
@@ -221,6 +379,10 @@ void AAIFactorySubsystem::BeginPlay()
         ActorSpawnedHandle = World->AddOnActorSpawnedHandler(
             FOnActorSpawned::FDelegate::CreateUObject(this, &AAIFactorySubsystem::HandleActorSpawned));
 
+        // Before anything tries to reach the bridge. Non-blocking: if Node is
+        // missing this records a reason and moves on rather than stalling load.
+        AIFactoryCompanion::EnsureRunning();
+
         for (TActorIterator<AActor> It(World); It; ++It)
         {
             AttachActorObserver(*It);
@@ -260,12 +422,31 @@ void AAIFactorySubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
         }
     }
 
+    // Only ever stops a process this session launched. A bridge the player
+    // started in a terminal is theirs and is left alone.
+    AIFactoryCompanion::StopIfWeStartedIt();
     AIFactoryActions::ClearUndoJournal();
     Super::EndPlay(EndPlayReason);
 }
 
 void AAIFactorySubsystem::ObserveWorld()
 {
+    // Vision rides the observer timer rather than owning one. The observer
+    // already ticks and already knows whether anything changed, so a second
+    // timer would just be another thing to keep in sync.
+    if (AIFactoryVision::IsEnabled())
+    {
+        const FAIFactorySettings Current = FAIFactorySettings::Load();
+        if (Current.VisionIntervalSeconds > 0.0f)
+        {
+            const double Now = FPlatformTime::Seconds();
+            if (Now - LastVisionCaptureSeconds >= Current.VisionIntervalSeconds)
+            {
+                LastVisionCaptureSeconds = Now;
+                AIFactoryVision::RequestFrame(GetWorld(), TEXT("timer"), Current.bVisionIncludeUI);
+            }
+        }
+    }
     const uint32 NewFingerprint = FAIFactorySnapshot::ComputeWorldFingerprint(GetWorld());
     if (NewFingerprint != WorldFingerprint)
     {
@@ -547,9 +728,11 @@ void AAIFactorySubsystem::AskBridge(
                 Response->GetResponseCode() < 300 &&
                 ResponseJson->HasField(TEXT("reply"));
 
-            // A reply may carry world-mutating actions. They run here, on the
-            // server, after the answer is parsed — never inside the bridge,
-            // which has no authority over the world.
+            // A reply may carry server-authoritative world actions or one
+            // client-only Blueprint Build Gun handoff. The bridge never owns
+            // either execution path: world actions stay on the server, while
+            // the handoff is delivered to the requesting player's native Build
+            // Gun through a registered RCO.
             const TArray<TSharedPtr<FJsonValue>>* Actions = nullptr;
             if (bSuccess && ResponseJson->TryGetArrayField(TEXT("actions"), Actions) && Actions)
             {
@@ -599,13 +782,40 @@ void AAIFactorySubsystem::AskBridge(
                 FString ActionSummary;
                 if (RefusalReason.IsEmpty())
                 {
-                    ActionSummary = AIFactoryActions::ExecutePlan(
-                        WeakThis->GetWorld(),
-                        WeakThis->FindLocalPlayerCharacter(),
-                        *Actions,
-                        ActionSettings.bAllowWriteActions,
-                        LexToString(WeakThis->GetWorldRevision()),
-                        ActionResults);
+                    TArray<TSharedPtr<FJsonValue>> ClientPreviewActions;
+                    TArray<TSharedPtr<FJsonValue>> WorldActions;
+                    for (const TSharedPtr<FJsonValue>& Action : *Actions)
+                    {
+                        (IsClientBlueprintPreviewAction(Action)
+                            ? ClientPreviewActions
+                            : WorldActions).Add(Action);
+                    }
+
+                    if (!ClientPreviewActions.IsEmpty() &&
+                        (ClientPreviewActions.Num() != 1 || !WorldActions.IsEmpty()))
+                    {
+                        RefusalReason = TEXT("client_preview_must_be_a_standalone_action");
+                        ActionSummary = TEXT(
+                            "No actions ran: a native Blueprint Build Gun preview must be the only action in its request.");
+                    }
+                    else if (ClientPreviewActions.Num() == 1)
+                    {
+                        ActionSummary = DispatchClientBlueprintPreview(
+                            WeakThis->GetWorld(),
+                            WeakSender.Get(),
+                            ClientPreviewActions[0],
+                            ActionResults);
+                    }
+                    else
+                    {
+                        ActionSummary = AIFactoryActions::ExecutePlan(
+                            WeakThis->GetWorld(),
+                            WeakThis->FindLocalPlayerCharacter(),
+                            WorldActions,
+                            ActionSettings.bAllowWriteActions,
+                            LexToString(WeakThis->GetWorldRevision()),
+                            ActionResults);
+                    }
                 }
                 else
                 {
@@ -619,7 +829,12 @@ void AAIFactorySubsystem::AskBridge(
                 {
                     Reply += TEXT("\n\n") + ActionSummary;
                     Reply += DescribeActionResults(ActionResults);
-                    if (RefusalReason.IsEmpty() && !ActionSettings.bAllowWriteActions)
+                    const bool bClientPreviewOnly =
+                        ActionResults.Num() == 1 &&
+                        IsClientBlueprintPreviewAction(ActionResults[0]);
+                    if (RefusalReason.IsEmpty() &&
+                        !bClientPreviewOnly &&
+                        !ActionSettings.bAllowWriteActions)
                     {
                         Reply += TEXT(
                             "\nWrite actions are off, so nothing was changed. "
@@ -633,6 +848,10 @@ void AAIFactorySubsystem::AskBridge(
                     ActionResults.ContainsByPredicate(IsRefusedActionResult);
                 const bool bActionsRefused =
                     !RefusalReason.IsEmpty() || bActionResultRefused;
+                const bool bClientPreviewDispatched =
+                    ActionResults.Num() == 1 &&
+                    IsClientBlueprintPreviewAction(ActionResults[0]) &&
+                    !bActionResultRefused;
                 const FString ActionsRefusalReason = !RefusalReason.IsEmpty()
                     ? RefusalReason
                     : FirstActionRefusalReason(ActionResults);
@@ -652,6 +871,9 @@ void AAIFactorySubsystem::AskBridge(
                 ResponseJson->SetBoolField(
                     TEXT("game_world_was_mutated"),
                     bCommittedWorldWrite);
+                ResponseJson->SetBoolField(
+                    TEXT("game_client_blueprint_preview_dispatched"),
+                    bClientPreviewDispatched);
                 ResponseJson->SetBoolField(
                     TEXT("game_actions_refused"),
                     bActionsRefused);
@@ -698,6 +920,9 @@ void AAIFactorySubsystem::AskBridge(
                         TEXT("game_write_actions_enabled"),
                         ActionSettings.bAllowWriteActions);
                     Outcome->SetBoolField(TEXT("game_world_was_mutated"), bCommittedWorldWrite);
+                    Outcome->SetBoolField(
+                        TEXT("game_client_blueprint_preview_dispatched"),
+                        bClientPreviewDispatched);
                     Outcome->SetBoolField(TEXT("game_actions_refused"), bActionsRefused);
                     Outcome->SetStringField(TEXT("game_actions_refusal_reason"), ActionsRefusalReason);
                     Outcome->SetNumberField(TEXT("game_actions_requested_count"), Actions->Num());

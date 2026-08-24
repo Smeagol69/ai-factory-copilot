@@ -59,6 +59,9 @@ private:
     FAIFactorySettings Settings;
     uint64 WorldRevision = 1;
     uint32 WorldFingerprint = 0;
+
+    /** Wall clock of the last vision frame, so the observer can pace captures. */
+    double LastVisionCaptureSeconds = 0.0;
     FTimerHandle ObserverTimer;
     FTimerHandle StartupSelfTestTimer;
     FDelegateHandle ActorSpawnedHandle;

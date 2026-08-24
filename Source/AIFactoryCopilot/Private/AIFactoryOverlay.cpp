@@ -24,6 +24,14 @@ namespace
     constexpr int32 MaximumExplicitActorIds = 4096;
     constexpr int32 MaximumActorIdCharacters = 2048;
     constexpr double MaximumOverlayRadiusMeters = 100000.0;
+    /**
+     * A native editor selection may contain an entire megabase. Its volume is
+     * still exact at any size, but tens of thousands of individual wireframes
+     * would make moving one size slider hitch the game. Above this measured
+     * render budget the UI states that individual outlines are condensed; it
+     * never silently draws a prefix.
+     */
+    constexpr int32 MaximumSelectionOverlayEntries = 2048;
 
     /** Depth priority 1 (SDPG_Foreground) renders over world geometry. */
     constexpr uint8 OverlayDepthWorld = 0;
@@ -95,6 +103,52 @@ namespace
             }
         }
         return Actor->GetClass()->GetName();
+    }
+
+    void AIFactoryAppendSelectionBoxLines(
+        TArray<FBatchedLine>& OutLines,
+        const FVector& Origin,
+        const FVector& Extent,
+        const FLinearColor& Color,
+        const float Lifetime,
+        const float Thickness,
+        const uint8 Depth,
+        const uint32 BatchId)
+    {
+        const FVector SafeExtent = Extent.ComponentMax(FVector(10.0, 10.0, 10.0));
+        const FVector Min = Origin - SafeExtent;
+        const FVector Max = Origin + SafeExtent;
+        const FVector Corners[8] = {
+            FVector(Min.X, Min.Y, Min.Z), FVector(Max.X, Min.Y, Min.Z),
+            FVector(Max.X, Max.Y, Min.Z), FVector(Min.X, Max.Y, Min.Z),
+            FVector(Min.X, Min.Y, Max.Z), FVector(Max.X, Min.Y, Max.Z),
+            FVector(Max.X, Max.Y, Max.Z), FVector(Min.X, Max.Y, Max.Z),
+        };
+        static constexpr int32 Edges[12][2] = {
+            { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
+            { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+            { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
+        };
+        for (const int32 (&Edge)[2] : Edges)
+        {
+            OutLines.Emplace(
+                Corners[Edge[0]],
+                Corners[Edge[1]],
+                Color,
+                Lifetime,
+                Thickness,
+                Depth,
+                BatchId);
+        }
+    }
+
+    bool AIFactorySelectionEntryIsFinite(const FAIFactorySelectionOverlayEntry& Entry)
+    {
+        return !Entry.Origin.ContainsNaN() &&
+            !Entry.Extent.ContainsNaN() &&
+            Entry.Extent.X >= 0.0 &&
+            Entry.Extent.Y >= 0.0 &&
+            Entry.Extent.Z >= 0.0;
     }
 }
 
@@ -295,6 +349,110 @@ FAIFactoryOverlayResult Draw(
     }
     Result.bDrawn = true;
     Result.Status = TEXT("drawn");
+    return Result;
+}
+
+FAIFactorySelectionOverlayResult DrawSelection(
+    UWorld* World,
+    const FString& OverlayName,
+    const FBox& SelectionVolume,
+    const TArray<FAIFactorySelectionOverlayEntry>& Entries,
+    const FAIFactoryOverlayStyle& Style)
+{
+    FAIFactorySelectionOverlayResult Result;
+    Result.OverlayName = OverlayName.IsEmpty() ? TEXT("selection") : OverlayName;
+    Result.SelectedCount = Entries.Num();
+
+    if (!IsValid(World))
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("no_world");
+        return Result;
+    }
+
+    // Do not leave an old selection lit when the current input is malformed.
+    Clear(World, Result.OverlayName);
+    if (SelectionVolume.IsValid == 0 ||
+        SelectionVolume.Min.ContainsNaN() ||
+        SelectionVolume.Max.ContainsNaN())
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("selection_volume_is_not_finite");
+        return Result;
+    }
+
+    ULineBatchComponent* Batcher = GetOverlayBatcher(World, Style.bDrawThroughWalls);
+    if (!IsValid(Batcher))
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("no_line_batcher_available");
+        return Result;
+    }
+
+    for (const FAIFactorySelectionOverlayEntry& Entry : Entries)
+    {
+        if (!AIFactorySelectionEntryIsFinite(Entry))
+        {
+            ++Result.InvalidBoundsCount;
+        }
+    }
+
+    // An invalid bound cannot be made visually honest by omitting just that
+    // piece. Keep the exact selection volume, mark every individual outline as
+    // condensed, and name the condition in the UI result.
+    const bool bAllBoundsRenderable = Result.InvalidBoundsCount == 0;
+    Result.DetailedCount =
+        bAllBoundsRenderable && Entries.Num() <= MaximumSelectionOverlayEntries
+            ? Entries.Num()
+            : 0;
+    Result.CondensedCount = Result.SelectedCount - Result.DetailedCount;
+    Result.bCondensed = Result.CondensedCount > 0;
+
+    const uint32 BatchId = GNextOverlayBatchId++;
+    PruneOverlayWorldStates();
+    GOverlayBatchIdsByWorld.FindOrAdd(TWeakObjectPtr<UWorld>(World))
+        .Add(Result.OverlayName, BatchId);
+
+    const uint8 Depth = Style.bDrawThroughWalls ? OverlayDepthForeground : OverlayDepthWorld;
+    const float Lifetime = FMath::Max(0.0f, Style.LifetimeSeconds);
+    TArray<FBatchedLine> Lines;
+    Lines.Reserve((1 + Result.DetailedCount) * 12);
+    AIFactoryAppendSelectionBoxLines(
+        Lines,
+        SelectionVolume.GetCenter(),
+        SelectionVolume.GetExtent(),
+        Style.Color,
+        Lifetime,
+        Style.Thickness,
+        Depth,
+        BatchId);
+    for (int32 Index = 0; Index < Result.DetailedCount; ++Index)
+    {
+        const FAIFactorySelectionOverlayEntry& Entry = Entries[Index];
+        AIFactoryAppendSelectionBoxLines(
+            Lines,
+            Entry.Origin,
+            Entry.Extent,
+            Style.Color,
+            Lifetime,
+            Style.Thickness,
+            Depth,
+            BatchId);
+    }
+    Batcher->DrawLines(Lines);
+
+    Result.bDrawn = true;
+    Result.Status = Result.bCondensed
+        ? TEXT("selection_volume_drawn_individual_bounds_condensed")
+        : TEXT("selection_volume_and_all_bounds_drawn");
+    if (Result.InvalidBoundsCount > 0)
+    {
+        Result.Reason = TEXT("selected_bounds_not_finite");
+    }
+    else if (Result.bCondensed)
+    {
+        Result.Reason = TEXT("selection_exceeds_individual_outline_budget");
+    }
     return Result;
 }
 

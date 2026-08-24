@@ -1,4 +1,9 @@
 #include "AIFactoryChatCommand.h"
+#include "AIFactoryVision.h"
+#include "AIFactoryNodeEdit.h"
+#include "Resources/FGResourceNodeBase.h"
+#include "Resources/FGResourceDescriptor.h"
+#include "AIFactoryTerrainScan.h"
 
 #include "AIFactorySubsystem.h"
 #include "Command/CommandSender.h"
@@ -87,6 +92,139 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             Request.RadiusMeters,
             static_cast<unsigned long long>(Subsystem->GetWorldRevision()),
             Snapshot.bActorLimitReached ? TEXT(" [actor limit reached]") : TEXT("")));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("node"))
+    {
+        auto* NodePlayer = Sender->GetPlayer();
+        UWorld* NodeWorld = IsValid(NodePlayer) ? NodePlayer->GetWorld() : nullptr;
+        if (!IsValid(NodeWorld))
+        {
+            Sender->SendChatMessage(TEXT("No world."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        // Listing costs nothing and is what someone types first.
+        const TMap<FString, TSubclassOf<UFGResourceDescriptor>> Known =
+            AIFactoryNodeEdit::KnownResources(NodeWorld);
+        if (!Arguments.IsValidIndex(1))
+        {
+            TArray<FString> Names;
+            for (const TPair<FString, TSubclassOf<UFGResourceDescriptor>>& Entry : Known)
+            {
+                Names.Add(Entry.Key);
+            }
+            Names.Sort();
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("Look at a node and run: /ai node <resource>. On this map: %s. ")
+                TEXT("Use 'original' to undo."),
+                *FString::Join(Names, TEXT(", "))));
+            return EExecutionStatus::COMPLETED;
+        }
+
+        // The node under the crosshair. Same trace the placement lane uses.
+        // Resolved the way the game does. The previous version traced
+        // ECC_Visibility directly and hit an AbstractInstanceManager, so it
+        // reported nothing under a crosshair that was squarely on a node.
+        AFGResourceNodeBase* Target =
+            AIFactoryNodeEdit::NodeUnderCrosshair(Cast<APlayerController>(NodePlayer));
+        if (!IsValid(Target))
+        {
+            Sender->SendChatMessage(TEXT(
+                "Look directly at a resource node and run it again — nothing under the crosshair is one."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        const FString Wanted = Arguments[1].ToLower();
+        TSubclassOf<UFGResourceDescriptor> Resource = nullptr;
+        if (Wanted != TEXT("original") && Wanted != TEXT("reset"))
+        {
+            const TSubclassOf<UFGResourceDescriptor>* Found = Known.Find(Wanted);
+            if (Found == nullptr)
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("No resource called '%s' exists on this map. Run /ai node with no argument to list them."),
+                    *Arguments[1]));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+            Resource = *Found;
+        }
+
+        FString Reason;
+        if (!AIFactoryNodeEdit::SetNodeResource(NodeWorld, Target, Resource, Reason))
+        {
+            Sender->SendChatMessage(FString::Printf(TEXT("Not changed: %s."), *Reason));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        // Name the original as well, so the way back is on screen rather than
+        // something to remember.
+        const TSubclassOf<UFGResourceDescriptor> Original = Target->GetResourceClassOriginal();
+        Sender->SendChatMessage(IsValid(Resource)
+            ? FString::Printf(
+                TEXT("This node now yields %s (originally %s). /ai node original puts it back."),
+                *UFGItemDescriptor::GetItemName(Resource).ToString(),
+                IsValid(Original) ? *UFGItemDescriptor::GetItemName(Original).ToString() : TEXT("unknown"))
+            : FString::Printf(TEXT("Node restored to %s."),
+                IsValid(Original) ? *UFGItemDescriptor::GetItemName(Original).ToString() : TEXT("its original resource")));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("terrain"))
+    {
+        // Defaults chosen to cover a cove or a build site in one go without
+        // a visible freeze: 120 m at a 4 m pitch is about nine thousand
+        // traces. Both are overridable because measuring a rock face wants a
+        // finer pitch than surveying a valley.
+        const double ScanRadius = Arguments.IsValidIndex(1)
+            ? FCString::Atod(*Arguments[1])
+            : 120.0;
+        const double ScanStep = Arguments.IsValidIndex(2)
+            ? FCString::Atod(*Arguments[2])
+            : 4.0;
+
+        auto* ScanPlayer = Sender->GetPlayer();
+        UWorld* ScanWorld = IsValid(ScanPlayer) ? ScanPlayer->GetWorld() : nullptr;
+        if (!IsValid(ScanWorld))
+        {
+            Sender->SendChatMessage(TEXT("No world to scan."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        // A frame is captured alongside, because a height field without a
+        // picture is a grid of numbers nobody can orient. The two together
+        // are what make a scan readable.
+        AIFactoryVision::RequestFrame(ScanWorld, TEXT("terrain_scan"), true);
+
+        const FString Written = AIFactoryTerrainScan::ScanToFile(
+            ScanWorld,
+            GetScanCenter(Sender),
+            ScanRadius,
+            ScanStep,
+            TEXT("chat_command"));
+
+        Sender->SendChatMessage(Written.IsEmpty()
+            ? TEXT("The terrain scan could not be written.")
+            : FString::Printf(
+                TEXT("Scanned %.0f m at ~%.0f m spacing -> %s"),
+                ScanRadius,
+                ScanStep,
+                *Written));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("look"))
+    {
+        // On demand, so a player can hand over a view without enabling the
+        // timer at all. Reports the directory rather than the filename: the
+        // PNG does not exist yet when this returns.
+        auto* CommandPlayer = Sender->GetPlayer();
+        UWorld* CommandWorld = IsValid(CommandPlayer) ? CommandPlayer->GetWorld() : nullptr;
+        AIFactoryVision::RequestFrame(CommandWorld, TEXT("requested"), true);
+        Sender->SendChatMessage(FString::Printf(
+            TEXT("Capturing a frame to %s (the file lands a moment from now)."),
+            *AIFactoryVision::VisionDirectory()));
         return EExecutionStatus::COMPLETED;
     }
 
@@ -185,6 +323,6 @@ void AAIFactoryChatCommand::SendHelp(UCommandSender* Sender)
     Sender->SendChatMessage(TEXT("/ai <question> - chat using a fresh nearby snapshot, exact position, and current crosshair focus"));
     Sender->SendChatMessage(TEXT("/ai all <question> - chat using the whole-world live snapshot"));
     Sender->SendChatMessage(TEXT("/ai reset - clear this save/player conversation"));
-    Sender->SendChatMessage(TEXT("/ai status | scan [radius_m] | export [radius_m|all]"));
+    Sender->SendChatMessage(TEXT("/ai status | scan | terrain [radius_m] [step_m] | look | node [resource] | export [radius_m|all]"));
     Sender->SendChatMessage(TEXT("Examples: /ai what should I do here?  /ai is this machine connected correctly?"));
 }

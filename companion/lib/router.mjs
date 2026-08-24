@@ -31,6 +31,7 @@ import {
   solveItemBalance,
   solveMachineRates,
   solvePowerCircuits,
+  solveBlueprintPlacementAudit,
   solveRecipeOptions,
   solveActorLookup,
   solveBuildRecipeLookup,
@@ -39,8 +40,10 @@ import {
   solveSiteSelection,
   solveTransportCapacity,
   solveUnlockStatus,
+  solveBlueprintLayout,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
+import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
 import {
   baseBuildActions,
@@ -64,12 +67,27 @@ import {
   listDesigns,
   planDesignPlacement,
   renameDesign,
+  summariseDesign,
   retireDesign,
   writeDesign,
 } from "./designs.mjs";
-import { buildLibraryModel } from "./library-page.mjs";
+import {
+  clearPreview,
+  describeSelection,
+  lastPreview,
+  makeSelectionBox,
+  rememberPreview,
+  selectionBounds,
+  selectionContents,
+} from "./selection.mjs";
 import { findResourceNodeUnderPlan, planAimedMk1WireFactory } from "./resource-factory.mjs";
 import { measureBuilding } from "./designer.mjs";
+import { formatSurvey, judgeSite, surveyResources } from "./survey.mjs";
+import {
+  assessBlueprintSite,
+  formatSiteAssessment,
+  judgeSite as judgeBlueprintSite,
+} from "./siting.mjs";
 import {
   measureConnectors,
   solveBeltRoute,
@@ -448,6 +466,11 @@ function formatUnlocks(result) {
 function formatBlueprints(result) {
   const blueprints = result.blueprints ?? [];
   if (blueprints.length === 0) return "No saved blueprints were found.";
+  const names = new Map();
+  for (const blueprint of blueprints) {
+    const key = String(blueprint.name ?? "").toLocaleLowerCase();
+    names.set(key, (names.get(key) ?? 0) + 1);
+  }
   return `${blueprints.length} blueprint(s):\n\n${blueprints
     .slice(0, 15)
     .map((blueprint) => {
@@ -458,9 +481,142 @@ function formatBlueprints(result) {
           : blueprint.affordable_from_captured_player_inventories === false
             ? " — you are short materials"
             : "";
-      return `- **${blueprint.name}**${size ? ` (${size.x}×${size.y}×${size.z})` : ""}${affordable}`;
+      const duplicate = (names.get(String(blueprint.name ?? "").toLocaleLowerCase()) ?? 0) > 1;
+      const reference = blueprint.blueprint_reference ?? blueprint.relative_path;
+      const disambiguator = duplicate && reference ? ` — reference \`${reference}\`` : "";
+      const registration = blueprint.registered_in_current_session === false
+        ? " — not registered for this save's Build Gun"
+        : blueprint.registered_in_current_session === null
+          ? " — current-session Build Gun registration unknown"
+          : "";
+      return `- **${blueprint.name}**${size ? ` (${size.x}×${size.y}×${size.z})` : ""}${affordable}${disambiguator}${registration}`;
     })
     .join("\n")}`;
+}
+
+function formatBlueprintLayout(result) {
+  if (!result.available) {
+    if (result.reason === "blueprint_name_ambiguous" && Array.isArray(result.candidates)) {
+      const references = result.candidates
+        .map((entry) => `\`${entry.relative_path}\``)
+        .join(", ");
+      return `I found more than one saved blueprint with that name. Use one exact library reference: ${references}.`;
+    }
+    const detail = result.diagnostic ? ` ${result.diagnostic}` : "";
+    return `I can't inspect that saved blueprint: **${result.reason ?? "unknown"}**.${detail}`;
+  }
+  const decoded = result.decoded ?? {};
+  const classes = (result.buildable_classes ?? [])
+    .slice(0, 6)
+    .map((entry) => `${entry.count} ${entry.class_name}`)
+    .join(", ");
+  const bounds = result.pivot_bounds_cm;
+  const span = bounds?.span_cm
+    ? ` Its saved buildable pivots span ${round(bounds.span_cm.x / 100)} × ` +
+      `${round(bounds.span_cm.y / 100)} × ${round(bounds.span_cm.z / 100)} m.`
+    : " Its buildable pivot bounds were not available.";
+  const listed = result.buildables_returned ?? 0;
+  const omitted = result.buildables_truncated ?? 0;
+  return `**${result.blueprint_name}** decodes to **${decoded.buildable_count ?? 0} Build_* entities** ` +
+    `(${decoded.component_count ?? 0} components).${span}` +
+    (classes ? ` Most common classes: ${classes}.` : "") +
+    ` I returned ${listed} saved transform${listed === 1 ? "" : "s"}` +
+    (omitted > 0 ? ` and left ${omitted} out of this compact reply.` : ".") +
+    " These are native saved transforms, not proof that the blueprint will clear terrain or fit at a new location.";
+}
+
+function auditWholeCount(value) {
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/** Format a runtime proxy audit without turning a partial replication sample into a census. */
+function formatBlueprintPlacementAudit(result) {
+  const subject = result.blueprint_name
+    ? `**${result.blueprint_name}**`
+    : "the aimed native Blueprint instance";
+
+  if (!result.available) {
+    const reason = result.reason ?? "unknown";
+    return `I can't audit ${subject}: **${reason}**. ` +
+      "Aim at the placed native Blueprint proxy or one of its actor-backed members and ask again. " +
+      "This did not read a saved .sbp file or change the world.";
+  }
+
+  if (!result.inspection_complete) {
+    const observed = result.observed ?? {};
+    const members = auditWholeCount(observed.member_count_observed);
+    const extractors = auditWholeCount(observed.extractor_count_observed);
+    const lightweightExtractors = auditWholeCount(observed.lightweight_extractor_count_uninspected);
+    const observedText = [
+      members === null ? null : `${members} member${members === 1 ? "" : "s"} observed`,
+      extractors === null ? null : `${extractors} resource extractor${extractors === 1 ? "" : "s"} observed`,
+    ].filter(Boolean).join(", ");
+    if (result.replication_state !== "replication_pending" && lightweightExtractors !== null && lightweightExtractors > 0) {
+      return `${subject} is fully registered, but ${lightweightExtractors} resource extractor` +
+        `${lightweightExtractors === 1 ? " is" : "s are"} stored as lightweight Blueprint members. ` +
+        "The game's public aim API cannot resolve those bindings, so they remain unknown — not unbound. " +
+        (observedText ? `The partial observation contains ${observedText}. ` : "") +
+        "This was read-only; nothing changed in the world.";
+    }
+    const state = result.replication_state === "replication_pending"
+      ? "is still replicating"
+      : "is not yet complete";
+    return `${subject} ${state}.` +
+      (observedText ? ` The game has only a partial observation (${observedText}),` : "") +
+      " so that is not proof of zero miners or an unbound miner. Wait for the Blueprint to settle, aim at it again, and re-run the audit. " +
+      "This was read-only; nothing changed in the world.";
+  }
+
+  const total = auditWholeCount(result.extractor_count);
+  const counts = result.extractor_binding_counts ?? {};
+  const bound = auditWholeCount(counts.bound);
+  const unbound = auditWholeCount(counts.unbound);
+  const pending = auditWholeCount(counts.replication_pending);
+  const unknown = auditWholeCount(counts.unknown);
+  if (total === null || bound === null || unbound === null || pending === null || unknown === null) {
+    return `${subject} is registered and ready, but the captured extractor totals are incomplete. ` +
+      "I cannot prove whether its miners are bound from this snapshot. This was read-only; nothing changed.";
+  }
+  if (total === 0) {
+    return `${subject} is fully registered and contains **0 resource extractors**. ` +
+      "There are no miner bindings to inspect on this runtime instance. This was read-only; nothing changed.";
+  }
+
+  const summary = [
+    `${bound} bound`,
+    `${unbound} unbound`,
+    `${pending} replication-pending`,
+    `${unknown} unknown`,
+  ].join(", ");
+  const detailLines = (result.extractors ?? [])
+    .filter((extractor) => extractor && typeof extractor === "object")
+    .slice(0, 6)
+    .map((extractor) => {
+      const name = extractor.actor_name ?? extractor.actor_id ?? "Unnamed extractor";
+      if (extractor.binding_state === "bound") {
+        const resource = extractor.resource_name ?? extractor.resource_class;
+        return resource
+          ? `- **${name}** → **${resource}**`
+          : `- **${name}** → bound resource (resource class was not captured)`;
+      }
+      if (extractor.binding_state === "unbound") return `- **${name}** → unbound`;
+      if (extractor.binding_state === "replication_pending") return `- **${name}** → replication pending (not a failure)`;
+      return `- **${name}** → unknown${extractor.reason ? ` (${extractor.reason})` : ""}`;
+    });
+  const detailsReturned = auditWholeCount(result.extractor_details_returned);
+  const omitted = auditWholeCount(result.extractor_details_capped_omitted);
+  const detailCaveat =
+    omitted && omitted > 0
+      ? ` The game returned details for ${detailsReturned ?? detailLines.length} and compacted ${omitted}; the totals above still cover all ${total}.`
+      : "";
+  const pendingCaveat = pending > 0 || unknown > 0
+    ? " Pending or unknown bindings are not treated as unbound."
+    : "";
+
+  return `${subject} is fully registered with **${total} resource extractor${total === 1 ? "" : "s"}**: ${summary}.` +
+    detailCaveat + pendingCaveat +
+    (detailLines.length > 0 ? `\n\n${detailLines.join("\n")}` : "") +
+    "\n\nThis inspected the placed runtime Blueprint only; it did not change the world.";
 }
 
 
@@ -1189,14 +1345,6 @@ export function parseDesignListRequest(question) {
   return DESIGN_LIST.test(text) ? {} : null;
 }
 
-/** "open the library", "show me the library page". */
-const LIBRARY_PAGE =
-  /\b(?:open|show|launch|bring up|where(?:'s| is))\b[^?]*\b(?:librar(?:y|ies)|web ?page|ui|dashboard|browser)\b/i;
-
-export function parseLibraryPageRequest(question) {
-  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
-  return LIBRARY_PAGE.test(text) ? {} : null;
-}
 
 /**
  * "clone this 5 times", "copy this smelter 3 more times".
@@ -1243,6 +1391,35 @@ export function parseCloneRequest(question) {
 const BLUEPRINT_PLACE =
   /^(?:can you |could you |please )?(?:place|put|drop|spawn|stamp)\s+(?:down\s+)?(?:the\s+|a\s+|an\s+|my\s+)?(.+?)(?:\s+blue\s?print)?\s+(?:here|down|at this|on this|where i(?:'m|m| am)?\s+(?:looking|standing|aiming))$/i;
 
+const BLUEPRINT_PREVIEW =
+  /^(?:can you |could you |please )?(?:preview|arm|select)\s+(?:the\s+|a\s+|an\s+|my\s+)?(.+?)(?:\s+blue\s?print)?(?:\s+(?:in|with)\s+(?:my\s+)?build\s?gun)?$/i;
+export function parseBlueprintPreviewRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text || !/\b(?:blue\s?print|build\s?gun)\b/i.test(text)) return null;
+  const match = text.match(BLUEPRINT_PREVIEW);
+  if (!match) return null;
+  const name = match[1]
+    .replace(/\bblue\s?print\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name.length >= 2 ? { name } : null;
+}
+
+// This is a runtime-instance audit, not a saved-blueprint lookup. Keep the
+// phrasings anchored so "inspect blueprint Coal Plant" remains a disk layout
+// request and never gets silently redirected to the thing under the crosshair.
+const BLUEPRINT_PLACEMENT_AUDIT_REQUEST = [
+  /^(?:can you |could you |please )?audit (?:this|that) (?:native )?blue\s?print(?: placement)?$/i,
+  /^(?:can you |could you |please )?check (?:this|that) (?:native )?blue\s?print placement$/i,
+  /^(?:can you |could you |please )?is (?:this|that) (?:native )?blue\s?print(?:['’]s)? (?:miner|extractor) bound$/i,
+];
+
+export function parseBlueprintPlacementAuditRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  return BLUEPRINT_PLACEMENT_AUDIT_REQUEST.some((pattern) => pattern.test(text)) ? {} : null;
+}
+
 export function parseBlueprintPlaceRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   // A real blueprint turns too, and it costs nothing to support: the action
@@ -1263,6 +1440,86 @@ export function parseBlueprintPlaceRequest(question) {
   // is the authority instead — the route falls through when nothing matches, so
   // a phrase that belongs to another planner reaches it untouched.
   return name.length >= 2 ? { name, rotation_degrees: turn ? turn.degrees : 0 } : null;
+}
+
+
+/**
+ * "select 120 m around me", "make it 200 wide", "select 150 x 80 x 60 here".
+ *
+ * The owner asked for something like SMART!'s preview: set a size, see what
+ * would be caught, adjust, then commit. Clicking every piece of a megabase
+ * with the dismantle tool is not a workflow.
+ *
+ * Two shapes. The first sets a box; the second resizes the one already shown,
+ * which is the slider without a slider -- say a number, look, say another.
+ */
+const SELECT_BOX =
+  /^(?:can you |could you |please )?(?:select|preview|show|mark|box)\s+(?:everything\s+)?(?:within\s+|inside\s+|in\s+)?(\d{1,4})\s*m?\b(?:\s*(?:x|by|\*)\s*(\d{1,4})\s*m?\b)?(?:\s*(?:x|by|\*)\s*(\d{1,4})\s*m?\b)?/i;
+const SELECT_RESIZE =
+  /^(?:can you |could you |please )?(?:make it|resize(?:\s+it)?|set(?:\s+it)?(?:\s+to)?|now)\s+(\d{1,4})\s*m?\b|^(\d{1,4})\s*m?$/i;
+const SELECT_GROW =
+  /^(?:can you |could you |please )?(bigger|wider|larger|smaller|tighter|narrower|taller|shorter)\b/i;
+
+export function parseSelectBoxRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(SELECT_BOX);
+  if (!match) return null;
+  const width = Number(match[1]);
+  if (!Number.isFinite(width) || width <= 0) return null;
+  return {
+    width_m: width,
+    depth_m: match[2] ? Number(match[2]) : null,
+    height_m: match[3] ? Number(match[3]) : null,
+  };
+}
+
+export function parseSelectResizeRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const exact = text.match(SELECT_RESIZE);
+  if (exact) {
+    const width = Number(exact[1] ?? exact[2]);
+    return Number.isFinite(width) && width > 0 ? { width_m: width } : null;
+  }
+  const relative = text.match(SELECT_GROW);
+  if (!relative) return null;
+  const word = relative[1].toLowerCase();
+  // A step, not a jump: the point is to converge on a size by looking.
+  if (/bigger|wider|larger/.test(word)) return { scale: 1.5 };
+  if (/smaller|tighter|narrower/.test(word)) return { scale: 1 / 1.5 };
+  if (word === "taller") return { height_scale: 1.5 };
+  return { height_scale: 1 / 1.5 };
+}
+/**
+ * "export this factory as blueprint Northern Steel Works".
+ *
+ * This is intentionally not another spelling of "save this as a design".
+ * A saved design is a bridge-side replay list; this asks the game to make a
+ * native `.sbp` through its own BlueprintSubsystem. The source is deliberately
+ * strict as well: the player must mark every member with Satisfactory's
+ * dismantle multi-select first. A radius is a guess at the factory boundary,
+ * and an enormous factory makes that guess more dangerous, not less.
+ */
+// Widened from the original, which only accepted "export this factory as
+// blueprint X". "save this selection as a blueprint called Mega Base" and
+// "export selected as blueprint MegaBase" both failed -- the same narrowness
+// the routing log kept exposing elsewhere. The noun is optional now, "save" is
+// accepted alongside "export", and the article before "blueprint" may be there
+// or not.
+//
+// "save" is the risky addition, because "save this as mk1 copper" is the
+// *design* route. The word "blueprint" is what separates them and is required
+// here; parseDesignSaveRequest strips a trailing "blueprint" and would
+// otherwise claim these. Route order puts this first, and the design tests pin
+// that their phrasings still reach them.
+const NATIVE_BLUEPRINT_EXPORT =
+  /^(?:can you |could you |please )?(?:export|package|save)\s+(?:this|the|my|these|selected|current)?\s*(?:factory|base|build|selection|megabase|mega\s?base|it)?\s*(?:as)?\s*(?:a\s+|an\s+)?(?:new\s+)?(?:native\s+|real\s+|game\s+)?blue\s?print(?:\s+(?:called|named|as))?\s+["']?(.+?)["']?$/i;
+
+export function parseNativeBlueprintExportRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const match = text.match(NATIVE_BLUEPRINT_EXPORT);
+  if (!match) return null;
+  const name = match[1].replace(/\s+/g, " ").trim();
+  return name ? { name } : null;
 }
 
 /**
@@ -1292,6 +1549,32 @@ export function parseBlueprintListRequest(question) {
   // "blueprints with coal in the name" narrows the list rather than dumping it.
   const filter = text.match(/\b(?:named|called|with|containing|matching|for)\s+"?([a-z0-9 _-]{2,40}?)"?\s*(?:in (?:the|its) name)?$/i);
   return { name_contains: filter ? filter[1].trim() : null };
+}
+
+// This is deliberately narrower than the list route. It reads one exact saved
+// name, never a disk path, and has no placement/export verb; all build actions
+// retain their own confirmation and validation paths.
+const BLUEPRINT_LAYOUT_REQUEST = [
+  /^(?:please\s+)?(?:inspect|analyse|analyze|read)\s+(?:the\s+)?(?:layout|structure|contents)?\s*(?:of\s+)?(?:the\s+)?blue\s?print\s+["']?(.+?)["']?$/i,
+  /^(?:please\s+)?(?:show|what(?:'s| is))\s+(?:the\s+)?(?:layout|structure|contents|inside)\s+(?:of\s+)?(?:the\s+)?blue\s?print\s+["']?(.+?)["']?$/i,
+];
+
+export function parseBlueprintLayoutRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  const match = BLUEPRINT_LAYOUT_REQUEST.map((pattern) => text.match(pattern)).find(Boolean);
+  if (!match) return null;
+  const blueprintName = match[1].replace(/\s+/g, " ").trim();
+  // A returned library reference may contain forward slashes, but it is never
+  // resolved as a path. Block absolute and dot-segment spellings anyway so the
+  // local route cannot even express a traversal-shaped request.
+  const unsafeReference =
+    /(^|[\\/])\.\.?(?:[\\/]|$)/.test(blueprintName) ||
+    /^[\\/]/.test(blueprintName) ||
+    /^[A-Za-z]:[\\/]/.test(blueprintName) ||
+    blueprintName.includes("\\");
+  if (!blueprintName || blueprintName.length > 240 || unsafeReference) return null;
+  return { blueprint_name: blueprintName };
 }
 
 /**
@@ -1462,13 +1745,12 @@ export const CAPABILITY_EXAMPLES = [
     "belt the smelter to the constructor",
     "clone this 5 times",
   ]],
-  ["Remember a layout and stamp it again", [
+  ["Save and stamp a layout", [
     "save this as mk1 copper",
     "place mk1 copper on this node rotated 90",
     "list designs",
     "rename mk1 copper to copper starter",
     "delete the mk1 copper design",
-    "open the library",
   ]],
   ["Fix and reverse", [
     "undo",
@@ -1501,6 +1783,56 @@ const HOW_MANY =
 export function parseWhereAmIRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   return WHERE_AM_I.test(text) ? {} : null;
+}
+
+/**
+ * "what resources are near me", "is my hub well placed", "survey this site".
+ *
+ * A radius may be given ("within 300m") and is honoured, but it can never
+ * see further than the capture itself -- surveyResources reports the capture
+ * radius so a caller cannot mistake "nothing captured" for "nothing there".
+ */
+const SITE_SURVEY =
+  /^(?:can you |could you |please )?(?:(?:survey|assess|scout|check|rate|judge)\s+(?:this\s+|my\s+|the\s+)?(?:site|spot|location|area|base|hub|place)|(?:what|which)\s+(?:resources|nodes|ore|ores)\s+(?:are\s+)?(?:near|nearby|around|close to)\s*(?:me|here|us|my hub|the hub)?|(?:is|was)\s+(?:this|my|the)\s+(?:hub|base|site|spot|location)\s+(?:a\s+)?(?:good|bad|well|badly|poorly)\s*(?:place|placed|spot|choice|located)?|what(?:'s| is)\s+(?:around|near)\s+(?:me|here))\s*$/i;
+
+const SURVEY_RADIUS = /(?:within|in|inside|under)\s+(\d{2,5})\s*(?:m|metres|meters)\b/i;
+
+/**
+ * "will the coal plant fit here", "can I build X here", "does X fit rotated 90".
+ *
+ * The blueprint name is taken verbatim from the question, because a library
+ * reference can contain spaces and folders. Resolution is the inspector's job;
+ * this only decides that the question is a fit question and pulls out a name
+ * and an optional rotation.
+ */
+const SITE_FIT =
+  /^(?:can you |could you |please )?(?:(?:will|would|does|can)\s+(?:the\s+|my\s+|a\s+)?(.+?)\s+fit(?:\s+here)?|(?:can|could)\s+i\s+(?:build|place|put)\s+(?:the\s+|my\s+|a\s+)?(.+?)\s+here)\s*$/i;
+
+const FIT_ROTATION = /\b(?:rotated|turned|at)\s+(0|90|180|270)\s*(?:deg|degrees|°)?\b/i;
+
+export function parseSiteFitRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const rotation = text.match(FIT_ROTATION);
+  const bare = text.replace(FIT_ROTATION, "").replace(/\s{2,}/g, " ").trim();
+  const match = bare.match(SITE_FIT);
+  if (!match) return null;
+  const name = (match[1] ?? match[2] ?? "").trim();
+  if (name.length === 0) return null;
+  // A pronoun means the name is in the conversation, which a model can resolve
+  // and this route cannot. Declining sends it onward; answering "there is no
+  // blueprint called it" would be true and useless.
+  if (/^(?:it|this|that|the one|mine)$/i.test(name)) return null;
+  return { blueprint: name, rotation_deg: rotation ? Number(rotation[1]) : 0 };
+}
+
+export function parseSiteSurveyRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  const radius = text.match(SURVEY_RADIUS);
+  // Strip the radius before matching the shape, so "what resources are near
+  // me within 300m" routes the same as the bare question.
+  const bare = text.replace(SURVEY_RADIUS, "").replace(/\s{2,}/g, " ").trim();
+  if (!SITE_SURVEY.test(bare)) return null;
+  return { radius_meters: radius ? Number(radius[1]) : null };
 }
 
 export function parseLookingAtRequest(question) {
@@ -2975,6 +3307,69 @@ export function answerLocally(question, graph, services) {
 
   // "what am I looking at" — the crosshair target, which the capture already
   // resolves for placement.
+  // "will this blueprint fit here" -- a decoded footprint crossed with a probed
+  // terrain grid. Neither half can answer it alone, and a model asked this would
+  // answer from the blueprint's name and the general look of the landscape.
+  {
+    const fit = parseSiteFitRequest(question);
+    if (fit && graph) {
+      const started = Date.now();
+      // Same accessors the blueprint-layout route uses; the bridge owns all
+      // filesystem reads and the router only ever consumes what it is handed.
+      const inspection =
+        typeof services?.inspectBlueprint === "function"
+          ? services.inspectBlueprint(fit.blueprint)
+          : null;
+      const scan =
+        typeof services?.readTerrainScan === "function" ? services.readTerrainScan() : null;
+      if (!inspection?.available || scan === null) {
+        return localAnswer(
+          inspection === null
+            ? `I could not read a blueprint called "${fit.blueprint}". Ask me to list blueprints to see the exact names.`
+            : "There is no terrain scan yet. Run `/ai terrain` standing where you want to build, then ask again.",
+          "blueprint_site_fit",
+          started,
+          "A fit answer needs both a decoded blueprint and a probed site.",
+        );
+      }
+      const site = assessBlueprintSite(inspection, scan, { rotationDeg: fit.rotation_deg });
+      return localAnswer(
+        formatSiteAssessment(site, judgeBlueprintSite(site)),
+        "blueprint_site_fit",
+        started,
+        "Footprint from the decoded blueprint, ground from the terrain scan.",
+      );
+    }
+  }
+
+  // "what's around me", "is my hub well placed" -- read from the capture's
+  // resource nodes, never from a model. Node layout is exactly the kind of
+  // thing a model will answer confidently and wrongly.
+  {
+    const survey = parseSiteSurveyRequest(question);
+    if (survey && graph) {
+      const started = Date.now();
+      const result = surveyResources(graph.snapshot, {
+        radiusMeters: survey.radius_meters,
+      });
+      if (result.ok) {
+        const judgement = judgeSite(result);
+        return localAnswer(
+          formatSurvey(result, judgement),
+          "site_survey",
+          started,
+          "Resource nodes come from the capture; a model would invent them.",
+        );
+      }
+      return localAnswer(
+        "I could not find a point to survey from — the capture has no HUB and no player position.",
+        "site_survey",
+        started,
+        "No origin in the capture.",
+      );
+    }
+  }
+
   if (parseLookingAtRequest(question) && graph) {
     const started = Date.now();
     const target = graph.snapshot?.interaction_context?.preferred_target;
@@ -3210,22 +3605,6 @@ export function answerLocally(question, graph, services) {
     );
   }
 
-  // "open the library" — the page exists, the panel has a button for it, and
-  // until now asking for it in words reached a model. The parser was written
-  // and exported and then never called from anywhere, which is the quietest
-  // way a feature can be missing: everything about it looks present.
-  if (parseLibraryPageRequest(question)) {
-    const started = Date.now();
-    return localAnswer(
-      "The library is at <http://127.0.0.1:8142/library> — every saved design and " +
-        "every blueprint the game knows about, with a plan of each, and a copy button " +
-        "for the phrase that places it.\n\nThe **Library** button on this panel opens " +
-        "the same page in your browser.",
-      "library_page",
-      started,
-      "The bridge serves the page; nothing was sent to the game.",
-    );
-  }
 
   // "delete the mk2 design" — moved to a retired folder, never unlinked.
   const designRetire = parseDesignRetireRequest(question);
@@ -3310,7 +3689,7 @@ export function answerLocally(question, graph, services) {
     // the number here is the number that will actually go down. A design saved
     // before the capture separated links from buildings still carries its
     // belts and power lines on the buildings list.
-    const listed = buildLibraryModel({ designs, blueprints: [] }).designs;
+    const listed = designs.map(summariseDesign);
     return localAnswer(
       `You have **${designs.length}** saved design(s):\n\n` +
         listed
@@ -3323,6 +3702,172 @@ export function answerLocally(question, graph, services) {
       started,
       "Read from the design folder on disk.",
     );
+  }
+
+  // A box you set and can see before anything is written.
+  const selectBox = parseSelectBoxRequest(question);
+  const selectResize = lastPreview() ? parseSelectResizeRequest(question) : null;
+  if ((selectBox || selectResize) && graph) {
+    const started = Date.now();
+    const previous = lastPreview();
+
+    // Resizing keeps the centre it was already anchored on, so the box does
+    // not walk across the map every time the size changes.
+    const centre = previous?.box?.centre
+      ?? graph.snapshot?.interaction_context?.preferred_target?.hit_location
+      ?? graph.snapshot?.interaction_context?.player?.pawn_location;
+    if (!centre) {
+      return localAnswer(
+        "I do not know where to centre the selection — the capture reported no aim point and no player position.",
+        "selection_refused",
+        started,
+        "No anchor in the snapshot.",
+      );
+    }
+
+    const sizes = selectBox
+      ? selectBox
+      : {
+          width_m: Math.round((previous.box.size_m.width) * (selectResize.scale ?? 1)),
+          depth_m: Math.round((previous.box.size_m.depth) * (selectResize.scale ?? 1)),
+          height_m: Math.round((previous.box.size_m.height) * (selectResize.height_scale ?? 1)),
+        };
+    if (selectResize?.width_m) {
+      sizes.width_m = selectResize.width_m;
+      sizes.depth_m = selectResize.width_m;
+    }
+
+    const box = makeSelectionBox({ centre, ...sizes });
+    if (!box) {
+      return localAnswer("That is not a size I can make a box from.", "selection_refused", started, "Bad extents.");
+    }
+
+    const { buildings, skipped } = selectionContents(graph, box);
+    if (buildings.length === 0) {
+      rememberPreview(box, [], graph.world_revision);
+      return localAnswer(
+        `Nothing is inside a ${box.size_m.width} × ${box.size_m.depth} × ${box.size_m.height} m box there. ` +
+          "Say a bigger number, or stand somewhere else and try again.",
+        "selection_preview",
+        started,
+        "Counted from the capture, which only knows what was scanned.",
+      );
+    }
+
+    rememberPreview(box, buildings, graph.world_revision);
+    const bounds = selectionBounds(buildings);
+
+    // The preview is the consent: these exact ids are lit up, and these exact
+    // ids are what an export would serialise.
+    emitValidatedPlan(graph, services, [{
+      action: "highlight",
+      overlay: "selection",
+      actor_ids: buildings.map((entry) => entry.actor_id),
+      radius_m: 1,
+      commit: true,
+    }]);
+
+    return localAnswer(
+      `**${buildings.length}** buildings inside a ${box.size_m.width} × ${box.size_m.depth} × ` +
+        `${box.size_m.height} m box, lit up in the world now.` +
+        (bounds ? ` They actually span ${bounds.span_m.x} × ${bounds.span_m.y} × ${bounds.span_m.z} m.` : "") +
+        `\n\n${describeSelection(buildings)}` +
+        (skipped.length > 0 ? `\n\n${skipped.length} left out: ${skipped[0].why}.` : "") +
+        '\n\nSay a number to resize, "bigger"/"smaller"/"taller", or ' +
+        '"export this selection as blueprint <name>" when it looks right.',
+      "selection_preview",
+      started,
+      "The highlight shows exactly the set an export would serialise.",
+    );
+  }
+
+  // "export this factory as blueprint X" — unlike a saved design, this asks
+  // the game to write a native .sbp. Exact dismantle-tool membership is the
+  // boundary; never substitute the crosshair or a radius for a whole factory.
+  const nativeBlueprintExport = parseNativeBlueprintExportRequest(question);
+  if (nativeBlueprintExport && graph) {
+    const started = Date.now();
+    // A previewed box wins over the dismantle tool when one is live: the
+    // player just looked at it, so it is the more recent statement of intent.
+    const preview = lastPreview();
+    if (preview && preview.actor_ids.length > 0) {
+      const emittedBox = emitValidatedPlan(graph, services, [{
+        action: "export_native_blueprint",
+        blueprint_name: nativeBlueprintExport.name,
+        selection_source: "box_selection",
+        selected_actor_ids: preview.actor_ids,
+        commit: true,
+      }]);
+      if (emittedBox) {
+        const size = preview.box.size_m;
+        const count = preview.actor_ids.length;
+        clearPreview();
+        return localAnswer(
+          `Exporting the **${count}** buildings you previewed ` +
+            `(${size.width} × ${size.depth} × ${size.height} m) as **${nativeBlueprintExport.name}**. ` +
+            "Only the game can say whether an .sbp was written; its action result will.",
+          "native_blueprint_export",
+          started,
+          "Exactly the set that was highlighted; nothing was added to it.",
+        );
+      }
+      const refusedBox = describePlanRejection();
+      if (refusedBox) {
+        return localAnswer(refusedBox, "native_blueprint_export_refused", started, "Refused before anything ran.");
+      }
+    }
+
+    const selection = graph.snapshot?.interaction_context?.dismantle_selection;
+    if (selection?.available !== true) {
+      return localAnswer(
+        "I need Satisfactory's dismantle selection to export a native blueprint. " +
+          "Switch to the dismantle tool, mark every factory member you want included, then ask again.",
+        "native_blueprint_export_refused",
+        started,
+        "The capture did not expose the game's multi-selection state, so no region was guessed.",
+      );
+    }
+
+    const selectedActorIds = Array.isArray(selection.actor_ids)
+      ? selection.actor_ids.map((id) => String(id ?? "").trim()).filter(Boolean)
+      : [];
+    if (selectedActorIds.length === 0) {
+      return localAnswer(
+        "Mark the factory members with the dismantle tool first. I will export exactly that marked set, " +
+          "not everything near your crosshair.",
+        "native_blueprint_export_refused",
+        started,
+        "The authoritative dismantle selection was empty; no action was emitted.",
+      );
+    }
+
+    const emitted = emitValidatedPlan(graph, services, [{
+      action: "export_native_blueprint",
+      blueprint_name: nativeBlueprintExport.name,
+      selection_source: "dismantle_selection",
+      selected_actor_ids: selectedActorIds,
+      commit: true,
+    }]);
+    if (emitted) {
+      return localAnswer(
+        `Submitted a native blueprint export request for **${nativeBlueprintExport.name}** from ` +
+          `the exact **${selectedActorIds.length}** actor(s) you marked. It has **not** been claimed as ` +
+          "saved yet: only the game-side exporter can re-check the live selection, proxy/lightweight " +
+          "members, resource anchors, and archive write. Its action result will say whether an `.sbp` was written or why it refused.",
+        "native_blueprint_export",
+        started,
+        "Dismantle-tool actor ids and their captured bounds were attached as evidence; the native executor remains authoritative.",
+      );
+    }
+    const refusal = describePlanRejection();
+    if (refusal) {
+      return localAnswer(
+        `I can't submit that native blueprint export: ${refusal}`,
+        "native_blueprint_export_refused",
+        started,
+        "No export action was sent to the game.",
+      );
+    }
   }
 
   const designSave = parseDesignSaveRequest(question);
@@ -3601,6 +4146,87 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "audit this blueprint" — inspect the aimed *placed* runtime proxy. This
+  // remains before preview and saved-file routes because it names no library
+  // entry and must never emit a Build Gun handoff or any world action.
+  const blueprintPlacementAudit = parseBlueprintPlacementAuditRequest(question);
+  if (blueprintPlacementAudit && graph) {
+    const started = Date.now();
+    const audit = solveBlueprintPlacementAudit(graph);
+    return localAnswer(
+      formatBlueprintPlacementAudit(audit),
+      "audit_blueprint_placement",
+      started,
+      "Read the authoritative runtime Blueprint proxy observation from the aimed target; no action was emitted.",
+    );
+  }
+
+  // "preview <name> blueprint" — hand a saved blueprint to the requesting
+  // player's real Build Gun. This is deliberately before direct placement:
+  // preview is a local, non-writing choice and must never be mistaken for
+  // permission to stamp a whole module into the world.
+  const blueprintPreview = parseBlueprintPreviewRequest(question);
+  if (blueprintPreview && graph) {
+    const started = Date.now();
+    const library = typeof services?.listBlueprints === "function" ? services.listBlueprints() : [];
+    const needle = blueprintPreview.name.toLowerCase();
+    const exact = library.filter((entry) => String(entry.name).toLowerCase() === needle);
+    const partial = library.filter((entry) => String(entry.name).toLowerCase().includes(needle));
+    const matches = exact.length > 0 ? exact : partial;
+
+    if (matches.length > 1) {
+      return localAnswer(
+        `"${blueprintPreview.name}" matches ${matches.length} blueprints, so I have not guessed:\n` +
+          matches.slice(0, 6).map((entry) => `- ${entry.name}`).join("\n") +
+          "\n\nSay the full name.",
+        "blueprint_preview_refused",
+        started,
+        "Ambiguous saved-blueprint name; nothing was sent to the Build Gun.",
+      );
+    }
+
+    if (matches.length === 1) {
+      const chosen = matches[0];
+      const activeDescriptor = resolveCurrentSessionBlueprint(graph, chosen.name);
+      if (!activeDescriptor.registered) {
+        const reference = chosen.blueprint_reference ?? chosen.relative_path;
+        const diskReference = reference ? ` (disk reference \`${reference}\`)` : "";
+        const session = activeDescriptor.session_name
+          ? ` for the current **${activeDescriptor.session_name}** session`
+          : " for the current session";
+        const reason = activeDescriptor.reason === "blueprint_not_registered_for_current_session"
+          ? `Satisfactory has not registered it${session}`
+          : `the active Satisfactory Blueprint library was not proven complete${session}`;
+        return localAnswer(
+          `I found **${chosen.name}**${diskReference}, but ${reason}. ` +
+            "I did not send it to the Build Gun, so nothing was placed or charged. " +
+            "A blueprint in another save folder remains inspectable, but it must be registered in this save before native preview is safe.",
+          "blueprint_preview_refused",
+          started,
+          `Disk discovery and the active game-session descriptor registry disagree: ${activeDescriptor.reason}.`,
+        );
+      }
+      const emitted = emitValidatedPlan(graph, services, [
+        { action: "preview_blueprint", blueprint_name: activeDescriptor.blueprint_name },
+      ]);
+      if (emitted) {
+        const dimensions = chosen.designer_dimensions;
+        const size = dimensions ? ` (${dimensions.x}×${dimensions.y}×${dimensions.z})` : "";
+        return localAnswer(
+          `Requesting the native Build Gun preview for **${activeDescriptor.blueprint_name}**${size}. ` +
+            "Nothing is being placed or charged: move, rotate, snap, inspect, and click to construct it with Satisfactory's normal hologram.",
+          "blueprint_preview",
+          started,
+          "The saved-blueprint name was resolved from the local library; the game owns the hologram and eventual construction.",
+        );
+      }
+      const refusal = describePlanRejection();
+      if (refusal) {
+        return localAnswer(refusal, "blueprint_preview_refused", started, "Refused by validation before the client handoff.");
+      }
+    }
+  }
+
   // "place <name> here" — one hologram, and the game wires its insides itself.
   const blueprintPlace = parseBlueprintPlaceRequest(question);
   if (blueprintPlace && graph) {
@@ -3669,6 +4295,26 @@ export function answerLocally(question, graph, services) {
     }
   }
 
+  // "inspect blueprint <exact name>" — decode its saved transforms without a
+  // model. This remains read-only; it cannot turn into a placement request.
+  const blueprintLayout = parseBlueprintLayoutRequest(question);
+  if (blueprintLayout && graph) {
+    const started = Date.now();
+    const layout = solveBlueprintLayout(
+      graph,
+      blueprintLayout,
+      { inspectBlueprint: services?.inspectBlueprint },
+    );
+    return localAnswer(
+      formatBlueprintLayout(layout),
+      "inspect_blueprint_layout",
+      started,
+      layout.available
+        ? "Decoded the selected saved blueprint through the read-only native structural parser."
+        : "The native blueprint reader refused to infer data from an unavailable or unreadable file.",
+    );
+  }
+
   // "list blueprints" — read the folder rather than asking a model about it.
   const blueprintList = parseBlueprintListRequest(question);
   if (blueprintList && graph) {
@@ -3702,19 +4348,36 @@ export function answerLocally(question, graph, services) {
       );
     }
 
+    const names = new Map();
+    for (const entry of found) {
+      const key = String(entry.name ?? "").toLocaleLowerCase();
+      names.set(key, (names.get(key) ?? 0) + 1);
+    }
+    const hasDuplicates = [...names.values()].some((count) => count > 1);
     const lines = found.slice(0, 15).map((entry) => {
       const dimensions = entry.designer_dimensions;
       const size = dimensions ? ` — ${dimensions.x}×${dimensions.y} foundations` : "";
       const built = entry.game_changelist ? `, built on CL ${entry.game_changelist}` : "";
-      return `- **${entry.name}**${size}${built}`;
+      const duplicate = (names.get(String(entry.name ?? "").toLocaleLowerCase()) ?? 0) > 1;
+      const reference = entry.blueprint_reference ?? entry.relative_path;
+      const disambiguator = duplicate && reference ? ` — reference \`${reference}\`` : "";
+      const registration = entry.registered_in_current_session === false
+        ? " — not registered for this save's Build Gun"
+        : entry.registered_in_current_session === null
+          ? " — current-session Build Gun registration unknown"
+          : "";
+      return `- **${entry.name}**${size}${built}${disambiguator}${registration}`;
     });
     const more = found.length > lines.length ? `\n…and ${found.length - lines.length} more.` : "";
+    const hint = hasDuplicates
+      ? 'For a duplicate, say "inspect blueprint <reference>" using the listed reference; it is not a filesystem path.'
+      : 'Say "place <name> here" to put one down.';
 
     return localAnswer(
       `You have **${library.blueprint_count ?? found.length}** saved blueprint(s)` +
         (blueprintList.name_contains ? ` matching "${blueprintList.name_contains}"` : "") +
         `:\n\n${lines.join("\n")}${more}\n\n` +
-        'Say "place <name> here" to put one down.',
+        hint,
       "blueprint_library",
       started,
       "Read from the blueprint folder on disk, not from a model.",

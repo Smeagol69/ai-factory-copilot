@@ -79,6 +79,38 @@ struct FAIFactoryOverlayResult
     double RadiusMeters = 0.0;
 };
 
+/**
+ * One exact bound from the native Blueprint editor's current selection.
+ *
+ * This deliberately carries geometry rather than an actor id. Lightweight
+ * foundations and walls are not actors, and actor overlays re-query bounds at
+ * draw time; neither is an honest picture of the set the editor will export.
+ */
+struct FAIFactorySelectionOverlayEntry
+{
+    FVector Origin = FVector::ZeroVector;
+    FVector Extent = FVector::ZeroVector;
+};
+
+/** Result for the editor-only selection visual. Never a world mutation. */
+struct FAIFactorySelectionOverlayResult
+{
+    bool bDrawn = false;
+    /** True when the exact selection volume replaces individual outlines. */
+    bool bCondensed = false;
+    FString OverlayName;
+    FString Status = TEXT("not_run");
+    FString Reason;
+    /** Every actor and lightweight instance the editor selected. */
+    int32 SelectedCount = 0;
+    /** Individual bounds actually drawn; zero when condensed. */
+    int32 DetailedCount = 0;
+    /** Selected bounds represented by the volume rather than individual lines. */
+    int32 CondensedCount = 0;
+    /** Bounds that could not be rendered exactly, always reported to the UI. */
+    int32 InvalidBoundsCount = 0;
+};
+
 namespace AIFactoryOverlay
 {
     /**
@@ -93,6 +125,21 @@ namespace AIFactoryOverlay
         AFGCharacterPlayer* Player,
         const FString& OverlayName,
         const FAIFactoryOverlayQuery& Query,
+        const FAIFactoryOverlayStyle& Style);
+
+    /**
+     * Draws a native Blueprint editor selection.
+     *
+     * The selection volume is always drawn. Individual actor and lightweight
+     * bounds are drawn only when their complete set fits the explicit render
+     * budget; otherwise the result marks every omitted outline as condensed so
+     * the UI can never imply that a partial drawing is the whole export.
+     */
+    FAIFactorySelectionOverlayResult DrawSelection(
+        UWorld* World,
+        const FString& OverlayName,
+        const FBox& SelectionVolume,
+        const TArray<FAIFactorySelectionOverlayEntry>& Entries,
         const FAIFactoryOverlayStyle& Style);
 
     /** Removes one named overlay. Returns false if no such overlay is drawn. */

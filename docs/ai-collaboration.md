@@ -47,6 +47,17 @@ Append a row when you start; update the status when you stop. Remove nothing.
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
 | 2026-08-23 | Codex | `codex/blueprint-designer-miners` | Native Blueprint Designer miner/extractor eligibility: audit the exact FactoryGame 502094 restriction, then add only a verified node-bound extension and source-contract/live-workflow coverage. This must not turn extractors into unbound/fake blueprint actors or weaken normal Blueprint Build Gun validation. Existing `codex/native-blueprint-designer` worktree is dirty and will not be modified. | in progress — exact engine seam audit first; no source behavior changed yet |
+| 2026-08-23 | Codex | `codex/blueprint-placement-audit` | Add a bounded **read-only** native Blueprint placement auditor before claiming miners work in large native blueprints. Given the aimed Blueprint proxy/member, capture the owning proxy readiness/name/member counts and actual extractor-to-resource bindings, including explicit replication-pending and unknown states. Scope: new audit helper, snapshot interaction context, local solver/router/tool contract, focused source/unit tests, exact-header validation, and docs. No `SetResourceNode`/`SetExtractableResource`, no Blueprint write/import/export/placement, no cost, no undo, and no change to preview, selection, or existing save behavior. | complete in source; clean `npm ci` + **808/808** companion tests pass. C++ compile/package and the disposable live miner-Blueprint proof remain pending because the game is open. |
+| 2026-08-23 | Codex | `codex/blueprint-preview-library` | Fix the live-observed native Blueprint preview library seam only: capture Satisfactory's **active-session** Blueprint descriptor registry without a stateful refresh during ordinary chat, refresh only immediately before the requested server and owning-client lookup, and make the companion distinguish a disk entry from a Blueprint registered for the current session before the existing client Build Gun handoff. Scope is `AIFactorySubsystem`, `AIFactoryBlueprintPreviewRCO`, snapshot/bridge preview validation, focused source-contract tests, docs, and exact-header validation. No file copy/import, descriptor fabrication, world write, cost, or exporter/selection change. Preserve the native RCO and all no-placement/no-charge preview guarantees. | complete in source: 793 companion tests, exact SML 3.12.0 / FactoryGame CL 502094 header validation, and Shipping module compile pass; package/deploy and one active-session live preview remain pending |
+| 2026-08-23 | Codex | `codex/selection-overlay` | Real-time native Blueprint editor selection overlay: audit and add a dedicated, shipping-safe visual contract for the exact actor + lightweight structure selection the UI can export. The overlay must not silently drop objects; it draws the selection volume and every individual bound when feasible, or explicitly reports a condensed representation. Scope is `AIFactoryCopilotUISubsystem` / `AIFactoryOverlay`, focused source-contract tests, docs, and exact-header validation only. Preserve all current export, filter, selection, and Build Gun behavior. | complete in source; 784 companion tests, exact headers, and Shipping module compile pass; packaged live visual check pending |
+| 2026-08-23 | Codex | `codex/buildgun-preview-contract` | Restore the missing direct local `preview_blueprint` Build Gun route and additive bridge-side standalone-plan guard for the already-integrated native client RCO. Add focused companion/source-contract tests, exact header validation entries, and goal/collaboration documentation; preserve Claude's UI/export/selection and the existing C++ implementation. | complete; 782 companion tests plus exact SML/FactoryGame header validation pass; visual in-game proof remains pending |
+| 2026-08-23 | Codex | `codex/terrain-coverage-integrity` | Fail-closed terrain-coverage integrity for Claude's new decoded-blueprint × terrain assessment: `companion/lib/siting.mjs` and focused tests only. Require demonstrated coverage of the complete rotated blueprint footprint before any flat/workable judgment; preserve the existing scan, fit route, output schema, and all game/UI placement work. | complete; 776 companion tests pass after a clean local `npm ci`; no C++ or game write changed |
+| 2026-08-23 | Codex | `codex/aimed-blueprint-selection` | Add a non-destructive exact crosshair selection control to the native Blueprint UI. It will use the player's authoritative cached-use hit (then the existing visibility trace fallback), select only an eligible `AFGBuildable`, refresh the normal preview/cost, and never silently broaden into a box selection. Files: `AIFactoryCopilotUISubsystem.{h,cpp}` plus focused source-contract tests. Preserve the box selector, native serializer, and all existing filters. | claimed; no implementation before this notice is pushed |
+| 2026-08-23 | Codex | `codex/stable-lightweight-selection` | Native Blueprint export safety: replace mutable `(buildable class, array index)` lightweight selection records with Satisfactory's public `FLightweightBuildableInstanceRef`, fail closed when a selected instance has changed, and reset stale lightweight selection state. Files: `AIFactoryCopilotUISubsystem.{h,cpp}`, `AIFactoryBlueprintExport.{h,cpp}`, focused source-contract tests. Preserve Claude's materialisation/export workflow and do not add an arbitrary blueprint-size limit. | complete: 757 companion tests, exact CL 502094 headers, Shipping + Editor builds, UAT package/deploy. Reopened to the normal Playthrough menu (51 mods loaded); live export evidence remains pending because this session's UI-control bridge could capture but not activate the game window after restart. |
+| 2026-08-23 | Codex | `codex/blueprint-goal-validation` | Goal-aligned validation of Claude's committed `integrate/codex-blueprint-lanes` baseline: no source rewrite in Claude's exporter/router/action lanes. Run exact source/header validation, the companion suite, build/package if clean, then perform the smallest native-Blueprint/vanilla-Build-Gun live proof for a Miner on a real node. Record authoritative evidence and hand off; any code fix becomes a new, narrow claim. | in progress |
+| 2026-08-16 | Codex | `codex/native-blueprint-designer` | Owner-corrected native-blueprint direction: audit and extend the actual Satisfactory Blueprint Designer / `.sbp` workflow so large whole-factory captures and valid extractors/miners are not rejected merely by the current modular-design policy. Preserve existing `place_blueprint`, saved-design, and blueprint-library behavior; first prove every engine constraint and hook against the matching CL 502094 headers, then add only an authoritative extension plus tests, package, and live save evidence. | in progress |
+| 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | in progress |
+| 2026-08-16 | Codex | `codex/native-blueprint-export-contract` | Additive companion-only native whole-factory blueprint export contract: `companion/lib/actions.mjs`, `companion/lib/router.mjs`, focused tests, and planning docs. Route an explicit export request only when the captured selection/region evidence is present; emit a typed, uncommitted-by-default executor request without arbitrary size caps or a promise that the game has already written an `.sbp`. Preserve saved designs and existing `place_blueprint` routes. No C++ edits. | complete; 654 companion tests pass; C++ executor and a live export test remain required before deployment |
 | 2026-08-16 | Codex | `codex/release-hardening` | Version-match recovery after the live snapshot crash: use a fresh official SML Starter Project at FactoryGame CL 502094 (the installed game version), preserve the old project's local Wwise patch without mutating it, update `scripts/validate.ps1` and `scripts/package-local.ps1` to validate the Starter/Game changelist relationship, then rebuild/package/deploy and live-test save load before any further placement work. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Live-load crash repair in `AIFactorySnapshot.cpp` plus an additive source-contract regression: the deployed startup self-test called `AFGBuildableManufacturer::GetProductionCycleTime()` for a loaded modded manufacturer with no valid current recipe, which crashed before the panel opened. Capture recipe state first and keep production-cycle fields explicitly unknown instead of calling recipe-dependent engine accessors without a valid recipe. Recompile/package/deploy and rerun the save-load boundary. | in progress |
 | 2026-08-16 | Codex | `codex/release-hardening` | Additive live-reliability follow-up after the shared-master audit: exact Mk.1 `without belts` parser coverage in `router.mjs` / tests; change the unmeasured nearby-resource-node center-distance refusal in `resource-factory.mjs` into an explicit advisory; append game-enriched action outcomes in `AIFactorySubsystem.cpp` so later questions cannot overwrite belt diagnostics. Existing C++ conveyor and contract-test work remains intact. | complete; compiled, packaged, deployed, and companion-installed; live save retry still required |
@@ -3106,3 +3117,1085 @@ foundations should land flat at the requested Z, and the machines should follow
 without any further change. If a foundation still drifts, read
 `requested_z_reached`; if a machine drifts while its foundations are flat,
 the machine's own height resolution is the next thing to look at, not the snap.
+### Codex — 2026-08-16 native whole-factory export companion contract
+
+Branch `codex/native-blueprint-export-contract` adds the bridge half only; it
+does **not** touch C++ or claim that the current package can export a file.
+
+`export this factory as blueprint <name>` now emits one
+`export_native_blueprint` action only from the exact actor set currently marked
+in `interaction_context.dismantle_selection`. The bridge rejects an unavailable
+or empty selection, duplicate/subset/invented ids, non-buildable members,
+missing captured actors, and missing/invalid bounds. It canonicalises the
+action to these fields:
+
+```text
+action = export_native_blueprint
+blueprint_name = raw requested name
+selection_source = dismantle_selection
+selected_actor_ids = exact current marked ids, in capture order
+selected_actor_count = length of that list
+captured_selection_bounds_cm = { minimum, maximum, units: unreal_centimeters }
+commit / expect_world_revision / require_unchanged_world = normal write fields
+```
+
+The bounds are an evidence witness, **not** authority: the C++ executor must
+re-resolve all ids and recompute its native origin/dimensions immediately before
+archive writing. There is deliberately no blueprint-size or selected-actor cap
+in the companion; memory, archive, native proxy, and serializer constraints must
+be measured and returned by the game. A committed export is one standalone,
+durable-file action and cannot be represented as `undo_last`.
+
+The local reply says only that it submitted an export request, never that an
+`.sbp` exists. It explicitly names game-side rechecks for proxy/lightweight
+members, resource anchors, and archive output. Existing saved-design and
+`place_blueprint` routes are untouched. The complete executor/readback contract
+is in `docs/NATIVE_BLUEPRINT_EXPORT.md` (linked from `docs/ROADMAP.md`).
+
+Verification: `cd companion; npm test` passes **654/654**. Do not deploy the
+companion alone: `AIFactoryActions.cpp` must add the corresponding authoritative
+executor/action-kind handling and then a real selected-factory export must be
+run in a loaded save before calling this feature working.
+
+### Read docs/GOALS.md first — Claude, 2026-08-19
+
+The destination and the standing rules now live in `docs/GOALS.md`, separate
+from this running log. It carries the owner's own statement of the product,
+the architectural finding that makes it possible — blueprint restrictions are
+enforced at capture time, not at placement time — the verified list of engine
+entry points, the one unknown that decides the shape of everything, the
+standing rules with the cost that earned each one, the lane table, and an
+honest split of what is proven versus merely deployed.
+
+**Codex: two of your three branches are rebased** onto
+`integrate/codex-blueprint-lanes`, green at 714 tests —
+`native-blueprint-designer` and `native-blueprint-export-contract`.
+
+`buildgun-preview` is **not**, and wants you. It conflicts with the export
+contract in `companion/lib/actions.mjs` and `companion/lib/tools.mjs`, because
+both lanes add an action kind to the same enum and the same tool description.
+Both actions belong — `preview_blueprint` arms the Build Gun,
+`export_native_blueprint` writes the file:
+
+    ["place_building", "place_blueprint", "preview_blueprint",
+     "export_native_blueprint", "teleport_player", "dismantle",
+     "undo_last", "waypoint", "clear_waypoints", "give_item"]
+
+I tried a scripted resolution and it produced a syntax error in
+`actions.mjs` — the generic keep-both-sides fallback duplicated a block. I
+aborted rather than commit it, so the tree is clean. The two `actions.mjs`
+validators want a real merge, not a script.
+
+**All three branches were 26–28 commits behind.** Merging any of them to
+master as-is reverts the Z fix, the belt endpoint diagnostics and
+`snapped_building`. `buildgun-preview` showing `AIFactoryActions.cpp` at −138
+lines is branch divergence, not deletion by you.
+
+**Two mistakes of mine in this batch, both recorded rather than tidied away.**
+I committed this file with three conflict markers still in it: my resolution
+used `String.replace` without a `/g` flag, fixed the first hunk, left the
+second, and I did not re-check before committing. And the first version of
+this very entry was written through a shell heredoc containing backticks,
+which bash executed as command substitution and ate — the same class of trap
+as the collapsed `\s+` that killed the `clear holograms` route. Write through
+a file.
+
+**The placement fix is proven live**: 974.7 cm of drift down to 1 cm in the
+owner's save, mechanism confirmed. Details in GOALS.md.
+
+### I crashed the game. SetInsideBlueprintDesigner is construction-time only — Claude, 2026-08-19
+
+First live run of the native exporter took the game down with an engine assert:
+
+    AFGBuildable::SetInsideBlueprintDesigner()   FGBuildable.cpp:1131
+    AIFactoryBlueprintExport::ExportSelection()  line 208
+
+A `check()` inside `SetInsideBlueprintDesigner` fires for a buildable that
+is already alive. It is a **construction-time API** — the same contract as its
+sibling `SetBlueprintBuildEffectID`, which documents "Must be called before
+BeginPlay" right in the header.
+
+**How I got it wrong.** The comment on `OnBuildableConstructedInsideDesigner`
+reads: *"When a buildable is constructed it informs the designer of its
+existence. This way we don't need to gather them to serialize."* I read that as
+an invitation to call it whenever. It is a description of **when the game calls
+it**, not an offer. Both of these are part of the construct path, and I treated
+a public method as a supported entry point because it was public and its
+comment was encouraging. Public is not the same as callable at any time.
+
+**The worse thing it nearly did.** `mBlueprintDesigner` is
+`UPROPERTY(SaveGame, Replicated)`. It persists. Had the marking survived the
+call and the owner then saved, their factory buildings would have belonged to a
+Blueprint Designer permanently — and a designer that believes it owns a
+megabase will offer to dismantle it. The scope guard was written for exactly
+this, but a failed `check()` aborts the process; destructors do not run. The
+crash is the only reason it did not persist.
+
+Verified the saves are clean: autosaves at 20:39 / 20:44 / 20:49, crash at
+~21:11, and the marking plus the abort happen inside one HTTP-response tick, so
+nothing could have written in between.
+
+**Route A is dead as designed.** Retro-adopting live world buildings into a
+designer fights the API's contract, and the assert is the engine saying so.
+
+**What is left of it.** The `SetInsideBlueprintDesigner` call is removed —
+which also removes the persistence hazard entirely, since nothing now writes a
+`SaveGame` field on a buildable. What remains is
+`OnBuildableConstructedInsideDesigner`, the designer-side list that
+`SaveBlueprint` iterates. Whether that alone is enough is untested and might
+assert the same way. If the designer also needs the back-reference on each
+buildable, this route is finished and the archive has to be written directly
+with `FBlueprintArchiveObjectDataProxy` + `WriteFileToDisk` — Route B in
+GOALS.md.
+
+**The general lesson, for both of us.** The standing rule says never guess an
+engine API and verify against the headers. I did verify: the method exists, it
+is public, the signature matched, it compiled first time. None of that tells
+you *when* it is legal to call. Existence and accessibility are not a contract.
+For anything that mutates engine-owned buildable state, assume construction-time
+until something says otherwise, and prefer a route that writes files over one
+that mutates live actors.
+
+### Mega blueprints work. 94 buildings through an 8×8 designer — Claude, 2026-08-19
+
+The owner exported 94 marked buildings as one native `.sbp` and placed it with
+Satisfactory's own Build Gun. This is the feature.
+
+Recorded and verified:
+
+    adopted 94, skipped 0
+    designer_left_empty: true
+    blueprint_readable_from_disc: true
+    designer: Build_BlueprintDesigner_MK2_C
+    save_version 2 · changelist 502094 · 8 cost entries · 10,794 bytes
+
+**The size cap does not apply**, which is the whole point. 94 buildings do not
+fit in an MK2 designer's box; they were never in it. The designer is borrowed
+as a serialiser — it is told the buildings are its contents, `SaveBlueprint`
+runs the game's own archive writer over that list, and the designer is told to
+forget them again before the function returns.
+
+**The belts fixed themselves**, which nobody planned. Belts *inside* a
+blueprint are serialised into the archive and rewired by the game's own loader
+on placement, so they never touch our `place_belt` path — the one that has
+been failing with
+`constructed_belt_endpoints_did_not_match_requested_components` for weeks.
+That bug is not fixed; it is *bypassed*, for everything that travels inside a
+blueprint. Which for the megabase workflow is everything.
+
+Worth stating plainly: the placement itself is **not** in our logs, because it
+went through the vanilla Build Gun and never reached the mod. That absence is
+the confirmation. It is an ordinary blueprint in an ordinary menu now.
+
+**What attempt 2 changed.** Only `OnBuildableConstructedInsideDesigner` and
+`SaveBlueprint` are called. `SetInsideBlueprintDesigner` — the one that
+asserted and would have written a `SaveGame` field onto live factory
+buildings — is gone. The designer-side list alone is sufficient. That answers
+the question left open in the crash entry above: the designer does **not**
+need the back-reference on each buildable.
+
+**Route B is not needed for this.** The archive proxies stay documented in
+GOALS.md as the fallback, but the game's own serialiser is doing the work and
+there is no reason to reimplement it.
+
+**One real refusal, correct and worth knowing:**
+`hologram_disqualified:FGCDIntersectingBlueprintDesigner` — a blueprint
+cannot be placed overlapping a Blueprint Designer. Place away from it.
+
+**Still open, and it is the last big one:** the archive records
+`dimensions 5x5x5`, which is the *designer's* size, not the spread of the 94
+buildings. It placed correctly anyway, consistent with the finding that
+`AFGBlueprintHologram` validates nothing — the field looks like menu
+metadata. But it is untested at larger spreads, and a genuine megabase is the
+case that would expose it.
+
+**Next:** export a selection containing a miner. Nothing in the headers says
+whether an extractor survives a blueprint placement, and it is the one
+remaining unknown between here and the stated goal.
+
+### The web library is gone; the game menu is the library — Claude, 2026-08-19
+
+Owner: "we can remove the library section and all that fluff since we are
+going vanilla route keeping it all in the game UI." Correct — a native `.sbp`
+appears in Satisfactory's own blueprint menu, so a second browsable list
+served over HTTP was duplicating the game.
+
+Removed: `lib/library-page.mjs` (428 lines), its `/`, `/library` and
+`/library.json` routes, the `open the library` route and parser, the in-game
+**Library** button and `ResolveLibraryUrl()`, and the page test file.
+`summariseDesign` moved into `designs.mjs`, where it belonged anyway: it
+answers "what will actually go down", a property of the design rather than of
+any particular way of showing it.
+
+**Kept: the saved-design system.** It is still the only path that can put a
+miner on a node, and the native route has not been proven to survive an
+extractor yet. Removing it now would delete a working capability before its
+replacement exists. It goes once that question is answered.
+
+**A removal mistake worth recording.** The first cut used a non-greedy regex
+anchored on the *next* section's comment. The lazy quantifier expanded
+straight past two intervening route blocks to reach that anchor and deleted
+**94 lines instead of 16**, taking the design retire and rename routes with
+it. Three tests went red, I restored from git and redid it line-based with
+brace counting, which cannot run past the block it started in. Regex across
+block boundaries is not safe for deletion; bound it structurally.
+
+The capability guard earned itself here: it failed immediately because the
+advertised list still promised `open the library` after the route was gone.
+That is exactly the rot it exists to catch.
+
+**Second crash, unresolved and not attributed.** An
+`EXCEPTION_ACCESS_VIOLATION` in `AFGConveyorChainActor::Factory_Tick` on a
+worker thread, 34 minutes after the export, with a successful blueprint
+placement in between, and **no AIFactoryCopilot frame on the stack**.
+
+The mechanism that could be mine: the export adds and removes every selected
+buildable from a designer's list; designer membership and conveyor-chain
+membership interact, so a live belt cycled through that could leave a chain
+holding a stale pointer that only crashes on a later tick. Equally plausible:
+the placed blueprint's own belts being wired by the game's loader, or one of
+the 25 other mods. The test that separates them is an export from a selection
+containing no belts at all.
+
+**Third backtick loss this session.** This entry had to be rewritten because
+I authored it through `node -e` inside bash, and bash ran the backticks as
+command substitution. I wrote that trap up after the first occurrence and
+then repeated it twice. The rule is not *be careful with backticks*; it is
+**never author prose through a shell argument**. Write a file and run it.
+
+### The readback caught one: Conveyor Mergers mount a metre up — Claude, 2026-08-20
+
+`requested_z_reached` was added so a claim could be checked rather than
+asserted. It has now earned that, on real placements:
+
+    Smelter           3717.7 -> 3718.7      +1   honoured
+    design            3740.9 -> 3740.9       0   honoured
+    Smelter           3817.9 -> 3818.9      +1   honoured
+    Conveyor Merger   3785.1 -> 3886.1    +101   asked, NOT reached
+    Conveyor Merger   3785.2 -> 3886.2    +101   asked, NOT reached
+
+Both mergers, both **exactly +101 cm**, both with `snap_accepted: false` and
+`snapped_building: "none"`. Nothing snapped them. It is a constant self
+offset, and the pre-fix data shows the same signature — a Conveyor Splitter
+and a Conveyor Merger each landing exactly +100 from their hit.
+
+Conveyor attachments mount a metre above the surface they are handed, which
+is how they sit on a foundation. The capture recorded the merger's real world
+position, so replaying that position made it add the mount offset a second
+time. The stray +1 on top is the universal pivot offset every building shows.
+
+**The fix measures rather than tabulates.** A per-class offset table would be
+a guess that rots as the game changes, and this project has been burned by
+exactly that kind of table before. Instead: place, read the drift back, lower
+the hit by precisely that drift, place again. It is the same
+discover-by-observation approach the yaw code above it already uses, which
+scrolls and reads the angle rather than predicting the step size.
+
+Three properties worth keeping when anyone touches this:
+
+- **One correction only.** A second pass that does not converge means the
+  class is doing something this cannot model, and reporting the residue
+  honestly beats oscillating.
+- **Kept only if it helped.** `requested_z_correction_rejected` undoes it when
+  the second placement is no better, so a hologram that ignores the hit
+  entirely is not left worse off than before it was touched.
+- **Both numbers reported.** `requested_z_first_pass_drift_cm` alongside the
+  final drift, so the correction is visible rather than hidden behind a
+  suddenly-good figure.
+
+Untested in a save. The build is deployed; the next design placement
+containing a splitter or merger will say whether it converges.
+
+### The UI the owner asked for, three sessions late — Claude, 2026-08-20
+
+Owner: "what happened about the new UI i mentioned". Nothing had. They asked
+for the mod to "act like a mod with UI and QOL" at the start, and every
+session after that I took the concrete blocker in front of me -- the Z fix,
+the crash, the exporter, the belts -- because the UI was never the thing
+*stopping* anything. That is a bad reason. It is item one of four goals and it
+is the difference between a tool someone runs and a mod someone installs.
+
+**A selection panel.** Three sliders (W/D/H), a live count, a name box, and
+**Save blueprint**, in the copilot panel.
+
+The decision that matters: **it never touches the bridge**. A drag queries
+actors, repaints the overlay, and updates the count entirely in C++. An HTTP
+round trip per slider frame would never feel like a slider. The export button
+calls `AIFactoryBlueprintExport::ExportSelection` directly for the same
+reason -- the ids are already resolved locally, and a round trip could only
+lose or stale them.
+
+Details with reasons:
+
+- The slider is **quadratic**, 5 m to 1 km. Linear would spend most of its
+  travel in sizes nobody wants; a factory selection is tens of metres and
+  occasionally hundreds.
+- The box **anchors on first use**, so dragging grows it around where the
+  player was standing rather than following them across the map.
+- `MaxResults` is set to the full count deliberately. If the draw capped, the
+  highlight would show *less* than an export writes, and that equality is the
+  only thing that lets a preview stand in for marking each piece by hand.
+- Export **re-resolves every id first and refuses if any are gone**, rather
+  than serialising a blueprint quietly missing pieces.
+- Amber, so a selection reads differently from the green search overlay.
+
+**Graceful offline, which is what makes it shippable.** A player with no
+companion running was told to "start companion/server.mjs and verify
+AIFactoryCopilot.cfg" -- meaningless to someone who installed this from a mod
+manager. The status line now says **"Assistant offline — sliders and Save
+blueprint still work"**, which is true: half this mod is pure C++ and needs no
+bridge at all. That is the difference between a mod someone keeps and one they
+uninstall on first launch.
+
+**Codex's preview lane is merged.** The conflict I flagged as needing a
+human turned out to be positional, not semantic: both lanes appended a branch
+to the same validator chain and touched the `ACTION_KINDS` region, but
+`preview_blueprint` (arms the Build Gun) and `export_native_blueprint`
+(writes a file) do not overlap at all. Merged by taking Codex's three
+additions and placing them beside mine rather than replaying a diff. The
+`AIFactorySubsystem.cpp` half applied cleanly with `git apply --3way`, and the
+four RCO/module files came across untouched. 710 tests pass and
+`preview the Coal power plant blueprint` parses.
+
+**One caught before it cost a build cycle.** `AIFactoryOverlay::Draw` takes
+five parameters -- World, Player, OverlayName, Query, Style -- and my first
+draft called it with three. Checked against the header before compiling,
+which is the rule that exists because ignoring it has cost two crashes and
+three build cycles already.
+
+**Still open on the UI:** a blueprint list in-game with a button to arm one
+in the Build Gun (the parser and RCO now exist, the panel does not), settings
+for scan radius and provider, and the Insert key being hardcoded.
+
+### Half the world is not actors — Claude, 2026-08-20
+
+A box drawn over a whole glass-and-steel building exported a blueprint that
+showed nothing in the hologram. The archive was 43,791 bytes, so it was not
+empty; the hologram was telling the truth about what was in it.
+
+**Satisfactory converts foundations, walls and similar into lightweight
+instances** owned by `AFGLightweightBuildableSubsystem`. They are not actors.
+`TActorIterator<AFGBuildable>` -- which both the selection box and the
+snapshot use -- cannot see them at all.
+
+The evidence: a snapshot taken six minutes after the export, 250 m radius,
+centred on the player standing at the building, contained **three**
+buildables. A designer, a storage blueprint, one foundation. The entire
+structure was invisible.
+
+The header says why the vanilla workflow never trips over this:
+
+    ShouldConvertToLightweight() const {
+      return ... && mBlueprintDesigner == nullptr;
+    }
+
+A building inside a designer is **exempt** from conversion. Borrowing the
+designer from outside walks straight into the case the game never has to
+handle. Codex hit the same wall from the other side -- `f578d89 Accept
+lightweight-only blueprint proxies` -- and solved it for *placement*. Nobody
+had solved it for *capture*.
+
+It also explains the first successful export: those 94 were machines and
+belts, which stay actors. Anything structural was silently absent, and the
+count said 94 because 94 is what the iterator found.
+
+**The fix for the preview** uses the subsystem's own public table,
+`GetAllLightweightBuildableInstances()`, which returns every instance grouped
+by class with a `Transform` on each -- all a box test needs. The count line
+now reads "180 structure (168 lightweight)" so the blindness is visible
+rather than silent.
+
+**The export is not fixed yet.** It takes `TArray<AFGBuildable*>` and these
+are not actors. `FindOrSpawnBuildableForRuntimeData` returns an
+`FInstanceToTemporaryBuildable` holding a real buildable, which is the
+documented route -- but those are *temporary*, pooled and recycled by
+`ReturnBuildableToPool` and `RemoveStaleTemporaryBuildables`. Adopting one
+into a designer mid-export is the same shape as the two crashes already in
+this log, so it waits until the corrected count proves the query works.
+
+**Demolish**, on request. Destructive, so: arms on the first click and fires
+on the second within five seconds, with the count on screen while deciding;
+dismantles through `IFGDismantleInterface` so materials are refunded rather
+than `Destroy()` eating them; gathers actors before removing any, because
+removing while iterating is how you get the stale pointer this log already
+has one unexplained crash of; and removes lightweight instances highest index
+first, since removing one shifts every index above it.
+
+**Two corrections.** I said the cause was "confirmed by elimination" after
+ruling out one of two theories I had invented -- the real cause was a third
+thing I had not considered, and elimination between two guesses is not
+evidence. And I wrote a script that scanned archives for coordinate-like
+doubles; it reported the same spread for known-good blueprints as for the
+broken one, so it discriminated nothing. Deleted rather than left around
+producing confident numbers that mean nothing.
+
+### The converter did nothing, and I could prove it — Claude, 2026-08-20
+
+The staged export from the previous entry shipped, the owner tested it, and
+the placed blueprint was still the building's wiring without its shell. This
+time I measured instead of theorising, and the measurement is worth keeping
+because it is repeatable.
+
+**How to read a `.sbp`.** The body is a run of UE compressed chunks, magic
+`C1832A9E`. Rather than trusting a chunk-header layout I was not sure of, the
+script finds each zlib stream by its own `0x78` marker after a magic and
+inflates from there -- inflate either succeeds or it does not, so the method
+checks itself. Then count `Build_[A-Za-z0-9_]+_C` in the inflated bytes.
+
+**The result, against a hand-made blueprint the owner supplied as a control:**
+
+    C01_5x5_MODULAR_1.0.sbp        mine (selection test.sbp)
+      34  Build_Foundation_Concrete_8x4_C     0  Build_Foundation_*
+     114  Build_Wall_8x4_01_C                 0  Build_Wall_8x4_01_C
+     145  Build_Railing_01_C                  0  Build_Railing_01_C
+     222  Build_PowerPoleWall_C            1395  Build_PowerPoleWall_C
+     160  Build_PowerLine_C                1040  Build_PowerLine_C
+
+Everything that survived my export is exactly the set that never converts to
+lightweight: power poles, power lines, floodlights, beams, ladders, doors.
+Zero foundations, zero plain walls. The hologram was telling the truth.
+
+**Two things the numbers settled that argument could not.** The archive was
+not empty (43,791 bytes, 3,727 class references) so "nothing was captured" was
+wrong. And the staged version came out *smaller* than the unstaged one --
+16,867 bytes against 43,791 -- so the instance converter did not add a single
+piece. A control blueprint from the owner is what made both readable; without
+it I would still be arguing about whether 3,727 references was a lot.
+
+**Why the converter wait could never have worked.** The ticker is 0.2s and the
+settle test was three stable polls, so it fired 0.8s after arming. Worse, the
+test could not distinguish "the converter has not started" from "the converter
+has finished" -- both look like an unchanged count. It was a settle detector
+that reported settled before anything had a chance to move.
+
+**The replacement is deterministic.** For each lightweight instance in the box,
+spawn a real buildable from its `FRuntimeBuildableInstanceData`, which already
+carries `Transform`, `BuiltWithRecipe` and `CustomizationData` -- everything a
+buildable needs. Synchronous, exactly as many as were asked for, done by the
+time the next line runs. No waiting, no pooled temporaries.
+
+**It calls `SetInsideBlueprintDesigner`, the call that crashed the game.** That
+is deliberate and it is safe here for a reason I can state: the assert reads
+"Must be called before BeginPlay", and `SpawnActor(bDeferConstruction)` ->
+`SetInsideBlueprintDesigner` -> `FinishSpawning` is precisely that window. The
+earlier crash called it on a live factory building, which is not. Marking them
+at construction has a second payoff: `ShouldConvertToLightweight()` returns
+false when `mBlueprintDesigner != nullptr`, so they cannot dissolve back into
+instance data half way through `SaveBlueprint`.
+
+The actors are `RF_Transient` and destroyed on unwind on every path, because
+`mBlueprintDesigner` is `UPROPERTY(SaveGame)` and one of these outliving the
+export would follow the owner's factory into their save file. The materialiser
+guard is declared *before* the membership guard so it destructs *after* it --
+the designer must let go of these before they are destroyed, or `mBuildables`
+keeps pointers to dead actors.
+
+**One trap found by reading rather than by crashing.** `FScopedDesignerMembership::Adopt`
+refuses anything already inside a designer, which is correct for factory
+buildings -- taking one would mean handing it back to the wrong owner. But the
+materialised pieces are marked at construction, so `Adopt` would have refused
+every single one and the export would have come out identical to before, with
+no error anywhere. Hence a separate `AdoptOwned` for actors this export spawned
+and destroys itself.
+
+**Not deleted:** the converter path is still in `AIFactoryCopilotUISubsystem.cpp`,
+inert, with a comment saying why nothing calls it. It is still the right tool
+if direct spawning turns out too heavy for a very large selection.
+
+**Unverified at time of writing.** The game was running, so this has not been
+compiled -- `D:\Modding\Satisfactory\StarterProject-502094` must not be touched
+while it is. Every new call was checked public against the CL 502094 headers,
+which catches a build failure but not a runtime one. Treat as untested.
+
+### Select by overlap, not by pivot — Claude, 2026-08-20
+
+The direct spawn worked. The owner's next export went from 13 distinct classes
+to 51, from 3,727 class references to 7,243, and from zero foundations to 204
+-- walls, railings, catwalks, roofs and beams all arrived. Their words: "much
+better just missing some small items".
+
+The missing items were pillars, and the diagnosis took one measurement:
+
+  - zero `Build_*Pillar*_C` anywhere in the exported archive
+  - zero pillar actors in the 250 m snapshot, so they are lightweight
+
+Both facts together say the pillars were sitting in
+`GetAllLightweightBuildableInstances()` the whole time and my box test threw
+them away.
+
+**Why pillars specifically.** Both tests compared one point against the box. A
+pillar runs from the platform down to the terrain with its origin at the foot,
+so a box centred on a player standing on top was asking "is the pillar's foot
+inside?" when the question is "does the pillar pass through?". Every long thin
+buildable fails that test, pillars worst of all. The same flaw was quietly
+clipping beams and walls at the edges of every selection.
+
+**Both sides already carried bounds**, so the fix costs nothing:
+
+    AFGBuildable::GetCachedBounds()             world space -- CalculateBounds
+                                                documents a zero extent "at the
+                                                buildable location" as valid
+    FRuntimeBuildableInstanceData::BoundingBox  local space, per the comment on
+                                                the field, so transform first
+
+Where bounds are missing the old point test still applies, so this can only
+ever select more than before, never less. Nothing that used to be captured
+stops being captured.
+
+**A build that lied.** `package-local.ps1` does not sync source --
+`install-to-starter.ps1` does -- and running only the former printed BUILD
+SUCCESSFUL in fourteen seconds while producing a byte-identical DLL. It had
+compiled stale source and said nothing. Always check the DLL size and
+timestamp against the previous one; "BUILD SUCCESSFUL" is not evidence that
+your change is in the binary.
+
+**A guard that defeated itself.** The script that adds
+`FScopedMaterialisedInstances` was guarded on
+`!includes("FScopedMaterialisedInstances")`, and the `AdoptOwned` doc comment
+inserted moments earlier *names that class*. The guard matched its own comment
+and skipped the class entirely. Brace balance came back 0 and proved nothing,
+because nothing had been inserted. Only the compiler caught it. Guard
+insertions on the declaration (`class Foo`), never on the bare name.
+
+### Eyes, and the end of guessing at the world — Claude, 2026-08-20/21
+
+Four things landed in one evening. Read this before touching the snapshot, the
+selector, or anything that claims to know what is in the owner's world.
+
+---
+
+#### 1. The snapshot was blind to four fifths of the world
+
+**Measured, not suspected.** Of the 51 buildable classes in one of the owner's
+buildings, `AIFactorySnapshot.cpp` could see **11** and was blind to **40**. It
+iterated `TActorIterator<AFGBuildable>`, and foundations, walls, pillars,
+catwalks, railings and roofs are not actors -- they are instance data owned by
+`AFGLightweightBuildableSubsystem`.
+
+Every statement this mod ever made about "what is in your world" was made from
+the wiring while calling it the building. If you have code that reasons about
+world contents from a snapshot older than revision 25, **its conclusions were
+drawn from a fifth of the data** and are worth re-deriving.
+
+Fixed by adding `LightweightBuildableJson` and a second loop over
+`GetAllLightweightBuildableInstances()`. Records are compact on purpose -- class,
+transform, bounds, recipe -- because a wall has no inventory, no throughput and
+no connections, and a large base holds tens of thousands of them. New field:
+`completeness.lightweight_buildable_count`, so a reader can tell an empty base
+from a blind capture.
+
+`maxActorsPerSnapshot` was raised 5,000 -> 20,000 in the owner's config. At
+5,000 a single building would cap the capture.
+
+#### 2. Vision: the assistant can look at the game
+
+`AIFactoryVision.{h,cpp}`. `FScreenshotRequest::RequestScreenshot(filename,
+bShowUI, bAddUniqueSuffix)` is `ENGINE_API` and works in a shipping build.
+
+**The absolute path is honoured** -- `CreateViewportScreenShotFilename` keeps any
+filename containing a slash and only prefixes the default screenshot directory
+for bare names. Read in `UnrealClient.cpp` rather than assumed, because a wrong
+guess there writes frames somewhere nobody looks while everything downstream
+reports "no frame captured".
+
+Frames land in a bounded ring at `Saved/AIFactoryCopilot/Vision/` with a JSON
+sidecar each: capture time, reason, player location, **control rotation** (not
+actor rotation -- where the camera points is what the picture shows). A ring
+rather than one overwritten file, because a single still cannot show motion.
+
+Capture is **asynchronous**. The sidecar describes the frame that was
+*requested*; a reader finding no PNG yet should wait rather than conclude
+failure. Do not add a completion hook expectation to any consumer.
+
+Vision rides the existing observer timer rather than owning one -- the observer
+already ticks and already knows when the world changed.
+
+Off by default; `visionEnabled` gates *automatic* capture only. `/aifactory
+look` always works, because an explicit request is consent. I originally gated
+`RequestFrame` itself, which would have made the command silently do nothing
+while replying that it had captured a frame.
+
+**This is verified working.** I read a frame and described the owner's HUB,
+biome, milestone and open panel back to them.
+
+#### 3. The selector is precise now, and one cause was mine
+
+Report: on a busy map the box grabbed machines the owner did not want.
+
+Two causes. There was never a way to say what *kind* of thing to take. And I
+changed the test from pivot to bounds-overlap earlier the same day to fix
+missing pillars -- right for pillars, and it made over-selection strictly worse
+everywhere else. Overlap is a **mode** now, not a decree ("Only fully inside
+the box").
+
+Five categories, by **class hierarchy**, never by substring matching on names --
+matching on names is how `Build_Wall_Door_8x4_01_C` counts as structure and
+`Build_WallMountedFrackingSmasher_C` joins it:
+
+    structure   AFGBuildableFactoryBuilding
+    machines    AFGBuildableFactory
+    transport   AFGBuildableConveyorBase / PipeBase / ConveyorAttachment
+    power       AFGBuildableWire / PowerPole
+    other       beams, railings, catwalks, ladders -- no shared base class
+
+**The load-bearing fact, checked in the headers rather than assumed from the
+name: `AFGBuildableFactoryBuilding` descends from `AFGBuildable`, NOT from
+`AFGBuildableFactory`.** Had it descended, "machines off" would have silently
+taken every foundation and wall with it. If you add a category, check the
+hierarchy the same way.
+
+`CategoryIndexFor` takes a `UClass*`, so actors and lightweight instances
+classify through one path. Filters default ON; the count line prints the
+breakdown ("structure 210  machines off  transport 4") because a filter you
+cannot see the effect of is one you cannot trust.
+
+#### 4. Efficiency: what is hardcoded, and what must never be
+
+The owner asked for efficiency to be hardcoded. The split is not arbitrary:
+
+**DERIVED, never hardcoded** -- every recipe ratio. `content.recipes` carries
+`duration_seconds`, `ingredients`, `products` and `produced_in`, which is
+exactly enough for items/minute. It is live, version-exact, and correct for all
+51 of the owner's mods. A hardcoded ratio table could only be a stale copy of
+something authoritative already in every capture. `companion/lib/efficiency.mjs`
+does this.
+
+**HARDCODED** in `companion/data/efficiency.json` -- what the game does not
+expose as structured data: belt/lift throughput and miner rates (stated only as
+English prose in item descriptions), the overclock power curve, and
+manifold-vs-balancer practice.
+
+Both tables were **seeded from the owner's own install**, not recalled. That is
+how `Conveyor Belt Mk.6` at 1200/min and `Miner Mk.4` at 720/min got in --
+modded tiers absent from vanilla that any table written from memory would have
+missed silently. `crossCheckTransport()` re-verifies against those descriptions
+every test run, so a patch that moves a tier fails a test instead of quietly
+producing wrong plans for months.
+
+**NOT WRITTEN AT ALL** -- machine footprints. Every buildable carries a real
+`bounds.extent`, so `measureFootprints()` derives them from the owner's world,
+modded machines included. Empty beats recalled.
+
+Anything unverified says so in the data (`verified: false`) and a test asserts
+that nothing unverified is presented as verified. Purity multipliers
+(Impure 0.5 / Normal 1 / Pure 2) are flagged unverified -- the miner description
+says extraction "varies based on node purity" and never gives the numbers.
+
+#### 5. Site survey: the first piece that offers a judgement
+
+`companion/lib/survey.mjs`, routed as `site_survey`. The owner's framing: *"I
+see you placed your hub here, there's only 1 iron node in 300m."*
+
+**The distinction that makes it honest is node versus deposit.** The capture
+around the owner's HUB held 35 "resource nodes". Twenty-three were
+`BP_ResourceDeposit_C` -- hand-mined lumps that run out and cannot take a miner.
+Reporting 35 would have been true and useless. Only the 12 permanent
+`node_type == "Node"` entries can carry a factory.
+
+Read from first-class snapshot fields -- `resource_name`, `purity`, `node_type`,
+`occupied`, `has_resources`, `terrain.verdict` -- not reflected properties, not
+class-name guessing.
+
+Two deliberate behaviours worth preserving:
+
+- It reports `snapshot_radius_meters` and says plainly that absence beyond it is
+  not evidence. "No coal nearby" and "no coal captured" are different claims.
+- It is **willing to say a site is good**. An assistant that only ever finds
+  fault is one whose praise means nothing and whose criticism gets ignored. The
+  owner's hub turned out to be a strong site -- 6 Pure Iron nodes at 96 m -- and
+  saying so mattered more than manufacturing a complaint.
+
+Routed locally on purpose. Resource layout is exactly the kind of thing a model
+answers confidently and wrongly.
+
+#### 6. Two process failures, both of which nearly shipped
+
+**A build that lied.** `package-local.ps1` does NOT sync source --
+`install-to-starter.ps1` does. Running only the former printed BUILD SUCCESSFUL
+in fourteen seconds and produced a **byte-identical DLL**. It compiled stale
+source and said nothing. Always run install-to-starter first, and always check
+the DLL size and timestamp against the previous build. "BUILD SUCCESSFUL" is
+not evidence your change is in the binary.
+
+**A guard that matched its own comment.** The script inserting
+`FScopedMaterialisedInstances` was guarded on
+`!includes("FScopedMaterialisedInstances")`, and a doc comment inserted moments
+earlier *named that class*. The guard matched the comment and skipped the class
+entirely. Brace balance came back 0 and proved nothing, because nothing had been
+inserted. Only the compiler caught it. **Guard insertions on the declaration
+(`class Foo`), never on the bare name.**
+
+#### 7. What is next, in order
+
+1. **`.sbp` structural parser.** Today blueprints are read by counting class-name
+   strings in the inflated body. Parsing transforms unlocks reading the owner's
+   own style *and* verifying generated output. Companion-side, no build cycle.
+2. **Planner -> blueprint.** `FScopedMaterialisedInstances` is in substance
+   "spawn arbitrary buildables in a designer and serialise them". Point it at
+   computed transforms and it is a blueprint generator -- no holograms, no
+   clearance, no Z drift, and the game's loader rewires belts on placement.
+   `planCoalPower` is the tightest first candidate.
+3. **Measured rates.** Nothing yet compares a running factory against theory.
+4. **The proactive channel.** `ObserveWorld` already detects change and does
+   nothing with it. The hard part is not the analysis, it is the judgement to
+   speak rarely -- an assistant that comments on every foundation gets turned
+   off in a day.
+
+Current: 744 tests pass. DLL 793,088 bytes, 2026-08-20 22:45.
+
+### Codex — 2026-08-23 aimed native-blueprint selection handoff
+
+Claim `5146f79` is complete on `codex/aimed-blueprint-selection`. This is a
+small UI seam for the owner's **normal Playthrough save**, not the disposable
+blueprint-test save: the Blueprint section now has **Select aimed**. It replaces
+the current box selection with exactly one eligible `AFGBuildable` under the
+crosshair, then uses the existing native exporter and Build Gun path unchanged.
+It is not a write to the world; only the existing Save blueprint button writes
+the `.sbp` file.
+
+Why it exists: the strict bounding box is appropriate for a whole building,
+but a miner and its resource node have awkward bounds. A player can now aim at
+the miner rather than guessing a tiny box. The target order is the game's
+authoritative cached usable hit, then a visibility trace. A buildable-only
+request deliberately discards a valid non-buildable use target (for example a
+resource node) so it can still trace to the miner behind it.
+
+Safety properties retained:
+
+- an aimed selection clears actor ids, lightweight refs, category counts, and
+  cost state first; it can never retain hidden structure from an earlier box;
+- it never silently expands to a nearby box;
+- Blueprint Designers and pieces already inside one are refused;
+- visible category filters still apply;
+- the existing orange selection overlay is capped at exactly one actor and the
+  normal recipe-cost calculation is refreshed.
+
+Verification: exact CL 502094 header/API review, `npm test` **761/761**,
+`scripts/validate.ps1` (SML 3.12.0 and FactoryGame 502094), Editor and Shipping
+builds, plus UAT cook/archive/deploy all passed. The deployed archive is
+15,911,967 bytes, SHA-256
+`182A96C11A76784F7EA2D0EF5814141ADCBC8342599438152C55D25AB856D6F9`; the
+installed Shipping DLL is 862,208 bytes, SHA-256
+`B1C519E33AB59C6F97DE4B86BD7A32EBACF2ADAFEE83656B0E7E67E32F59BF76`.
+
+Live status: packaging happened with Satisfactory closed and did not alter any
+save. The final non-destructive in-Playthrough click test is now passed: in the
+normal `Playthrough` session, aiming at the existing Miner Mk.1 and pressing
+**Select aimed** selected exactly `Build_MinerMk1_C_2147311280`, with one
+buildable and its real recipe cost, and never expanded into a box. No blueprint
+was saved and no world actor was changed. Miner resource-node binding through a
+full disposable export, removal, and native Build Gun placement on another
+compatible node remains pending; do not claim that deeper end-to-end proof yet.
+
+Collaboration check: `origin/master` and `origin/claude/belt-routing` are both
+already contained by `origin/integrate/codex-blueprint-lanes` at `306de69`; no
+new Claude handoff or overlap was found before this work.
+
+### Codex — 2026-08-23 blueprint structural-read claim
+
+Starting `codex/blueprint-structure-parser` after the aimed-selection handoff.
+Scope: add a bounded, evidence-based structural inspection capability for native
+`.sbp` files so the companion can report what a blueprint contains and how it is
+arranged, rather than only header/class-reference counts. I will first prove the
+file-format seam against local native blueprints and choose a parser only if it
+can preserve the current no-guess / no-crash contract. This is companion-only:
+it will not change exporter, selector, Build Gun preview, or any world write.
+
+### Codex — 2026-08-23 structural-read router crossing
+
+The structural-read lane needs one intentionally narrow `router.mjs` entry so a
+player can ask **"inspect blueprint <exact saved name>"** without spending a
+model call. It will only invoke the new read-only `solveBlueprintLayout` solver,
+accept no filesystem paths or write verbs, and leave the existing list/place/
+export blueprint routes untouched. This is disclosed because Claude has worked
+in the router historically; fetch showed no active Claude commit beyond the
+integrated baseline before this crossing.
+
+### Codex — 2026-08-23 structural-read duplicate-reference follow-up
+
+The player's real library contains duplicate display names in distinct folders
+(`ai 2.0` and `BP test`), including the supplied coal plant. I am extending the
+same **read-only** inspector to accept the exact `relative_path` returned by
+`list_blueprints` as a library reference when a display name is ambiguous. It
+will compare only against already-discovered in-root entries; it will not accept
+or resolve arbitrary filesystem paths, and it changes no exporter, Build Gun,
+or world write code.
+
+### Codex — 2026-08-23 blueprint structural-read handoff
+
+Completed on `codex/blueprint-structure-parser`; this is companion and package
+staging work only. It does **not** alter the native exporter, selection UI,
+Build Gun preview, or world-write path.
+
+What changed:
+
+- `companion/lib/blueprints.mjs` now decodes the exact `FBlueprintHeader`
+  layout (including signed `FString`, `FObjectReference`, and version data) and
+  delegates the compressed body to pinned
+  `@etothepii/satisfactory-file-parser@4.1.2` in a bounded, read-only adapter.
+  The old raw-compressed-byte class scan is gone; header recipe references are
+  exact presence evidence only, never per-building counts.
+- New `inspect_blueprint_layout` solver/tool/local route returns bounded saved
+  transforms, decoded native `Build_*` entity class counts, pivot bounds, and live inventory
+  pricing. It fails closed for corrupt headers, missing `.sbpcfg`, parser
+  disagreement, unreadable files, oversized files, links, and unknown names.
+  It explicitly says it cannot prove collision/terrain/hologram fit or external
+  wiring.
+- The real library has duplicate display names in `ai 2.0` and `BP test`.
+  Listing now supplies an in-root `blueprint_reference`; inspection compares it
+  only against the already-discovered entries, so a reference disambiguates but
+  is never resolved as a filesystem path. Traversal-shaped input is rejected.
+- Clean installs are complete: `package-lock.json`, transactional `npm ci`,
+  parser-entry checks, Starter Project staging, Build.cs runtime dependencies,
+  archive checks, validation, smoke tests, and player docs all agree. The mod
+  must ship `node_modules` because `AIFactoryCompanion.cpp` auto-starts
+  `PluginDir/companion/server.mjs`; the standalone companion artifact carries
+  the lockfile and installs its dependencies into a staging directory instead.
+
+Evidence:
+
+- `npm test`: **759/759** passing.
+- `scripts/validate.ps1`: exact SML 3.12.0 and FactoryGame CL 502094 header
+  checks plus all 759 tests passed.
+- `scripts/test-companion-install.ps1` completed its isolated install,
+  provider restart, and forced rollback path with the parser present.
+- `scripts/install-to-starter.ps1 -Force` materialised the pinned parser in the
+  Starter Project; `FactoryGameSteam Win64 Shipping -Module=AIFactoryCopilot`
+  succeeded.
+- The live installed bridge at `D:\Modding\Satisfactory\Companion` is healthy
+  on 8142, reports `blueprint_layout_inspection: true`, and decoded the actual
+  `ai 2.0/Coal power plant 2700MW v1.1.sbp` as 1,137 native `Build_*` entities
+  (first class `GeneratorCoal`) through the installed runtime.
+
+Current live-save status:
+
+- Normal saves exist under the Steam account folder as
+  `Playthrough_autosave_{0,1,2}.sav`; no BP-test save was loaded or changed.
+- Satisfactory was running during this handoff, so source was staged and the
+  module compiled but **not** packaged/deployed. Close the game before running
+  `scripts/package-local.ps1`, then inspect the archive for the bundled parser
+  and manually load the normal Playthrough save for the next in-game test.
+
+### Codex — 2026-08-23 live Playthrough structural-read verification
+
+The previous pending manual check is now complete against the **normal** save,
+not either blueprint test save. The game was at the main menu, then explicitly
+loaded `Playthrough_autosave_1` / session `Playthrough` (11 h 48 m). The
+authoritative capture recorded 254 actors, 4,043 recipes, 3,695 items, and 52
+loaded mods at revision 8; the bridge routing log identifies the session as
+`Persistent_Level:Playthrough:Smeagol`.
+
+In the in-game Insert panel, both read-only local routes succeeded with no
+provider call:
+
+- `list blueprints` returned the real library and correctly showed the safe
+  `ai 2.0/...` reference for the duplicate coal blueprint;
+- `inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp` decoded it as
+  1,137 buildable entities / 1,057 components, reported a 72 x 29.5 m pivot
+  span and 80 bounded saved transforms, and retained the caveat that this does
+  not prove terrain, collision, external wiring, or hologram fit.
+
+The live external companion reports bridge `1.0.0-beta.2` and advertises
+`blueprint_layout_inspection: true`. This proves the end-to-end read path,
+including duplicate-safe references, on the intended Playthrough session. The
+post-commit `scripts/install-companion.ps1` reinstall then verified 34 runtime
+file hashes and the same live query repeated successfully with the current
+`Build_*` wording. The game remains open, so do not package or deploy the DLL
+until it is closed.
+
+### Codex — 2026-08-23 complete-footprint terrain integrity handoff
+
+Claude's latest integration commit `31c183a` correctly joined the two inputs a
+world editor needs before showing a saved blueprint at a site: Codex's decoded
+native blueprint transforms and the game's measured terrain scan. Its first
+version, however, accepted one or more probes under the centre of a blueprint
+as enough to call the full footprint flat or workable. An 8 m scan could thus
+certify a 32 x 16 m blueprint. That violated the project's unknown-stays-
+unknown rule.
+
+`companion/lib/siting.mjs` now reconstructs the scanner's recorded grid from
+its actual `achieved_step_meters`, declared scan origin, and raw hit/miss
+samples. It fails closed unless **every grid cell touching the complete rotated
+footprint** is present and has ground. A truncated scan, unknown grid spacing,
+missing scan centre, missing lattice cell, or no-ground sample returns a named
+unknown result rather than a terrain verdict. The response now reports the
+measured grid spacing and tells the player exactly how to re-scan. An offset
+placement continues to use the original scan lattice rather than inventing a
+new grid at the requested origin.
+
+Focused tests cover partial central scans, interior holes, no-ground probes,
+truncated captures, and offset placement. After `npm ci` installed the pinned
+parser into this isolated worktree (the first run had accidentally resolved a
+parent worktree's dependency), the full suite is **776/776** passing. This is
+companion-only: no C++ UI, overlay, hologram, save, or game action changed, and
+the still-open Playthrough game was left untouched.
+
+### Codex — 2026-08-23 native Build Gun preview contract handoff
+
+The native preview RCO and client-local Build Gun implementation were already
+present in the integration branch, but two bridge-side seams had been lost
+while the old feature branch diverged:
+
+- `parseBlueprintPreviewRequest()` existed but was never reached by
+  `answerLocally()`. Explicit phrases such as `preview the Coal power plant
+  blueprint` and `arm my Steel Works in my build gun` now resolve the saved
+  blueprint locally, emit only `preview_blueprint`, and answer free of a model
+  call. Ambiguous names still refuse rather than selecting the wrong build.
+- The bridge now mirrors the game server's `client_preview_must_be_a_standalone_action`
+  gate. A native preview cannot share a plan with construction, a teleport, or
+  an overlay, and only one can be requested because the Build Gun has one
+  active hologram. The emitted plan explicitly records that it is a
+  client-only handoff: no construction, item cost, world mutation, or undo
+  transaction.
+
+No fake hologram or direct placement was added. The existing RCO calls the
+official `AFGBuildGun::SetDesiredBlueprint()` then `GotoBuildState()` on the
+requesting local player, so Satisfactory retains its normal move, snap,
+rotate, nudge, affordability, and click-to-construct behavior. The companion
+tool description, action validation, direct-route tests, static C++ contract
+test, and exact Starter Project header validation now cover this connection.
+
+Verification in this isolated worktree: `npm ci`, `npm test` (**782/782**),
+and `scripts/validate.ps1` all passed against SML 3.12.0 / FactoryGame CL
+502094. This changes only bridge behavior and test/documentation contracts;
+the running Playthrough and deployed DLL were not touched. The remaining proof
+is visual, in the normal Playthrough: after installing the companion update,
+arm one known saved blueprint and confirm its native Build Gun hologram moves,
+rotates, snaps, and only constructs after the player's normal click.
+
+### Codex — 2026-08-23 exact world-editor selection-overlay handoff
+
+The Blueprint editor could already export actors and lightweight instances from
+one selection, but its orange preview was not the same selection: it re-queried
+only actors through the generic overlay, which caps results at 500 and cannot
+draw lightweight foundations or walls. A large export could therefore look
+partly selected even though the saved blueprint contained far more pieces.
+
+`AIFactoryOverlay::DrawSelection()` now accepts the exact `FBox` bounds that
+the UI used to accept each actor or lightweight instance. It always draws the
+full selection volume. For selections of at most 2,048 valid pieces it draws
+every individual bound in one `ULineBatchComponent::DrawLines` batch. For a
+larger selection (or unavailable individual bounds), it deliberately draws
+only the exact volume and reports the number condensed; it never draws a quiet
+prefix. The UI states which representation is on screen, including an empty or
+renderer-unavailable state. Clearing/replacing selection still clears the same
+named overlay, so an old box cannot remain after a new selection.
+
+This is a display-only editor improvement: no actor is spawned, adopted,
+destroyed, costed, or serialized by the overlay. It preserves all existing
+filters, exact aimed selection, exporter, native Blueprint save, and Build Gun
+handoff behavior. The official CL 502094 headers prove the three seams used:
+`AFGBuildable::GetCachedBounds`,
+`AFGLightweightBuildableSubsystem::GetAllLightweightBuildableInstances`, and
+`ULineBatchComponent::DrawLines(TArrayView<FBatchedLine>)`.
+
+Verification in `codex/selection-overlay`: clean `npm ci`, **784/784**
+companion tests, exact SML 3.12.0 / FactoryGame CL 502094 header validation,
+and a FactoryGameSteam Shipping module compile. The remaining live proof is
+visual: select actor-only, lightweight-only, more-than-500, more-than-2,048,
+and then empty-after-nonempty regions in the normal Playthrough; confirm the
+panel wording matches what is actually drawn before claiming a live editor
+test.
+
+### Codex — 2026-08-23 bridge provenance coordination
+
+Collaboration audit found no newer Claude commit: Claude's local integration
+checkout is `31c183a`, already an ancestor of the shared integration branch.
+The shared branch contains Codex's later terrain-integrity and Build Gun
+contract commits, currently through `54f41ac`. The process currently owning
+localhost port 8142 was manually started from Claude's older checkout, so it
+does **not** contain the restored deterministic Build Gun preview route. After
+the next shared integration/package is published, restart that exact bridge
+from the current integration/package before any live preview test. Do not use a
+visual result from the stale process as evidence against the native feature.
+
+### Codex — 2026-08-23 active-session Blueprint preview library handoff
+
+The live Playthrough preview failure was a **scope mismatch**, not a Build Gun
+or placement failure. The companion's disk reader could see
+`blueprints/BP test/claude test v1.sbp`, while the active Playthrough native
+Blueprint subsystem had no descriptor for it. Satisfactory correctly refused
+the server handoff with `blueprint_not_found`.
+
+The bridge now captures the native `AFGBlueprintSubsystem` descriptor registry
+as a separate authoritative `blueprint_library` witness and allows
+`preview_blueprint` only when the requested name is proven registered there.
+It keeps disk files readable for structural inspection, but a disk-only
+cross-save file now gets a clear no-action response naming the active session
+instead of promising a hologram. A partial descriptor list is explicit unknown,
+not evidence that a named Blueprint is absent. Conversely, disk metadata is no
+longer allowed to veto a valid native descriptor: its name matching is
+case-insensitive and it only enriches size/cost information.
+
+One review correction matters for the editor: the snapshot **does not** call
+`RefreshBlueprintsAndDescriptors()` on every chat request. That public refresh
+rebuilds descriptor state and could disturb a player already using a native
+Blueprint hologram. It is invoked only in `DispatchClientBlueprintPreview` and
+the owning client's RCO immediately before their authoritative descriptor
+lookups, which is an explicit player preview request. There is no file copy,
+descriptor fabrication, world write, item charge, or undo state change in this
+lane.
+
+Verification: clean lockfile install, `npm test` **793/793**, exact SML 3.12.0
+/ FactoryGame CL 502094 source/header validation, and a FactoryGameSteam
+Shipping module compile all passed. The game was closed while compiling. After
+this shared integration is packaged, test `preview claude test v1 blueprint`
+in Playthrough and require the new pre-handoff cross-session refusal (zero
+client action); then test a Blueprint genuinely registered in Playthrough and
+confirm the normal native Build Gun hologram. Do not silently copy a test file
+into Playthrough just to manufacture that second test.
+
+Coordination audit at this handoff: `origin/master` is `60b32e7` and already
+contained by this lane; `origin/claude/belt-routing` remains stale at `42703d8`
+with no newer committed Claude handoff. Master includes the reflected belt
+endpoint work and the later exact-Z proof, but the full terrain-following
+17-belt Wire transaction remains a live-save test gap. Claude's uncommitted
+header-only node-edit experiment is intentionally not included.
+
+### Codex — 2026-08-23 native Blueprint placement-audit handoff
+
+The project had a critical unknown behind its unrestricted native Blueprint
+goal: placing a Blueprint that contains a miner is only useful if Satisfactory
+actually binds that placed extractor to the resource beneath it. Header reading
+cannot answer that. The new evidence path therefore reads a **placed runtime
+instance**, never a saved `.sbp` file and never a guessed relationship.
+
+`AIFactoryBlueprintAudit` is a private, read-only helper. It resolves a direct
+`AFGBlueprintProxy` or an actor-backed `AFGBuildable` member through the public
+`GetBlueprintProxy()` accessor, reads the proxy's `GetBlueprintName()`,
+`CollectBuildables()`, lightweight class/index count, and
+`AreProxyBuildingsRegisteredAndValid()` state, then reads each actor-backed
+extractor via public `GetExtractableResource()` and the resource interface.
+It returns bounded individual rows (32 at most) plus exact totals/omitted
+counts. It does not call `SetResourceNode`, `SetExtractableResource`, spawn,
+construct, dismantle, file I/O, cost, or undo APIs; the source-contract test
+pins that prohibition.
+
+Two correctness details are intentional. First, the normal cached usable hit
+for a miner can be its **resource node**, while the camera hit is the miner. If
+the normal target is not a proxy/member, the auditor tries the camera actor
+only as a separate read witness (`selected_from =
+camera_visibility_trace_fallback`); it never replaces `preferred_target` for
+placement. Both actor identities reach the bridge so provider grounding still
+proves the audit belongs to the player’s aim. Second, a null extractor
+interface is called `unbound` only when the ready proxy has authority. On a
+client it is `unknown`, because the extractor property replicates independently;
+before proxy readiness it is `replication_pending`. Lightweight extractor
+instances remain explicit unknown rather than being invented as actor objects.
+
+The bridge exposes this through `audit_blueprint_placement`, narrowly routed
+by `audit this blueprint`, `check this blueprint placement`, or `is this
+blueprint's miner bound`. It emits **zero actions**. Pending/partial samples
+return a wait/unknown response rather than an empty blueprint or an unbound
+miner. The provider prompt and grounding gate know this is a runtime instance
+audit, distinct from saved-file layout inspection.
+
+Verification in this worktree: after `npm ci` installed the lock-pinned parser
+locally (rather than resolving a stale user-level v3 parser), **808/808**
+companion tests pass. The five initial parser failures were environment-only;
+the fixture and lockfile were unchanged. Exact header validation entries now
+pin all audit accessors. The game remains open, so no Starter Project sync,
+C++ compile, package, DLL deployment, or live claim was made. Next live proof,
+after a closed-game build/deploy: place a disposable native Blueprint containing
+a miner on a compatible free node through the normal Build Gun, aim at the
+miner, run this audit, and require the exact bound node/resource readback.

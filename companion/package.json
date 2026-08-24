@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Localhost-only AI bridge for the Satisfactory AI Factory Copilot mod.",
+  "dependencies": {
+    "@etothepii/satisfactory-file-parser": "4.1.2"
+  },
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test"

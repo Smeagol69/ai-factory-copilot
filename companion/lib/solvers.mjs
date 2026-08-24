@@ -9,6 +9,10 @@
 
 import { costAgainstInventory } from "./blueprints.mjs";
 import {
+  getCurrentSessionBlueprintRegistry,
+  resolveCurrentSessionBlueprint,
+} from "./blueprint-session.mjs";
+import {
   buildGraph,
   distanceMeters,
   finiteNumber,
@@ -1638,6 +1642,7 @@ export function solveBlueprintLibrary(
   const gameChangelist = finiteNumber(graph.snapshot?.world?.game_changelist);
   const entries = listBlueprints();
   const needle = name_contains ? String(name_contains).toLowerCase() : null;
+  const currentSessionRegistry = getCurrentSessionBlueprintRegistry(graph);
 
   const blueprints = [];
   const failures = [];
@@ -1649,6 +1654,7 @@ export function solveBlueprintLibrary(
     if (needle && !String(entry.name).toLowerCase().includes(needle)) continue;
 
     const pricing = costAgainstInventory(entry, totals);
+    const registration = resolveCurrentSessionBlueprint(graph, entry.name);
 
     // A blueprint references the build recipes of what it contains, so the
     // recipe list resolves to the actual buildings via the catalog.
@@ -1674,6 +1680,8 @@ export function solveBlueprintLibrary(
       contents_caveat: entry.contents?.counts_caveat ?? null,
       transforms: entry.contents?.transforms ?? "not_decoded",
       name: entry.name,
+      relative_path: entry.relative_path ?? null,
+      blueprint_reference: entry.blueprint_reference ?? entry.relative_path ?? null,
       designer_dimensions: entry.designer_dimensions,
       authored_on_game_changelist: entry.game_changelist,
       authored_on_a_different_build:
@@ -1681,9 +1689,15 @@ export function solveBlueprintLibrary(
       description: entry.description,
       build_cost: entry.build_cost,
       ...pricing,
-      cost_list_truncated: entry.cost_list_truncated,
+      recipe_reference_count: entry.recipe_reference_count_declared ?? null,
       object_graph_decoded: entry.object_graph_decoded,
       object_graph_note: entry.object_graph_note,
+      registered_in_current_session: currentSessionRegistry.available
+        ? registration.registered
+        : null,
+      current_session_registration_reason: registration.registered
+        ? null
+        : registration.reason,
     });
     if (blueprints.length >= Math.max(1, Math.trunc(limit) || 25)) break;
   }
@@ -1697,12 +1711,288 @@ export function solveBlueprintLibrary(
     total_files_seen: entries.length,
     blueprints,
     unreadable_files: failures,
+    current_session_library: {
+      available: currentSessionRegistry.available,
+      complete: currentSessionRegistry.complete,
+      session_name: currentSessionRegistry.session_name,
+      registered_descriptor_count: currentSessionRegistry.descriptor_count ?? null,
+      reason: currentSessionRegistry.available ? null : currentSessionRegistry.reason,
+    },
     what_is_known:
-      "Designer dimensions, exact build cost, the buildings it contains, the game build each blueprint was authored on, and its description.",
+      "Designer dimensions, exact build cost, exact header recipe references, the game build each blueprint was authored on, its description, and whether Satisfactory has registered its name for the current session's native Build Gun.",
     what_is_not_known:
-      "Positions, rotations, and wiring inside a blueprint are not decoded. The buildings it contains are known from the build recipes it references; where they sit is not.",
+      "This fast library read does not decode entity positions, rotations, physical extents, or wiring. Call inspect_blueprint_layout for one exact blueprint; it returns bounded saved transforms and class counts, not a placement guarantee.",
     source: "parsed_from_saved_blueprint_files",
     certainty: "authoritative_for_header_and_cost",
+  };
+}
+
+/**
+ * Decodes one explicitly named native blueprint through the read-only bridge
+ * adapter. The adapter owns disk access; the solver adds live inventory pricing
+ * and keeps its failure modes explicit rather than treating an unreadable file
+ * as an empty factory.
+ */
+export function solveBlueprintLayout(
+  graph,
+  { blueprint_name = null, maximum_buildables = 80 } = {},
+  { inspectBlueprint = null } = {},
+) {
+  if (typeof inspectBlueprint !== "function") {
+    return {
+      solver: "blueprint_layout",
+      world_revision: graph.world_revision,
+      available: false,
+      reason: "blueprint_directory_not_configured",
+      note: "Set AIFACTORY_BLUEPRINT_DIR so the bridge can read the saved blueprint folder.",
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+  if (typeof blueprint_name !== "string" || !blueprint_name.trim()) {
+    return {
+      solver: "blueprint_layout",
+      world_revision: graph.world_revision,
+      available: false,
+      reason: "blueprint_name_required",
+        note: "Use the exact blueprint name or blueprint_reference returned by list_blueprints.",
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const structure = inspectBlueprint(blueprint_name.trim(), { maximumBuildables: maximum_buildables });
+  if (!structure?.available) {
+    return {
+      solver: "blueprint_layout",
+      world_revision: graph.world_revision,
+      ...(structure ?? {
+        available: false,
+        reason: "blueprint_reader_returned_no_result",
+        source: "none",
+        certainty: "unknown",
+      }),
+    };
+  }
+
+  const { totals } = playerInventories(graph);
+  return {
+    solver: "blueprint_layout",
+    world_revision: graph.world_revision,
+    ...structure,
+    ...costAgainstInventory(structure.header, totals),
+    source: "decoded_from_saved_native_blueprint",
+    certainty: structure.certainty,
+  };
+}
+
+/**
+ * Reads the native Blueprint proxy that the player is currently aiming at.
+ *
+ * This is deliberately distinct from solveBlueprintLayout: that solver reads
+ * a saved .sbp file, while this one only reports the authoritative runtime
+ * proxy/member observation the game placed in interaction_context. In
+ * particular, a proxy that is still replicating is not allowed to become a
+ * claim that it has zero miners or that an extractor is unbound.
+ */
+export function solveBlueprintPlacementAudit(graph) {
+  const worldRevision = graph?.world_revision ?? null;
+  const audit = graph?.snapshot?.interaction_context?.preferred_target?.blueprint_instance_audit;
+  const base = {
+    solver: "blueprint_placement_audit",
+    world_revision: worldRevision,
+  };
+
+  if (!audit || typeof audit !== "object" || Array.isArray(audit)) {
+    return {
+      ...base,
+      available: false,
+      reason: "blueprint_instance_audit_not_captured",
+      note: "Aim at a placed native Blueprint proxy or one of its actor-backed members, then ask again.",
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const source = typeof audit.source === "string" && audit.source ? audit.source : "none";
+  const capturedCertainty =
+    typeof audit.certainty === "string" && audit.certainty ? audit.certainty : "unknown";
+  const identity = {
+    target_actor_id: typeof audit.target_actor_id === "string" ? audit.target_actor_id : null,
+    audited_actor_id: typeof audit.audited_actor_id === "string" ? audit.audited_actor_id : null,
+    preferred_target_actor_id:
+      typeof audit.preferred_target_actor_id === "string" ? audit.preferred_target_actor_id : null,
+    camera_fallback_actor_id:
+      typeof audit.camera_fallback_actor_id === "string" ? audit.camera_fallback_actor_id : null,
+    selected_from: typeof audit.selected_from === "string" ? audit.selected_from : null,
+    target_relation: typeof audit.target_relation === "string" ? audit.target_relation : null,
+    blueprint_proxy_id: typeof audit.blueprint_proxy_id === "string" ? audit.blueprint_proxy_id : null,
+    blueprint_name: typeof audit.blueprint_name === "string" ? audit.blueprint_name : null,
+    proxy_has_authority:
+      typeof audit.proxy_has_authority === "boolean" ? audit.proxy_has_authority : null,
+  };
+
+  if (audit.available !== true) {
+    return {
+      ...base,
+      available: false,
+      ...identity,
+      reason:
+        typeof audit.reason === "string" && audit.reason
+          ? audit.reason
+          : "blueprint_instance_audit_unavailable",
+      source,
+      certainty: capturedCertainty,
+    };
+  }
+
+  const count = (value) => {
+    const parsed = finiteNumber(value);
+    return parsed !== null && parsed >= 0 && Number.isInteger(parsed) ? parsed : null;
+  };
+  const observed = {
+    actor_member_count_observed: count(audit.actor_member_count_observed),
+    lightweight_member_count_observed: count(audit.lightweight_member_count_observed),
+    member_count_observed: count(audit.member_count_observed),
+    extractor_count_observed: count(audit.extractor_count_observed),
+    actor_extractor_count_observed: count(audit.actor_extractor_count_observed),
+    lightweight_extractor_count_uninspected: count(audit.lightweight_extractor_count_uninspected),
+    extractor_details_returned: count(audit.extractor_details_returned),
+    extractor_details_capped_omitted: count(audit.extractor_details_capped_omitted),
+  };
+  const replicaState =
+    audit.replication_state === "ready" || audit.replication_state === "replication_pending"
+      ? audit.replication_state
+      : "unknown";
+  const proxyReady = audit.proxy_buildings_registered_and_valid === true;
+  const memberCountsComplete = audit.member_counts_complete === true;
+  const extractorObservationComplete = audit.extractor_observation_complete === true;
+  const ready =
+    replicaState === "ready" &&
+    proxyReady &&
+    memberCountsComplete &&
+    extractorObservationComplete;
+
+  // A partial proxy observation can mean replication is still in flight or
+  // that lightweight extractor members cannot be resolved through the public
+  // aim API. In either case its observed member/extractor counts are not a
+  // complete binding census. Do not surface individual binding states: a
+  // subset must not answer a question about the whole Blueprint.
+  if (!ready) {
+    return {
+      ...base,
+      available: true,
+      ...identity,
+      inspection_complete: false,
+      replication_state: replicaState,
+      proxy_buildings_registered_and_valid: proxyReady,
+      member_counts_complete: memberCountsComplete,
+      extractor_observation_complete: extractorObservationComplete,
+      observed,
+      reason:
+        typeof audit.reason === "string" && audit.reason
+          ? audit.reason
+          : typeof audit.binding_caveat === "string" && audit.binding_caveat
+            ? audit.binding_caveat
+            : "blueprint_proxy_replication_state_not_ready",
+      binding_caveat: typeof audit.binding_caveat === "string" ? audit.binding_caveat : null,
+      source,
+      certainty: capturedCertainty === "unknown" ? "unknown" : "partial",
+    };
+  }
+
+  const rawCounts = audit.extractor_binding_counts;
+  const bindingCounts = rawCounts && typeof rawCounts === "object" && !Array.isArray(rawCounts)
+    ? {
+        bound: count(rawCounts.bound),
+        unbound: count(rawCounts.unbound),
+        replication_pending: count(rawCounts.replication_pending),
+        unknown: count(rawCounts.unknown),
+      }
+    : null;
+  const actorMemberCount = count(audit.actor_member_count);
+  const lightweightMemberCount = count(audit.lightweight_member_count);
+  const memberCount = count(audit.member_count);
+  const extractorCount = count(audit.extractor_count);
+  const memberCountsConsistent =
+    actorMemberCount !== null &&
+    lightweightMemberCount !== null &&
+    memberCount !== null &&
+    actorMemberCount + lightweightMemberCount === memberCount;
+  const countsComplete =
+    memberCountsConsistent &&
+    extractorCount !== null &&
+    bindingCounts !== null &&
+    Object.values(bindingCounts).every((value) => value !== null) &&
+    Object.values(bindingCounts).reduce((sum, value) => sum + value, 0) === extractorCount;
+
+  if (!countsComplete) {
+    return {
+      ...base,
+      available: true,
+      ...identity,
+      inspection_complete: false,
+      replication_state: replicaState,
+      proxy_buildings_registered_and_valid: proxyReady,
+      member_counts_complete: memberCountsComplete,
+      extractor_observation_complete: extractorObservationComplete,
+      observed,
+      reason: "blueprint_audit_counts_incomplete",
+      source,
+      certainty: "partial",
+    };
+  }
+
+  const extractors = [];
+  let unparseableExtractorDetails = 0;
+  for (const entry of Array.isArray(audit.extractors) ? audit.extractors : []) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      unparseableExtractorDetails += 1;
+      continue;
+    }
+    const state = ["bound", "unbound", "replication_pending", "unknown"].includes(entry.binding_state)
+      ? entry.binding_state
+      : "unknown";
+    extractors.push({
+      actor_id: typeof entry.actor_id === "string" ? entry.actor_id : null,
+      actor_name: typeof entry.actor_name === "string" ? entry.actor_name : null,
+      actor_class_path: typeof entry.actor_class_path === "string" ? entry.actor_class_path : null,
+      extractor_type: typeof entry.extractor_type === "string" ? entry.extractor_type : null,
+      binding_state: state,
+      extractable_object_id:
+        typeof entry.extractable_object_id === "string" ? entry.extractable_object_id : null,
+      extractable_actor_id:
+        typeof entry.extractable_actor_id === "string" ? entry.extractable_actor_id : null,
+      resource_class: typeof entry.resource_class === "string" ? entry.resource_class : null,
+      resource_name: typeof entry.resource_name === "string" ? entry.resource_name : null,
+      reason: typeof entry.reason === "string" ? entry.reason : null,
+    });
+  }
+
+  return {
+    ...base,
+    available: true,
+    ...identity,
+    inspection_complete: true,
+    replication_state: "ready",
+    proxy_buildings_registered_and_valid: true,
+    member_counts_complete: true,
+    extractor_observation_complete: true,
+    actor_member_count: actorMemberCount,
+    lightweight_member_count: lightweightMemberCount,
+    member_count: memberCount,
+    extractor_count: extractorCount,
+    extractor_binding_counts: bindingCounts,
+    extractor_details_returned: observed.extractor_details_returned,
+    extractor_details_capped_omitted: observed.extractor_details_capped_omitted,
+    extractor_details_unparseable: unparseableExtractorDetails,
+    extractor_binding_states_fully_inspected:
+      typeof audit.extractor_binding_states_fully_inspected === "boolean"
+        ? audit.extractor_binding_states_fully_inspected
+        : null,
+    extractors,
+    source,
+    certainty: capturedCertainty,
   };
 }
 

@@ -70,6 +70,11 @@ FAIFactorySettings FAIFactorySettings::Load()
     Json->TryGetBoolField(TEXT("includeVisibleUiText"), Settings.bIncludeVisibleUiText);
     Json->TryGetBoolField(TEXT("uiWholeWorldSnapshot"), Settings.bUIWholeWorldSnapshot);
     Json->TryGetBoolField(TEXT("includeTerrain"), Settings.bIncludeTerrain);
+    Json->TryGetBoolField(TEXT("autoStartCompanion"), Settings.bAutoStartCompanion);
+    Json->TryGetBoolField(TEXT("visionEnabled"), Settings.bVisionEnabled);
+    Json->TryGetBoolField(TEXT("visionIncludeUI"), Settings.bVisionIncludeUI);
+    ReadNumber(Json, TEXT("visionIntervalSeconds"), Settings.VisionIntervalSeconds);
+    ReadNumber(Json, TEXT("visionFrameHistory"), Settings.VisionFrameHistory);
     ReadNumber(Json, TEXT("terrainFootprintMeters"), Settings.TerrainFootprintMeters);
     ReadNumber(Json, TEXT("terrainResolution"), Settings.TerrainResolution);
     ReadNumber(Json, TEXT("maxTerrainProbes"), Settings.MaxTerrainProbes);
@@ -92,6 +97,14 @@ FAIFactorySettings FAIFactorySettings::Load()
     // whole-world capture inside a single frame's budget.
     Settings.TerrainFootprintMeters = FMath::Clamp(Settings.TerrainFootprintMeters, 1.0f, 500.0f);
     Settings.TerrainResolution = FMath::Clamp(Settings.TerrainResolution, 1, 16);
+    // A floor of two seconds. Below that the capture cost stops being
+    // background noise and starts being felt, and no assistant needs to see
+    // the world more often than a person can change it.
+    if (Settings.VisionIntervalSeconds > 0.0f)
+    {
+        Settings.VisionIntervalSeconds = FMath::Clamp(Settings.VisionIntervalSeconds, 2.0f, 600.0f);
+    }
+    Settings.VisionFrameHistory = FMath::Clamp(Settings.VisionFrameHistory, 1, 240);
     Settings.MaxTerrainProbes = FMath::Clamp(Settings.MaxTerrainProbes, 0, 2000);
     Settings.TerrainProbeRadiusMeters = FMath::Clamp(Settings.TerrainProbeRadiusMeters, -1.0f, 100000.0f);
     if (Settings.StartupSelfTestQuestion.TrimStartAndEnd().IsEmpty())

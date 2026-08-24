@@ -1,6 +1,8 @@
 #include "AIFactoryActions.h"
 #include "AIFactoryWaypointDisplay.h"
 
+#include "AIFactoryBlueprintExport.h"
+#include "AIFactoryBlueprintAudit.h"
 #include "AIFactoryOverlay.h"
 #include "AIFactoryTerrain.h"
 #include "Buildables/FGBuildable.h"
@@ -545,6 +547,39 @@ namespace
      * Children first, so none is orphaned by the parent going away mid-walk,
      * and the array is copied because destroying a child mutates it.
      */
+    /**
+     * Destroy an actor without leaving a conveyor chain holding a dead pointer.
+     *
+     * A belt is not independent once it joins a chain: AFGConveyorChainActor
+     * owns and ticks it. Destroy() on a chained belt leaves the chain
+     * iterating a stale pointer, which is the shape of the one unattributed
+     * crash in this project's log -- AFGConveyorChainActor::Factory_Tick,
+     * 34 minutes after an export, no frame of ours on the stack.
+     *
+     * Smart! calls RemoveConveyor on every belt operation. We called it never.
+     * Whether or not it explains that crash, destroying a chained belt without
+     * telling the chain is unsound.
+     *
+     * Takes AActor* so every destroy site can route through it; the cast is
+     * free for the vast majority that are not conveyors.
+     */
+    void DestroyActorSafely(AActor* Actor)
+    {
+        if (!IsValid(Actor))
+        {
+            return;
+        }
+        if (AFGBuildableConveyorBase* Conveyor = Cast<AFGBuildableConveyorBase>(Actor))
+        {
+            if (AFGBuildableSubsystem* Buildables =
+                    AFGBuildableSubsystem::Get(Actor->GetWorld()))
+            {
+                Buildables->RemoveConveyor(Conveyor);
+            }
+        }
+        Actor->Destroy();
+    }
+
     void DestroyHologramTree(AFGHologram* Hologram)
     {
         if (!IsValid(Hologram))
@@ -863,12 +898,60 @@ namespace
             // Whether it took. Overriding the hit asks for a height; the
             // hologram is free to resolve its own, and a reply claiming the Z
             // was honoured is worth nothing unless the placed transform agrees.
-            const double AchievedZ = Hologram->GetActorLocation().Z;
-            const double DriftCm = AchievedZ - Requested.GetLocation().Z;
+            const double WantedZ = Requested.GetLocation().Z;
+            double DriftCm = Hologram->GetActorLocation().Z - WantedZ;
+
+            // Some holograms mount at a fixed offset from the surface they are
+            // given rather than sitting on it. A Conveyor Merger came back
+            // +101 cm twice, with snap_accepted false and snapped_building
+            // "none" -- nothing snapped it, it simply mounts a metre up, the
+            // way it would sit on a foundation. The capture recorded its real
+            // world position, so replaying that position made it add the mount
+            // offset a second time.
+            //
+            // Rather than keep a table of per-class offsets, which would be a
+            // guess that rots as the game changes, lower the hit by exactly the
+            // drift that was measured and let the hologram place again. This is
+            // the same discover-by-observation approach the yaw code above
+            // uses: it scrolls and reads the angle back instead of predicting
+            // the step size.
+            //
+            // One correction only. If a second pass does not converge the class
+            // is doing something this cannot model, and the honest outcome is
+            // to report the remaining drift rather than oscillate.
+            constexpr double ZToleranceCm = 1.0;
+            if (FMath::Abs(DriftCm) > ZToleranceCm)
+            {
+                Predicted->SetNumberField(
+                    TEXT("requested_z_first_pass_drift_cm"),
+                    FMath::RoundToDouble(DriftCm * 10.0) / 10.0);
+
+                Hit.ImpactPoint.Z -= DriftCm;
+                Hit.Location.Z -= DriftCm;
+                Hologram->UpdateHologramPlacement(Hit);
+
+                const double CorrectedDrift = Hologram->GetActorLocation().Z - WantedZ;
+                // Keep the correction only if it actually helped. A hologram
+                // that ignores the hit entirely would otherwise be left worse
+                // off than before it was touched.
+                if (FMath::Abs(CorrectedDrift) < FMath::Abs(DriftCm))
+                {
+                    DriftCm = CorrectedDrift;
+                    Predicted->SetBoolField(TEXT("requested_z_corrected"), true);
+                }
+                else
+                {
+                    Hit.ImpactPoint.Z += DriftCm;
+                    Hit.Location.Z += DriftCm;
+                    Hologram->UpdateHologramPlacement(Hit);
+                    Predicted->SetBoolField(TEXT("requested_z_correction_rejected"), true);
+                }
+            }
+
             Predicted->SetNumberField(
                 TEXT("requested_z_drift_cm"),
                 FMath::RoundToDouble(DriftCm * 10.0) / 10.0);
-            Predicted->SetBoolField(TEXT("requested_z_reached"), FMath::Abs(DriftCm) <= 1.0);
+            Predicted->SetBoolField(TEXT("requested_z_reached"), FMath::Abs(DriftCm) <= ZToleranceCm);
         }
 
         if (bRotationUnavailable)
@@ -990,6 +1073,50 @@ namespace
         Predicted->SetBoolField(
             TEXT("constructed_without_finishing_placement"),
             !bPlacementFinished && bReadyWithoutFinishing);
+
+        // The last step of placement, and one this mod has never run.
+        //
+        // AFGHologram::AdjustForGround is documented as "the last step in the
+        // placement ... usually for things such as updating legs on buildings",
+        // and the build gun runs it. Doing it here means the validation below
+        // sees the adjusted transform rather than the raw one.
+        //
+        // Skipped when the caller asked for an exact Z. `exact_z` exists so a
+        // plan can put a machine at a stated height; letting the ground move it
+        // afterwards would silently discard the request that was made, which is
+        // worse than not adjusting at all.
+        //
+        // Seeded with the current transform because the base implementation is a
+        // stub in the Starter Project -- whether every override writes both
+        // out-parameters is unknown. Seeding makes a hologram that ignores them
+        // stay put instead of jumping to the origin.
+        if (!bHonourRequestedZ)
+        {
+            const FVector BeforeGround = Hologram->GetActorLocation();
+            FVector AdjustedLocation = BeforeGround;
+            FRotator AdjustedRotation = Hologram->GetActorRotation();
+            Hologram->AdjustForGround(AdjustedLocation, AdjustedRotation);
+
+            const double MovedCm = FVector::Dist(AdjustedLocation, BeforeGround);
+            if (MovedCm > 0.01)
+            {
+                Hologram->SetActorLocationAndRotation(AdjustedLocation, AdjustedRotation);
+                Predicted->SetNumberField(
+                    TEXT("ground_adjust_moved_cm"),
+                    FMath::RoundToDouble(MovedCm * 10.0) / 10.0);
+            }
+            Predicted->SetBoolField(TEXT("ground_adjusted"), true);
+        }
+        else
+        {
+            // Reported either way, so a drifting placement can be told apart
+            // from one that was never offered the adjustment.
+            Predicted->SetBoolField(TEXT("ground_adjusted"), false);
+            Predicted->SetStringField(
+                TEXT("ground_adjust_skipped_reason"),
+                TEXT("caller requested an exact z"));
+        }
+
         Hologram->ResetConstructDisqualifiers();
         Hologram->ValidatePlacementAndCost(Inventory);
         HardReason = DescribeHologramDisqualifiers(Hologram, Predicted);
@@ -1857,7 +1984,7 @@ FAIFactoryActionResult PlaceBuilding(
         }
         if (IsValid(Constructed) && !IsValid(RootBuildable))
         {
-            Constructed->Destroy();
+            DestroyActorSafely(Constructed);
         }
         for (const FAIFactoryLightweightUndoRef& Ref : NewLightweightMatches)
         {
@@ -2189,9 +2316,23 @@ FAIFactoryActionResult PlaceBlueprint(
 
     AFGBlueprintProxy* Proxy = Cast<AFGBlueprintProxy>(Constructed);
     TArray<AFGBuildable*> Placed;
+    int32 LightweightPlaced = 0;
+    bool bLightweightReadbackValid = false;
     if (IsValid(Proxy))
     {
         Proxy->CollectBuildables(Placed);
+        for (const FBuildableClassLightweightIndices& Entry :
+             Proxy->GetLightweightClassAndIndices())
+        {
+            // A blueprint can legitimately consist entirely of lightweight
+            // architecture. Those instances are owned by the proxy but do not
+            // appear in CollectBuildables(), so counting actors alone turns a
+            // successful native placement into a false failure and dismantles
+            // it before the player ever sees it.
+            LightweightPlaced += Entry.Indices.Num();
+        }
+        bLightweightReadbackValid =
+            LightweightPlaced > 0 && Proxy->AreProxyBuildingsRegisteredAndValid();
     }
     if (AFGBuildable* RootBuildable = Cast<AFGBuildable>(Constructed);
         IsValid(RootBuildable))
@@ -2207,7 +2348,10 @@ FAIFactoryActionResult PlaceBlueprint(
         }
     }
 
-    if (Placed.Num() == 0)
+    const bool bHasPlacedBuildables = Placed.Num() > 0;
+    const bool bHasPlacedLightweights =
+        LightweightPlaced > 0 && bLightweightReadbackValid;
+    if (!bHasPlacedBuildables && !bHasPlacedLightweights)
     {
         if (IsValid(Proxy))
         {
@@ -2218,18 +2362,21 @@ FAIFactoryActionResult PlaceBlueprint(
         {
             if (IsValid(Constructed))
             {
-                Constructed->Destroy();
+                DestroyActorSafely(Constructed);
             }
             for (AActor* Child : ConstructedChildren)
             {
                 if (IsValid(Child))
                 {
-                    Child->Destroy();
+                    DestroyActorSafely(Child);
                 }
             }
         }
         Result.Status = TEXT("failed");
-        Result.Reason = TEXT("blueprint_hologram_constructed_no_buildables");
+        Result.Reason =
+            LightweightPlaced > 0
+                ? TEXT("blueprint_proxy_lightweight_readback_not_ready")
+                : TEXT("blueprint_hologram_constructed_no_buildables");
         return Result;
     }
     ChargeActionCost(Cost, Inventory);
@@ -2259,7 +2406,13 @@ FAIFactoryActionResult PlaceBlueprint(
     Step.Description = FString::Printf(TEXT("Dismantle the placed blueprint '%s'"), *BlueprintName);
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
-    Observed->SetNumberField(TEXT("buildings_placed"), Result.CreatedActorIds.Num());
+    const int32 TotalPlaced = Placed.Num() + LightweightPlaced;
+    Observed->SetNumberField(TEXT("buildings_placed"), TotalPlaced);
+    Observed->SetNumberField(TEXT("actor_buildings_placed"), Placed.Num());
+    Observed->SetNumberField(TEXT("lightweight_buildings_placed"), LightweightPlaced);
+    Observed->SetBoolField(
+        TEXT("lightweight_readback_valid"),
+        LightweightPlaced == 0 || bLightweightReadbackValid);
     Observed->SetObjectField(
         TEXT("origin"),
         ActionTransformJson(
@@ -2269,13 +2422,23 @@ FAIFactoryActionResult PlaceBlueprint(
     Observed->SetStringField(
         TEXT("blueprint_proxy_id"),
         IsValid(Proxy) ? Proxy->GetPathName() : TEXT(""));
+    // Placement is still reported by the game action executor, but the
+    // binding evidence comes from the same read-only helper used by later
+    // crosshair audits. A proxy that has not finished replication remains
+    // explicit `replication_pending`, never a fabricated unbound result.
+    AActor* AuditTarget = IsValid(Proxy)
+        ? static_cast<AActor*>(Proxy)
+        : (Placed.Num() > 0 ? static_cast<AActor*>(Placed[0]) : Constructed);
+    Observed->SetObjectField(
+        TEXT("blueprint_instance_audit"),
+        AIFactoryBlueprintAudit::Capture(AuditTarget));
     Observed->SetBoolField(TEXT("validated_by_blueprint_hologram"), true);
     Result.Observed = Observed;
 
     Result.bUndoable = true;
     Result.UndoDescription = FString::Printf(
         TEXT("Dismantle all %d placed buildings."),
-        Result.CreatedActorIds.Num());
+        TotalPlaced);
     RecordActionUndo(MoveTemp(Step));
 
     return Result;
@@ -2964,7 +3127,74 @@ FAIFactoryActionResult PlaceBelt(
     Observed->SetStringField(TEXT("requested_from"), From->GetPathName());
     Observed->SetStringField(TEXT("requested_to"), To->GetPathName());
 
-    if (!bExactEndpoints)
+    // Try to repair before rolling back.
+    //
+    // A belt that constructed but snapped to the wrong port is a belt that
+    // exists; dismantling it loses real work over a fixable mistake. The
+    // supported repair is SetConnection gated by CanConnectTo, which the
+    // header describes as filtering out blocked and incompatible pairs -- so
+    // the game decides whether the join is legal, not this code.
+    //
+    // The strict check is not relaxed: the repair is re-verified with the same
+    // IsExactPair, and anything short of the requested pairing still falls
+    // through to the rollback below.
+    bool bEndpointsExact = bExactEndpoints;
+    if (!bEndpointsExact && IsValid(ConstructedBelt))
+    {
+        const auto Join = [&IsExactPair](
+            UFGFactoryConnectionComponent* BeltSide,
+            UFGFactoryConnectionComponent* Wanted) -> bool
+        {
+            if (!IsValid(BeltSide) || !IsValid(Wanted))
+            {
+                return false;
+            }
+            if (IsExactPair(BeltSide, Wanted))
+            {
+                return true;
+            }
+            if (!BeltSide->CanConnectTo(Wanted))
+            {
+                return false;
+            }
+            // Never steal a port another machine already owns. Fixing this
+            // belt by silently breaking a working line is a worse outcome
+            // than the failure being repaired.
+            if (Wanted->IsConnected() && Wanted->GetConnection() != BeltSide)
+            {
+                return false;
+            }
+            if (BeltSide->IsConnected())
+            {
+                BeltSide->ClearConnection();
+            }
+            BeltSide->SetConnection(Wanted);
+            return IsExactPair(BeltSide, Wanted);
+        };
+
+        const bool bJoinedTo = Join(Belt0, To);
+        const bool bJoinedFrom = Join(Belt1, From);
+        bEndpointsExact = bJoinedTo && bJoinedFrom;
+
+        // Reported separately from exact_requested_endpoints, which keeps its
+        // meaning: what the hologram achieved on its own. This says what the
+        // repair achieved afterwards.
+        Observed->SetBoolField(TEXT("endpoints_repaired"), bEndpointsExact);
+        Observed->SetBoolField(TEXT("endpoint_repair_joined_to"), bJoinedTo);
+        Observed->SetBoolField(TEXT("endpoint_repair_joined_from"), bJoinedFrom);
+        if (!bEndpointsExact)
+        {
+            Observed->SetStringField(
+                TEXT("endpoint_repair_failed_because"),
+                !bJoinedTo && !bJoinedFrom
+                    ? TEXT("neither end could be joined")
+                    : (!bJoinedTo
+                        ? TEXT("the destination port refused or is taken")
+                        : TEXT("the source port refused or is taken")));
+        }
+    }
+
+    if (!bEndpointsExact)
     {
         // Construct does not charge the player; successful actions charge only
         // after this readback. Raw dismantle is therefore required here. A
@@ -2983,7 +3213,7 @@ FAIFactoryActionResult PlaceBelt(
             }
             else
             {
-                Buildable->Destroy();
+                DestroyActorSafely(Buildable);
             }
         }
         Observed->SetBoolField(TEXT("from_connected_after_cleanup"), From->IsConnected());
@@ -3278,6 +3508,7 @@ namespace
             Kind == TEXT("teleport_player") ||
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
+            Kind == TEXT("export_native_blueprint") ||
             Kind == TEXT("give_item") ||
             Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
@@ -3467,6 +3698,60 @@ namespace
                 Context,
                 Name,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location));
+        }
+        if (Kind == TEXT("export_native_blueprint"))
+        {
+            FString Name;
+            if (!Spec->TryGetStringField(TEXT("blueprint_name"), Name) || Name.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("blueprint_name_is_required"));
+            }
+
+            // Only the exact actors the player marked with the dismantle tool.
+            // No radius, no "everything nearby": a guessed factory boundary is
+            // especially unsafe for a megabase with power, rail and
+            // architecture running through it.
+            const TArray<TSharedPtr<FJsonValue>>* Ids = nullptr;
+            if (!Spec->TryGetArrayField(TEXT("selected_actor_ids"), Ids) || !Ids || Ids->Num() == 0)
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("selected_actor_ids_is_required"));
+            }
+
+            TArray<AFGBuildable*> Buildables;
+            int32 Unresolved = 0;
+            for (const TSharedPtr<FJsonValue>& Value : *Ids)
+            {
+                FString ActorId;
+                if (!Value.IsValid() || !Value->TryGetString(ActorId) || ActorId.IsEmpty())
+                {
+                    ++Unresolved;
+                    continue;
+                }
+                AFGBuildable* Buildable =
+                    Cast<AFGBuildable>(FindActionActorByPathName(Context.World, ActorId));
+                if (IsValid(Buildable))
+                {
+                    Buildables.AddUnique(Buildable);
+                }
+                else
+                {
+                    ++Unresolved;
+                }
+            }
+
+            // An id that no longer resolves means the selection describes a
+            // world that has moved on. Exporting the remainder would quietly
+            // write a blueprint missing pieces the player marked, so refuse.
+            if (Unresolved > 0)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    FString::Printf(
+                        TEXT("%d selected actor(s) could not be resolved; re-mark the selection"),
+                        Unresolved));
+            }
+
+            return AIFactoryBlueprintExport::ExportSelection(Context, Name, Buildables);
         }
         if (Kind == TEXT("place_belt"))
         {

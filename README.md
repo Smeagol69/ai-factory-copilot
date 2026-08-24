@@ -60,6 +60,7 @@ absence in the model's view is never treated as an absence in the world.
 | `get_build_cost` | construction cost against captured player inventories |
 | `plan_production` | designs a line for a target item and rate, against this base |
 | `list_blueprints` | saved blueprints: dimensions, cost, contents, and whether you can afford them |
+| `inspect_blueprint_layout` | read-only decoded native `Build_*` classes, bounded saved transforms, pivot bounds, and recipe evidence |
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | rendered HUD, objective, active milestone, game phase, recipe availability, schematics, and tech tier |
 | `design_factory_layout` | a placeable layout fitted to this base, with exact coordinates |
@@ -76,6 +77,13 @@ resource diversity, purity-weighted node count, coverage of the resources you
 named, and distance cost — returning exact coordinates, the runners-up, and the
 per-factor breakdown. Occupied nodes and hand-mined `Deposit` nodes are excluded,
 because a miner cannot be placed on either.
+
+Saved blueprints can be inspected without placing them: ask *"inspect blueprint
+<name>"* to decode native saved `Build_*` entities, their classes, and a bounded
+set of exact transforms. When two saved blueprints share a display name, the
+blueprint list prints a `blueprint_reference`; use that value instead of making
+the copilot guess. A decoded layout still does not prove destination terrain,
+Build Gun hologram validity, or external connections.
 
 Terrain is measured, not guessed: downward line traces across each footprint give
 slope and elevation range, the game's own water volumes give water, a lifted box
@@ -239,7 +247,11 @@ button for the phrase that places it — including turn buttons for 90°, 180° 
 
 ## Start the companion
 
-Node.js 20 or newer is required. No packages need to be installed.
+Node.js 20 or newer is required. The packaged mod carries its lock-pinned
+production dependencies, so a normal SML install does not need an `npm` step.
+For a source checkout, run `npm ci` once in `companion/` (the validation and
+Starter Project install scripts do this automatically) before starting it by
+hand.
 
 Diagnostic mode works without an API key:
 

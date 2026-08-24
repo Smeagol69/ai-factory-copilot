@@ -1,6 +1,8 @@
 #include "AIFactorySnapshot.h"
+#include "FGLightweightBuildableSubsystem.h"
 
 #include "AIFactoryCopilotModule.h"
+#include "AIFactoryBlueprintAudit.h"
 #include "AIFactoryDataProvider.h"
 #include "AIFactorySettings.h"
 #include "AIFactoryTerrain.h"
@@ -27,6 +29,8 @@
 #include "EngineUtils.h"
 #include "FGFactoryConnectionComponent.h"
 #include "FGCharacterPlayer.h"
+#include "FGBlueprintSubsystem.h"
+#include "FGFactoryBlueprintTypes.h"
 #include "Equipment/FGBuildGun.h"
 #include "Equipment/FGBuildGunDismantle.h"
 #include "FGGamePhase.h"
@@ -942,6 +946,57 @@ namespace
         return Result;
     }
 
+    /**
+     * One lightweight buildable, in the same shape as BuildableJson.
+     *
+     * Foundations, walls, pillars, catwalks and roofs are not actors. They are
+     * instance data, so TActorIterator cannot reach them and the snapshot has
+     * been reporting a base's wiring as though it were the whole base --
+     * measured at 11 of 51 classes visible in one building.
+     *
+     * Compact on purpose: a wall has no inventory, no throughput and no
+     * connections, and a large base holds tens of thousands of these. Class,
+     * transform, bounds and recipe is what a layout reader actually needs.
+     *
+     * The id is synthesised as lightweight:<Class>:<Index> because these have
+     * no path name -- that pair is how the subsystem itself addresses them.
+     * It is stable only within one snapshot: removing an instance shifts every
+     * index above it, which is why nothing should persist one of these ids.
+     */
+    TSharedRef<FJsonObject> LightweightBuildableJson(
+        const TSubclassOf<AFGBuildable>& BuildableClass,
+        const FRuntimeBuildableInstanceData& Instance,
+        int32 Index)
+    {
+        const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+        const FString ClassName = IsValid(BuildableClass) ? BuildableClass->GetName() : TEXT("Unknown");
+        Result->SetStringField(TEXT("actor_id"),
+            FString::Printf(TEXT("lightweight:%s:%d"), *ClassName, Index));
+        Result->SetStringField(TEXT("name"), FString::Printf(TEXT("%s_%d"), *ClassName, Index));
+        Result->SetStringField(TEXT("class_path"),
+            IsValid(BuildableClass) ? BuildableClass->GetPathName() : FString());
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(BuildableClass));
+        Result->SetStringField(TEXT("kind"), TEXT("lightweight_buildable"));
+        Result->SetObjectField(TEXT("location"), VectorJson(Instance.Transform.GetLocation()));
+        Result->SetObjectField(TEXT("rotation"), RotatorJson(Instance.Transform.Rotator()));
+        Result->SetObjectField(TEXT("scale"), VectorJson(Instance.Transform.GetScale3D()));
+
+        // BoundingBox is local space -- the field says so -- so it is moved onto
+        // the instance before being reported, to match BuildableJson's world bounds.
+        if (Instance.BoundingBox.IsValid != 0)
+        {
+            const FBox WorldBounds = Instance.BoundingBox.TransformBy(Instance.Transform);
+            const TSharedRef<FJsonObject> Bounds = MakeShared<FJsonObject>();
+            Bounds->SetObjectField(TEXT("origin"), VectorJson(WorldBounds.GetCenter()));
+            Bounds->SetObjectField(TEXT("extent"), VectorJson(WorldBounds.GetExtent()));
+            Result->SetObjectField(TEXT("bounds"), Bounds);
+        }
+
+        Result->SetStringField(TEXT("built_with_recipe"), ClassPath(Instance.BuiltWithRecipe.Get()));
+        Result->SetBoolField(TEXT("inside_blueprint_designer"), false);
+        return Result;
+    }
+
     TSharedRef<FJsonObject> BuildableJson(AFGBuildable* Buildable, const FAIFactorySettings& Settings)
     {
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
@@ -1358,6 +1413,14 @@ namespace
             PreferredTarget->SetStringField(TEXT("actor_kind"), KindForActor(PreferredActor));
             PreferredTarget->SetObjectField(TEXT("actor_snapshot"), FocusActorJson(PreferredActor, Settings, World, TerrainBudget));
         }
+        // A native Blueprint proxy knows exactly which actor-backed members and
+        // lightweight pieces it owns. Capture its public replication and
+        // extractor-binding readback beside the aim target so the bridge can
+        // prove (or explicitly not yet prove) what happened after a normal
+        // Build Gun placement. This helper is read-only by contract.
+        PreferredTarget->SetObjectField(
+            TEXT("blueprint_instance_audit"),
+            AIFactoryBlueprintAudit::Capture(PreferredActor, CameraHit.GetActor()));
         Result->SetObjectField(TEXT("preferred_target"), PreferredTarget);
 
         // What the player has marked with the dismantle tool.
@@ -1722,6 +1785,95 @@ namespace
         Progression->SetObjectField(TEXT("todo_lists"), Todo);
         return Progression;
     }
+
+    /**
+     * The disk library can contain Blueprint files from several saves, while
+     * the native Build Gun accepts only descriptors registered by the active
+     * `AFGBlueprintSubsystem`. Read that registry as it stands so the bridge
+     * can refuse a cross-session file before it makes a false promise to arm a
+     * hologram. In particular, do not call RefreshBlueprintsAndDescriptors
+     * during an ordinary chat capture: that stateful operation rebuilds the
+     * player's active native Blueprint selection. The explicit preview action
+     * refreshes immediately before its own lookup instead, which is both
+     * authoritative and an operation the player explicitly requested.
+     *
+     * This changes no world actor, inventory, cost, undo state, Blueprint file,
+     * or Build Gun selection.
+     */
+    TSharedRef<FJsonObject> BlueprintLibraryJson(UWorld* World)
+    {
+        const TSharedRef<FJsonObject> Library = MakeShared<FJsonObject>();
+        Library->SetStringField(
+            TEXT("source"),
+            TEXT("AFGBlueprintSubsystem active-session descriptor registry"));
+        Library->SetStringField(TEXT("certainty"), TEXT("authoritative"));
+        Library->SetBoolField(TEXT("available"), false);
+        Library->SetBoolField(TEXT("complete"), false);
+
+        if (!IsValid(World))
+        {
+            Library->SetStringField(TEXT("reason"), TEXT("world_unavailable"));
+            return Library;
+        }
+
+        AFGBlueprintSubsystem* BlueprintSubsystem = AFGBlueprintSubsystem::Get(World);
+        if (!IsValid(BlueprintSubsystem))
+        {
+            Library->SetStringField(TEXT("reason"), TEXT("blueprint_subsystem_unavailable"));
+            return Library;
+        }
+
+        TArray<UFGBlueprintDescriptor*> Descriptors;
+        AFGBlueprintSubsystem::GetBlueprintDescriptors(Descriptors, World);
+
+        TArray<FString> Names;
+        int32 InvalidDescriptorCount = 0;
+        for (UFGBlueprintDescriptor* Descriptor : Descriptors)
+        {
+            if (!IsValid(Descriptor))
+            {
+                ++InvalidDescriptorCount;
+                continue;
+            }
+
+            FString Name = Descriptor->GetBlueprintNameAsString();
+            Name.TrimStartAndEndInline();
+            if (Name.IsEmpty())
+            {
+                ++InvalidDescriptorCount;
+                continue;
+            }
+            Names.Add(MoveTemp(Name));
+        }
+        Names.Sort();
+
+        TArray<TSharedPtr<FJsonValue>> RegisteredNames;
+        RegisteredNames.Reserve(Names.Num());
+        for (const FString& Name : Names)
+        {
+            RegisteredNames.Add(MakeShared<FJsonValueString>(Name));
+        }
+
+        Library->SetStringField(
+            TEXT("certainty"),
+            InvalidDescriptorCount == 0 ? TEXT("authoritative") : TEXT("partial"));
+        Library->SetBoolField(TEXT("available"), true);
+        // A list which skipped even one registered descriptor cannot prove an
+        // absence. The bridge treats that as unknown rather than falsely
+        // refusing a Blueprint the game may still know.
+        Library->SetBoolField(TEXT("complete"), InvalidDescriptorCount == 0);
+        Library->SetBoolField(TEXT("refreshed_before_capture"), false);
+        if (InvalidDescriptorCount > 0)
+        {
+            Library->SetStringField(
+                TEXT("reason"),
+                TEXT("one_or_more_registered_blueprint_descriptors_could_not_be_named"));
+        }
+        Library->SetNumberField(TEXT("registered_descriptor_count"), Descriptors.Num());
+        Library->SetNumberField(TEXT("invalid_descriptor_count"), InvalidDescriptorCount);
+        Library->SetArrayField(TEXT("registered_blueprint_names"), RegisteredNames);
+        return Library;
+    }
 }
 
 FAIFactorySnapshotResult FAIFactorySnapshot::Build(
@@ -1775,6 +1927,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     WorldInfo->SetObjectField(TEXT("scan_center"), VectorJson(Request.Center));
     WorldInfo->SetNumberField(TEXT("scan_radius_meters"), Request.bUseRadius ? Request.RadiusMeters : -1.0);
     Root->SetObjectField(TEXT("world"), WorldInfo);
+    Root->SetObjectField(TEXT("blueprint_library"), BlueprintLibraryJson(World));
 
     FTerrainProbeBudget TerrainBudget;
     if (Settings.bIncludeTerrain)
@@ -1817,6 +1970,7 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
         VisibleUiJson(World, Settings.bIncludeVisibleUiText));
 
     TArray<TSharedPtr<FJsonValue>> Actors;
+    int32 LightweightSeen = 0;
     if (IsValid(World))
     {
         const double RadiusSquaredCm = FMath::Square(static_cast<double>(Request.RadiusMeters) * 100.0);
@@ -1840,6 +1994,43 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
             Actors.Add(MakeShared<FJsonValueObject>(BuildableJson(Buildable, CaptureSettings)));
             ++Result.ActorCount;
             ++Result.BuildableCount;
+        }
+
+        // The other four fifths. Structural pieces are instance data, not
+        // actors, so the loop above cannot see them -- measured at 11 of 51
+        // classes visible in one of the owner's buildings.
+        if (!Result.bActorLimitReached)
+        {
+            if (AFGLightweightBuildableSubsystem* Lightweight =
+                    AFGLightweightBuildableSubsystem::Get(World))
+            {
+                for (const auto& Pair : Lightweight->GetAllLightweightBuildableInstances())
+                {
+                    const TArray<FRuntimeBuildableInstanceData>& Instances = Pair.Value;
+                    for (int32 Index = 0; Index < Instances.Num(); ++Index)
+                    {
+                        const FRuntimeBuildableInstanceData& Instance = Instances[Index];
+                        if (Request.bUseRadius &&
+                            FVector::DistSquared(Instance.Transform.GetLocation(), Request.Center) > RadiusSquaredCm)
+                        {
+                            continue;
+                        }
+                        if (Actors.Num() >= Settings.MaxActorsPerSnapshot)
+                        {
+                            Result.bActorLimitReached = true;
+                            break;
+                        }
+                        Actors.Add(MakeShared<FJsonValueObject>(
+                            LightweightBuildableJson(Pair.Key, Instance, Index)));
+                        ++Result.ActorCount;
+                        ++LightweightSeen;
+                    }
+                    if (Result.bActorLimitReached)
+                    {
+                        break;
+                    }
+                }
+            }
         }
 
         if (!Result.bActorLimitReached)
@@ -1913,6 +2104,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
 
     const TSharedRef<FJsonObject> Completeness = MakeShared<FJsonObject>();
     Completeness->SetBoolField(TEXT("actor_limit_reached"), Result.bActorLimitReached);
+    // Named separately so a reader can tell an empty base from a blind snapshot.
+    Completeness->SetNumberField(TEXT("lightweight_buildable_count"), LightweightSeen);
     Completeness->SetNumberField(TEXT("actor_limit"), Settings.MaxActorsPerSnapshot);
     Completeness->SetStringField(TEXT("unknown_policy"),
         TEXT("Unknown custom behavior is never inferred; an explicit adapter is required."));

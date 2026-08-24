@@ -10,14 +10,58 @@ import {
   parseClearRequest,
   parseExactBeltSolverRequest,
   parseAimedFactoryRequest,
+  parseBlueprintPlacementAuditRequest,
+  parseBlueprintLayoutRequest,
   parseBlueprintListRequest,
+  parseBlueprintPreviewRequest,
   parseShowRequest,
   parseStructureRequest,
   routeQuestion,
 } from "../lib/router.mjs";
 import { buildFactorySnapshot, MINER, SMELTER } from "./fixtures/factory.mjs";
 
-const graphOf = () => buildGraph(buildFactorySnapshot());
+const graphOf = (blueprintNames = []) => {
+  const graph = buildGraph(buildFactorySnapshot());
+  graph.snapshot.blueprint_library = {
+    available: true,
+    complete: true,
+    registered_descriptor_count: blueprintNames.length,
+    registered_blueprint_names: blueprintNames,
+  };
+  return graph;
+};
+
+function runtimeBlueprintAudit(overrides = {}) {
+  return {
+    available: true,
+    source: "AFGBlueprintProxy and AFGBuildableResourceExtractorBase public accessors",
+    certainty: "authoritative",
+    target_actor_id: SMELTER,
+    target_relation: "blueprint_proxy",
+    blueprint_proxy_id: SMELTER,
+    blueprint_name: "Copper Starter",
+    replication_state: "ready",
+    proxy_buildings_registered_and_valid: true,
+    member_counts_complete: true,
+    extractor_observation_complete: true,
+    actor_member_count: 2,
+    lightweight_member_count: 0,
+    member_count: 2,
+    extractor_count: 1,
+    extractor_binding_counts: { bound: 1, unbound: 0, replication_pending: 0, unknown: 0 },
+    extractor_details_returned: 1,
+    extractor_details_capped_omitted: 0,
+    extractors: [{
+      actor_id: "RuntimeMiner",
+      actor_name: "Build_MinerMk1_C_1",
+      extractor_type: "Miner",
+      binding_state: "bound",
+      extractable_actor_id: "CopperNode",
+      resource_name: "Copper Ore",
+    }],
+    ...overrides,
+  };
+}
 
 test("parses only an explicit aimed Mk.1 factory write", () => {
   for (const question of [
@@ -44,6 +88,137 @@ test("an explicit aimed Mk.1 factory can leave its belts to the player", () => {
   assert.equal(parsed?.skip_belts, true);
   assert.equal(parsed?.raw_text, question);
   assert.equal(parseAimedFactoryRequest(question), null, "the strict route owns tiered no-belt requests");
+});
+
+test("an explicit native Build Gun preview is not mistaken for placement or listing", () => {
+  assert.deepEqual(
+    parseBlueprintPreviewRequest("preview the Coal power plant 2700MW v1.1 blueprint"),
+    { name: "Coal power plant 2700MW v1.1" },
+  );
+  assert.deepEqual(
+    parseBlueprintPreviewRequest("arm my Steel Works in my build gun"),
+    { name: "Steel Works" },
+  );
+  assert.equal(parseBlueprintPreviewRequest("list my blueprints"), null);
+  assert.equal(parseBlueprintPreviewRequest("place the Coal power plant blueprint here"), null);
+});
+
+test("only narrow aimed-runtime Blueprint audit phrases bypass the model", () => {
+  for (const question of [
+    "audit this blueprint",
+    "check this blueprint placement",
+    "is this blueprint's miner bound",
+  ]) {
+    assert.deepEqual(parseBlueprintPlacementAuditRequest(question), {}, question);
+  }
+  for (const question of [
+    "inspect blueprint Copper Starter",
+    "place this blueprint here",
+    "audit this blueprint and preview it",
+    "is this miner bound",
+  ]) {
+    assert.equal(parseBlueprintPlacementAuditRequest(question), null, question);
+  }
+});
+
+test("an aimed native Blueprint audit is local, exact, and emits no action", () => {
+  const graph = graphOf();
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit();
+  const emitted = [];
+  const answer = answerLocally("is this blueprint's miner bound", graph, {
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.equal(answer?.local?.solver, "audit_blueprint_placement");
+  assert.match(answer.reply, /Copper Starter.*1 resource extractor/i);
+  assert.match(answer.reply, /Build_MinerMk1_C_1.*Copper Ore/i);
+  assert.match(answer.reply, /did not change the world/i);
+  assert.deepEqual(emitted, []);
+});
+
+test("a pending native Blueprint audit asks for replication instead of declaring its miner unbound", () => {
+  const graph = graphOf();
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit({
+    certainty: "partial",
+    replication_state: "replication_pending",
+    proxy_buildings_registered_and_valid: false,
+    member_counts_complete: false,
+    extractor_observation_complete: false,
+    actor_member_count_observed: 1,
+    lightweight_member_count_observed: 0,
+    member_count_observed: 1,
+    extractor_count_observed: 1,
+    reason: "blueprint_proxy_replication_pending",
+  });
+  const answer = answerLocally("audit this blueprint", graph, sink());
+
+  assert.equal(answer?.local?.solver, "audit_blueprint_placement");
+  assert.match(answer.reply, /still replicating/i);
+  assert.match(answer.reply, /not proof of zero miners or an unbound miner/i);
+  assert.doesNotMatch(answer.reply, /fully registered with/i);
+});
+
+test("a lightweight extractor caveat stays unknown instead of asking the player to wait for a false certainty", () => {
+  const graph = graphOf();
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit({
+    extractor_observation_complete: false,
+    extractor_binding_states_fully_inspected: false,
+    extractor_count_observed: 2,
+    actor_extractor_count_observed: 1,
+    lightweight_extractor_count_uninspected: 1,
+    extractor_count: 2,
+    extractor_binding_counts: { bound: 1, unbound: 0, replication_pending: 0, unknown: 1 },
+    binding_caveat: "lightweight_extractor_members_cannot_be_resolved_from_this_aim",
+  });
+  const answer = answerLocally("audit this blueprint", graph, sink());
+
+  assert.equal(answer?.local?.solver, "audit_blueprint_placement");
+  assert.match(answer.reply, /fully registered, but 1 resource extractor is stored as lightweight/i);
+  assert.match(answer.reply, /unknown — not unbound/i);
+  assert.doesNotMatch(answer.reply, /wait for the blueprint to settle/i);
+});
+
+test("previewing a saved blueprint emits only a client Build Gun handoff", () => {
+  const emitted = [];
+  const answer = answerLocally("preview the Coal power plant blueprint", graphOf(["Coal power plant"]), {
+    listBlueprints: () => [{
+      name: "Coal power plant",
+      designer_dimensions: { x: 12, y: 12, z: 6 },
+      build_cost: [],
+    }],
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.ok(answer);
+  assert.equal(answer.local.solver, "blueprint_preview");
+  assert.match(answer.reply, /Nothing is being placed or charged/i);
+  assert.deepEqual(emitted, [{
+    action: "preview_blueprint",
+    blueprint_name: "Coal power plant",
+    commit: true,
+  }]);
+});
+
+test("a disk blueprint outside the current save is never promised to the Build Gun", () => {
+  const emitted = [];
+  const graph = graphOf(["Playthrough Starter"]);
+  graph.snapshot.world.session_name = "Playthrough";
+  const answer = answerLocally("preview the Coal power plant blueprint", graph, {
+    listBlueprints: () => [{
+      name: "Coal power plant",
+      relative_path: "BP test/Coal power plant.sbp",
+      blueprint_reference: "BP test/Coal power plant.sbp",
+      designer_dimensions: { x: 12, y: 12, z: 6 },
+      build_cost: [],
+    }],
+    actions: { emit: (actions) => emitted.push(...actions) },
+  });
+
+  assert.ok(answer);
+  assert.equal(answer.local.solver, "blueprint_preview_refused");
+  assert.match(answer.reply, /not registered.*Playthrough/i);
+  assert.match(answer.reply, /nothing was placed or charged/i);
+  assert.deepEqual(emitted, []);
 });
 
 test("oversized plan refusals report the requested count", () => {
@@ -525,6 +700,66 @@ test("a library the bridge cannot read is reported, not guessed at", () => {
   const answer = answerLocally("list blueprints", buildGraph(buildFactorySnapshot()), {});
   assert.ok(answer);
   assert.match(answer.reply, /can't read your blueprint folder/i);
+});
+
+test("an explicit native-blueprint inspection stays local and read-only", () => {
+  for (const question of [
+    "inspect blueprint Coal power plant 2700MW v1.1",
+    "show the layout of blueprint Coal power plant 2700MW v1.1",
+    "what is inside blueprint Coal power plant 2700MW v1.1",
+  ]) {
+    assert.equal(
+      parseBlueprintLayoutRequest(question)?.blueprint_name,
+      "Coal power plant 2700MW v1.1",
+      question,
+    );
+  }
+  assert.equal(parseBlueprintLayoutRequest("inspect blueprint C:/not-a-blueprint"), null);
+  assert.equal(parseBlueprintLayoutRequest("place blueprint Coal power plant here"), null);
+
+  const answer = answerLocally("inspect blueprint Coal power plant 2700MW v1.1", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Coal power plant 2700MW v1.1",
+      decoded: { buildable_count: 36, component_count: 10 },
+      buildable_classes: [{ class_name: "GeneratorCoal", count: 36 }],
+      pivot_bounds_cm: { span_cm: { x: 7200, y: 7100, z: 2950 } },
+      buildables_returned: 36,
+      buildables_truncated: 0,
+      header: { build_cost: [] },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /36 Build_\* entities/i);
+  assert.match(answer.reply, /not proof.*clear terrain/i);
+});
+
+test("a listed blueprint reference disambiguates safely, but never accepts traversal", () => {
+  assert.deepEqual(
+    parseBlueprintLayoutRequest("inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp"),
+    { blueprint_name: "ai 2.0/Coal power plant 2700MW v1.1.sbp" },
+  );
+  assert.equal(parseBlueprintLayoutRequest("inspect blueprint ../Coal power plant"), null);
+  assert.equal(parseBlueprintLayoutRequest("inspect blueprint C:\\outside.sbp"), null);
+});
+
+test("blueprint lists display a safe reference only when names collide", () => {
+  const blueprint = (reference) => ({
+    name: "Coal plant",
+    relative_path: reference,
+    blueprint_reference: reference,
+    designer_dimensions: { x: 8, y: 8, z: 4 },
+    build_cost: [],
+    contents: { recipes: [] },
+    game_changelist: 502094,
+  });
+  const answer = answerLocally("list blueprints", graphOf(), {
+    listBlueprints: () => [blueprint("ai 2.0/Coal plant.sbp"), blueprint("BP test/Coal plant.sbp")],
+  });
+  assert.match(answer.reply, /reference `ai 2\.0\/Coal plant\.sbp`/i);
+  assert.match(answer.reply, /reference `BP test\/Coal plant\.sbp`/i);
 });
 
 /* ---------------- a factory from the aimed node, phrased naturally ---------------- */

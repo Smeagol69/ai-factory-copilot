@@ -37,6 +37,31 @@ struct FAIFactorySettings
     /** Upper bound on actions executed from one reply, so a runaway plan stops. */
     int32 MaxActionsPerReply = 64;
 
+    /**
+     * Write what the player is looking at to a PNG the assistant can read.
+     *
+     * Off by default: a capture every few seconds spends the player's frame
+     * budget on the assistant's convenience, and that is a choice to make
+     * rather than one to discover.
+     */
+    /**
+     * Start the bundled companion bridge when a world loads.
+     *
+     * On by default: the mod is one install now, and an assistant that
+     * reports itself offline until you find a second zip is not one. Turn it
+     * off if you run the bridge yourself -- the mod only ever stops a process
+     * it started, so both can coexist.
+     */
+    bool bAutoStartCompanion = true;
+
+    bool bVisionEnabled = false;
+    /** 0 disables the timer; frames can still be requested on demand. */
+    float VisionIntervalSeconds = 0.0f;
+    /** The HUD is information -- hotbar, health, build mode -- not clutter. */
+    bool bVisionIncludeUI = true;
+    /** Ring size. One still cannot show motion; a short history can. */
+    int32 VisionFrameHistory = 12;
+
     static FAIFactorySettings Load();
     static FString GetConfigPath();
 };

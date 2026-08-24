@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   ACTION_KINDS,
+  CLIENT_ACTION_KINDS,
   describeUnkeptPromise,
   summarizePlan,
   validateAction,
@@ -11,7 +12,16 @@ import {
 import { runSolverTool } from "../lib/tools.mjs";
 import { CONSTRUCTOR, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
-const graphOf = () => buildGraph(buildFactorySnapshot());
+const graphOf = (blueprintNames = ["Copper Module"]) => {
+  const graph = buildGraph(buildFactorySnapshot());
+  graph.snapshot.blueprint_library = {
+    available: true,
+    complete: true,
+    registered_descriptor_count: blueprintNames.length,
+    registered_blueprint_names: blueprintNames,
+  };
+  return graph;
+};
 const HERE = { x: 1000, y: 2000, z: 300 };
 
 /* ---------------- validation refuses before the game is asked ---------------- */
@@ -21,6 +31,108 @@ test("refuses an action the mod cannot execute", () => {
   assert.equal(result.valid, false);
   assert.equal(result.reason, "unsupported_action");
   assert.deepEqual(result.supported, ACTION_KINDS);
+});
+
+test("a native Build Gun preview is client-only and receives no world revision", () => {
+  const graph = graphOf();
+  graph.services = {
+    blueprints: [{
+      name: "Copper Module",
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      build_cost: [],
+    }],
+  };
+
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+    // Deliberately ignored: this action always means selecting a local Build
+    // Gun hologram, never a server construction preview/commit choice.
+    commit: false,
+  });
+
+  assert.equal(result.valid, true, result.reason);
+  assert.deepEqual(CLIENT_ACTION_KINDS, ["preview_blueprint"]);
+  assert.equal(result.action.action, "preview_blueprint");
+  assert.equal(result.action.commit, true);
+  assert.equal(result.action.expect_world_revision, undefined);
+  assert.equal(result.checks.client_only, true);
+  assert.equal(result.checks.world_write, false);
+  assert.equal(result.checks.current_session_blueprint_descriptor, "Copper Module");
+});
+
+test("a disk blueprint from another save is refused before a Build Gun handoff", () => {
+  const graph = graphOf(["Current Save Module"]);
+  graph.snapshot.world.session_name = "Playthrough";
+
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Coal power plant",
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "blueprint_not_registered_for_current_session");
+  assert.equal(result.blueprint_name, "Coal power plant");
+  assert.equal(result.session_name, "Playthrough");
+});
+
+test("an uncaptured active Blueprint registry is unknown, not treated as empty", () => {
+  const graph = buildGraph(buildFactorySnapshot());
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.reason, "blueprint_current_session_library_not_captured");
+});
+
+test("an active native descriptor arms even when disk metadata is absent or differently cased", () => {
+  const graph = graphOf(["Copper Module"]);
+  graph.services = {
+    blueprints: [{
+      name: "copper module",
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      build_cost: [],
+    }],
+  };
+
+  const result = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "COPPER MODULE",
+  });
+
+  assert.equal(result.valid, true, result.reason);
+  assert.equal(result.action.blueprint_name, "Copper Module");
+  assert.deepEqual(result.checks.designer_dimensions, { x: 4, y: 4, z: 2 });
+
+  graph.services.blueprints = [{ name: "Archived Copper Module" }];
+  const withoutDiskMetadata = validateAction(graph, {
+    action: "preview_blueprint",
+    blueprint_name: "Copper Module",
+  });
+  assert.equal(withoutDiskMetadata.valid, true, withoutDiskMetadata.reason);
+  assert.equal(withoutDiskMetadata.checks.disk_library_metadata, "not_captured_or_not_matched");
+});
+
+test("a client Build Gun preview cannot share a transaction with another action", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "preview_blueprint", blueprint_name: "Copper Module" },
+    { action: "teleport_player", target: HERE, commit: true },
+  ]);
+  assert.equal(plan.valid, false);
+  assert.equal(plan.reason, "client_preview_must_be_a_standalone_action");
+  assert.deepEqual(plan.actions, []);
+});
+
+test("a native Build Gun preview tells callers it does not mutate the world", () => {
+  const plan = validatePlan(graphOf(), [
+    { action: "preview_blueprint", blueprint_name: "Copper Module" },
+  ]);
+  assert.equal(plan.valid, true, plan.reason);
+  assert.equal(plan.client_previews, 1);
+  assert.match(plan.execution, /does not construct, spend items, mutate the world/i);
+  assert.match(summarizePlan(graphOf(), plan).summary.reversible, /does not change the world/i);
 });
 
 test("a placement without an explicit z is refused, not defaulted to zero", () => {
