@@ -72,7 +72,7 @@ factory arithmetic yourself:
 - how to build N per minute of something, or any scale-up -> plan_production;
 - what blueprints the player has, or what one costs -> list_blueprints;
 - the actual saved arrangement, transformed native Build_* entities, class counts, or saved reciprocal conveyor/pipe component links inside one native blueprint -> inspect_blueprint_layout; it carries a caveat for nonstandard modded class names and does not infer flow direction/rate, power wiring, external hookups, or destination placement validity. When list_blueprints reports duplicate names, pass its blueprint_reference rather than guessing;
-- whether the placed native Blueprint instance the player is aiming at has finished proxy replication, how many runtime members it has, or whether its resource extractors are bound -> audit_blueprint_placement. This reads the live instance only, never a saved .sbp, and never changes the world. Treat replication_pending, partial observations, and unknown bindings as wait/unknown states — never as proof of zero miners or an unbound miner;
+- whether the placed native Blueprint instance the player is aiming at has finished proxy replication, how many runtime members it has, whether its resource extractors are bound, or whether an AI Factory Blueprint Resource Anchor has an exact saved resource/purity, transient-node, and miner-binding observation -> audit_blueprint_placement. This reads the live instance only, never a saved .sbp, and never changes the world. Treat replication_pending, partial observations, unknown bindings, and a client-null transient Anchor node as wait/unknown states — never as proof of zero miners, a lost node, or an unbound miner;
 - current objective, active milestone, game phase, exact recipe availability,
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
@@ -427,7 +427,7 @@ function envFlag(value, fallback) {
 const BELT_CANDIDATE_GROUNDING_PATTERN =
   /\b(?:free|unconnected)\b.{0,80}\b(?:belt|conveyor)\b|\b(?:belt|conveyor)\b.{0,80}\b(?:free|unconnected)\b/i;
 const BLUEPRINT_RUNTIME_AUDIT_GROUNDING_PATTERN =
-  /\b(?:audit|check|inspect)\b.{0,80}\b(?:this|that|aimed|placed|runtime)\b.{0,80}\bblue\s?print\b|\b(?:this|that)\b.{0,80}\bblue\s?print\b.{0,80}\b(?:miner|extractor)\b.{0,40}\bbound\b|\b(?:miner|extractor)\b.{0,40}\bbound\b.{0,80}\bblue\s?print\b/i;
+  /\b(?:audit|check|inspect)\b.{0,80}\b(?:this|that|aimed|placed|runtime)\b.{0,80}\bblue\s?print\b|\b(?:this|that)\b.{0,80}\bblue\s?print\b.{0,80}\b(?:miner|extractor)\b.{0,40}\bbound\b|\b(?:miner|extractor)\b.{0,40}\bbound\b.{0,80}\bblue\s?print\b|\b(?:this|that)\b.{0,80}\bblue\s?print\b.{0,80}\b(?:resource )?anchor\b|\b(?:resource )?anchor\b.{0,80}\bblue\s?print\b/i;
 
 const GROUNDING_REQUIREMENTS = [
   {

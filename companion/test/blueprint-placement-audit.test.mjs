@@ -6,6 +6,8 @@ import { solveBlueprintPlacementAudit } from "../lib/solvers.mjs";
 import { buildFactorySnapshot } from "./fixtures/factory.mjs";
 
 const TARGET = "/Game/FactoryMap.FactoryMap:PersistentLevel.BlueprintProxy_Test";
+const ANCHOR = `${TARGET}.BlueprintResourceAnchor_C_1`;
+const MINER = `${TARGET}.Build_MinerMk1_C_1`;
 
 function graphWithAudit(audit) {
   const snapshot = buildFactorySnapshot();
@@ -50,6 +52,50 @@ function readyAudit(overrides = {}) {
       resource_class: "/Game/FactoryGame/Resource/RawResources/Copper/Desc_OreCopper.Desc_OreCopper_C",
       resource_name: "Copper Ore",
     }],
+    ...overrides,
+  };
+}
+
+function resourceAnchor(overrides = {}) {
+  return {
+    anchor_actor_id: ANCHOR,
+    anchor_actor_name: "BlueprintResourceAnchor_C_1",
+    anchor_actor_class_path: "/AIFactoryCopilot/BlueprintResourceAnchor.BlueprintResourceAnchor_C",
+    configuration: {
+      schema_version: 1,
+      state: "configured",
+      resource_class: "/Game/FactoryGame/Resource/RawResources/Copper/Desc_OreCopper.Desc_OreCopper_C",
+      resource_name: "Copper Ore",
+      purity: "pure",
+    },
+    runtime_node: {
+      state: "observed",
+      actor_id: `${ANCHOR}.RuntimeNode`,
+      owned_by_anchor_exactly: true,
+      occupied: true,
+      matches_configuration: true,
+      resource_class: "/Game/FactoryGame/Resource/RawResources/Copper/Desc_OreCopper.Desc_OreCopper_C",
+      resource_name: "Copper Ore",
+      purity: "pure",
+    },
+    binding_census_state: "complete",
+    bound_extractor_count_observed: 1,
+    bound_extractor_details_returned: 1,
+    bound_extractor_details_capped_omitted: 0,
+    bound_extractor_actor_ids: [MINER],
+    ...overrides,
+  };
+}
+
+function readyResourceAnchorAudit(overrides = {}) {
+  return {
+    resource_anchor_count_observed: 1,
+    lightweight_resource_anchor_count_uninspected: 0,
+    resource_anchor_observation_complete: true,
+    resource_anchor_count: 1,
+    resource_anchor_details_returned: 1,
+    resource_anchor_details_capped_omitted: 0,
+    resource_anchors: [resourceAnchor()],
     ...overrides,
   };
 }
@@ -117,6 +163,178 @@ test("a ready proxy preserves the exact game-reported extractor/resource binding
   });
   assert.equal(result.extractors[0].extractable_actor_id, "/Game/FactoryMap.FactoryMap:PersistentLevel.BP_ResourceNode_C_1");
   assert.equal(result.extractors[0].resource_name, "Copper Ore");
+  assert.equal(result.resource_anchor_audit.status, "not_captured");
+});
+
+test("a ready proxy preserves a configured Anchor's exact resource, node, and miner identity", () => {
+  const ordinary = readyAudit().extractors[0];
+  const result = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit(),
+    extractors: [{ ...ordinary, resource_anchor_actor_id: ANCHOR }],
+  })));
+
+  assert.equal(result.resource_anchor_audit.status, "complete");
+  assert.equal(result.resource_anchor_audit.anchor_count, 1);
+  assert.equal(result.resource_anchor_audit.anchors[0].configuration.resource_name, "Copper Ore");
+  assert.equal(result.resource_anchor_audit.anchors[0].configuration.purity, "pure");
+  assert.equal(result.resource_anchor_audit.anchors[0].runtime_node.occupied, true);
+  assert.deepEqual(result.resource_anchor_audit.anchors[0].bound_extractor_actor_ids, [MINER]);
+  assert.equal(result.extractors[0].resource_anchor_actor_id, ANCHOR);
+});
+
+test("an Anchor's client-null runtime node remains unknown rather than missing or unbound", () => {
+  const result = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    proxy_has_authority: false,
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        runtime_node: { state: "unknown_on_client" },
+        binding_census_state: "unknown_on_client",
+        bound_extractor_count_observed: undefined,
+        bound_extractor_details_returned: undefined,
+        bound_extractor_details_capped_omitted: undefined,
+        bound_extractor_actor_ids: undefined,
+      })],
+    }),
+  })));
+
+  assert.equal(result.resource_anchor_audit.status, "complete_with_unknown_runtime_node");
+  assert.equal(result.resource_anchor_audit.anchors[0].runtime_node.state, "unknown_on_client");
+  assert.equal(result.resource_anchor_audit.anchors[0].binding_census_state, "unknown_on_client");
+});
+
+test("a captured Anchor configuration mismatch stays explicit instead of healthy", () => {
+  const result = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        runtime_node: {
+          ...resourceAnchor().runtime_node,
+          state: "configuration_mismatch",
+          matches_configuration: false,
+          resource_class: "/Game/FactoryGame/Resource/RawResources/Iron/Desc_OreIron.Desc_OreIron_C",
+          resource_name: "Iron Ore",
+        },
+        binding_census_state: "complete_with_configuration_mismatch",
+      })],
+    }),
+  })));
+
+  assert.equal(result.resource_anchor_audit.status, "complete_with_configuration_mismatch");
+  assert.equal(result.resource_anchor_audit.anchors[0].runtime_node.state, "configuration_mismatch");
+});
+
+test("two Anchors claiming one exact miner fail closed", () => {
+  const secondAnchor = `${TARGET}.BlueprintResourceAnchor_C_2`;
+  const result = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchor_count_observed: 2,
+      resource_anchor_count: 2,
+      resource_anchor_details_returned: 2,
+      resource_anchors: [
+        resourceAnchor(),
+        resourceAnchor({
+          anchor_actor_id: secondAnchor,
+          anchor_actor_name: "BlueprintResourceAnchor_C_2",
+          runtime_node: { ...resourceAnchor().runtime_node, actor_id: `${secondAnchor}.RuntimeNode` },
+        }),
+      ],
+    }),
+  })));
+
+  assert.equal(result.resource_anchor_audit.status, "inconsistent_duplicate_bound_extractor");
+  assert.deepEqual(result.resource_anchor_audit.duplicate_bound_extractor_actor_ids, [MINER]);
+});
+
+test("malformed or incomplete Anchor metadata cannot become a healthy audit", () => {
+  const missingDetail = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({ resource_anchors: [] }),
+  })));
+  assert.equal(missingDetail.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const missingBoundCount = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        bound_extractor_count_observed: undefined,
+        bound_extractor_details_returned: undefined,
+        bound_extractor_details_capped_omitted: undefined,
+      })],
+    }),
+  })));
+  assert.equal(missingBoundCount.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const observedMismatch = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({ resource_anchor_count_observed: 0 }),
+  })));
+  assert.equal(observedMismatch.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const invalidRuntime = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({ runtime_node: { state: "not_a_real_runtime_state" } })],
+    }),
+  })));
+  assert.equal(invalidRuntime.resource_anchor_audit.status, "partial_or_inconsistent");
+});
+
+test("contradictory Anchor health fields fail closed instead of overriding exact invariants", () => {
+  const schemaMismatch = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        configuration: { ...resourceAnchor().configuration, schema_version: 2 },
+      })],
+    }),
+  })));
+  assert.equal(schemaMismatch.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const ownerMismatch = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        runtime_node: { ...resourceAnchor().runtime_node, owned_by_anchor_exactly: false },
+      })],
+    }),
+  })));
+  assert.equal(ownerMismatch.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const resourceMismatch = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        runtime_node: {
+          ...resourceAnchor().runtime_node,
+          resource_class: "/Game/FactoryGame/Resource/RawResources/Iron/Desc_OreIron.Desc_OreIron_C",
+          resource_name: "Iron Ore",
+        },
+      })],
+    }),
+  })));
+  assert.equal(resourceMismatch.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const falseCompleteWithLightweightAnchor = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({ lightweight_resource_anchor_count_uninspected: 1 }),
+  })));
+  assert.equal(falseCompleteWithLightweightAnchor.resource_anchor_audit.status, "partial_or_inconsistent");
+
+  const falseClientBinding = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchors: [resourceAnchor({
+        runtime_node: { state: "unknown_on_client" },
+        binding_census_state: "complete",
+      })],
+    }),
+  })));
+  assert.equal(falseClientBinding.resource_anchor_audit.status, "partial_or_inconsistent");
+});
+
+test("a lightweight Anchor member keeps the Anchor census partial", () => {
+  const result = solveBlueprintPlacementAudit(graphWithAudit(readyAudit({
+    ...readyResourceAnchorAudit({
+      resource_anchor_count_observed: 1,
+      lightweight_resource_anchor_count_uninspected: 1,
+      resource_anchor_observation_complete: false,
+      resource_anchor_count: 2,
+    }),
+  })));
+
+  assert.equal(result.resource_anchor_audit.status, "partial");
+  assert.equal(result.resource_anchor_audit.anchor_count, 2);
+  assert.equal(result.resource_anchor_audit.lightweight_anchor_count_uninspected, 1);
 });
 
 test("a client-ready null extractor binding remains unknown rather than unbound", () => {
@@ -158,6 +376,7 @@ test("lightweight extractor members keep a ready proxy audit partial", () => {
   assert.equal(result.observed.lightweight_extractor_count_uninspected, 1);
   assert.equal(result.extractor_binding_counts, undefined);
   assert.equal(result.binding_caveat, "lightweight_extractor_members_cannot_be_resolved_from_this_aim");
+  assert.equal(result.resource_anchor_audit.status, "not_inspected_until_blueprint_proxy_ready");
 });
 
 test("a camera-visible Blueprint fallback preserves both the preferred and audited actor identities", () => {
@@ -187,4 +406,5 @@ test("inconsistent ready counts fail closed instead of inventing a binding statu
   assert.equal(result.inspection_complete, false);
   assert.equal(result.reason, "blueprint_audit_counts_incomplete");
   assert.equal(result.extractor_binding_counts, undefined);
+  assert.equal(result.resource_anchor_audit.status, "not_inspected_until_extractor_counts_complete");
 });

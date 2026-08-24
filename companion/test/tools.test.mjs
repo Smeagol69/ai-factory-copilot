@@ -66,6 +66,14 @@ test("the native Blueprint inspector exposes a bounded exact connection view", (
   assert.match(blueprintInspector.description, /does not infer flow direction/i);
 });
 
+test("the runtime Blueprint audit describes Resource Anchor evidence and client uncertainty", () => {
+  const runtimeAudit = SOLVER_TOOLS.find((tool) => tool.name === "audit_blueprint_placement");
+  assert.ok(runtimeAudit);
+  assert.match(runtimeAudit.description, /Blueprint Resource Anchors/i);
+  assert.match(runtimeAudit.description, /saved resource\/purity/i);
+  assert.match(runtimeAudit.description, /client-null transient Anchor node is unknown/i);
+});
+
 test("emits the flat Responses API function-tool shape", () => {
   const definitions = openAIToolDefinitions();
   assert.equal(definitions.length, SOLVER_TOOLS.length);

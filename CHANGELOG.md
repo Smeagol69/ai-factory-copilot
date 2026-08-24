@@ -5,6 +5,12 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Extended the read-only placed-Blueprint audit with bounded **Blueprint
+  Resource Anchor** evidence: saved resource/purity, exact runtime-node
+  ownership/occupancy, and exact live miner identities are reported only from
+  public game accessors and exact pointer identity. Client-null transient nodes,
+  lightweight Anchor members, malformed records, count mismatches, and duplicate
+  miner claims stay unknown/partial rather than becoming a healthy binding.
 - Added the experimental **Blueprint Resource Anchor** workflow for native
   Blueprint Designer miners. `/ai anchor <resource> [impure|normal|pure]`
   arms a normal Build Gun anchor with a real transient resource node; Miner

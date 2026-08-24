@@ -515,6 +515,21 @@ test("native Blueprint placement auditing stays evidence-only and handles a mine
   assert.match(audit, /proxy_has_authority/);
   assert.match(audit, /extractable_resource_not_replicated_or_unbound/);
 
+  // Resource Anchor evidence stays tied to public, exact identities. The
+  // audit may describe a configured anchor, but it never recovers or repairs
+  // the anchor's private persisted mapping.
+  assert.match(audit, /GetConfiguration\(\)/);
+  assert.match(audit, /GetRuntimeNode\(\)/);
+  assert.match(audit, /GetResourcePurity\(\)/);
+  assert.match(audit, /Extractor->GetExtractableResource\(\);/);
+  assert.match(audit, /ExtractableResource\.GetObject\(\)/);
+  assert.match(audit, /ExtractableResource\.GetInterface\(\) != nullptr/);
+  assert.match(audit, /ResourceAnchor->GetRuntimeNode\(\) == RuntimeNode/);
+  assert.match(audit, /RuntimeNode->GetOwner\(\) == ResourceAnchor/);
+  assert.match(audit, /unknown_on_client/);
+  assert.match(audit, /missing_on_authority/);
+  assert.doesNotMatch(audit, /mBoundExtractors/);
+
   // This helper is a witness of Satisfactory's placement, never a repair or
   // a second placement system. Keep all world-write APIs out of the source.
   for (const forbidden of [

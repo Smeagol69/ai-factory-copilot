@@ -63,6 +63,46 @@ function runtimeBlueprintAudit(overrides = {}) {
   };
 }
 
+const RUNTIME_ANCHOR = "RuntimeBlueprintResourceAnchor";
+
+function runtimeResourceAnchorAudit(overrides = {}) {
+  return {
+    resource_anchor_count_observed: 1,
+    lightweight_resource_anchor_count_uninspected: 0,
+    resource_anchor_observation_complete: true,
+    resource_anchor_count: 1,
+    resource_anchor_details_returned: 1,
+    resource_anchor_details_capped_omitted: 0,
+    resource_anchors: [{
+      anchor_actor_id: RUNTIME_ANCHOR,
+      anchor_actor_name: "BlueprintResourceAnchor_C_1",
+      configuration: {
+        schema_version: 1,
+        state: "configured",
+        resource_class: "/Game/FactoryGame/Resource/RawResources/Copper/Desc_OreCopper.Desc_OreCopper_C",
+        resource_name: "Copper Ore",
+        purity: "pure",
+      },
+      runtime_node: {
+        state: "observed",
+        actor_id: `${RUNTIME_ANCHOR}.RuntimeNode`,
+        owned_by_anchor_exactly: true,
+        occupied: true,
+        matches_configuration: true,
+        resource_class: "/Game/FactoryGame/Resource/RawResources/Copper/Desc_OreCopper.Desc_OreCopper_C",
+        resource_name: "Copper Ore",
+        purity: "pure",
+      },
+      binding_census_state: "complete",
+      bound_extractor_count_observed: 1,
+      bound_extractor_details_returned: 1,
+      bound_extractor_details_capped_omitted: 0,
+      bound_extractor_actor_ids: ["RuntimeMiner"],
+    }],
+    ...overrides,
+  };
+}
+
 test("parses only an explicit aimed Mk.1 factory write", () => {
   for (const question of [
     "build a wire factory using all mk1 parts on this node",
@@ -108,6 +148,8 @@ test("only narrow aimed-runtime Blueprint audit phrases bypass the model", () =>
     "audit this blueprint",
     "check this blueprint placement",
     "is this blueprint's miner bound",
+    "audit this blueprint's resource anchor",
+    "is this blueprint's anchor configured",
   ]) {
     assert.deepEqual(parseBlueprintPlacementAuditRequest(question), {}, question);
   }
@@ -116,6 +158,7 @@ test("only narrow aimed-runtime Blueprint audit phrases bypass the model", () =>
     "place this blueprint here",
     "audit this blueprint and preview it",
     "is this miner bound",
+    "is this anchor valid",
   ]) {
     assert.equal(parseBlueprintPlacementAuditRequest(question), null, question);
   }
@@ -134,6 +177,110 @@ test("an aimed native Blueprint audit is local, exact, and emits no action", () 
   assert.match(answer.reply, /Build_MinerMk1_C_1.*Copper Ore/i);
   assert.match(answer.reply, /did not change the world/i);
   assert.deepEqual(emitted, []);
+});
+
+test("an aimed Blueprint audit renders a complete exact Resource Anchor relationship", () => {
+  const graph = graphOf();
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit({
+    ...runtimeResourceAnchorAudit(),
+    extractors: [{
+      ...runtimeBlueprintAudit().extractors[0],
+      resource_anchor_actor_id: RUNTIME_ANCHOR,
+    }],
+  });
+  const answer = answerLocally("audit this blueprint", graph, sink());
+
+  assert.equal(answer?.local?.solver, "audit_blueprint_placement");
+  assert.match(answer.reply, /Blueprint Resource Anchors/i);
+  assert.match(answer.reply, /Copper Ore.*pure/i);
+  assert.match(answer.reply, /occupied/i);
+  assert.match(answer.reply, /via its exact Resource Anchor/i);
+});
+
+test("an aimed Blueprint audit calls a client-null Anchor transient unknown, not failed", () => {
+  const graph = graphOf();
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit({
+    proxy_has_authority: false,
+    ...runtimeResourceAnchorAudit({
+      resource_anchors: [{
+        ...runtimeResourceAnchorAudit().resource_anchors[0],
+        runtime_node: { state: "unknown_on_client" },
+        binding_census_state: "unknown_on_client",
+        bound_extractor_count_observed: undefined,
+        bound_extractor_details_returned: undefined,
+        bound_extractor_details_capped_omitted: undefined,
+        bound_extractor_actor_ids: undefined,
+      }],
+    }),
+  });
+  const answer = answerLocally("is this blueprint's miner bound", graph, sink());
+
+  assert.equal(answer?.local?.solver, "audit_blueprint_placement");
+  assert.match(answer.reply, /unknown on this client/i);
+  assert.match(answer.reply, /not proof of failure/i);
+  assert.doesNotMatch(answer.reply, /missing on the authority/i);
+});
+
+test("a duplicate Resource Anchor miner claim is not presented as a healthy binding", () => {
+  const graph = graphOf();
+  const secondAnchor = "RuntimeBlueprintResourceAnchor_2";
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit({
+    ...runtimeResourceAnchorAudit({
+      resource_anchor_count_observed: 2,
+      resource_anchor_count: 2,
+      resource_anchor_details_returned: 2,
+      resource_anchors: [
+        runtimeResourceAnchorAudit().resource_anchors[0],
+        {
+          ...runtimeResourceAnchorAudit().resource_anchors[0],
+          anchor_actor_id: secondAnchor,
+          anchor_actor_name: "BlueprintResourceAnchor_C_2",
+          runtime_node: {
+            ...runtimeResourceAnchorAudit().resource_anchors[0].runtime_node,
+            actor_id: `${secondAnchor}.RuntimeNode`,
+          },
+        },
+      ],
+    }),
+    extractors: [{
+      ...runtimeBlueprintAudit().extractors[0],
+      resource_anchor_actor_id: RUNTIME_ANCHOR,
+    }],
+  });
+  const answer = answerLocally("audit this blueprint", graph, sink());
+
+  assert.match(answer.reply, /Resource Anchor audit is inconsistent/i);
+  assert.match(answer.reply, /will not call any anchor binding healthy/i);
+  assert.doesNotMatch(answer.reply, /via its exact Resource Anchor/i);
+});
+
+test("a runtime Anchor with no miners is still shown by the Blueprint audit", () => {
+  const graph = graphOf();
+  const noMinerAnchor = {
+    ...runtimeResourceAnchorAudit().resource_anchors[0],
+    runtime_node: {
+      ...runtimeResourceAnchorAudit().resource_anchors[0].runtime_node,
+      occupied: false,
+    },
+    bound_extractor_count_observed: 0,
+    bound_extractor_details_returned: 0,
+    bound_extractor_details_capped_omitted: 0,
+    bound_extractor_actor_ids: [],
+  };
+  graph.snapshot.interaction_context.preferred_target.blueprint_instance_audit = runtimeBlueprintAudit({
+    actor_member_count: 1,
+    member_count: 1,
+    extractor_count: 0,
+    extractor_binding_counts: { bound: 0, unbound: 0, replication_pending: 0, unknown: 0 },
+    extractor_details_returned: 0,
+    extractors: [],
+    ...runtimeResourceAnchorAudit({ resource_anchors: [noMinerAnchor] }),
+  });
+  const answer = answerLocally("audit this blueprint", graph, sink());
+
+  assert.match(answer.reply, /0 resource extractors/i);
+  assert.match(answer.reply, /Blueprint Resource Anchors/i);
+  assert.match(answer.reply, /0 exact-bound miners observed/i);
 });
 
 test("a pending native Blueprint audit asks for replication instead of declaring its miner unbound", () => {

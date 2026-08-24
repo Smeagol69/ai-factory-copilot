@@ -576,6 +576,112 @@ function auditWholeCount(value) {
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
+/**
+ * An extractor's generic audit record can name an anchor only after the
+ * bounded Anchor census independently returns the same exact extractor ID.
+ * Do not turn an unverified string from either source into a relationship.
+ */
+function extractorHasReturnedExactResourceAnchorBinding(extractor, anchorAudit) {
+  if (!extractor || typeof extractor !== "object" || !anchorAudit || typeof anchorAudit !== "object") return false;
+  if (!["complete", "complete_with_configuration_mismatch"].includes(anchorAudit.status)) return false;
+  const extractorId = typeof extractor.actor_id === "string" && extractor.actor_id ? extractor.actor_id : null;
+  const requestedAnchorId =
+    typeof extractor.resource_anchor_actor_id === "string" && extractor.resource_anchor_actor_id
+      ? extractor.resource_anchor_actor_id
+      : null;
+  if (!extractorId || !requestedAnchorId) return false;
+  for (const anchor of Array.isArray(anchorAudit.anchors) ? anchorAudit.anchors : []) {
+    if (!anchor || typeof anchor !== "object" || anchor.anchor_actor_id !== requestedAnchorId) continue;
+    if (![
+      "complete",
+      "complete_with_configuration_mismatch",
+    ].includes(anchor.binding_census_state)) return false;
+    if (anchor.binding_counts_complete !== true) return false;
+    if (Array.isArray(anchor.bound_extractor_actor_ids) && anchor.bound_extractor_actor_ids.includes(extractorId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Format exact Resource Anchor observations without promoting a client-null transient node to a failure. */
+function formatBlueprintResourceAnchorAudit(anchorAudit) {
+  if (!anchorAudit || typeof anchorAudit !== "object") return "";
+  if (
+    anchorAudit.status === "not_captured" ||
+    anchorAudit.status === "not_inspected_until_blueprint_proxy_ready" ||
+    anchorAudit.status === "not_inspected_until_extractor_counts_complete"
+  ) {
+    return "";
+  }
+  const anchorCount = auditWholeCount(anchorAudit.anchor_count);
+  if (anchorCount === 0 && anchorAudit.status === "complete") {
+    return "\n\nThe game reports **0 Blueprint Resource Anchors** on this runtime instance.";
+  }
+  if (anchorAudit.status === "inconsistent_duplicate_bound_extractor") {
+    const duplicateIds = Array.isArray(anchorAudit.duplicate_bound_extractor_actor_ids)
+      ? anchorAudit.duplicate_bound_extractor_actor_ids.filter((value) => typeof value === "string").slice(0, 3)
+      : [];
+    return "\n\n**Resource Anchor audit is inconsistent:** more than one anchor claims the same exact miner " +
+      "identity, so I will not call any anchor binding healthy." +
+      (duplicateIds.length > 0 ? ` Conflicting miner${duplicateIds.length === 1 ? "" : "s"}: ${duplicateIds.join(", ")}.` : "");
+  }
+  if (anchorAudit.status === "partial" || anchorAudit.status === "partial_or_inconsistent") {
+    return "\n\n**Resource Anchor audit is partial**, so the anchor list is not proof that all anchors or miner bindings were captured.";
+  }
+
+  const lines = [];
+  for (const anchor of Array.isArray(anchorAudit.anchors) ? anchorAudit.anchors.slice(0, 4) : []) {
+    if (!anchor || typeof anchor !== "object") continue;
+    const name = anchor.anchor_actor_name ?? anchor.anchor_actor_id ?? "Unnamed Resource Anchor";
+    const configuration = anchor.configuration ?? {};
+    const configuredResource = configuration.resource_name ?? configuration.resource_class;
+    const configuredPurity = configuration.purity;
+    const configured = configuredResource
+      ? `configured **${configuredResource}**${configuredPurity ? ` (${configuredPurity})` : ""}`
+      : configuration.state === "invalid_or_unsupported"
+        ? "has an invalid or unsupported saved configuration"
+        : "has no captured resource configuration";
+    const runtime = anchor.runtime_node ?? {};
+    let runtimeText;
+    if (runtime.state === "observed") {
+      const resource = runtime.resource_name ?? runtime.resource_class ?? "captured resource";
+      runtimeText = `runtime node observed as ${resource}${runtime.purity ? ` (${runtime.purity})` : ""}` +
+        (runtime.occupied === true ? ", occupied" : runtime.occupied === false ? ", unoccupied" : "");
+    } else if (runtime.state === "configuration_mismatch") {
+      runtimeText = "runtime node differs from the saved resource/purity configuration";
+    } else if (runtime.state === "unknown_on_client") {
+      runtimeText = "runtime node is unknown on this client (it is transient, not proof of failure)";
+    } else if (runtime.state === "missing_on_authority") {
+      runtimeText = "runtime node is missing on the authority";
+    } else if (runtime.state === "owner_mismatch") {
+      runtimeText = "runtime node ownership does not match this anchor";
+    } else {
+      runtimeText = "runtime node state was not captured";
+    }
+    const bound = auditWholeCount(anchor.bound_extractor_count_observed);
+    const census = anchor.binding_census_state;
+    const bindingText = census === "complete" || census === "complete_with_configuration_mismatch"
+      ? `${bound ?? 0} exact-bound miner${bound === 1 ? "" : "s"} observed`
+      : census === "unknown_on_client"
+        ? "miner binding is unknown on this client"
+        : census === "partial_proxy_replication" || census === "incomplete_lightweight_extractors"
+          ? "miner binding census is incomplete"
+          : "miner binding census is unknown";
+    lines.push(`- **${name}** — ${configured}; ${runtimeText}; ${bindingText}.`);
+  }
+  if (lines.length === 0) {
+    return anchorCount === 0
+      ? "\n\nThe game reports **0 Blueprint Resource Anchors** on this runtime instance."
+      : "\n\nResource Anchor details were not returned, so their live node and miner state remain unknown.";
+  }
+  const omitted = auditWholeCount(anchorAudit.details_capped_omitted);
+  const suffix = omitted && omitted > 0
+    ? ` ${omitted} additional anchor${omitted === 1 ? " was" : "s were"} compacted; the captured total is ${anchorCount ?? "unknown"}.`
+    : "";
+  return `\n\n**Blueprint Resource Anchors**\n${lines.join("\n")}${suffix}`;
+}
+
 /** Format a runtime proxy audit without turning a partial replication sample into a census. */
 function formatBlueprintPlacementAudit(result) {
   const subject = result.blueprint_name
@@ -624,9 +730,11 @@ function formatBlueprintPlacementAudit(result) {
     return `${subject} is registered and ready, but the captured extractor totals are incomplete. ` +
       "I cannot prove whether its miners are bound from this snapshot. This was read-only; nothing changed.";
   }
+  const resourceAnchorText = formatBlueprintResourceAnchorAudit(result.resource_anchor_audit);
   if (total === 0) {
     return `${subject} is fully registered and contains **0 resource extractors**. ` +
-      "There are no miner bindings to inspect on this runtime instance. This was read-only; nothing changed.";
+      "There are no miner bindings to inspect on this runtime instance." + resourceAnchorText +
+      "\n\nThis inspected the placed runtime Blueprint only; it did not change the world.";
   }
 
   const summary = [
@@ -642,9 +750,13 @@ function formatBlueprintPlacementAudit(result) {
       const name = extractor.actor_name ?? extractor.actor_id ?? "Unnamed extractor";
       if (extractor.binding_state === "bound") {
         const resource = extractor.resource_name ?? extractor.resource_class;
+        const anchor = extractorHasReturnedExactResourceAnchorBinding(
+          extractor,
+          result.resource_anchor_audit,
+        ) ? " via its exact Resource Anchor" : "";
         return resource
-          ? `- **${name}** → **${resource}**`
-          : `- **${name}** → bound resource (resource class was not captured)`;
+          ? `- **${name}** → **${resource}**${anchor}`
+          : `- **${name}** → bound resource${anchor} (resource class was not captured)`;
       }
       if (extractor.binding_state === "unbound") return `- **${name}** → unbound`;
       if (extractor.binding_state === "replication_pending") return `- **${name}** → replication pending (not a failure)`;
@@ -659,9 +771,8 @@ function formatBlueprintPlacementAudit(result) {
   const pendingCaveat = pending > 0 || unknown > 0
     ? " Pending or unknown bindings are not treated as unbound."
     : "";
-
   return `${subject} is fully registered with **${total} resource extractor${total === 1 ? "" : "s"}**: ${summary}.` +
-    detailCaveat + pendingCaveat +
+    detailCaveat + pendingCaveat + resourceAnchorText +
     (detailLines.length > 0 ? `\n\n${detailLines.join("\n")}` : "") +
     "\n\nThis inspected the placed runtime Blueprint only; it did not change the world.";
 }
@@ -1457,8 +1568,11 @@ export function parseBlueprintPreviewRequest(question) {
 // request and never gets silently redirected to the thing under the crosshair.
 const BLUEPRINT_PLACEMENT_AUDIT_REQUEST = [
   /^(?:can you |could you |please )?audit (?:this|that) (?:native )?blue\s?print(?: placement)?$/i,
+  /^(?:can you |could you |please )?audit (?:this|that) (?:native )?blue\s?print(?:['’]s)? (?:resource )?anchor$/i,
   /^(?:can you |could you |please )?check (?:this|that) (?:native )?blue\s?print placement$/i,
+  /^(?:can you |could you |please )?check (?:this|that) (?:native )?blue\s?print(?:['’]s)? (?:resource )?anchor$/i,
   /^(?:can you |could you |please )?is (?:this|that) (?:native )?blue\s?print(?:['’]s)? (?:miner|extractor) bound$/i,
+  /^(?:can you |could you |please )?is (?:this|that) (?:native )?blue\s?print(?:['’]s)? (?:resource )?anchor (?:valid|configured|bound)$/i,
 ];
 
 export function parseBlueprintPlacementAuditRequest(question) {

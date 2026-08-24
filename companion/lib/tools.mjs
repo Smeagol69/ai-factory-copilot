@@ -261,7 +261,7 @@ export const SOLVER_TOOLS = [
   {
     name: "audit_blueprint_placement",
     description:
-      "Audits the placed native Blueprint runtime instance the player is currently aiming at, not a saved .sbp file. Returns the proxy's replication/readiness state, complete actor/lightweight member counts only after replication is ready, and exact resource-extractor bindings when the game captured them. A replication-pending result is a wait state, never proof of zero miners or an unbound miner. This is read-only and emits no actions.",
+      "Audits the placed native Blueprint runtime instance the player is currently aiming at, not a saved .sbp file. Returns the proxy's replication/readiness state, complete actor/lightweight member counts only after replication is ready, exact resource-extractor bindings when the game captured them, and for AI Factory Blueprint Resource Anchors the saved resource/purity plus exact runtime-node and miner-binding evidence. A client-null transient Anchor node is unknown on that client, never proof of a lost node or unbound miner. A replication-pending result is a wait state, never proof of zero miners or an unbound miner. This is read-only and emits no actions.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     run: (graph) => solveBlueprintPlacementAudit(graph),
   },

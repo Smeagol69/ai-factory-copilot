@@ -224,6 +224,14 @@ this narrow experimental path. The source compiles and has regression coverage,
 but this feature is not yet release-certified until its disposable native
 Blueprint save/reload/placement and host/client test matrix is completed.
 
+For a placed native Blueprint, aim at its proxy or one of its actor-backed
+members and ask `audit this blueprint`. The read-only audit reports a Resource
+Anchor's saved resource/purity, exact server-side transient-node ownership and
+occupancy, and only miners whose live extractor interface points to that exact
+node. On a client, a transient node or binding that is not authoritative stays
+**unknown**—it is never reported as missing or unbound. The audit does not
+repair, rebind, place, or alter the Blueprint.
+
 ## Saving and replaying a layout
 
 Mark buildings with the dismantle tool, then name them. The selection is what

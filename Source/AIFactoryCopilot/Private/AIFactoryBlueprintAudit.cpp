@@ -1,5 +1,6 @@
 #include "AIFactoryBlueprintAudit.h"
 
+#include "AIFactoryBlueprintResourceAnchor.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableResourceExtractorBase.h"
 #include "Dom/JsonObject.h"
@@ -14,10 +15,149 @@ namespace
     // grounding small enough to reach the bridge, while preserving exact
     // totals and the number whose per-extractor state could not be returned.
     constexpr int32 AIFactoryBlueprintAuditMaximumExtractorDetails = 32;
+    constexpr int32 AIFactoryBlueprintAuditMaximumResourceAnchorDetails = 32;
 
     FString AIFactoryBlueprintAuditClassPath(const UClass* Class)
     {
         return IsValid(Class) ? Class->GetPathName() : FString();
+    }
+
+    FString AIFactoryBlueprintAuditPurityName(const EResourcePurity Purity)
+    {
+        switch (Purity)
+        {
+        case RP_Inpure:
+            return TEXT("impure");
+        case RP_Normal:
+            return TEXT("normal");
+        case RP_Pure:
+            return TEXT("pure");
+        default:
+            return TEXT("unknown");
+        }
+    }
+
+    void AIFactoryBlueprintAuditSetResourceDescriptor(
+        const TSharedRef<FJsonObject>& Object,
+        const TSubclassOf<UFGResourceDescriptor> ResourceClass)
+    {
+        Object->SetStringField(TEXT("resource_class"), AIFactoryBlueprintAuditClassPath(ResourceClass.Get()));
+        Object->SetStringField(
+            TEXT("resource_name"),
+            ResourceClass ? UFGItemDescriptor::GetItemName(ResourceClass).ToString() : TEXT(""));
+    }
+
+    void AIFactoryBlueprintAuditSetResourceAnchorDetail(
+        TSharedRef<FJsonObject>& Detail,
+        const AAIFactoryBlueprintResourceAnchor* Anchor,
+        const TArray<AFGBuildableResourceExtractorBase*>& ExactBoundExtractors,
+        const bool bProxyReady,
+        const bool bProxyHasAuthority,
+        const int32 LightweightExtractorCount)
+    {
+        Detail->SetStringField(TEXT("anchor_actor_id"), Anchor->GetPathName());
+        Detail->SetStringField(TEXT("anchor_actor_name"), Anchor->GetName());
+        Detail->SetStringField(TEXT("anchor_actor_class_path"), AIFactoryBlueprintAuditClassPath(Anchor->GetClass()));
+
+        const FAIFactoryBlueprintResourceAnchorConfiguration& Configuration = Anchor->GetConfiguration();
+        const TSubclassOf<UFGResourceDescriptor> ConfiguredResource = Configuration.ResourceClass;
+        const EResourcePurity ConfiguredPurity = Configuration.Purity;
+        FString ConfigurationReason;
+        const bool bConfigurationValid =
+            Configuration.SchemaVersion == 1 &&
+            AAIFactoryBlueprintAnchorNode::ValidateConfiguration(
+                ConfiguredResource,
+                ConfiguredPurity,
+                ConfigurationReason);
+
+        const TSharedRef<FJsonObject> ConfigurationJson = MakeShared<FJsonObject>();
+        ConfigurationJson->SetNumberField(TEXT("schema_version"), Configuration.SchemaVersion);
+        ConfigurationJson->SetStringField(
+            TEXT("state"),
+            bConfigurationValid ? TEXT("configured") : TEXT("invalid_or_unsupported"));
+        AIFactoryBlueprintAuditSetResourceDescriptor(ConfigurationJson, ConfiguredResource);
+        ConfigurationJson->SetStringField(TEXT("purity"), AIFactoryBlueprintAuditPurityName(ConfiguredPurity));
+        if (!bConfigurationValid && !ConfigurationReason.IsEmpty())
+        {
+            ConfigurationJson->SetStringField(TEXT("reason"), ConfigurationReason);
+        }
+        Detail->SetObjectField(TEXT("configuration"), ConfigurationJson);
+
+        const AAIFactoryBlueprintAnchorNode* RuntimeNode = Anchor->GetRuntimeNode();
+        const TSharedRef<FJsonObject> RuntimeNodeJson = MakeShared<FJsonObject>();
+        // The authoritative world owns the transient node and its current
+        // extractor interfaces. A client may retain replicated configuration
+        // for visuals, but it cannot prove a live node/miner relationship.
+        if (!bProxyHasAuthority)
+        {
+            RuntimeNodeJson->SetStringField(TEXT("state"), TEXT("unknown_on_client"));
+            Detail->SetObjectField(TEXT("runtime_node"), RuntimeNodeJson);
+            Detail->SetStringField(TEXT("binding_census_state"), TEXT("unknown_on_client"));
+            return;
+        }
+        if (!IsValid(RuntimeNode))
+        {
+            RuntimeNodeJson->SetStringField(TEXT("state"), TEXT("missing_on_authority"));
+            Detail->SetObjectField(TEXT("runtime_node"), RuntimeNodeJson);
+            Detail->SetStringField(TEXT("binding_census_state"), TEXT("unknown_runtime_node_missing_on_authority"));
+            return;
+        }
+
+        const bool bExactOwner = RuntimeNode->GetOwner() == Anchor;
+        const TSubclassOf<UFGResourceDescriptor> RuntimeResource = RuntimeNode->GetResourceClass();
+        const EResourcePurity RuntimePurity = RuntimeNode->GetResourcePurity();
+        const bool bMatchesConfiguration =
+            bExactOwner &&
+            bConfigurationValid &&
+            RuntimeResource.Get() == ConfiguredResource.Get() &&
+            RuntimePurity == ConfiguredPurity;
+        RuntimeNodeJson->SetStringField(
+            TEXT("state"),
+            !bExactOwner
+                ? TEXT("owner_mismatch")
+                : bMatchesConfiguration ? TEXT("observed") : TEXT("configuration_mismatch"));
+        RuntimeNodeJson->SetStringField(TEXT("actor_id"), RuntimeNode->GetPathName());
+        RuntimeNodeJson->SetBoolField(TEXT("owned_by_anchor_exactly"), bExactOwner);
+        RuntimeNodeJson->SetBoolField(TEXT("occupied"), RuntimeNode->IsOccupied());
+        RuntimeNodeJson->SetBoolField(TEXT("matches_configuration"), bMatchesConfiguration);
+        AIFactoryBlueprintAuditSetResourceDescriptor(RuntimeNodeJson, RuntimeResource);
+        RuntimeNodeJson->SetStringField(TEXT("purity"), AIFactoryBlueprintAuditPurityName(RuntimePurity));
+        Detail->SetObjectField(TEXT("runtime_node"), RuntimeNodeJson);
+
+        if (!bExactOwner)
+        {
+            Detail->SetStringField(TEXT("binding_census_state"), TEXT("unknown_runtime_node_owner_mismatch"));
+            return;
+        }
+
+        const int32 DetailCount = FMath::Min(
+            ExactBoundExtractors.Num(),
+            AIFactoryBlueprintAuditMaximumExtractorDetails);
+        TArray<TSharedPtr<FJsonValue>> BoundExtractorIds;
+        BoundExtractorIds.Reserve(DetailCount);
+        for (int32 Index = 0; Index < DetailCount; ++Index)
+        {
+            const AFGBuildableResourceExtractorBase* Extractor = ExactBoundExtractors[Index];
+            if (IsValid(Extractor))
+            {
+                BoundExtractorIds.Add(MakeShared<FJsonValueString>(Extractor->GetPathName()));
+            }
+        }
+        Detail->SetNumberField(TEXT("bound_extractor_count_observed"), ExactBoundExtractors.Num());
+        Detail->SetNumberField(TEXT("bound_extractor_details_returned"), BoundExtractorIds.Num());
+        Detail->SetNumberField(
+            TEXT("bound_extractor_details_capped_omitted"),
+            ExactBoundExtractors.Num() - BoundExtractorIds.Num());
+        Detail->SetArrayField(TEXT("bound_extractor_actor_ids"), BoundExtractorIds);
+        Detail->SetStringField(
+            TEXT("binding_census_state"),
+            !bProxyReady
+                ? TEXT("partial_proxy_replication")
+                : LightweightExtractorCount > 0
+                    ? TEXT("incomplete_lightweight_extractors")
+                    : bMatchesConfiguration
+                        ? TEXT("complete")
+                        : TEXT("complete_with_configuration_mismatch"));
     }
 
     AFGBlueprintProxy* AIFactoryBlueprintAuditFindProxy(
@@ -133,10 +273,11 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
     const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
     Result->SetStringField(
         TEXT("source"),
-        TEXT("AFGBlueprintProxy and AFGBuildableResourceExtractorBase public accessors"));
+        TEXT("AFGBlueprintProxy, AFGBuildableResourceExtractorBase, and Blueprint Resource Anchor public accessors"));
     Result->SetStringField(TEXT("certainty"), TEXT("unknown"));
     Result->SetBoolField(TEXT("available"), false);
     Result->SetNumberField(TEXT("maximum_extractor_details"), AIFactoryBlueprintAuditMaximumExtractorDetails);
+    Result->SetNumberField(TEXT("maximum_resource_anchor_details"), AIFactoryBlueprintAuditMaximumResourceAnchorDetails);
 
     FString TargetRelation;
     AActor* AuditedTarget = PrimaryTarget;
@@ -201,6 +342,7 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
 
     int32 LightweightCount = 0;
     int32 LightweightExtractorCount = 0;
+    int32 LightweightResourceAnchorCount = 0;
     for (const FBuildableClassLightweightIndices& Entry : Proxy->GetLightweightClassAndIndices())
     {
         LightweightCount += Entry.Indices.Num();
@@ -210,20 +352,76 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
         {
             LightweightExtractorCount += Entry.Indices.Num();
         }
+        if (IsValid(LightweightClass) &&
+            LightweightClass->IsChildOf(AAIFactoryBlueprintResourceAnchor::StaticClass()))
+        {
+            // An anchor that the proxy kept lightweight has no public actor
+            // accessor. Its count is useful, but its configuration/node/miner
+            // relationship is unknown until it is actor-backed.
+            LightweightResourceAnchorCount += Entry.Indices.Num();
+        }
     }
 
     TArray<AFGBuildableResourceExtractorBase*> Extractors;
+    TArray<AAIFactoryBlueprintResourceAnchor*> ResourceAnchors;
     for (AFGBuildable* Member : Members)
     {
         if (AFGBuildableResourceExtractorBase* Extractor = Cast<AFGBuildableResourceExtractorBase>(Member))
         {
             Extractors.Add(Extractor);
         }
+        if (AAIFactoryBlueprintResourceAnchor* ResourceAnchor = Cast<AAIFactoryBlueprintResourceAnchor>(Member))
+        {
+            ResourceAnchors.Add(ResourceAnchor);
+        }
     }
     Extractors.Sort([](const AFGBuildableResourceExtractorBase& Left, const AFGBuildableResourceExtractorBase& Right)
     {
         return Left.GetPathName() < Right.GetPathName();
     });
+    ResourceAnchors.Sort([](const AAIFactoryBlueprintResourceAnchor& Left, const AAIFactoryBlueprintResourceAnchor& Right)
+    {
+        return Left.GetPathName() < Right.GetPathName();
+    });
+
+    // Map only exact, live extractor-interface identities. An anchor match is
+    // never inferred from a similar resource, a nearby node, or an actor name:
+    // the transient node must be owned by this anchor and be the exact current
+    // object in the extractor's public resource interface.
+    TSet<AAIFactoryBlueprintResourceAnchor*> ResourceAnchorSet;
+    for (AAIFactoryBlueprintResourceAnchor* ResourceAnchor : ResourceAnchors)
+    {
+        if (IsValid(ResourceAnchor))
+        {
+            ResourceAnchorSet.Add(ResourceAnchor);
+        }
+    }
+    TMap<AAIFactoryBlueprintResourceAnchor*, TArray<AFGBuildableResourceExtractorBase*>> ExactAnchorBindings;
+    TMap<AFGBuildableResourceExtractorBase*, AAIFactoryBlueprintResourceAnchor*> ExtractorAnchorOwners;
+    for (AFGBuildableResourceExtractorBase* Extractor : Extractors)
+    {
+        if (!IsValid(Extractor))
+        {
+            continue;
+        }
+        const TScriptInterface<IFGExtractableResourceInterface> ExtractableResource =
+            Extractor->GetExtractableResource();
+        AAIFactoryBlueprintAnchorNode* const RuntimeNode =
+            ExtractableResource.GetInterface() != nullptr
+                ? Cast<AAIFactoryBlueprintAnchorNode>(ExtractableResource.GetObject())
+                : nullptr;
+        AAIFactoryBlueprintResourceAnchor* const ResourceAnchor =
+            IsValid(RuntimeNode) ? Cast<AAIFactoryBlueprintResourceAnchor>(RuntimeNode->GetOwner()) : nullptr;
+        if (bProxyHasAuthority &&
+            IsValid(ResourceAnchor) &&
+            ResourceAnchorSet.Contains(ResourceAnchor) &&
+            ResourceAnchor->GetRuntimeNode() == RuntimeNode &&
+            RuntimeNode->GetOwner() == ResourceAnchor)
+        {
+            ExactAnchorBindings.FindOrAdd(ResourceAnchor).Add(Extractor);
+            ExtractorAnchorOwners.Add(Extractor, ResourceAnchor);
+        }
+    }
 
     int32 BoundCount = 0;
     int32 UnboundCount = 0;
@@ -253,6 +451,10 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
             UnboundCount,
             PendingCount,
             UnknownCount);
+        if (AAIFactoryBlueprintResourceAnchor* const* ResourceAnchor = ExtractorAnchorOwners.Find(Extractor))
+        {
+            Detail->SetStringField(TEXT("resource_anchor_actor_id"), (*ResourceAnchor)->GetPathName());
+        }
         if (Index < AIFactoryBlueprintAuditMaximumExtractorDetails)
         {
             ExtractorDetails.Add(MakeShared<FJsonValueObject>(Detail));
@@ -264,6 +466,36 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
     // count is known, their binding is not. Preserve that uncertainty rather
     // than inventing temporary actors or resource associations.
     UnknownCount += LightweightExtractorCount;
+
+    TArray<TSharedPtr<FJsonValue>> ResourceAnchorDetails;
+    ResourceAnchorDetails.Reserve(FMath::Min(
+        ResourceAnchors.Num(),
+        AIFactoryBlueprintAuditMaximumResourceAnchorDetails));
+    for (int32 Index = 0; Index < ResourceAnchors.Num(); ++Index)
+    {
+        AAIFactoryBlueprintResourceAnchor* const ResourceAnchor = ResourceAnchors[Index];
+        if (!IsValid(ResourceAnchor))
+        {
+            continue;
+        }
+        const TArray<AFGBuildableResourceExtractorBase*>* const ExactBoundExtractors =
+            ExactAnchorBindings.Find(ResourceAnchor);
+        const TArray<AFGBuildableResourceExtractorBase*> EmptyExtractors;
+        const TArray<AFGBuildableResourceExtractorBase*>& BoundExtractors =
+            ExactBoundExtractors != nullptr ? *ExactBoundExtractors : EmptyExtractors;
+        const TSharedRef<FJsonObject> Detail = MakeShared<FJsonObject>();
+        AIFactoryBlueprintAuditSetResourceAnchorDetail(
+            Detail,
+            ResourceAnchor,
+            BoundExtractors,
+            bProxyReady,
+            bProxyHasAuthority,
+            LightweightExtractorCount);
+        if (Index < AIFactoryBlueprintAuditMaximumResourceAnchorDetails)
+        {
+            ResourceAnchorDetails.Add(MakeShared<FJsonValueObject>(Detail));
+        }
+    }
 
     const TSharedRef<FJsonObject> Counts = MakeShared<FJsonObject>();
     Counts->SetNumberField(TEXT("bound"), BoundCount);
@@ -292,6 +524,13 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
     Result->SetNumberField(TEXT("extractor_count_observed"), Extractors.Num() + LightweightExtractorCount);
     Result->SetNumberField(TEXT("actor_extractor_count_observed"), Extractors.Num());
     Result->SetNumberField(TEXT("lightweight_extractor_count_uninspected"), LightweightExtractorCount);
+    Result->SetNumberField(TEXT("resource_anchor_count_observed"), ResourceAnchors.Num());
+    Result->SetNumberField(
+        TEXT("lightweight_resource_anchor_count_uninspected"),
+        LightweightResourceAnchorCount);
+    Result->SetBoolField(
+        TEXT("resource_anchor_observation_complete"),
+        bProxyReady && LightweightResourceAnchorCount == 0);
     Result->SetBoolField(TEXT("member_counts_complete"), bProxyReady);
     Result->SetBoolField(TEXT("extractor_observation_complete"), bProxyReady && LightweightExtractorCount == 0);
     if (bProxyReady)
@@ -300,6 +539,9 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
         Result->SetNumberField(TEXT("lightweight_member_count"), LightweightCount);
         Result->SetNumberField(TEXT("member_count"), Members.Num() + LightweightCount);
         Result->SetNumberField(TEXT("extractor_count"), Extractors.Num() + LightweightExtractorCount);
+        Result->SetNumberField(
+            TEXT("resource_anchor_count"),
+            ResourceAnchors.Num() + LightweightResourceAnchorCount);
         Result->SetObjectField(TEXT("extractor_binding_counts"), Counts);
         Result->SetBoolField(
             TEXT("extractor_binding_states_fully_inspected"),
@@ -310,6 +552,11 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
         TEXT("extractor_details_capped_omitted"),
         Extractors.Num() - ExtractorDetails.Num());
     Result->SetArrayField(TEXT("extractors"), ExtractorDetails);
+    Result->SetNumberField(TEXT("resource_anchor_details_returned"), ResourceAnchorDetails.Num());
+    Result->SetNumberField(
+        TEXT("resource_anchor_details_capped_omitted"),
+        ResourceAnchors.Num() - ResourceAnchorDetails.Num());
+    Result->SetArrayField(TEXT("resource_anchors"), ResourceAnchorDetails);
     if (!bProxyReady)
     {
         Result->SetStringField(TEXT("reason"), TEXT("blueprint_proxy_replication_pending"));

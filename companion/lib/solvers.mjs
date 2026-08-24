@@ -1798,6 +1798,328 @@ export function solveBlueprintLayout(
  * particular, a proxy that is still replicating is not allowed to become a
  * claim that it has zero miners or that an extractor is unbound.
  */
+function blueprintAuditText(value) {
+  return typeof value === "string" && value ? value : null;
+}
+
+function blueprintAuditBoolean(value) {
+  return typeof value === "boolean" ? value : null;
+}
+
+function blueprintAuditEnum(value, allowed) {
+  return typeof value === "string" && allowed.includes(value) ? value : null;
+}
+
+/**
+ * The Resource Anchor node is transient and intentionally absent on clients.
+ * Normalise its read-only audit separately from extractor counts so a missing
+ * optional anchor field in an older mod build never turns into a claim that no
+ * anchor exists, while a duplicate miner claim cannot be reported as healthy.
+ */
+function normalizeBlueprintResourceAnchorAudit(audit, count) {
+  const rawAnchors = Array.isArray(audit.resource_anchors) ? audit.resource_anchors : null;
+  const anchorCount = count(audit.resource_anchor_count);
+  const observedAnchorCount = count(audit.resource_anchor_count_observed);
+  const detailsReturned = count(audit.resource_anchor_details_returned);
+  const detailsOmitted = count(audit.resource_anchor_details_capped_omitted);
+  const lightweightAnchorCount = count(audit.lightweight_resource_anchor_count_uninspected);
+  const observationComplete = blueprintAuditBoolean(audit.resource_anchor_observation_complete);
+  if (
+    rawAnchors === null &&
+    anchorCount === null &&
+    observedAnchorCount === null &&
+    detailsReturned === null &&
+    detailsOmitted === null &&
+    lightweightAnchorCount === null &&
+    observationComplete === null
+  ) {
+    return {
+      status: "not_captured",
+      anchor_count: null,
+      observed_anchor_count: null,
+      anchors: [],
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const anchors = [];
+  let unparseableDetails = 0;
+  let invalidDeclaredCounts = 0;
+  let invalidNestedFields = 0;
+  const seenAnchorIds = new Set();
+  const duplicateAnchorActorIds = [];
+  for (const entry of rawAnchors ?? []) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      unparseableDetails += 1;
+      continue;
+    }
+    const anchorActorId = blueprintAuditText(entry.anchor_actor_id);
+    if (!anchorActorId) {
+      unparseableDetails += 1;
+      continue;
+    }
+    if (seenAnchorIds.has(anchorActorId)) duplicateAnchorActorIds.push(anchorActorId);
+    seenAnchorIds.add(anchorActorId);
+
+    const configurationRaw = entry.configuration;
+    const configurationState = configurationRaw && typeof configurationRaw === "object" && !Array.isArray(configurationRaw)
+      ? blueprintAuditEnum(configurationRaw.state, ["configured", "invalid_or_unsupported"])
+      : null;
+    const configurationPurity = configurationRaw && typeof configurationRaw === "object" && !Array.isArray(configurationRaw)
+      ? blueprintAuditEnum(configurationRaw.purity, ["impure", "normal", "pure"])
+      : null;
+    const configuration = configurationRaw && typeof configurationRaw === "object" && !Array.isArray(configurationRaw)
+      ? {
+          schema_version: count(configurationRaw.schema_version),
+          state: configurationState ?? "unknown",
+          resource_class: blueprintAuditText(configurationRaw.resource_class),
+          resource_name: blueprintAuditText(configurationRaw.resource_name),
+          purity: configurationPurity ?? "unknown",
+          reason: blueprintAuditText(configurationRaw.reason),
+        }
+      : null;
+    const configurationValid =
+      configuration !== null &&
+      configuration.schema_version !== null &&
+      configurationState !== null &&
+      configurationPurity !== null &&
+      (configurationState !== "configured" || (
+        configuration.schema_version === 1 &&
+        configuration.resource_class !== null
+      ));
+    if (!configurationValid) invalidNestedFields += 1;
+
+    const runtimeRaw = entry.runtime_node;
+    const runtimeState = runtimeRaw && typeof runtimeRaw === "object" && !Array.isArray(runtimeRaw)
+      ? blueprintAuditEnum(runtimeRaw.state, [
+          "observed",
+          "configuration_mismatch",
+          "owner_mismatch",
+          "missing_on_authority",
+          "unknown_on_client",
+        ])
+      : null;
+    const runtimePurity = runtimeRaw && typeof runtimeRaw === "object" && !Array.isArray(runtimeRaw)
+      ? blueprintAuditEnum(runtimeRaw.purity, ["impure", "normal", "pure"])
+      : null;
+    const runtimeNode = runtimeRaw && typeof runtimeRaw === "object" && !Array.isArray(runtimeRaw)
+      ? {
+          state: runtimeState ?? "unknown",
+          actor_id: blueprintAuditText(runtimeRaw.actor_id),
+          owned_by_anchor_exactly: blueprintAuditBoolean(runtimeRaw.owned_by_anchor_exactly),
+          occupied: blueprintAuditBoolean(runtimeRaw.occupied),
+          matches_configuration: blueprintAuditBoolean(runtimeRaw.matches_configuration),
+          resource_class: blueprintAuditText(runtimeRaw.resource_class),
+          resource_name: blueprintAuditText(runtimeRaw.resource_name),
+          purity: runtimePurity ?? "unknown",
+        }
+      : null;
+    const runtimeNeedsExactDetails = ["observed", "configuration_mismatch", "owner_mismatch"].includes(runtimeState);
+    const runtimeValid =
+      runtimeNode !== null &&
+      runtimeState !== null &&
+      (!runtimeNeedsExactDetails || (
+        runtimeNode.actor_id !== null &&
+        runtimeNode.owned_by_anchor_exactly !== null &&
+        runtimeNode.occupied !== null &&
+        runtimeNode.matches_configuration !== null &&
+        runtimeNode.resource_class !== null &&
+        runtimePurity !== null
+      ));
+
+    const bindingCensusState = blueprintAuditEnum(entry.binding_census_state, [
+      "complete",
+      "complete_with_configuration_mismatch",
+      "partial_proxy_replication",
+      "incomplete_lightweight_extractors",
+      "unknown_on_client",
+      "unknown_runtime_node_missing_on_authority",
+      "unknown_runtime_node_owner_mismatch",
+    ]);
+    if (bindingCensusState === null) invalidNestedFields += 1;
+    const boundExtractorActorIds = [];
+    const seenBoundExtractorIds = new Set();
+    const duplicateBoundExtractorActorIds = [];
+    let unparseableBoundExtractorIds = 0;
+    for (const extractorId of Array.isArray(entry.bound_extractor_actor_ids) ? entry.bound_extractor_actor_ids : []) {
+      const value = blueprintAuditText(extractorId);
+      if (!value) {
+        unparseableBoundExtractorIds += 1;
+      } else if (seenBoundExtractorIds.has(value)) {
+        duplicateBoundExtractorActorIds.push(value);
+      } else {
+        seenBoundExtractorIds.add(value);
+        boundExtractorActorIds.push(value);
+      }
+    }
+    const boundExtractorCount = count(entry.bound_extractor_count_observed);
+    const boundDetailsReturned = count(entry.bound_extractor_details_returned);
+    const boundDetailsOmitted = count(entry.bound_extractor_details_capped_omitted);
+    const hasAnyBoundCount =
+      boundExtractorCount !== null || boundDetailsReturned !== null || boundDetailsOmitted !== null;
+    const hasBoundEvidenceFields =
+      hasAnyBoundCount || Array.isArray(entry.bound_extractor_actor_ids);
+    const boundCountsConsistent =
+      boundExtractorCount !== null &&
+      boundDetailsReturned !== null &&
+      boundDetailsOmitted !== null &&
+      boundDetailsReturned === boundExtractorActorIds.length &&
+      boundDetailsReturned + boundDetailsOmitted === boundExtractorCount &&
+      unparseableBoundExtractorIds === 0 &&
+      duplicateBoundExtractorActorIds.length === 0;
+    const requiresBoundCounts = ["complete", "complete_with_configuration_mismatch"].includes(bindingCensusState);
+    if ((hasAnyBoundCount && !boundCountsConsistent) || (requiresBoundCounts && !boundCountsConsistent)) {
+      invalidDeclaredCounts += 1;
+    }
+    const runtimeStateInvariant =
+      runtimeState === "observed"
+        ? configurationState === "configured" &&
+          configuration?.schema_version === 1 &&
+          runtimeNode?.owned_by_anchor_exactly === true &&
+          runtimeNode.matches_configuration === true &&
+          runtimeNode.resource_class === configuration.resource_class &&
+          runtimePurity === configurationPurity
+        : runtimeState === "configuration_mismatch"
+          ? runtimeNode?.owned_by_anchor_exactly === true &&
+            runtimeNode.matches_configuration === false
+          : runtimeState === "owner_mismatch"
+            ? runtimeNode?.owned_by_anchor_exactly === false &&
+              runtimeNode.matches_configuration === false
+            : true;
+    const bindingCensusMatchesRuntime =
+      runtimeState === "observed"
+        ? bindingCensusState === "complete"
+        : runtimeState === "configuration_mismatch"
+          ? bindingCensusState === "complete_with_configuration_mismatch"
+          : runtimeState === "owner_mismatch"
+            ? bindingCensusState === "unknown_runtime_node_owner_mismatch" && !hasBoundEvidenceFields
+            : runtimeState === "missing_on_authority"
+              ? bindingCensusState === "unknown_runtime_node_missing_on_authority" && !hasBoundEvidenceFields
+              : runtimeState === "unknown_on_client"
+                ? bindingCensusState === "unknown_on_client" && !hasBoundEvidenceFields
+                : false;
+    if (!runtimeValid || !runtimeStateInvariant || !bindingCensusMatchesRuntime) {
+      invalidNestedFields += 1;
+    }
+    anchors.push({
+      anchor_actor_id: anchorActorId,
+      anchor_actor_name: blueprintAuditText(entry.anchor_actor_name),
+      anchor_actor_class_path: blueprintAuditText(entry.anchor_actor_class_path),
+      configuration,
+      runtime_node: runtimeNode,
+      binding_census_state: bindingCensusState ?? "unknown",
+      bound_extractor_count_observed: boundExtractorCount,
+      bound_extractor_details_returned: boundDetailsReturned,
+      bound_extractor_details_capped_omitted: boundDetailsOmitted,
+      bound_extractor_actor_ids: boundExtractorActorIds,
+      bound_extractor_ids_unparseable: unparseableBoundExtractorIds,
+      bound_extractor_ids_duplicate: [...new Set(duplicateBoundExtractorActorIds)].sort(),
+      binding_counts_complete: boundCountsConsistent,
+    });
+  }
+
+  const claimedBy = new Map();
+  const duplicateBoundExtractorActorIds = [];
+  for (const anchor of anchors) {
+    for (const extractorId of anchor.bound_extractor_actor_ids) {
+      const existing = claimedBy.get(extractorId);
+      if (existing && existing !== anchor.anchor_actor_id) {
+        duplicateBoundExtractorActorIds.push(extractorId);
+      } else {
+        claimedBy.set(extractorId, anchor.anchor_actor_id);
+      }
+    }
+  }
+  const compactDuplicateIds = [...new Set(duplicateBoundExtractorActorIds)].sort();
+  const compactDuplicateAnchorIds = [...new Set(duplicateAnchorActorIds)].sort();
+  const detailPopulation = observationComplete === true ? anchorCount : observedAnchorCount;
+  const declaredDetailCountConsistent =
+    rawAnchors === null ||
+    detailPopulation === null ||
+    detailsReturned === null ||
+    detailsOmitted === null
+      ? false
+      : detailsReturned + detailsOmitted === detailPopulation &&
+        detailsReturned === rawAnchors.length &&
+        detailsReturned === anchors.length;
+  const observedCountConsistent =
+    observationComplete !== true ||
+    (anchorCount !== null && observedAnchorCount !== null && anchorCount === observedAnchorCount);
+  const lightweightObservationConsistent =
+    observationComplete !== true || lightweightAnchorCount === 0;
+  const incompleteRuntimeNodes = anchors.some(
+    (anchor) => anchor.runtime_node?.state === "unknown_on_client" ||
+      anchor.runtime_node?.state === "missing_on_authority" ||
+      anchor.runtime_node?.state === "owner_mismatch" ||
+      anchor.binding_census_state === "unknown_on_client" ||
+      anchor.binding_census_state === "unknown_runtime_node_missing_on_authority" ||
+      anchor.binding_census_state === "unknown_runtime_node_owner_mismatch",
+  );
+  const configurationMismatch = anchors.some(
+    (anchor) => anchor.configuration?.state === "invalid_or_unsupported" ||
+      anchor.runtime_node?.state === "configuration_mismatch" ||
+      anchor.runtime_node?.matches_configuration === false,
+  );
+  const incompleteBindingCensus = anchors.some(
+    (anchor) => ![
+      "complete",
+      "complete_with_configuration_mismatch",
+      "unknown_on_client",
+      "unknown_runtime_node_missing_on_authority",
+      "unknown_runtime_node_owner_mismatch",
+    ].includes(anchor.binding_census_state) ||
+      ((anchor.binding_census_state === "complete" ||
+        anchor.binding_census_state === "complete_with_configuration_mismatch") &&
+        anchor.binding_counts_complete !== true),
+  );
+  const status = compactDuplicateIds.length > 0
+    ? "inconsistent_duplicate_bound_extractor"
+    : compactDuplicateAnchorIds.length > 0 ||
+        invalidDeclaredCounts > 0 ||
+        invalidNestedFields > 0 ||
+        unparseableDetails > 0 ||
+        !declaredDetailCountConsistent ||
+        !observedCountConsistent ||
+        !lightweightObservationConsistent
+      ? "partial_or_inconsistent"
+      : observationComplete !== true
+        ? "partial"
+        : incompleteRuntimeNodes
+          ? "complete_with_unknown_runtime_node"
+          : configurationMismatch
+            ? "complete_with_configuration_mismatch"
+            : incompleteBindingCensus
+              ? "partial_or_inconsistent"
+              : "complete";
+
+  return {
+    status,
+    anchor_count: anchorCount,
+    observed_anchor_count: observedAnchorCount,
+    observation_complete: observationComplete,
+    details_returned: detailsReturned,
+    details_capped_omitted: detailsOmitted,
+    details_unparseable: unparseableDetails,
+    lightweight_anchor_count_uninspected: lightweightAnchorCount,
+    declared_count_inconsistent:
+      invalidDeclaredCounts > 0 ||
+      !declaredDetailCountConsistent ||
+      !observedCountConsistent ||
+      !lightweightObservationConsistent,
+    nested_fields_invalid: invalidNestedFields,
+    duplicate_anchor_actor_ids: compactDuplicateAnchorIds,
+    duplicate_bound_extractor_actor_ids: compactDuplicateIds,
+    anchors,
+    source: "Blueprint Resource Anchor public runtime accessors and exact extractor-interface identity",
+    certainty: status === "complete" || status === "complete_with_configuration_mismatch"
+      ? "authoritative_for_captured_actor_backed_anchors"
+      : status === "not_captured"
+        ? "unknown"
+        : "partial",
+  };
+}
+
 export function solveBlueprintPlacementAudit(graph) {
   const worldRevision = graph?.world_revision ?? null;
   const audit = graph?.snapshot?.interaction_context?.preferred_target?.blueprint_instance_audit;
@@ -1862,6 +2184,12 @@ export function solveBlueprintPlacementAudit(graph) {
     lightweight_extractor_count_uninspected: count(audit.lightweight_extractor_count_uninspected),
     extractor_details_returned: count(audit.extractor_details_returned),
     extractor_details_capped_omitted: count(audit.extractor_details_capped_omitted),
+    resource_anchor_count_observed: count(audit.resource_anchor_count_observed),
+    lightweight_resource_anchor_count_uninspected: count(
+      audit.lightweight_resource_anchor_count_uninspected,
+    ),
+    resource_anchor_details_returned: count(audit.resource_anchor_details_returned),
+    resource_anchor_details_capped_omitted: count(audit.resource_anchor_details_capped_omitted),
   };
   const replicaState =
     audit.replication_state === "ready" || audit.replication_state === "replication_pending"
@@ -1892,6 +2220,15 @@ export function solveBlueprintPlacementAudit(graph) {
       member_counts_complete: memberCountsComplete,
       extractor_observation_complete: extractorObservationComplete,
       observed,
+      resource_anchor_audit: {
+        status: "not_inspected_until_blueprint_proxy_ready",
+        anchor_count: null,
+        observed_anchor_count: observed.resource_anchor_count_observed,
+        observation_complete: false,
+        anchors: [],
+        source: "none",
+        certainty: "partial",
+      },
       reason:
         typeof audit.reason === "string" && audit.reason
           ? audit.reason
@@ -1940,6 +2277,18 @@ export function solveBlueprintPlacementAudit(graph) {
       member_counts_complete: memberCountsComplete,
       extractor_observation_complete: extractorObservationComplete,
       observed,
+      // The extractor census is not trustworthy enough to claim a complete
+      // Blueprint audit. Keep the separate Anchor observation in the same
+      // pending state rather than normalising a subset into a healthy list.
+      resource_anchor_audit: {
+        status: "not_inspected_until_extractor_counts_complete",
+        anchor_count: null,
+        observed_anchor_count: observed.resource_anchor_count_observed,
+        observation_complete: false,
+        anchors: [],
+        source: "none",
+        certainty: "partial",
+      },
       reason: "blueprint_audit_counts_incomplete",
       source,
       certainty: "partial",
@@ -1968,9 +2317,12 @@ export function solveBlueprintPlacementAudit(graph) {
         typeof entry.extractable_actor_id === "string" ? entry.extractable_actor_id : null,
       resource_class: typeof entry.resource_class === "string" ? entry.resource_class : null,
       resource_name: typeof entry.resource_name === "string" ? entry.resource_name : null,
+      resource_anchor_actor_id:
+        typeof entry.resource_anchor_actor_id === "string" ? entry.resource_anchor_actor_id : null,
       reason: typeof entry.reason === "string" ? entry.reason : null,
     });
   }
+  const resourceAnchorAudit = normalizeBlueprintResourceAnchorAudit(audit, count);
 
   return {
     ...base,
@@ -1994,6 +2346,7 @@ export function solveBlueprintPlacementAudit(graph) {
         ? audit.extractor_binding_states_fully_inspected
         : null,
     extractors,
+    resource_anchor_audit: resourceAnchorAudit,
     source,
     certainty: capturedCertainty,
   };

@@ -60,6 +60,8 @@ test("system instructions require solver tools for quantitative claims", () => {
   assert.match(SYSTEM_INSTRUCTIONS, /diagnose_bottlenecks/);
   assert.match(SYSTEM_INSTRUCTIONS, /find_belt_candidates/);
   assert.match(SYSTEM_INSTRUCTIONS, /audit_blueprint_placement/);
+  assert.match(SYSTEM_INSTRUCTIONS, /Blueprint Resource Anchor/i);
+  assert.match(SYSTEM_INSTRUCTIONS, /client-null transient Anchor node/i);
   assert.match(SYSTEM_INSTRUCTIONS, /the solver\s*\n?is correct/);
 });
 

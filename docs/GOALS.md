@@ -254,6 +254,14 @@ as an empty Blueprint, and a null client-side extractor binding remains
 a miner, the auditor preserves that normal target and uses the camera-visible
 miner only as a separate read-only witness.
 
+When that placed Blueprint contains an AI Factory **Blueprint Resource
+Anchor**, the same audit additionally reports the anchor's saved
+resource/purity configuration, server-authoritative transient-node ownership,
+occupancy, and only extractor identities whose live interface points to that
+exact anchor-owned node. A client-null transient node or binding remains
+**unknown on that client**, not missing or unbound. Lightweight Anchor members
+make the Anchor census partial rather than becoming an assumed zero.
+
 This is proof tooling, not a workaround: it never places, binds, repairs,
 exports, imports, costs, or dismantles anything. A disposable real-miner
 Blueprint placement still needs to pass this audit after a packaged live test
