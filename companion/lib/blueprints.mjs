@@ -25,6 +25,8 @@ const MAXIMUM_STRING_CODE_UNITS = 8192;
 const MAXIMUM_BUILDABLE_CLASSES = 200;
 const DEFAULT_MAXIMUM_BUILDABLES = 80;
 const MAXIMUM_BUILDABLES = 200;
+const DEFAULT_MAXIMUM_CONNECTIONS = 80;
+const MAXIMUM_CONNECTIONS = 200;
 const PARSER_VERSION = "4.1.2";
 
 function shortName(itemClassPath) {
@@ -381,6 +383,218 @@ function boundedMaximum(value, fallback) {
   return Math.min(MAXIMUM_BUILDABLES, Math.max(1, Math.trunc(numeric)));
 }
 
+function boundedMaximumConnections(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(MAXIMUM_CONNECTIONS, Math.max(1, Math.trunc(numeric)));
+}
+
+/*
+ * Blueprint files do retain an exact mConnectedComponent reference for the
+ * conveyor and pipe connection components that were saved together. That is
+ * useful evidence, but it is deliberately narrower than an in-game routing
+ * graph: a bare component class does not prove its direction, speed, fluid,
+ * or that it will still connect to anything outside the Blueprint after it is
+ * placed. Keep the supported class paths exact rather than treating every
+ * object property named mConnectedComponent as a factory link.
+ */
+function blueprintConnectionKind(component) {
+  switch (component?.typePath) {
+    case "/Script/FactoryGame.FGFactoryConnectionComponent":
+      return "conveyor";
+    case "/Script/FactoryGame.FGPipeConnectionFactory":
+    case "/Script/FactoryGame.FGPipeConnectionComponent":
+      return "pipe";
+    default:
+      return null;
+  }
+}
+
+function objectPropertyPathName(property) {
+  const pathName = property?.value?.pathName;
+  return typeof pathName === "string" && pathName.trim() ? pathName : null;
+}
+
+function componentEndpoint(component, entitiesByName) {
+  const ownerName =
+    typeof component?.parentEntityName === "string" && component.parentEntityName
+      ? component.parentEntityName
+      : null;
+  const owner = ownerName ? entitiesByName.get(ownerName) ?? null : null;
+  const classPath = typeof component?.typePath === "string" ? component.typePath : null;
+  const ownerClassPath = typeof owner?.typePath === "string" ? owner.typePath : null;
+  return {
+    component_instance_name:
+      typeof component?.instanceName === "string" && component.instanceName ? component.instanceName : null,
+    component_class_path: classPath,
+    component_class_name: classPath ? shortName(classPath) : null,
+    owner_entity_instance_name: ownerName,
+    owner_entity_class_path: ownerClassPath,
+    owner_entity_class_name: ownerClassPath ? shortName(ownerClassPath) : null,
+    owner_entity_resolved: owner !== null,
+  };
+}
+
+function canonicalComponentPair(left, right) {
+  const leftName = left?.instanceName ?? "";
+  const rightName = right?.instanceName ?? "";
+  return leftName.localeCompare(rightName) <= 0 ? [left, right] : [right, left];
+}
+
+/**
+ * Decode the exact reciprocal conveyor/pipe component references already
+ * present in a parsed native Blueprint. Exported separately so malformed,
+ * one-way, and ambiguous references receive regression coverage without
+ * relying on a writer to serialize intentionally corrupt save data.
+ */
+export function decodeBlueprintConnectionTopology(
+  objects,
+  { maximumConnections = DEFAULT_MAXIMUM_CONNECTIONS } = {},
+) {
+  const allObjects = Array.isArray(objects) ? objects : [];
+  const entitiesByName = new Map();
+  for (const object of allObjects) {
+    if (object?.type !== "SaveEntity" || typeof object.instanceName !== "string" || !object.instanceName) continue;
+    // A duplicated saved entity name cannot be resolved safely to one owner.
+    if (entitiesByName.has(object.instanceName)) entitiesByName.set(object.instanceName, null);
+    else entitiesByName.set(object.instanceName, object);
+  }
+
+  const savedComponents = allObjects.filter((object) => object?.type === "SaveComponent");
+  const componentsByName = new Map();
+  const duplicateComponentNames = new Set();
+  for (const component of savedComponents) {
+    if (typeof component.instanceName !== "string" || !component.instanceName) continue;
+    if (componentsByName.has(component.instanceName)) {
+      duplicateComponentNames.add(component.instanceName);
+      continue;
+    }
+    componentsByName.set(component.instanceName, component);
+  }
+
+  const connectionComponents = savedComponents.filter((component) => blueprintConnectionKind(component) !== null);
+  const linkedComponentRecords = savedComponents.filter(
+    (component) => Object.hasOwn(component?.properties ?? {}, "mConnectedComponent"),
+  );
+  const supportedLinkedComponents = linkedComponentRecords.filter(
+    (component) => blueprintConnectionKind(component) !== null,
+  );
+  const unsupportedLinkedComponentRecordCount = linkedComponentRecords.length - supportedLinkedComponents.length;
+  const pairs = new Map();
+  const kindCounts = { conveyor: 0, pipe: 0, mixed: 0 };
+  const ownerResolution = { both: 0, one: 0, neither: 0 };
+  let malformedReferenceCount = 0;
+  let unresolvedReferenceCount = 0;
+  let ambiguousReferenceCount = 0;
+  let nonreciprocalReferenceCount = 0;
+  let unsupportedTargetReferenceCount = 0;
+  let selfReferenceCount = 0;
+  let reciprocalReferenceCount = 0;
+
+  for (const component of supportedLinkedComponents) {
+    const componentName = component.instanceName;
+    const targetName = objectPropertyPathName(component.properties?.mConnectedComponent);
+    if (!componentName || !targetName) {
+      malformedReferenceCount += 1;
+      continue;
+    }
+    if (duplicateComponentNames.has(componentName)) {
+      ambiguousReferenceCount += 1;
+      continue;
+    }
+    if (componentName === targetName) {
+      selfReferenceCount += 1;
+      continue;
+    }
+    if (duplicateComponentNames.has(targetName)) {
+      ambiguousReferenceCount += 1;
+      continue;
+    }
+    const target = componentsByName.get(targetName) ?? null;
+    if (!target) {
+      unresolvedReferenceCount += 1;
+      continue;
+    }
+    if (blueprintConnectionKind(target) === null) {
+      unsupportedTargetReferenceCount += 1;
+      continue;
+    }
+    const targetBackReference = objectPropertyPathName(target.properties?.mConnectedComponent);
+    if (targetBackReference !== componentName) {
+      nonreciprocalReferenceCount += 1;
+      continue;
+    }
+
+    reciprocalReferenceCount += 1;
+    const [first, second] = canonicalComponentPair(component, target);
+    const key = `${first.instanceName}\u0000${second.instanceName}`;
+    if (pairs.has(key)) continue;
+    const firstKind = blueprintConnectionKind(first);
+    const secondKind = blueprintConnectionKind(second);
+    const connectionKind = firstKind === secondKind ? firstKind : "mixed";
+    kindCounts[connectionKind] += 1;
+    const firstEndpoint = componentEndpoint(first, entitiesByName);
+    const secondEndpoint = componentEndpoint(second, entitiesByName);
+    const resolvedOwners = Number(firstEndpoint.owner_entity_resolved) + Number(secondEndpoint.owner_entity_resolved);
+    if (resolvedOwners === 2) ownerResolution.both += 1;
+    else if (resolvedOwners === 1) ownerResolution.one += 1;
+    else ownerResolution.neither += 1;
+    pairs.set(key, {
+      connection_kind: connectionKind,
+      endpoint_a: firstEndpoint,
+      endpoint_b: secondEndpoint,
+    });
+  }
+
+  const allPairs = [...pairs.values()].sort((left, right) => {
+    const leftKey = `${left.endpoint_a.component_instance_name}\u0000${left.endpoint_b.component_instance_name}`;
+    const rightKey = `${right.endpoint_a.component_instance_name}\u0000${right.endpoint_b.component_instance_name}`;
+    return leftKey.localeCompare(rightKey);
+  });
+  const maximum = boundedMaximumConnections(maximumConnections, DEFAULT_MAXIMUM_CONNECTIONS);
+  const hasInconclusiveReference =
+    malformedReferenceCount > 0 ||
+    unresolvedReferenceCount > 0 ||
+    ambiguousReferenceCount > 0 ||
+    nonreciprocalReferenceCount > 0 ||
+    unsupportedTargetReferenceCount > 0 ||
+    selfReferenceCount > 0;
+  const powerWirePropertyRecords = allObjects.filter(
+    (object) => Object.hasOwn(object?.properties ?? {}, "mWires"),
+  ).length;
+
+  return {
+    status: "decoded",
+    scope: "reciprocal_conveyor_and_pipe_component_references",
+    connection_component_count: connectionComponents.length,
+    m_connected_component_record_count: linkedComponentRecords.length,
+    supported_connection_reference_record_count: supportedLinkedComponents.length,
+    unsupported_connection_component_record_count: unsupportedLinkedComponentRecordCount,
+    reciprocal_connection_reference_count: reciprocalReferenceCount,
+    reciprocal_connection_pair_count: allPairs.length,
+    reciprocal_connection_pairs_by_kind: kindCounts,
+    endpoint_owner_resolution: ownerResolution,
+    malformed_component_reference_count: malformedReferenceCount,
+    unresolved_component_reference_count: unresolvedReferenceCount,
+    ambiguous_component_reference_count: ambiguousReferenceCount,
+    nonreciprocal_component_reference_count: nonreciprocalReferenceCount,
+    unsupported_target_component_reference_count: unsupportedTargetReferenceCount,
+    self_component_reference_count: selfReferenceCount,
+    connections: allPairs.slice(0, maximum),
+    connections_returned: Math.min(maximum, allPairs.length),
+    connections_truncated: Math.max(0, allPairs.length - maximum),
+    power_wire_property_records_not_interpreted: powerWirePropertyRecords,
+    flow_direction: "not_inferred_from_component_references",
+    external_connections: "not_proven_by_the_saved_blueprint",
+    caveat:
+      "Only exact reciprocal mConnectedComponent links on native conveyor/pipe connection components are decoded. This does not prove item/fluid flow direction, rate, power wiring, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    source: "decoded_from_saved_blueprint_component_references",
+    certainty: hasInconclusiveReference
+      ? "authoritative_observation_with_inconclusive_component_references"
+      : "authoritative_for_decoded_reciprocal_component_links",
+  };
+}
+
 /**
  * Reads the compressed object stream through a pinned parser without mutating the
  * file or game. The returned individual entity list is deliberately bounded;
@@ -390,7 +604,10 @@ export function inspectBlueprintStructure(
   name,
   sbpBuffer,
   sbpcfgBuffer = null,
-  { maximumBuildables = DEFAULT_MAXIMUM_BUILDABLES } = {},
+  {
+    maximumBuildables = DEFAULT_MAXIMUM_BUILDABLES,
+    maximumConnections = DEFAULT_MAXIMUM_CONNECTIONS,
+  } = {},
 ) {
   let header;
   try {
@@ -492,6 +709,7 @@ export function inspectBlueprintStructure(
   const objectsWithTrailingData = objects.filter(
     (object) => Array.isArray(object?.trailingData) && object.trailingData.length > 0,
   ).length;
+  const connectionTopology = decodeBlueprintConnectionTopology(objects, { maximumConnections });
 
   return {
     available: true,
@@ -535,7 +753,7 @@ export function inspectBlueprintStructure(
     buildables_truncated: Math.max(0, transformed.length - rows.length),
     transform_coverage_caveat:
       "Only native Build_* entities with finite saved transforms are listed. The blueprint file does not prove terrain clearance, hologram validity, or external connections at a destination.",
-    connection_topology: "not_interpreted",
+    connection_topology: connectionTopology,
     source: "decoded_from_saved_native_blueprint",
     certainty:
       rows.length < transformed.length

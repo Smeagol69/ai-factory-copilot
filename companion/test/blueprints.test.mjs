@@ -3,10 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { Parser, SaveEntity } from "@etothepii/satisfactory-file-parser";
+import { Parser, SaveComponent, SaveEntity } from "@etothepii/satisfactory-file-parser";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   costAgainstInventory,
+  decodeBlueprintConnectionTopology,
   inspectBlueprintStructure,
   parseBlueprintConfig,
   parseBlueprintHeader,
@@ -108,8 +109,19 @@ function nativeEntity(typePath, instanceName, translation, recipe) {
   return entity;
 }
 
+function nativeConnectionComponent(typePath, instanceName, parentEntityName, connectedComponentName) {
+  const component = new SaveComponent(typePath, "Persistent_Level", instanceName, parentEntityName);
+  component.properties.mConnectedComponent = {
+    type: "ObjectProperty",
+    name: "mConnectedComponent",
+    propertyTagType: { name: "ObjectProperty", children: [] },
+    value: { levelName: "Persistent_Level", pathName: connectedComponentName },
+  };
+  return component;
+}
+
 /** Creates a real compressed .sbp through the same pinned parser we read with. */
-function makeNativeBlueprint() {
+function makeNativeBlueprint({ connected = false } = {}) {
   const constructor = nativeEntity(
     "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
     "Persistent_Level:PersistentLevel.Build_ConstructorMk1_C_1",
@@ -144,7 +156,24 @@ function makeNativeBlueprint() {
       iconID: 0,
       color: { r: 0, g: 0, b: 0, a: 1 },
     },
-    objects: [constructor, smelter],
+    objects: connected
+      ? [
+        constructor,
+        smelter,
+        nativeConnectionComponent(
+          "/Script/FactoryGame.FGFactoryConnectionComponent",
+          `${constructor.instanceName}.Conveyor0`,
+          constructor.instanceName,
+          `${smelter.instanceName}.Conveyor0`,
+        ),
+        nativeConnectionComponent(
+          "/Script/FactoryGame.FGFactoryConnectionComponent",
+          `${smelter.instanceName}.Conveyor0`,
+          smelter.instanceName,
+          `${constructor.instanceName}.Conveyor0`,
+        ),
+      ]
+      : [constructor, smelter],
   };
   let header = null;
   const chunks = [];
@@ -243,8 +272,94 @@ test("reads exact native buildable transforms through the pinned read-only parse
   assert.deepEqual(result.pivot_bounds_cm.maximum_cm, { x: 900, y: 600, z: 300 });
   assert.equal(result.buildables[0].transform.translation_cm.x, 100);
   assert.match(result.buildables[0].built_with_recipe.recipe_class, /Recipe_ConstructorMk1/);
-  assert.equal(result.connection_topology, "not_interpreted");
+  assert.equal(result.connection_topology.status, "decoded");
+  assert.equal(result.connection_topology.reciprocal_connection_pair_count, 0);
   assert.match(result.transform_coverage_caveat, /hologram validity/i);
+});
+
+test("decodes reciprocal native conveyor component links through the structural parser", () => {
+  const { sbp, sbpcfg } = makeNativeBlueprint({ connected: true });
+  const result = inspectBlueprintStructure("Native connected test", sbp, sbpcfg, {
+    maximumConnections: 1,
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.decoded.component_count, 2);
+  assert.equal(result.connection_topology.status, "decoded");
+  assert.equal(result.connection_topology.supported_connection_reference_record_count, 2);
+  assert.equal(result.connection_topology.reciprocal_connection_reference_count, 2);
+  assert.equal(result.connection_topology.reciprocal_connection_pair_count, 1);
+  assert.deepEqual(result.connection_topology.reciprocal_connection_pairs_by_kind, {
+    conveyor: 1,
+    pipe: 0,
+    mixed: 0,
+  });
+  assert.equal(result.connection_topology.connections_returned, 1);
+  assert.equal(result.connection_topology.connections_truncated, 0);
+  assert.equal(result.connection_topology.connections[0].endpoint_a.owner_entity_resolved, true);
+  assert.equal(result.connection_topology.connections[0].endpoint_b.owner_entity_resolved, true);
+  assert.match(result.connection_topology.caveat, /flow direction/i);
+});
+
+test("connection topology fails closed for one-way, unresolved, and ambiguous component references", () => {
+  const component = (instanceName, target) => ({
+    type: "SaveComponent",
+    typePath: "/Script/FactoryGame.FGFactoryConnectionComponent",
+    instanceName,
+    parentEntityName: `Persistent_Level:${instanceName.split(".")[0]}`,
+    properties: target === null ? {} : {
+      mConnectedComponent: {
+        value: { pathName: target },
+      },
+    },
+  });
+  const topology = decodeBlueprintConnectionTopology([
+    {
+      type: "SaveEntity",
+      typePath: "/Game/Test/Build_A.Build_A_C",
+      instanceName: "A",
+    },
+    component("A.Port", "B.Port"),
+    component("B.Port", "Missing.Port"),
+    component("Caller.Port", "Duplicate.Port"),
+    component("Duplicate.Port", null),
+    component("Duplicate.Port", null),
+  ]);
+  assert.equal(topology.reciprocal_connection_pair_count, 0);
+  assert.equal(topology.nonreciprocal_component_reference_count, 1);
+  assert.equal(topology.unresolved_component_reference_count, 1);
+  assert.equal(topology.ambiguous_component_reference_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_component_references");
+});
+
+test("connection topology caps returned pairs while preserving every aggregate count", () => {
+  const objects = [];
+  for (let index = 0; index < 3; index += 1) {
+    const left = `A${index}.Port`;
+    const right = `B${index}.Port`;
+    objects.push(
+      { type: "SaveEntity", typePath: "/Game/Test/Build_A.Build_A_C", instanceName: `A${index}` },
+      { type: "SaveEntity", typePath: "/Game/Test/Build_B.Build_B_C", instanceName: `B${index}` },
+      {
+        type: "SaveComponent",
+        typePath: "/Script/FactoryGame.FGPipeConnectionFactory",
+        instanceName: left,
+        parentEntityName: `A${index}`,
+        properties: { mConnectedComponent: { value: { pathName: right } } },
+      },
+      {
+        type: "SaveComponent",
+        typePath: "/Script/FactoryGame.FGPipeConnectionComponent",
+        instanceName: right,
+        parentEntityName: `B${index}`,
+        properties: { mConnectedComponent: { value: { pathName: left } } },
+      },
+    );
+  }
+  const topology = decodeBlueprintConnectionTopology(objects, { maximumConnections: 1 });
+  assert.equal(topology.reciprocal_connection_pair_count, 3);
+  assert.equal(topology.reciprocal_connection_pairs_by_kind.pipe, 3);
+  assert.equal(topology.connections_returned, 1);
+  assert.equal(topology.connections_truncated, 2);
 });
 
 test("structural inspection preserves an unreadable file as unknown", () => {

@@ -517,12 +517,59 @@ function formatBlueprintLayout(result) {
     : " Its buildable pivot bounds were not available.";
   const listed = result.buildables_returned ?? 0;
   const omitted = result.buildables_truncated ?? 0;
+  const topology = result.connection_topology;
+  let topologyText = " Internal conveyor/pipe topology was not decoded.";
+  if (topology?.status === "decoded") {
+    const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+    const pairs = count(topology.reciprocal_connection_pair_count) ?? 0;
+    const kinds = topology.reciprocal_connection_pairs_by_kind ?? {};
+    const conveyorPairs = count(kinds.conveyor) ?? 0;
+    const pipePairs = count(kinds.pipe) ?? 0;
+    const mixedPairs = count(kinds.mixed) ?? 0;
+    const supportedRecords = count(topology.supported_connection_reference_record_count) ?? 0;
+    const incomplete = [
+      topology.malformed_component_reference_count,
+      topology.unresolved_component_reference_count,
+      topology.ambiguous_component_reference_count,
+      topology.nonreciprocal_component_reference_count,
+      topology.unsupported_target_component_reference_count,
+      topology.self_component_reference_count,
+    ].reduce((total, value) => total + (count(value) ?? 0), 0);
+    const returned = count(topology.connections_returned) ?? 0;
+    const truncated = count(topology.connections_truncated) ?? 0;
+    const kindText = [
+      conveyorPairs > 0 ? `${conveyorPairs} conveyor` : null,
+      pipePairs > 0 ? `${pipePairs} pipe` : null,
+      mixedPairs > 0 ? `${mixedPairs} mixed-kind` : null,
+    ].filter(Boolean).join(", ");
+    if (pairs > 0) {
+      topologyText = ` It records **${pairs}** reciprocal internal conveyor/pipe connection pair${pairs === 1 ? "" : "s"}` +
+        (kindText ? ` (${kindText})` : "") + ".";
+    } else if (supportedRecords > 0) {
+      topologyText = " It has no verified reciprocal internal conveyor/pipe connection pairs.";
+    } else {
+      topologyText = " It has no saved conveyor/pipe component references to decode.";
+    }
+    if (incomplete > 0) {
+      topologyText += ` **${incomplete}** saved connection reference${incomplete === 1 ? " is" : "s are"} malformed, unresolved, ambiguous, self-referential, one-way, or an unsupported component type, so this is not a complete internal-route proof.`;
+    } else if (supportedRecords > 0) {
+      topologyText += ` All **${supportedRecords}** supported saved reference record${supportedRecords === 1 ? "" : "s"} resolved reciprocally.`;
+    }
+    if (truncated > 0) {
+      topologyText += ` I returned ${returned} individual connection pair${returned === 1 ? "" : "s"} and left ${truncated} out of this compact reply.`;
+    }
+    const wireRecords = count(topology.power_wire_property_records_not_interpreted) ?? 0;
+    topologyText += wireRecords > 0
+      ? ` ${wireRecords} saved power-wire record${wireRecords === 1 ? " was" : "s were"} deliberately not decoded.`
+      : " Flow direction, rate, power wiring, and external hookups are not inferred.";
+  }
   return `**${result.blueprint_name}** decodes to **${decoded.buildable_count ?? 0} Build_* entities** ` +
     `(${decoded.component_count ?? 0} components).${span}` +
     (classes ? ` Most common classes: ${classes}.` : "") +
     ` I returned ${listed} saved transform${listed === 1 ? "" : "s"}` +
     (omitted > 0 ? ` and left ${omitted} out of this compact reply.` : ".") +
-    " These are native saved transforms, not proof that the blueprint will clear terrain or fit at a new location.";
+    topologyText +
+    " These are native saved transforms and saved component references, not proof that the blueprint will clear terrain or fit at a new location.";
 }
 
 function auditWholeCount(value) {

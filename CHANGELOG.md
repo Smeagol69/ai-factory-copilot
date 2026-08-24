@@ -41,8 +41,11 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   files, spends items, changes the world, or creates an undo entry.
 - Added bounded, read-only structural inspection for native `.sbp` blueprints:
   exact header evidence, decoded native `Build_*` entity class counts, saved transforms,
-  pivot bounds, and recipe evidence. It explicitly does not claim destination
-  terrain clearance, Build Gun hologram validity, or external topology.
+  pivot bounds, recipe evidence, and exact reciprocal saved conveyor/pipe
+  component links. It reports malformed, unresolved, ambiguous, one-way, and
+  unsupported component references rather than guessing a connection. Flow
+  direction/rate, power wiring, destination terrain clearance, Build Gun
+  hologram validity, and external topology remain explicitly unknown.
 - Made saved-blueprint inspection safe for duplicate names by accepting only a
   `blueprint_reference` emitted from the configured library, never an arbitrary
   filesystem path.

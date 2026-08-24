@@ -736,6 +736,43 @@ test("an explicit native-blueprint inspection stays local and read-only", () => 
   assert.match(answer.reply, /not proof.*clear terrain/i);
 });
 
+test("native-blueprint inspection reports reciprocal belt and pipe evidence without inventing flow", () => {
+  const answer = answerLocally("inspect blueprint Connected module", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Connected module",
+      decoded: { buildable_count: 4, component_count: 8 },
+      buildable_classes: [],
+      pivot_bounds_cm: null,
+      buildables_returned: 4,
+      buildables_truncated: 0,
+      header: { build_cost: [] },
+      connection_topology: {
+        status: "decoded",
+        supported_connection_reference_record_count: 6,
+        reciprocal_connection_pair_count: 3,
+        reciprocal_connection_pairs_by_kind: { conveyor: 2, pipe: 1, mixed: 0 },
+        malformed_component_reference_count: 0,
+        unresolved_component_reference_count: 0,
+        ambiguous_component_reference_count: 0,
+        nonreciprocal_component_reference_count: 0,
+        self_component_reference_count: 0,
+        connections_returned: 3,
+        connections_truncated: 0,
+        power_wire_property_records_not_interpreted: 2,
+      },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /3.*reciprocal internal conveyor\/pipe connection pairs/i);
+  assert.match(answer.reply, /2 conveyor, 1 pipe/i);
+  assert.match(answer.reply, /all.*6.*resolved reciprocally/i);
+  assert.match(answer.reply, /2 saved power-wire records were deliberately not decoded/i);
+  assert.doesNotMatch(answer.reply, /flow direction.*proved/i);
+});
+
 test("a listed blueprint reference disambiguates safely, but never accepts traversal", () => {
   assert.deepEqual(
     parseBlueprintLayoutRequest("inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp"),

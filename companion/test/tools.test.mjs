@@ -58,6 +58,14 @@ test("exposes the roadmap solver set to the model", () => {
   ]);
 });
 
+test("the native Blueprint inspector exposes a bounded exact connection view", () => {
+  const blueprintInspector = SOLVER_TOOLS.find((tool) => tool.name === "inspect_blueprint_layout");
+  assert.ok(blueprintInspector);
+  assert.equal(blueprintInspector.parameters.properties.maximum_connections.type, "number");
+  assert.match(blueprintInspector.description, /reciprocal conveyor\/pipe component links/i);
+  assert.match(blueprintInspector.description, /does not infer flow direction/i);
+});
+
 test("emits the flat Responses API function-tool shape", () => {
   const definitions = openAIToolDefinitions();
   assert.equal(definitions.length, SOLVER_TOOLS.length);

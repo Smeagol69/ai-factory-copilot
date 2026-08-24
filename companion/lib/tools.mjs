@@ -236,7 +236,7 @@ export const SOLVER_TOOLS = [
   {
     name: "inspect_blueprint_layout",
     description:
-      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, and costs priced against current player inventories. It names the naming-convention caveat for nonstandard modded classes. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, or comparing its structure to a proposed factory. It does not prove terrain clearance, Build Gun hologram validity, external hookups, or connection topology at a new location.",
+      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, costs priced against current player inventories, and bounded exact reciprocal conveyor/pipe component links saved inside the Blueprint. It names the naming-convention caveat for nonstandard modded classes and names unresolved or one-way component references instead of assuming a route. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, checking its internal belt/pipe topology, or comparing it to a proposed factory. It does not infer flow direction/rate, power wiring, terrain clearance, Build Gun hologram validity, or external hookups at a new location.",
     parameters: {
       type: "object",
       properties: {
@@ -247,6 +247,10 @@ export const SOLVER_TOOLS = [
         maximum_buildables: {
           type: "number",
           description: "Maximum individual transformed buildables to return, from 1 through 200. Defaults to 80; aggregate counts still cover every decoded buildable.",
+        },
+        maximum_connections: {
+          type: "number",
+          description: "Maximum individual reciprocal conveyor/pipe connection pairs to return, from 1 through 200. Defaults to 80; aggregate reciprocal, unresolved, and nonreciprocal reference counts still cover every decoded component.",
         },
       },
       required: ["blueprint_name"],
