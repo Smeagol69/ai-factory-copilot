@@ -530,6 +530,85 @@ test("native Blueprint placement auditing stays evidence-only and handles a mine
   }
 });
 
+test("Blueprint Designer miner support keeps the native node and extractor contracts intact", () => {
+  const anchorHeader = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Public/AIFactoryBlueprintResourceAnchor.h",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const anchor = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintResourceAnchor.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const hologram = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintResourceAnchorHologram.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const rco = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintResourceAnchorRCO.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const worldModule = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryGameWorldModule.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  // The node is deliberately transient: Blueprint roots carry configuration
+  // and explicit extractor identities, then recreate the node in both a
+  // Designer preview and a placed Blueprint world.  It must never become an
+  // accidental serialised map node.
+  assert.match(anchorHeader, /class .*AAIFactoryBlueprintAnchorNode.*AFGResourceNode/s);
+  assert.match(anchorHeader, /ShouldSave_Implementation\(\) const override \{ return false; \}/);
+  assert.match(anchorHeader, /TArray<TObjectPtr<AFGBuildableResourceExtractorBase>> mBoundExtractors/);
+  assert.match(anchor, /Node->SetFlags\(RF_Transient\)/);
+  assert.match(anchor, /PostSerializedFromBlueprint[\s\S]*ScheduleExactRebind\(\)/);
+  const postDeserialize = anchor.slice(
+    anchor.indexOf("void AAIFactoryBlueprintResourceAnchor::PostSerializedFromBlueprint"),
+    anchor.indexOf("void AAIFactoryBlueprintResourceAnchor::PostLoadGame_Implementation"),
+  );
+  assert.doesNotMatch(postDeserialize, /DestroyRuntimeNode\(/);
+
+  // Native miners retain their ordinary resource/occupancy checks.  The
+  // extension is deliberately narrow, and a full native disconnect prevents
+  // either of the extractors' SaveGame resource fields from keeping a
+  // transient node alive in an archive.
+  for (const miner of ["Build_MinerMk1_C", "Build_MinerMk2_C", "Build_MinerMk3_C"]) {
+    assert.match(anchor, new RegExp(miner));
+  }
+  assert.match(anchor, /mBlacklistedDesignerBuildables\.RemoveAtSwap/);
+  assert.match(anchor, /mCanBePlacedInBlueprintDesigner/);
+  assert.match(anchor, /DisconnectExtractableResource\(\)/);
+  assert.match(anchor, /Extractor->GetResourceNode\(\) == nullptr/);
+  assert.match(anchor, /PreSaveGame_Implementation[\s\S]*TemporarilyDisconnectBoundExtractorsForSerialization/);
+  assert.match(anchor, /PostSaveGame_Implementation[\s\S]*RestoreTemporarilyDisconnectedExtractors/);
+  assert.match(anchor, /SetExtractableResource\(Resource\)/);
+  assert.doesNotMatch(anchor, /mCanPlacePortableMiner\s*=\s*true/);
+  assert.doesNotMatch(anchor, /SetInsideBlueprintDesigner/);
+
+  // The anchor uses a real resource-node collision surface and a real Build
+  // Gun hologram/RPC route, never a direct world spawn from the chat command.
+  assert.match(anchor, /mBoxComponent = CreateDefaultSubobject<UBoxComponent>/);
+  assert.match(hologram, /mCanBePlacedInBlueprintDesigner = true/);
+  assert.match(hologram, /ConfigureAnchor\(mRequestedResource, mRequestedPurity/);
+  assert.match(rco, /BuildGun->GotoBuildState\(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass\(\)\)/);
+  assert.doesNotMatch(rco, /SpawnActor|Construct\(/);
+  assert.match(worldModule, /EnableVanillaMinersInBlueprintDesigner\(GetWorld\(\)\)/);
+});
+
 test("an unconfigured manufacturer stays an unknown cycle rate instead of crashing the snapshot", () => {
   const snapshot = fs.readFileSync(
     new URL(

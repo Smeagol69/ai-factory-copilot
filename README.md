@@ -185,6 +185,7 @@ captured when Send is pressed.
 /ai status
 /ai scan [radius_m]
 /ai export [radius_m|all]
+/ai anchor <resource> [impure|normal|pure]
 ```
 
 Examples:
@@ -198,6 +199,23 @@ Examples:
 ```
 
 The longer `/aifactory ask ...` syntax remains available for compatibility.
+
+### Experimental Blueprint Designer miners
+
+Stock Blueprint Designers have no resource node inside their volume, so a
+normal Miner hologram has nothing valid to attach to. The experimental
+`/ai anchor copper pure` command arms a **Blueprint Resource Anchor** in your
+normal Build Gun. Place that anchor inside a native Designer, then place a
+Miner Mk.1–Mk.3 on its visible node using the ordinary Miner hologram. The
+anchor records the exact miner relationship so it can rebuild that same node
+when the Blueprint is reopened or placed.
+
+It does not make an extractor free-form: the game still owns its normal
+resource, occupancy, cost, snapping, and construct-disqualifier checks. Pumps,
+oil/fracking extractors, modded extractors, and portable miners remain outside
+this narrow experimental path. The source compiles and has regression coverage,
+but this feature is not yet release-certified until its disposable native
+Blueprint save/reload/placement and host/client test matrix is completed.
 
 ## Saving and replaying a layout
 
@@ -233,9 +251,11 @@ What it does not replay, and says so rather than quietly dropping:
 - **Overclocking.** Nothing here can spend a Power Shard, so an overclocked
   machine rebuilds at 100%. The rate is saved for when it can.
 
-This is not a `.sbp`. A Blueprint Designer refuses extractors and caps the
-volume, which is exactly the case a saved design exists for; anything that fits
-a designer and has no miner in it is better off as a real blueprint.
+This is not a `.sbp`. The stock Blueprint Designer has no resource target for
+extractors and caps the volume, which is exactly the case a saved design exists
+for. The experimental Blueprint Resource Anchor above is the narrow native
+exception for Miner Mk.1–Mk.3; anything else that fits a designer and has no
+miner in it is better off as a real blueprint.
 
 ### The library page
 

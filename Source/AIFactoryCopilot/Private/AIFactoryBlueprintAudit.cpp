@@ -243,7 +243,7 @@ TSharedRef<FJsonObject> AIFactoryBlueprintAudit::Capture(
         // Totals remain complete even when the detailed JSON is capped. Build
         // one temporary record to classify every extractor, then retain only a
         // deterministic prefix for the model and UI.
-        const TSharedRef<FJsonObject> Detail = MakeShared<FJsonObject>();
+        TSharedRef<FJsonObject> Detail = MakeShared<FJsonObject>();
         AIFactoryBlueprintAuditSetExtractorDetail(
             Detail,
             Extractor,

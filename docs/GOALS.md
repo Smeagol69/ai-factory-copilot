@@ -253,6 +253,40 @@ exports, imports, costs, or dismantles anything. A disposable real-miner
 Blueprint placement still needs to pass this audit after a packaged live test
 before the project can claim that miner Blueprint placement works.
 
+### Experimental native Designer miner anchor (2026-08-23)
+
+The missing Designer-side resource target now has a narrow source-level
+extension: **Blueprint Resource Anchor**. It is not a generic bypass for
+extractors.
+
+- The anchor is a normal `AFGBuildable` root, so the Designer, native archive,
+  proxy ownership, costs, dismantle path, and final Build Gun placement remain
+  Satisfactory-owned.
+- It creates a transient, real `AFGResourceNode` child configured with one
+  explicitly chosen solid resource and purity. The native Miner Mk.1–Mk.3
+  hologram still has to hit that node, satisfy its ordinary resource-form,
+  occupancy, cost, and construct-disqualifier checks, then bind itself through
+  Satisfactory's normal extractor setter.
+- The persisted Blueprint holds configuration plus the exact anchor-to-miner
+  object relationships. Before either native Blueprint archive writing or a
+  normal world save it uses the engine's full
+  `DisconnectExtractableResource()` path and verifies both the modern and
+  legacy pointers read back null before recording a temporary restoration; it
+  restores the live Designer binding afterward.
+  On loading into a Designer or into the placed world, it recreates the
+  transient node and rebinds only those recorded miners—never a nearest-node
+  or nearest-miner guess.
+- The Designer opt-in is limited to `Build_MinerMk1_C`, `Build_MinerMk2_C`, and
+  `Build_MinerMk3_C`. It does not enable portable miners, pumps, oil extractors,
+  fracking, or modded extractor classes.
+
+The implementation has an exact CL 502094 Shipping compile and source-contract
+coverage. It is deliberately **not yet called working**: the required packaged
+disposable-save proof is Designer placement → Miner snap → archive write →
+Designer reload → native Blueprint placement → extractor binding audit →
+save/reload → dismantle, plus a host/client Designer check. The game must be
+closed before the new DLL can be packaged and deployed for that test.
+
 ### Creative world-editor nodes
 
 "Place a node anywhere" is possible safely only as **mod-owned creative

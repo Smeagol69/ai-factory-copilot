@@ -1,4 +1,6 @@
 #include "AIFactoryChatCommand.h"
+#include "AIFactoryBlueprintResourceAnchor.h"
+#include "AIFactoryBlueprintResourceAnchorPlacement.h"
 #include "AIFactoryVision.h"
 #include "AIFactoryNodeEdit.h"
 #include "Resources/FGResourceNodeBase.h"
@@ -171,6 +173,80 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
         return EExecutionStatus::COMPLETED;
     }
 
+    if (Subcommand == TEXT("anchor") || Subcommand == TEXT("blueprintanchor"))
+    {
+        AFGPlayerController* const AnchorPlayer = Sender->GetPlayer();
+        UWorld* const AnchorWorld = IsValid(AnchorPlayer) ? AnchorPlayer->GetWorld() : nullptr;
+        if (!IsValid(AnchorWorld))
+        {
+            Sender->SendChatMessage(TEXT("No world."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        const TMap<FString, TSubclassOf<UFGResourceDescriptor>> Known =
+            AIFactoryNodeEdit::KnownResources(AnchorWorld);
+        if (!Arguments.IsValidIndex(1))
+        {
+            TArray<FString> Names;
+            for (const TPair<FString, TSubclassOf<UFGResourceDescriptor>>& Entry : Known)
+            {
+                Names.Add(Entry.Key);
+            }
+            Names.Sort();
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("Usage: /ai anchor <resource> [impure|normal|pure]. This arms a native Blueprint Resource Anchor in your Build Gun. Known solid resources: %s"),
+                *FString::Join(Names, TEXT(", "))));
+            return EExecutionStatus::COMPLETED;
+        }
+
+        const TSubclassOf<UFGResourceDescriptor>* const Resource =
+            Known.Find(Arguments[1].ToLower());
+        if (Resource == nullptr)
+        {
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("No known map resource called '%s'. Run /ai anchor with no arguments to list the exact available choices."),
+                *Arguments[1]));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        EResourcePurity Purity = RP_Normal;
+        if (Arguments.IsValidIndex(2))
+        {
+            const FString WantedPurity = Arguments[2].ToLower();
+            if (WantedPurity == TEXT("impure") || WantedPurity == TEXT("inpure"))
+            {
+                Purity = RP_Inpure;
+            }
+            else if (WantedPurity == TEXT("normal"))
+            {
+                Purity = RP_Normal;
+            }
+            else if (WantedPurity == TEXT("pure"))
+            {
+                Purity = RP_Pure;
+            }
+            else
+            {
+                Sender->SendChatMessage(TEXT("Purity must be impure, normal, or pure."));
+                return EExecutionStatus::BAD_ARGUMENTS;
+            }
+        }
+
+        FString Reason;
+        if (!AIFactoryBlueprintResourceAnchorPlacement::ArmForPlayer(
+                AnchorPlayer, *Resource, Purity, Reason))
+        {
+            Sender->SendChatMessage(FString::Printf(TEXT("Blueprint Resource Anchor was not armed: %s."), *Reason));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        Sender->SendChatMessage(FString::Printf(
+            TEXT("Blueprint Resource Anchor armed for %s (%s). Place it inside the native Blueprint Designer, then place a Miner Mk.1–Mk.3 on its node. The Miner still uses Satisfactory's normal snap, occupancy, and resource checks."),
+            *UFGItemDescriptor::GetItemName(*Resource).ToString(),
+            *StaticEnum<EResourcePurity>()->GetNameStringByValue(static_cast<int64>(Purity))));
+        return EExecutionStatus::COMPLETED;
+    }
+
     if (Subcommand == TEXT("terrain"))
     {
         // Defaults chosen to cover a cove or a build site in one go without
@@ -323,6 +399,6 @@ void AAIFactoryChatCommand::SendHelp(UCommandSender* Sender)
     Sender->SendChatMessage(TEXT("/ai <question> - chat using a fresh nearby snapshot, exact position, and current crosshair focus"));
     Sender->SendChatMessage(TEXT("/ai all <question> - chat using the whole-world live snapshot"));
     Sender->SendChatMessage(TEXT("/ai reset - clear this save/player conversation"));
-    Sender->SendChatMessage(TEXT("/ai status | scan | terrain [radius_m] [step_m] | look | node [resource] | export [radius_m|all]"));
+    Sender->SendChatMessage(TEXT("/ai status | scan | terrain [radius_m] [step_m] | look | node [resource] | anchor <resource> [impure|normal|pure] | export [radius_m|all]"));
     Sender->SendChatMessage(TEXT("Examples: /ai what should I do here?  /ai is this machine connected correctly?"));
 }

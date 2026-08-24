@@ -5,6 +5,16 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added the experimental **Blueprint Resource Anchor** workflow for native
+  Blueprint Designer miners. `/ai anchor <resource> [impure|normal|pure]`
+  arms a normal Build Gun anchor with a real transient resource node; Miner
+  Mk.1–Mk.3 retain their own normal snap, resource, occupancy, cost, and
+  construction validation. The archive records explicit bindings rather than
+  guessing nearest nodes. It is compile- and contract-validated but remains
+  gated on a packaged disposable-save/host-client proof before being called a
+  working release feature.
+- Repaired a const-reference compilation error in the read-only native
+  Blueprint placement auditor.
 - Added a bounded, read-only runtime Blueprint-placement audit. A player can
   ask whether the native Blueprint instance they are aiming at has finished
   replication and whether its extractor members actually bound to resources.

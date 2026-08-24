@@ -14,5 +14,6 @@ class AIFACTORYCOPILOT_API UAIFactoryGameWorldModule final : public UGameWorldMo
 
 public:
     UAIFactoryGameWorldModule();
+    virtual void DispatchLifecycleEvent(ELifecyclePhase Phase) override;
 };
 
