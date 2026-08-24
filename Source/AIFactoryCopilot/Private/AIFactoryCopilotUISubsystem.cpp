@@ -454,6 +454,14 @@ void UAIFactoryCopilotUISubsystem::HidePanel()
         }
         PlayerController->bShowMouseCursor = bPreviousShowMouseCursor;
         PlayerController->SetInputMode(FInputModeGameOnly());
+        // ShowPanel gives every Slate user the text editor so no game hotkeys
+        // leak through while someone is typing. FInputModeGameOnly restores
+        // only the local player's deferred Slate operation, so explicitly put
+        // every user back on the game viewport as the symmetric close step.
+        if (FSlateApplication::IsInitialized())
+        {
+            FSlateApplication::Get().SetAllUserFocusToGameViewport(EFocusCause::SetDirectly);
+        }
     }
     else
     {
@@ -476,13 +484,50 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
         return;
     }
 
-    // A slash command typed here cannot work: this box sends a question to the
-    // assistant, and chat commands are run by the game's own console. Answering
-    // locally costs nothing and catches the mistake where it happens -- the
-    // alternative is a model politely answering something adjacent while the
-    // command never runs, which is indistinguishable from a broken feature.
+    // The documented creative-node placement command is intentionally useful
+    // from the Copilot panel: it is still sent through SML's reliable Server
+    // RPC, the same route as native chat, so every server/admin/write/unlock
+    // gate and the normal Build Gun hologram remain authoritative. Do not turn
+    // this into a general slash-command pass-through: other mods may expose
+    // unrelated or destructive commands that this UI must never invoke.
     if (Question.StartsWith(TEXT("/")))
     {
+        const FString CommandLine = Question.RightChop(1).TrimStartAndEnd();
+        TArray<FString> CommandTokens;
+        CommandLine.ParseIntoArrayWS(CommandTokens);
+        const bool bIsCreativeNodePlacement =
+            CommandTokens.Num() >= 3 &&
+            CommandTokens[0].Equals(TEXT("ai"), ESearchCase::IgnoreCase) &&
+            CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
+            CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase);
+        if (bIsCreativeNodePlacement)
+        {
+            AFGPlayerController* const PlayerController = GetLocalPlayerController();
+            USMLRemoteCallObject* const RemoteCallObject = IsValid(PlayerController)
+                ? Cast<USMLRemoteCallObject>(
+                    PlayerController->GetRemoteCallObjectOfClass(USMLRemoteCallObject::StaticClass()))
+                : nullptr;
+            if (!IsValid(RemoteCallObject))
+            {
+                if (RequestStatusText.IsValid())
+                {
+                    RequestStatusText->SetText(FText::FromString(
+                        TEXT("The native chat bridge is not ready yet. Load a save and try again.")));
+                }
+                return;
+            }
+
+            InputBox->SetText(FText::GetEmpty());
+            AppendTranscript(TEXT("YOU"), Question);
+            RemoteCallObject->HandleChatCommand(CommandLine);
+            HidePanel();
+            return;
+        }
+
+        // Other slash commands still belong to the native game chat. Answering
+        // locally costs nothing and catches the mistake where it happens -- the
+        // alternative is a model politely answering something adjacent while the
+        // command never runs, which is indistinguishable from a broken feature.
         InputBox->SetText(FText::GetEmpty());
         AppendTranscript(TEXT("YOU"), Question);
         ShowCommandHelp(true);
@@ -2227,8 +2272,9 @@ void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
     if (bBecauseSlashWasTyped)
     {
         Text += TEXT(
-            "Chat commands do not run from this box — press **Enter** for the game's "
-            "chat and type it there. The full list:\n\n");
+            "Most chat commands do not run from this box — press **Enter** for the "
+            "game's chat and type them there. The deliberate exception is `/ai node place …`, "
+            "which this panel forwards through SML's server command path. The full list:\n\n");
     }
 
     Text += TEXT(
@@ -2248,6 +2294,10 @@ void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
 
         "**Changing the world**\n"
         "`/ai node` — list every resource that exists on this map.\n"
+        "`/ai node place <resource> [impure|normal|pure]` — arm the normal Build Gun "
+        "hologram for a new mod-owned resource node. You may type this exact `/ai` form "
+        "in this panel; the server still validates and arms it, and the game chat shows "
+        "the result.\n"
         "`/ai node <resource>` — make the node under your crosshair yield that instead. "
         "Aim at a node, not a deposit: a node's prompt names a purity, like "
         "\"Limestone (Normal)\".\n"

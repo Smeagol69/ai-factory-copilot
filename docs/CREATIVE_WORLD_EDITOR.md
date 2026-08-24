@@ -8,7 +8,8 @@ deletes a vanilla map node.
 
 ## Player workflow
 
-In Satisfactory chat, use:
+In native Satisfactory chat, or directly in the Copilot panel opened with
+Insert, use:
 
 ```
 /ai node place copper ore pure
@@ -22,6 +23,12 @@ descriptor, then asks the requesting client's normal Build Gun to enter the
 Creative Resource Node recipe. The player still sees Satisfactory's own
 green/red hologram and must confirm placement normally. A placement only occurs
 through the Build Gun's normal server construction route.
+
+The Insert panel forwards only this exact `/ai node place …` form through SML's
+existing reliable server chat-command RPC, then closes so the Build Gun can take
+over. It does not execute commands locally, forward any other slash command, or
+claim that placement succeeded; Satisfactory's native chat reports the server's
+actual arming result.
 
 The existing `/ai node <resource>` command uses the same world-editor
 write/admin gate before it changes either a vanilla node override or a
