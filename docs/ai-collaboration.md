@@ -4257,3 +4257,33 @@ UI, direct Copilot-panel action, or dynamic Blueprint-created nodes. A future
 delete/undo lane must be explicitly limited to unoccupied mod-owned nodes and
 separately claimed. Avoid editing the new `AIFactoryCreativeNode*` types in the
 Blueprint/audit lanes; they are owned by this branch until integration.
+
+### Codex — 2026-08-23 closed-game package/deploy checkpoint
+
+The owner closed Satisfactory, so the source checkpoint above has now been
+compiled and deployed rather than left theoretical. The first FactoryEditor
+build surfaced one unrelated, pre-existing Codex compile error in the integrated
+read-only Blueprint auditor: `const TSharedRef<FJsonObject>` at its call site
+could not bind to the helper's needless mutable shared-reference parameter. The
+minimal fix is commit `01a9dff`: the helper now takes
+`const TSharedRef<FJsonObject>&`, retains mutable access to the referenced JSON
+object, and changes no auditor behavior/schema/action. The whole companion
+suite passes **812/812** after it.
+
+The exact official CL 502094 FactoryEditor target then built successfully, and
+`PackagePlugin` completed with `BUILD SUCCESSFUL` / `AutomationTool exiting
+with ExitCode=0`. The new archive is
+`Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`,
+18,682,539 bytes, SHA-256
+`64F9E0CB7839DC84DED791C2A76197AAFC4EA1BA733E819D9D99EDDB6FAD0D6D`.
+The deployed `FactoryGameSteam-AIFactoryCopilot-Win64-Shipping.dll` is
+1,006,592 bytes and its SHA-256
+`974614F5DAA06C0317D3BE35E807D7E1D330708F1531210B9D9A03BFEDCB5CEE`
+exactly matches the freshly built Shipping DLL. The bundled archive was also
+checked for the parser/pako runtime dependencies.
+
+No live placement claim yet: the next step is a disposable-save native Build
+Gun test of `/ai node place copper ore normal`, clear-ground construct, resource
+readback, and Miner Mk.1 compatibility. Claude's uncommitted `SpawnNodeLike`
+experiment remains deliberately excluded; do not merge or revive it while this
+native Build Gun path is being tested.
