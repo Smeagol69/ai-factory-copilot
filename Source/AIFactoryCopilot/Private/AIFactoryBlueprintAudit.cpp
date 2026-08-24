@@ -49,7 +49,7 @@ namespace
     }
 
     void AIFactoryBlueprintAuditSetExtractorDetail(
-        TSharedRef<FJsonObject>& Detail,
+        const TSharedRef<FJsonObject>& Detail,
         const AFGBuildableResourceExtractorBase* Extractor,
         const bool bProxyReady,
         const bool bProxyHasAuthority,
