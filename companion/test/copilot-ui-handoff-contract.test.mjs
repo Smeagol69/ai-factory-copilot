@@ -85,3 +85,24 @@ test("the Creative Node picker only generates the existing server-validated plac
   assert.match(arm, /bFocusInputOnNextTick = false/);
   assert.doesNotMatch(arm, /SpawnActor|SetActorLocation|ConfigureCreativeNode|ClientArmCreativeResourceNode/);
 });
+
+test("native Blueprint export can adopt dismantle marks without dismantling", () => {
+  const section = functionSlice(
+    ui,
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()",
+    "void UAIFactoryCopilotUISubsystem::RefreshSelectionCost()",
+  );
+  const adopt = ui.slice(ui.indexOf("void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()"));
+  assert.ok(adopt.length > 0, "SelectDismantleMarks must remain in the source");
+
+  assert.match(section, /Use dismantle marks/);
+  assert.match(section, /SelectDismantleMarks\(\)/);
+  assert.match(adopt, /GetPendingDismantleActors\(\)/);
+  assert.match(adopt, /GetSelectedActor\(\)/);
+  assert.match(adopt, /ClearSelectionPreview\(\)/);
+  assert.match(adopt, /RefreshSelectionCost\(\)/);
+  assert.match(adopt, /AIFactoryOverlay::DrawSelection/);
+  assert.match(adopt, /GetNumPendingDismantleActors\(true\)/);
+  assert.match(adopt, /SelectionCategoryEnabled\[Category\]/);
+  assert.doesNotMatch(adopt, /DismantleCurrentBuildables|Server_DismantleActors/);
+});

@@ -17,10 +17,16 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   controls. Each produces only that exact documented command through SML's
   native server chat route, then returns focus to the Build Gun; it does not
   bypass the server validation or construction path. Source contracts, exact
-  FactoryGame CL 502094 headers, **836 companion tests**, Editor and Shipping
+  FactoryGame CL 502094 headers, **837 companion tests**, Editor and Shipping
   builds, and UAT archive/game deployment pass. The feature remains explicitly
   gated on a
   disposable-save and host/client live matrix before it is called proven.
+- Added the native **Use dismantle marks** capture workflow. Mark a megabase
+  with Satisfactory's own mass-dismantle selector, adopt the exact actor set in
+  the Copilot panel, and save one native `.sbp`; nothing is dismantled and the
+  existing game serializer/Build Gun path remains in charge. Category filters
+  are reflected in the preview, and any structural lightweight pieces the
+  actor-only API cannot expose are called out instead of silently claimed.
 - Extended native `.sbp` structural inspection with bounded, exact **physical
   power-wire topology**. The companion now inverts the game-saved `mWires`
   membership on native power-connection components, reporting verified wire
