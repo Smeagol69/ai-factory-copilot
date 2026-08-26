@@ -1626,6 +1626,10 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
         .AutoHeight()
         [
             SNew(SHorizontalBox)
+            .Visibility_Lambda([this]()
+            {
+                return bShowBoxSelect ? EVisibility::Visible : EVisibility::Collapsed;
+            })
                 + SHorizontalBox::Slot()
                 .AutoWidth()
                 .VAlign(VAlign_Center)
@@ -1745,6 +1749,10 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
         .Padding(0.0f, 4.0f, 0.0f, 0.0f)
         [
             SNew(SHorizontalBox)
+            .Visibility_Lambda([this]()
+            {
+                return bShowBoxSelect ? EVisibility::Visible : EVisibility::Collapsed;
+            })
             + SHorizontalBox::Slot()
             .AutoWidth()
             .VAlign(VAlign_Center)
@@ -1790,6 +1798,34 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     // tedious on a large base.
                     bSelectionAnchored = false;
                     RefreshSelectionPreview();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::TextMuted)
+                .Text_Lambda([this]()
+                {
+                    return FText::FromString(bShowBoxSelect
+                        ? TEXT("Hide box scan")
+                        : TEXT("Box scan"));
+                })
+                .ToolTipText(FText::FromString(TEXT(
+                    "The area scan: drag a box and take everything inside it. Best on an "
+                    "empty world where you have just built something and want all of it.")))
+                .OnClicked_Lambda([this]()
+                {
+                    bShowBoxSelect = !bShowBoxSelect;
+                    // Opening it should show what the box already holds rather than
+                    // three sliders above an empty count line.
+                    if (bShowBoxSelect)
+                    {
+                        RefreshSelectionPreview();
+                    }
                     return FReply::Handled();
                 })
             ]

@@ -127,6 +127,15 @@ private:
      * factory where boxes inevitably clip a neighbour.
      */
     bool bSelectionStrictFit = false;
+    /**
+     * Whether the box-scan rows are showing.
+     *
+     * Off by default. The box is the right tool for an empty world -- build,
+     * drag a box round it, save -- and the wrong first thing to offer on a map
+     * that already has a base, where the dismantle tool marks what you mean far
+     * faster. Kept in full, one click away.
+     */
+    bool bShowBoxSelect = false;
     /** What the selection would cost to rebuild, summed from real recipes. */
     TSharedPtr<class STextBlock> SelectionCostText;
     /** Typed entry beside each slider: a slider cannot hit exactly 48 m. */
