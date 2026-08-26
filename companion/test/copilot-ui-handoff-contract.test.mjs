@@ -97,6 +97,10 @@ test("native Blueprint export can adopt dismantle marks without dismantling", ()
 
   assert.match(section, /Use dismantle marks/);
   assert.match(section, /SelectDismantleMarks\(\)/);
+  assert.match(section, /bShowBoxSelect/);
+  assert.match(section, /Hide box scan/);
+  assert.match(section, /Box scan/);
+  assert.match(section, /Visibility_Lambda/);
   assert.match(adopt, /GetPendingDismantleActors\(\)/);
   assert.match(adopt, /GetSelectedActor\(\)/);
   assert.match(adopt, /ClearSelectionPreview\(\)/);
