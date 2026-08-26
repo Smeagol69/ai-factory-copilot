@@ -906,7 +906,28 @@ test("native-blueprint inspection reports reciprocal belt and pipe evidence with
         self_component_reference_count: 0,
         connections_returned: 3,
         connections_truncated: 0,
-        power_wire_property_records_not_interpreted: 2,
+      },
+      power_wire_topology: {
+        status: "decoded",
+        native_power_connection_component_count: 4,
+        saved_power_wire_reference_count: 6,
+        verified_power_wire_count: 3,
+        malformed_power_connection_component_record_count: 0,
+        ambiguous_power_connection_component_record_count: 0,
+        malformed_m_wires_property_count: 0,
+        malformed_m_wires_reference_count: 0,
+        duplicate_m_wires_reference_count: 0,
+        unresolved_power_wire_reference_count: 0,
+        ambiguous_power_wire_reference_count: 0,
+        unsupported_power_wire_target_count: 0,
+        duplicate_power_wire_entity_name_count: 0,
+        duplicate_power_wire_endpoint_reference_count: 0,
+        incomplete_power_wire_endpoint_count: 0,
+        overconnected_power_wire_endpoint_count: 0,
+        unreferenced_power_wire_entity_count: 0,
+        unsupported_m_wires_property_record_count: 0,
+        power_wires_returned: 3,
+        power_wires_truncated: 0,
       },
       source: "decoded_from_saved_native_blueprint",
       certainty: "authoritative_for_decoded_entities",
@@ -916,7 +937,10 @@ test("native-blueprint inspection reports reciprocal belt and pipe evidence with
   assert.match(answer.reply, /3.*reciprocal internal conveyor\/pipe connection pairs/i);
   assert.match(answer.reply, /2 conveyor, 1 pipe/i);
   assert.match(answer.reply, /all.*6.*resolved reciprocally/i);
-  assert.match(answer.reply, /2 saved power-wire records were deliberately not decoded/i);
+  assert.match(answer.reply, /3.*verified internal native power-wire edges/i);
+  assert.match(answer.reply, /all.*6.*saved mWires references resolved/i);
+  assert.match(answer.reply, /hidden circuit connections are deliberately excluded/i);
+  assert.match(answer.reply, /electricity direction, load, capacity.*not inferred/i);
   assert.doesNotMatch(answer.reply, /flow direction.*proved/i);
 });
 

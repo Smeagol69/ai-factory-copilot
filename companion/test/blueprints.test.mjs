@@ -8,6 +8,7 @@ import { buildGraph } from "../lib/graph.mjs";
 import {
   costAgainstInventory,
   decodeBlueprintConnectionTopology,
+  decodeBlueprintPowerWireTopology,
   inspectBlueprintStructure,
   parseBlueprintConfig,
   parseBlueprintHeader,
@@ -20,6 +21,8 @@ import { buildFactorySnapshot } from "./fixtures/factory.mjs";
 const IRON_PLATE = "/Game/FactoryGame/Resource/Parts/IronPlate/Desc_IronPlate.Desc_IronPlate_C";
 const CABLE = "/Game/FactoryGame/Resource/Parts/Cable/Desc_Cable.Desc_Cable_C";
 const SMELTER_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_SmelterMk1.Recipe_SmelterMk1_C";
+const POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
+const POWER_LINE_CLASS = "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C";
 
 function int32(value) {
   const bytes = Buffer.alloc(4);
@@ -118,6 +121,34 @@ function nativeConnectionComponent(typePath, instanceName, parentEntityName, con
     value: { levelName: "Persistent_Level", pathName: connectedComponentName },
   };
   return component;
+}
+
+function savedPowerWire(instanceName) {
+  return {
+    type: "SaveEntity",
+    typePath: POWER_LINE_CLASS,
+    instanceName,
+  };
+}
+
+function savedPowerConnection(instanceName, parentEntityName, wireNames, property = null) {
+  return {
+    type: "SaveComponent",
+    typePath: POWER_CONNECTION_COMPONENT,
+    instanceName,
+    parentEntityName,
+    properties: {
+      mWires: property ?? {
+        type: "ArrayProperty",
+        name: "mWires",
+        propertyTagType: {
+          name: "ArrayProperty",
+          children: [{ name: "ObjectProperty", children: [] }],
+        },
+        values: wireNames.map((pathName) => ({ levelName: "Persistent_Level", pathName })),
+      },
+    },
+  };
 }
 
 /** Creates a real compressed .sbp through the same pinned parser we read with. */
@@ -274,6 +305,8 @@ test("reads exact native buildable transforms through the pinned read-only parse
   assert.match(result.buildables[0].built_with_recipe.recipe_class, /Recipe_ConstructorMk1/);
   assert.equal(result.connection_topology.status, "decoded");
   assert.equal(result.connection_topology.reciprocal_connection_pair_count, 0);
+  assert.equal(result.power_wire_topology.status, "decoded");
+  assert.equal(result.power_wire_topology.verified_power_wire_count, 0);
   assert.match(result.transform_coverage_caveat, /hologram validity/i);
 });
 
@@ -362,6 +395,103 @@ test("connection topology caps returned pairs while preserving every aggregate c
   assert.equal(topology.connections_truncated, 2);
 });
 
+test("power-wire topology inverts exact native mWires membership into bounded physical edges", () => {
+  const wireA = "Persistent_Level:Wire_A";
+  const wireB = "Persistent_Level:Wire_B";
+  const topology = decodeBlueprintPowerWireTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_A.Build_A_C", instanceName: "A" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_B.Build_B_C", instanceName: "B" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_C.Build_C_C", instanceName: "C" },
+    savedPowerWire(wireA),
+    savedPowerWire(wireB),
+    savedPowerConnection("A.Power", "A", [wireA, wireB]),
+    savedPowerConnection("B.Power", "B", [wireA]),
+    savedPowerConnection("C.Power", "C", [wireB]),
+  ], { maximumPowerWires: 1 });
+
+  assert.equal(topology.native_power_connection_component_count, 3);
+  assert.equal(topology.power_wire_entity_count, 2);
+  assert.equal(topology.saved_power_wire_reference_count, 4);
+  assert.equal(topology.verified_power_wire_count, 2);
+  assert.deepEqual(topology.endpoint_owner_resolution, { both: 2, one: 0, neither: 0 });
+  assert.equal(topology.power_wires_returned, 1);
+  assert.equal(topology.power_wires_truncated, 1);
+  assert.equal(topology.power_wires[0].power_wire_instance_name, wireA);
+  assert.equal(topology.power_wires[0].endpoint_a.owner_entity_instance_name, "A");
+  assert.equal(topology.power_wires[0].endpoint_b.owner_entity_instance_name, "B");
+  assert.equal(topology.electricity_direction, "not_inferred_from_saved_power_wire_edges");
+  assert.equal(topology.voltage_load_and_capacity, "not_inferred_from_saved_power_wire_edges");
+  assert.equal(topology.certainty, "authoritative_for_verified_native_power_wire_edges");
+});
+
+test("power-wire topology keeps malformed, unresolved, unsupported, duplicate, and invalid-edge records explicit", () => {
+  const complete = "Persistent_Level:Wire_Complete";
+  const incomplete = "Persistent_Level:Wire_Incomplete";
+  const overconnected = "Persistent_Level:Wire_Overconnected";
+  const duplicate = "Persistent_Level:Wire_Duplicate";
+  const unresolved = "Persistent_Level:Wire_Missing";
+  const unsupported = "Persistent_Level:Not_A_Power_Wire";
+  const malformedProperty = {
+    type: "ArrayProperty",
+    name: "mWires",
+    propertyTagType: { name: "ArrayProperty", children: [] },
+    values: [],
+  };
+  const topology = decodeBlueprintPowerWireTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_A.Build_A_C", instanceName: "A" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_B.Build_B_C", instanceName: "B" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_C.Build_C_C", instanceName: "C" },
+    savedPowerWire(complete),
+    savedPowerWire(incomplete),
+    savedPowerWire(overconnected),
+    savedPowerWire(duplicate),
+    savedPowerWire("Persistent_Level:Wire_Unreferenced"),
+    { type: "SaveEntity", typePath: POWER_LINE_CLASS, instanceName: "" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_NotWire.Build_NotWire_C", instanceName: unsupported },
+    { type: "SaveEntity", typePath: POWER_LINE_CLASS, instanceName: "Persistent_Level:Wire_Ambiguous" },
+    { type: "SaveEntity", typePath: POWER_LINE_CLASS, instanceName: "Persistent_Level:Wire_Ambiguous" },
+    savedPowerConnection("A.Power", "A", [complete, incomplete, overconnected, duplicate, duplicate, unresolved, unsupported, "Persistent_Level:Wire_Ambiguous"]),
+    savedPowerConnection("B.Power", "B", [complete, overconnected, duplicate]),
+    savedPowerConnection("C.Power", "C", [overconnected]),
+    savedPowerConnection("Malformed.Power", "A", [], malformedProperty),
+  ]);
+
+  assert.equal(topology.verified_power_wire_count, 1);
+  assert.equal(topology.malformed_power_wire_entity_record_count, 1);
+  assert.equal(topology.malformed_m_wires_property_count, 1);
+  assert.equal(topology.duplicate_m_wires_reference_count, 1);
+  assert.equal(topology.unresolved_power_wire_reference_count, 1);
+  assert.equal(topology.unsupported_power_wire_target_count, 1);
+  assert.equal(topology.ambiguous_power_wire_reference_count, 1);
+  assert.equal(topology.duplicate_power_wire_endpoint_reference_count, 1);
+  assert.equal(topology.incomplete_power_wire_endpoint_count, 1);
+  assert.equal(topology.overconnected_power_wire_endpoint_count, 1);
+  assert.equal(topology.unreferenced_power_wire_entity_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_power_wire_references");
+});
+
+test("power-wire topology downgrades malformed component identity and missing endpoint ownership", () => {
+  const ownerless = "Persistent_Level:Wire_Ownerless";
+  const malformedComponent = "Persistent_Level:Wire_MalformedComponent";
+  const topology = decodeBlueprintPowerWireTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_A.Build_A_C", instanceName: "A" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_B.Build_B_C", instanceName: "B" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_C.Build_C_C", instanceName: "C" },
+    savedPowerWire(ownerless),
+    savedPowerWire(malformedComponent),
+    savedPowerConnection("A.Power", " ", [ownerless]),
+    savedPowerConnection("B.Power", "B", [ownerless]),
+    savedPowerConnection(" ", "A", [malformedComponent]),
+    savedPowerConnection("C.Power", "C", [malformedComponent]),
+  ]);
+
+  assert.equal(topology.verified_power_wire_count, 1);
+  assert.equal(topology.unresolved_power_wire_endpoint_owner_count, 1);
+  assert.equal(topology.malformed_power_connection_component_record_count, 1);
+  assert.equal(topology.incomplete_power_wire_endpoint_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_power_wire_references");
+});
+
 test("structural inspection preserves an unreadable file as unknown", () => {
   const result = inspectBlueprintStructure("Broken", Buffer.alloc(8), Buffer.alloc(8));
   assert.equal(result.available, false);
@@ -379,11 +509,15 @@ test("structural inspection requires the matching config file", () => {
 test("the structural solver prices a bounded native layout against the live inventory", () => {
   const { sbp, sbpcfg } = makeNativeBlueprint();
   const graph = buildGraph(buildFactorySnapshot());
+  let receivedOptions = null;
   const result = solveBlueprintLayout(
     graph,
-    { blueprint_name: "Native test", maximum_buildables: 1 },
+    { blueprint_name: "Native test", maximum_buildables: 1, maximum_power_wires: 3 },
     {
-      inspectBlueprint: (name, options) => inspectBlueprintStructure(name, sbp, sbpcfg, options),
+      inspectBlueprint: (name, options) => {
+        receivedOptions = options;
+        return inspectBlueprintStructure(name, sbp, sbpcfg, options);
+      },
     },
   );
   assert.equal(result.solver, "blueprint_layout");
@@ -391,6 +525,7 @@ test("the structural solver prices a bounded native layout against the live inve
   assert.equal(result.buildables_returned, 1);
   assert.equal(result.ingredients[0].item_name, "IronPlate");
   assert.equal(result.ingredients[0].shortfall, 0);
+  assert.equal(receivedOptions.maximumPowerWires, 3);
 });
 
 test("the configured reader stays inside its library and resolves one exact native blueprint", () => {

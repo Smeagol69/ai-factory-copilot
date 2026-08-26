@@ -60,7 +60,7 @@ absence in the model's view is never treated as an absence in the world.
 | `get_build_cost` | construction cost against captured player inventories |
 | `plan_production` | designs a line for a target item and rate, against this base |
 | `list_blueprints` | saved blueprints: dimensions, cost, contents, and whether you can afford them |
-| `inspect_blueprint_layout` | read-only decoded native `Build_*` classes, bounded saved transforms, recipe evidence, and verified internal conveyor/pipe component links |
+| `inspect_blueprint_layout` | read-only decoded native `Build_*` classes, bounded saved transforms, recipe evidence, verified internal conveyor/pipe links, and verified physical native power-wire edges |
 | `find_best_site` | ranks where to build, scoring resource access around every candidate |
 | `get_unlock_status` | rendered HUD, objective, active milestone, game phase, recipe availability, schematics, and tech tier |
 | `design_factory_layout` | a placeable layout fitted to this base, with exact coordinates |
@@ -80,14 +80,18 @@ because a miner cannot be placed on either.
 
 Saved blueprints can be inspected without placing them: ask *"inspect blueprint
 <name>"* to decode native saved `Build_*` entities, their classes, a bounded
-set of exact transforms, and bounded exact reciprocal conveyor/pipe component
-links saved inside the Blueprint. The aggregate link counts still cover every
-decoded supported connection record; malformed, unresolved, one-way, and
-unsupported references remain explicit instead of becoming a guessed route.
+set of exact transforms, bounded exact reciprocal conveyor/pipe component
+links, and bounded exact physical native power-wire endpoint pairs saved inside
+the Blueprint. The aggregate link and wire counts still cover every decoded
+supported record; malformed, unresolved, one-way, incomplete, and unsupported
+references remain explicit instead of becoming a guessed route.
+Only physical `mWires` endpoints are decoded; saved `mHiddenConnections` are
+logical circuit relationships and deliberately do not become pretend wires.
 When two saved blueprints share a display name, the blueprint list prints a
 `blueprint_reference`; use that value instead of making the copilot guess. A
-decoded layout does not infer item/fluid direction or rate, power wiring,
-destination terrain, Build Gun hologram validity, or external connections.
+decoded layout does not infer item/fluid direction or rate, electricity
+direction/load/capacity, destination terrain, Build Gun hologram validity, or
+external connections.
 
 Terrain is measured, not guessed: downward line traces across each footprint give
 slope and elevation range, the game's own water volumes give water, a lifted box

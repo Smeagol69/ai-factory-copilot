@@ -558,10 +558,51 @@ function formatBlueprintLayout(result) {
     if (truncated > 0) {
       topologyText += ` I returned ${returned} individual connection pair${returned === 1 ? "" : "s"} and left ${truncated} out of this compact reply.`;
     }
-    const wireRecords = count(topology.power_wire_property_records_not_interpreted) ?? 0;
-    topologyText += wireRecords > 0
-      ? ` ${wireRecords} saved power-wire record${wireRecords === 1 ? " was" : "s were"} deliberately not decoded.`
-      : " Flow direction, rate, power wiring, and external hookups are not inferred.";
+    topologyText += " Item/fluid flow direction, rate, and external conveyor/pipe hookups are not inferred.";
+  }
+  const powerWireTopology = result.power_wire_topology;
+  let powerWireText = " Internal native power-wire topology was not decoded.";
+  if (powerWireTopology?.status === "decoded") {
+    const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+    const nativeComponents = count(powerWireTopology.native_power_connection_component_count) ?? 0;
+    const savedReferences = count(powerWireTopology.saved_power_wire_reference_count) ?? 0;
+    const verifiedWires = count(powerWireTopology.verified_power_wire_count) ?? 0;
+    const incomplete = [
+      powerWireTopology.malformed_power_wire_entity_record_count,
+      powerWireTopology.malformed_power_connection_component_record_count,
+      powerWireTopology.ambiguous_power_connection_component_record_count,
+      powerWireTopology.malformed_m_wires_property_count,
+      powerWireTopology.malformed_m_wires_reference_count,
+      powerWireTopology.duplicate_m_wires_reference_count,
+      powerWireTopology.unresolved_power_wire_reference_count,
+      powerWireTopology.ambiguous_power_wire_reference_count,
+      powerWireTopology.unsupported_power_wire_target_count,
+      powerWireTopology.duplicate_power_wire_entity_name_count,
+      powerWireTopology.duplicate_power_wire_endpoint_reference_count,
+      powerWireTopology.incomplete_power_wire_endpoint_count,
+      powerWireTopology.overconnected_power_wire_endpoint_count,
+      powerWireTopology.unreferenced_power_wire_entity_count,
+      powerWireTopology.unresolved_power_wire_endpoint_owner_count,
+      powerWireTopology.unsupported_m_wires_property_record_count,
+    ].reduce((total, value) => total + (count(value) ?? 0), 0);
+    const returned = count(powerWireTopology.power_wires_returned) ?? 0;
+    const truncated = count(powerWireTopology.power_wires_truncated) ?? 0;
+    if (verifiedWires > 0) {
+      powerWireText = ` It records **${verifiedWires}** verified internal native power-wire edge${verifiedWires === 1 ? "" : "s"}.`;
+    } else if (nativeComponents > 0 || savedReferences > 0) {
+      powerWireText = " It has no verified internal native power-wire edges.";
+    } else {
+      powerWireText = " It has no saved native power-connection components or physical power-wire references.";
+    }
+    if (incomplete > 0) {
+      powerWireText += ` **${incomplete}** saved power-wire observation${incomplete === 1 ? " is" : "s are"} malformed, unresolved, ambiguous, incomplete, overconnected, unsupported, unreferenced, or missing an owner, so this is not a complete physical-wire proof.`;
+    } else if (savedReferences > 0) {
+      powerWireText += ` All **${savedReferences}** saved mWires reference${savedReferences === 1 ? "" : "s"} resolved into exact native physical endpoints.`;
+    }
+    if (truncated > 0) {
+      powerWireText += ` I returned ${returned} individual power-wire edge${returned === 1 ? "" : "s"} and left ${truncated} out of this compact reply.`;
+    }
+    powerWireText += " Saved hidden circuit connections are deliberately excluded. Electricity direction, load, capacity, and external power hookups are not inferred.";
   }
   return `**${result.blueprint_name}** decodes to **${decoded.buildable_count ?? 0} Build_* entities** ` +
     `(${decoded.component_count ?? 0} components).${span}` +
@@ -569,6 +610,7 @@ function formatBlueprintLayout(result) {
     ` I returned ${listed} saved transform${listed === 1 ? "" : "s"}` +
     (omitted > 0 ? ` and left ${omitted} out of this compact reply.` : ".") +
     topologyText +
+    powerWireText +
     " These are native saved transforms and saved component references, not proof that the blueprint will clear terrain or fit at a new location.";
 }
 

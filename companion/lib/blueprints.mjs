@@ -28,6 +28,11 @@ const MAXIMUM_BUILDABLES = 200;
 const DEFAULT_MAXIMUM_CONNECTIONS = 80;
 const MAXIMUM_CONNECTIONS = 200;
 const PARSER_VERSION = "4.1.2";
+const NATIVE_POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
+const NATIVE_POWER_LINE_CLASSES = new Set([
+  "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+  "/Game/FactoryGame/Events/Christmas/Buildings/PowerLineLights/Build_XmassLightsLine.Build_XmassLightsLine_C",
+]);
 
 function shortName(itemClassPath) {
   const tail = String(itemClassPath).split(".").pop() ?? "";
@@ -415,9 +420,18 @@ function objectPropertyPathName(property) {
   return typeof pathName === "string" && pathName.trim() ? pathName : null;
 }
 
+function objectReferencePathName(reference) {
+  const pathName = reference?.pathName;
+  return validSavedInstanceName(pathName) ? pathName : null;
+}
+
+function validSavedInstanceName(value) {
+  return typeof value === "string" && value.length > 0 && value.trim() === value;
+}
+
 function componentEndpoint(component, entitiesByName) {
   const ownerName =
-    typeof component?.parentEntityName === "string" && component.parentEntityName
+    validSavedInstanceName(component?.parentEntityName)
       ? component.parentEntityName
       : null;
   const owner = ownerName ? entitiesByName.get(ownerName) ?? null : null;
@@ -439,6 +453,273 @@ function canonicalComponentPair(left, right) {
   const leftName = left?.instanceName ?? "";
   const rightName = right?.instanceName ?? "";
   return leftName.localeCompare(rightName) <= 0 ? [left, right] : [right, left];
+}
+
+function isNativePowerConnectionComponent(component) {
+  return component?.type === "SaveComponent" && component.typePath === NATIVE_POWER_CONNECTION_COMPONENT;
+}
+
+function isNativePowerLine(entity) {
+  return entity?.type === "SaveEntity" && NATIVE_POWER_LINE_CLASSES.has(entity.typePath);
+}
+
+function uniqueObjectsByInstanceName(objects) {
+  const byName = new Map();
+  const duplicateNames = new Set();
+  for (const object of objects) {
+    if (
+      !validSavedInstanceName(object?.instanceName)
+    ) continue;
+    if (byName.has(object.instanceName)) {
+      duplicateNames.add(object.instanceName);
+      byName.set(object.instanceName, null);
+      continue;
+    }
+    byName.set(object.instanceName, object);
+  }
+  return { byName, duplicateNames };
+}
+
+function mWiresReferences(component) {
+  const property = component?.properties?.mWires;
+  if (!property) return { state: "absent", references: [] };
+  const arrayIsExact =
+    property.type === "ArrayProperty" &&
+    property.name === "mWires" &&
+    property.propertyTagType?.name === "ArrayProperty" &&
+    Array.isArray(property.propertyTagType.children) &&
+    property.propertyTagType.children.length === 1 &&
+    property.propertyTagType.children[0]?.name === "ObjectProperty" &&
+    Array.isArray(property.values);
+  if (!arrayIsExact) return { state: "malformed_property", references: [] };
+
+  const references = [];
+  let malformedReferenceCount = 0;
+  for (const value of property.values) {
+    const pathName = objectReferencePathName(value);
+    if (!pathName) {
+      malformedReferenceCount += 1;
+      continue;
+    }
+    references.push(pathName);
+  }
+  return {
+    state: malformedReferenceCount > 0 ? "malformed_references" : "valid",
+    references,
+    malformed_reference_count: malformedReferenceCount,
+  };
+}
+
+/**
+ * Decodes internal native power wires by inverting the exact saved mWires
+ * membership of FGPowerConnectionComponent records. The game stores each
+ * AFGBuildableWire reference on both of its endpoints; the wire actor itself
+ * has only replicated endpoint pointers, so those are intentionally not used
+ * as a saved-blueprint source of truth here.
+ *
+ * mHiddenConnections are deliberately excluded: they are logical circuit
+ * relationships, not physical AFGBuildableWire instances.
+ */
+export function decodeBlueprintPowerWireTopology(
+  objects,
+  { maximumPowerWires = DEFAULT_MAXIMUM_CONNECTIONS } = {},
+) {
+  const allObjects = Array.isArray(objects) ? objects : [];
+  const entities = allObjects.filter((object) => object?.type === "SaveEntity");
+  const components = allObjects.filter((object) => object?.type === "SaveComponent");
+  const { byName: entitiesByName, duplicateNames: duplicateEntityNames } = uniqueObjectsByInstanceName(entities);
+  const { duplicateNames: duplicateComponentNames } = uniqueObjectsByInstanceName(components);
+  const nativePowerLines = entities.filter(isNativePowerLine);
+  const nativePowerConnectionComponents = components.filter(isNativePowerConnectionComponent);
+  const malformedPowerWireEntityRecordCount = nativePowerLines.filter(
+    (entity) =>
+      !validSavedInstanceName(entity?.instanceName),
+  ).length;
+  const mWiresPropertyRecords = allObjects.filter(
+    (object) => Object.hasOwn(object?.properties ?? {}, "mWires"),
+  );
+  const supportedMWiresRecords = nativePowerConnectionComponents.filter(
+    (component) => Object.hasOwn(component?.properties ?? {}, "mWires"),
+  );
+
+  const referencesByWireName = new Map();
+  let malformedPowerConnectionComponentRecordCount = 0;
+  let ambiguousPowerConnectionComponentRecordCount = 0;
+  let malformedMWiresPropertyCount = 0;
+  let malformedMWiresReferenceCount = 0;
+  let duplicateMWiresReferenceCount = 0;
+  let unresolvedPowerWireReferenceCount = 0;
+  let ambiguousPowerWireReferenceCount = 0;
+  let unsupportedPowerWireTargetCount = 0;
+  let savedPowerWireReferenceCount = 0;
+
+  for (const component of supportedMWiresRecords) {
+    const componentName = component.instanceName;
+    if (!validSavedInstanceName(componentName)) {
+      malformedPowerConnectionComponentRecordCount += 1;
+      continue;
+    }
+    if (duplicateComponentNames.has(componentName)) {
+      ambiguousPowerConnectionComponentRecordCount += 1;
+      continue;
+    }
+
+    const parsedReferences = mWiresReferences(component);
+    if (parsedReferences.state === "malformed_property") {
+      malformedMWiresPropertyCount += 1;
+      continue;
+    }
+    malformedMWiresReferenceCount += parsedReferences.malformed_reference_count ?? 0;
+    const referencesSeenOnThisComponent = new Set();
+    for (const wireName of parsedReferences.references) {
+      savedPowerWireReferenceCount += 1;
+      const duplicateOnEndpoint = referencesSeenOnThisComponent.has(wireName);
+      if (duplicateOnEndpoint) duplicateMWiresReferenceCount += 1;
+      referencesSeenOnThisComponent.add(wireName);
+
+      if (duplicateEntityNames.has(wireName)) {
+        ambiguousPowerWireReferenceCount += 1;
+        continue;
+      }
+      const wireEntity = entitiesByName.get(wireName) ?? null;
+      if (!wireEntity) {
+        unresolvedPowerWireReferenceCount += 1;
+        continue;
+      }
+      if (!isNativePowerLine(wireEntity)) {
+        unsupportedPowerWireTargetCount += 1;
+        continue;
+      }
+
+      if (!referencesByWireName.has(wireName)) {
+        referencesByWireName.set(wireName, {
+          wire_entity: wireEntity,
+          endpoints_by_component_name: new Map(),
+          duplicate_endpoint_reference_count: 0,
+        });
+      }
+      const observation = referencesByWireName.get(wireName);
+      if (duplicateOnEndpoint || observation.endpoints_by_component_name.has(componentName)) {
+        observation.duplicate_endpoint_reference_count += 1;
+        continue;
+      }
+      observation.endpoints_by_component_name.set(componentName, component);
+    }
+  }
+
+  let duplicatePowerWireEntityNameCount = 0;
+  for (const entityName of duplicateEntityNames) {
+    const matchingEntities = nativePowerLines.filter((entity) => entity.instanceName === entityName);
+    if (matchingEntities.length > 0) duplicatePowerWireEntityNameCount += 1;
+  }
+
+  const unreferencedPowerWireEntityCount = nativePowerLines.filter((entity) => {
+    const entityName = entity.instanceName;
+    return validSavedInstanceName(entityName) &&
+      !duplicateEntityNames.has(entityName) &&
+      !referencesByWireName.has(entityName);
+  }).length;
+  const pairs = [];
+  const endpointOwnerResolution = { both: 0, one: 0, neither: 0 };
+  let unresolvedPowerWireEndpointOwnerCount = 0;
+  let duplicatePowerWireEndpointReferenceCount = 0;
+  let incompletePowerWireEndpointCount = 0;
+  let overconnectedPowerWireEndpointCount = 0;
+
+  for (const [wireName, observation] of referencesByWireName) {
+    const endpoints = [...observation.endpoints_by_component_name.values()];
+    if (observation.duplicate_endpoint_reference_count > 0) {
+      duplicatePowerWireEndpointReferenceCount += observation.duplicate_endpoint_reference_count;
+      continue;
+    }
+    if (endpoints.length < 2) {
+      incompletePowerWireEndpointCount += 1;
+      continue;
+    }
+    if (endpoints.length > 2) {
+      overconnectedPowerWireEndpointCount += 1;
+      continue;
+    }
+    const [firstComponent, secondComponent] = canonicalComponentPair(endpoints[0], endpoints[1]);
+    const firstEndpoint = componentEndpoint(firstComponent, entitiesByName);
+    const secondEndpoint = componentEndpoint(secondComponent, entitiesByName);
+    unresolvedPowerWireEndpointOwnerCount += Number(!firstEndpoint.owner_entity_resolved);
+    unresolvedPowerWireEndpointOwnerCount += Number(!secondEndpoint.owner_entity_resolved);
+    const resolvedOwners = Number(firstEndpoint.owner_entity_resolved) + Number(secondEndpoint.owner_entity_resolved);
+    if (resolvedOwners === 2) endpointOwnerResolution.both += 1;
+    else if (resolvedOwners === 1) endpointOwnerResolution.one += 1;
+    else endpointOwnerResolution.neither += 1;
+    pairs.push({
+      power_wire_instance_name: wireName,
+      power_wire_class_path: observation.wire_entity.typePath,
+      power_wire_class_name: shortName(observation.wire_entity.typePath),
+      endpoint_a: firstEndpoint,
+      endpoint_b: secondEndpoint,
+    });
+  }
+
+  pairs.sort((left, right) => left.power_wire_instance_name.localeCompare(right.power_wire_instance_name));
+  const maximum = boundedMaximumConnections(maximumPowerWires, DEFAULT_MAXIMUM_CONNECTIONS);
+  const unsupportedMWiresPropertyRecordCount = mWiresPropertyRecords.length - supportedMWiresRecords.length;
+  const hasInconclusiveReferences =
+    malformedPowerWireEntityRecordCount > 0 ||
+    malformedPowerConnectionComponentRecordCount > 0 ||
+    ambiguousPowerConnectionComponentRecordCount > 0 ||
+    malformedMWiresPropertyCount > 0 ||
+    malformedMWiresReferenceCount > 0 ||
+    duplicateMWiresReferenceCount > 0 ||
+    unresolvedPowerWireReferenceCount > 0 ||
+    ambiguousPowerWireReferenceCount > 0 ||
+    unsupportedPowerWireTargetCount > 0 ||
+    duplicatePowerWireEntityNameCount > 0 ||
+    duplicatePowerWireEndpointReferenceCount > 0 ||
+    incompletePowerWireEndpointCount > 0 ||
+    overconnectedPowerWireEndpointCount > 0 ||
+    unreferencedPowerWireEntityCount > 0 ||
+    unresolvedPowerWireEndpointOwnerCount > 0 ||
+    unsupportedMWiresPropertyRecordCount > 0;
+
+  return {
+    status: "decoded",
+    scope: "native_power_wire_edges_inverted_from_exact_m_wires_membership",
+    native_power_connection_component_count: nativePowerConnectionComponents.length,
+    m_wires_property_record_count: mWiresPropertyRecords.length,
+    supported_m_wires_property_record_count: supportedMWiresRecords.length,
+    unsupported_m_wires_property_record_count: unsupportedMWiresPropertyRecordCount,
+    power_wire_entity_count: nativePowerLines.length,
+    referenced_power_wire_entity_count: referencesByWireName.size,
+    saved_power_wire_reference_count: savedPowerWireReferenceCount,
+    verified_power_wire_count: pairs.length,
+    endpoint_owner_resolution: endpointOwnerResolution,
+    malformed_power_wire_entity_record_count: malformedPowerWireEntityRecordCount,
+    malformed_power_connection_component_record_count: malformedPowerConnectionComponentRecordCount,
+    ambiguous_power_connection_component_record_count: ambiguousPowerConnectionComponentRecordCount,
+    malformed_m_wires_property_count: malformedMWiresPropertyCount,
+    malformed_m_wires_reference_count: malformedMWiresReferenceCount,
+    duplicate_m_wires_reference_count: duplicateMWiresReferenceCount,
+    unresolved_power_wire_reference_count: unresolvedPowerWireReferenceCount,
+    ambiguous_power_wire_reference_count: ambiguousPowerWireReferenceCount,
+    unsupported_power_wire_target_count: unsupportedPowerWireTargetCount,
+    duplicate_power_wire_entity_name_count: duplicatePowerWireEntityNameCount,
+    duplicate_power_wire_endpoint_reference_count: duplicatePowerWireEndpointReferenceCount,
+    incomplete_power_wire_endpoint_count: incompletePowerWireEndpointCount,
+    overconnected_power_wire_endpoint_count: overconnectedPowerWireEndpointCount,
+    unreferenced_power_wire_entity_count: unreferencedPowerWireEntityCount,
+    unresolved_power_wire_endpoint_owner_count: unresolvedPowerWireEndpointOwnerCount,
+    power_wires: pairs.slice(0, maximum),
+    power_wires_returned: Math.min(maximum, pairs.length),
+    power_wires_truncated: Math.max(0, pairs.length - maximum),
+    electricity_direction: "not_inferred_from_saved_power_wire_edges",
+    voltage_load_and_capacity: "not_inferred_from_saved_power_wire_edges",
+    hidden_circuit_connections: "not_counted_as_physical_power_wires",
+    external_connections: "not_proven_by_the_saved_blueprint",
+    caveat:
+      "Only exact mWires membership on native FGPowerConnectionComponent records is inverted into physical native power-wire edges. This does not prove electricity direction, voltage, load, capacity, live circuit state, wire length, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    source: "decoded_from_saved_blueprint_power_connection_m_wires",
+    certainty: hasInconclusiveReferences
+      ? "authoritative_observation_with_inconclusive_power_wire_references"
+      : "authoritative_for_verified_native_power_wire_edges",
+  };
 }
 
 /**
@@ -607,6 +888,7 @@ export function inspectBlueprintStructure(
   {
     maximumBuildables = DEFAULT_MAXIMUM_BUILDABLES,
     maximumConnections = DEFAULT_MAXIMUM_CONNECTIONS,
+    maximumPowerWires = DEFAULT_MAXIMUM_CONNECTIONS,
   } = {},
 ) {
   let header;
@@ -710,6 +992,7 @@ export function inspectBlueprintStructure(
     (object) => Array.isArray(object?.trailingData) && object.trailingData.length > 0,
   ).length;
   const connectionTopology = decodeBlueprintConnectionTopology(objects, { maximumConnections });
+  const powerWireTopology = decodeBlueprintPowerWireTopology(objects, { maximumPowerWires });
 
   return {
     available: true,
@@ -754,6 +1037,7 @@ export function inspectBlueprintStructure(
     transform_coverage_caveat:
       "Only native Build_* entities with finite saved transforms are listed. The blueprint file does not prove terrain clearance, hologram validity, or external connections at a destination.",
     connection_topology: connectionTopology,
+    power_wire_topology: powerWireTopology,
     source: "decoded_from_saved_native_blueprint",
     certainty:
       rows.length < transformed.length

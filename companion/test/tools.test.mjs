@@ -58,12 +58,16 @@ test("exposes the roadmap solver set to the model", () => {
   ]);
 });
 
-test("the native Blueprint inspector exposes a bounded exact connection view", () => {
+test("the native Blueprint inspector exposes bounded exact transport and physical-power views", () => {
   const blueprintInspector = SOLVER_TOOLS.find((tool) => tool.name === "inspect_blueprint_layout");
   assert.ok(blueprintInspector);
   assert.equal(blueprintInspector.parameters.properties.maximum_connections.type, "number");
+  assert.equal(blueprintInspector.parameters.properties.maximum_power_wires.type, "number");
   assert.match(blueprintInspector.description, /reciprocal conveyor\/pipe component links/i);
-  assert.match(blueprintInspector.description, /does not infer flow direction/i);
+  assert.match(blueprintInspector.description, /physical native power-wire endpoint pairs/i);
+  assert.match(blueprintInspector.description, /mHiddenConnections logical circuit relationships are deliberately excluded/i);
+  assert.match(blueprintInspector.description, /does not infer item\/fluid direction/i);
+  assert.match(blueprintInspector.description, /electricity direction\/load\/capacity/i);
 });
 
 test("the runtime Blueprint audit describes Resource Anchor evidence and client uncertainty", () => {

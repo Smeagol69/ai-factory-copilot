@@ -71,10 +71,13 @@ poles and ladders and none of its shell. That was fixed in the exporter on
 Still missing after that: measured production rates per machine (the snapshot
 has `connections` and `inventories` but nothing that says "this smelter is
 running at 84%"). The structural `.sbp` parser now reads saved buildable
-geometry plus exact reciprocal conveyor/pipe component links, so it can verify
-an internal native Blueprint route without reconstructing it from an image.
-It deliberately still does not infer flow direction/rate, power wiring, terrain
-fit, external hookups, or future placement validity.
+geometry, exact reciprocal conveyor/pipe component links, and exact physical
+native power-wire edges, so it can verify an internal native Blueprint route
+without reconstructing it from an image. It deliberately still does not infer
+item/fluid direction/rate, electricity direction/load/capacity, terrain fit,
+external hookups, or future placement validity. Saved `mHiddenConnections` are
+logical circuit relationships, not physical wires, and remain explicitly
+outside this physical-wire view.
 
 ### 2. UNDERSTAND — know what the reading means
 
@@ -166,11 +169,11 @@ not inventing one.
 
 1. **Snapshot sees lightweight** — written, pending a build. Nothing above it
    is worth doing while four fifths of the world is invisible.
-2. **`.sbp` structural parser** — reads the owner's style, saved geometry, and
-   exact reciprocal conveyor/pipe component links; it now verifies generated
-   internal routes before Build Gun placement while retaining explicit unknowns
-   for direction, power, and external hookups. Companion-side, no build cycle,
-   no crash risk.
+2. **`.sbp` structural parser** — reads the owner's style, saved geometry,
+   exact reciprocal conveyor/pipe component links, and physical native
+   power-wire edges; it now verifies generated internal routes before Build Gun
+   placement while retaining explicit unknowns for direction, load/capacity,
+   and external hookups. Companion-side, no build cycle, no crash risk.
 3. **One planner rerouted to blueprint output** — `planCoalPower` is the
    tightest and the easiest to check against known ratios.
 4. **Measured rates, then the proactive channel** — advice that has never been

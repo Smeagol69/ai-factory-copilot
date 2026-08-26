@@ -1735,7 +1735,12 @@ export function solveBlueprintLibrary(
  */
 export function solveBlueprintLayout(
   graph,
-  { blueprint_name = null, maximum_buildables = 80, maximum_connections = 80 } = {},
+  {
+    blueprint_name = null,
+    maximum_buildables = 80,
+    maximum_connections = 80,
+    maximum_power_wires = 80,
+  } = {},
   { inspectBlueprint = null } = {},
 ) {
   if (typeof inspectBlueprint !== "function") {
@@ -1764,6 +1769,7 @@ export function solveBlueprintLayout(
   const structure = inspectBlueprint(blueprint_name.trim(), {
     maximumBuildables: maximum_buildables,
     maximumConnections: maximum_connections,
+    maximumPowerWires: maximum_power_wires,
   });
   if (!structure?.available) {
     return {

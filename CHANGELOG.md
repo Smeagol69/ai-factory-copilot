@@ -5,6 +5,15 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Extended native `.sbp` structural inspection with bounded, exact **physical
+  power-wire topology**. The companion now inverts the game-saved `mWires`
+  membership on native power-connection components, reporting verified wire
+  endpoints and their blueprint-owner evidence along with aggregate counts.
+  Blank, malformed, duplicate, unresolved, unsupported, unowned, incomplete,
+  and overconnected records remain partial rather than being guessed.
+  `mHiddenConnections` logical circuit links, electricity direction, load,
+  capacity, external-grid connections, and placement validity remain explicitly
+  outside this read-only result.
 - Extended the read-only placed-Blueprint audit with bounded **Blueprint
   Resource Anchor** evidence: saved resource/purity, exact runtime-node
   ownership/occupancy, and exact live miner identities are reported only from
@@ -50,8 +59,8 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   pivot bounds, recipe evidence, and exact reciprocal saved conveyor/pipe
   component links. It reports malformed, unresolved, ambiguous, one-way, and
   unsupported component references rather than guessing a connection. Flow
-  direction/rate, power wiring, destination terrain clearance, Build Gun
-  hologram validity, and external topology remain explicitly unknown.
+  direction/rate, power direction/load/capacity, destination terrain clearance,
+  Build Gun hologram validity, and external topology remain explicitly unknown.
 - Made saved-blueprint inspection safe for duplicate names by accepting only a
   `blueprint_reference` emitted from the configured library, never an arbitrary
   filesystem path.
