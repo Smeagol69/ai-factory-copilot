@@ -521,6 +521,10 @@ test("native Blueprint placement auditing stays evidence-only and handles a mine
   assert.match(audit, /GetConfiguration\(\)/);
   assert.match(audit, /GetRuntimeNode\(\)/);
   assert.match(audit, /GetResourcePurity\(\)/);
+  assert.match(
+    audit,
+    /void\s+AIFactoryBlueprintAuditSetResourceAnchorDetail\(\s*const\s+TSharedRef<FJsonObject>&\s+Detail/,
+  );
   assert.match(audit, /Extractor->GetExtractableResource\(\);/);
   assert.match(audit, /ExtractableResource\.GetObject\(\)/);
   assert.match(audit, /ExtractableResource\.GetInterface\(\) != nullptr/);

@@ -48,7 +48,7 @@ namespace
     }
 
     void AIFactoryBlueprintAuditSetResourceAnchorDetail(
-        TSharedRef<FJsonObject>& Detail,
+        const TSharedRef<FJsonObject>& Detail,
         const AAIFactoryBlueprintResourceAnchor* Anchor,
         const TArray<AFGBuildableResourceExtractorBase*>& ExactBoundExtractors,
         const bool bProxyReady,
