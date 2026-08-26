@@ -106,9 +106,10 @@ see it as a normal miner-hostable node without special guesswork.
 - There is no delete/undo command yet. It will be limited to unoccupied,
   mod-owned creative nodes and require an explicit confirmation; it will never
   be widened into vanilla-node deletion.
-- The first UI is the chat-to-native-Build-Gun handoff. A Build Gun category,
-  resource/purity picker, and direct Copilot-panel action are follow-on UX,
-  not hidden behind a claim that they already exist.
+- The Insert panel can forward only the exact documented `/ai node place …`
+  command through the native server chat path. A Build Gun category and a
+  resource/purity picker are follow-on UX, not hidden behind a claim that they
+  already exist.
 - Remote-client receipt of a newly granted recipe/schematic must be live tested.
   The server chat response says the client arming was *requested*, not that it
   succeeded, until the player sees the actual hologram.
