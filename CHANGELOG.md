@@ -12,9 +12,13 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   node. It is gated by the existing world-write switch and multiplayer server
   admin check. Generic retargeting now rejects Blueprint Anchor runtime nodes,
   deposits, geysers, fracking actors, and other special nodes so their own
-  persisted/game-owned configuration cannot be corrupted. Source contracts,
-  exact headers, Editor, and Shipping builds pass, but the feature remains
-  explicitly gated on a packaged disposable-save and host/client live matrix.
+  persisted/game-owned configuration cannot be corrupted. The Insert panel
+  forwards only that exact documented command through SML's native server chat
+  route, then returns focus to the Build Gun; it does not bypass the server
+  validation or construction path. Source contracts, exact FactoryGame CL
+  502094 headers, **835 companion tests**, Editor and Shipping builds, and the
+  UAT archive/game deployment pass. The feature remains explicitly gated on a
+  disposable-save and host/client live matrix before it is called proven.
 - Extended native `.sbp` structural inspection with bounded, exact **physical
   power-wire topology**. The companion now inverts the game-saved `mWires`
   membership on native power-connection components, reporting verified wire
