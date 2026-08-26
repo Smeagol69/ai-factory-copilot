@@ -26,7 +26,9 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   the Copilot panel, and save one native `.sbp`; nothing is dismantled and the
   existing game serializer/Build Gun path remains in charge. Category filters
   are reflected in the preview, and any structural lightweight pieces the
-  actor-only API cannot expose are called out instead of silently claimed.
+  actor-only API cannot expose are called out instead of silently claimed. The
+  original box scan remains intact as an explicit **Box scan** toggle for empty
+  sites and structure that the dismantle actor list cannot expose.
 - Extended native `.sbp` structural inspection with bounded, exact **physical
   power-wire topology**. The companion now inverts the game-saved `mWires`
   membership on native power-connection components, reporting verified wire
