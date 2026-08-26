@@ -5,6 +5,16 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added the experimental **Creative Resource Node** world-editor foundation.
+  `/ai node place <resource> [impure|normal|pure]` arms Satisfactory's normal
+  Build Gun hologram for a new mod-owned, saveable, replicated infinite solid
+  node; it never directly spawns, moves, replaces, or adopts a vanilla map
+  node. It is gated by the existing world-write switch and multiplayer server
+  admin check. Generic retargeting now rejects Blueprint Anchor runtime nodes,
+  deposits, geysers, fracking actors, and other special nodes so their own
+  persisted/game-owned configuration cannot be corrupted. Source contracts,
+  exact headers, Editor, and Shipping builds pass, but the feature remains
+  explicitly gated on a packaged disposable-save and host/client live matrix.
 - Extended native `.sbp` structural inspection with bounded, exact **physical
   power-wire topology**. The companion now inverts the game-saved `mWires`
   membership on native power-connection components, reporting verified wire

@@ -153,6 +153,14 @@ Writes are **off by default**. Turn them on in the mod config:
 { "allowWriteActions": true }
 ```
 
+The native Creative Resource Node editor uses the same write switch. Once it
+is enabled, `/ai node place copper ore pure` arms the normal Build Gun
+hologram rather than directly spawning an actor. In multiplayer, a
+Satisfactory server admin must arm it; the resulting recipe availability is a
+persistent world-level unlock, not a player permission. See
+[`docs/CREATIVE_WORLD_EDITOR.md`](docs/CREATIVE_WORLD_EDITOR.md) for the
+current supported boundary and live-test status.
+
 ## Designing a factory, not just costing one
 
 `plan_production` says what to build. `design_factory_layout` says where, and

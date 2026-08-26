@@ -77,6 +77,38 @@ test("the actor being looked at is never dropped, however far away", () => {
   assert.equal(payload.actors_nearest_to_the_player[0].actor_id, SMELTER);
 });
 
+test("a selected creative resource node remains exact model grounding", () => {
+  const creativeNode = {
+    actor_id: "AIFactoryCreativeResourceNode_01",
+    name: "AIFactoryCreativeResourceNode_01",
+    class_path: "/Script/AIFactoryCopilot.AIFactoryCreativeResourceNode",
+    owner_mod: "AIFactoryCopilot",
+    kind: "resource_node",
+    location: { x: 9e6, y: -9e6, z: 300 },
+    occupied: false,
+    resource_class: "/Game/FactoryGame/Resource/RawResources/OreCopper/Desc_OreCopper.Desc_OreCopper_C",
+    resource_name: "Copper Ore",
+    node_type: "Node",
+    purity: "RP_Pure",
+    amount_type: "RA_Infinite",
+    has_resources: true,
+  };
+  const creativeSnapshot = buildFactorySnapshot();
+  creativeSnapshot.actors.push(creativeNode);
+  creativeSnapshot.interaction_context.preferred_target = {
+    available: true,
+    actor_id: creativeNode.actor_id,
+  };
+
+  const { payload } = buildLeanPayload(creativeSnapshot, { maxActors: 1 });
+  const grounded = payload.actors_nearest_to_the_player[0];
+  assert.equal(grounded.actor_id, creativeNode.actor_id);
+  assert.equal(grounded.owner_mod, "AIFactoryCopilot");
+  assert.equal(grounded.resource_name, "Copper Ore");
+  assert.equal(grounded.purity, "RP_Pure");
+  assert.equal(grounded.amount_type, "RA_Infinite");
+});
+
 test("remaining actors are ordered by distance from the player", () => {
   const { payload } = buildLeanPayload(snapshot);
   const ids = payload.actors_nearest_to_the_player.map((actor) => actor.actor_id);

@@ -38,6 +38,37 @@ test("summary counts mod ownership without interpreting behavior", () => {
   assert.equal(summary.actors_by_owner_mod.SomeMod, 1);
 });
 
+test("compaction retains a complete mod-owned creative resource-node identity", () => {
+  const creativeNode = {
+    actor_id: "AIFactoryCreativeResourceNode_01",
+    name: "AIFactoryCreativeResourceNode_01",
+    class_path: "/Script/AIFactoryCopilot.AIFactoryCreativeResourceNode",
+    owner_mod: "AIFactoryCopilot",
+    kind: "resource_node",
+    location: { x: 1200, y: -400, z: 300 },
+    occupied: false,
+    resource_class: "/Game/FactoryGame/Resource/RawResources/OreCopper/Desc_OreCopper.Desc_OreCopper_C",
+    resource_name: "Copper Ore",
+    node_type: "Node",
+    purity: "RP_Pure",
+    amount_type: "RA_Infinite",
+    has_resources: true,
+    reflected_properties: [{ name: "editor_only", value: "x".repeat(10_000) }],
+  };
+  const result = compactSnapshot({
+    data_policy: "authoritative_or_explicitly_unknown",
+    actors: [creativeNode],
+    content: { items: [], recipes: [] },
+  }, "creative node", 1000);
+
+  assert.equal(result.snapshot.actors[0].class_path, creativeNode.class_path);
+  assert.equal(result.snapshot.actors[0].owner_mod, "AIFactoryCopilot");
+  assert.equal(result.snapshot.actors[0].resource_class, creativeNode.resource_class);
+  assert.equal(result.snapshot.actors[0].purity, "RP_Pure");
+  assert.equal(result.snapshot.actors[0].amount_type, "RA_Infinite");
+  assert.equal(result.snapshot.actors[0].reflected_properties, undefined);
+});
+
 test("hard compaction always returns valid JSON", () => {
   const result = compactSnapshot(
     {

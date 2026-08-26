@@ -4,6 +4,7 @@ import { buildGraph } from "../lib/graph.mjs";
 import {
   analyzeSnapshot,
   solveBottlenecks,
+  solveActorLookup,
   solveBuildCost,
   solveFactorySummary,
   solveItemBalance,
@@ -27,6 +28,36 @@ import {
 } from "./fixtures/factory.mjs";
 
 const graphOf = (overrides) => buildGraph(buildFactorySnapshot(overrides));
+
+test("recognizes a mod-owned creative resource node as a miner-hostable node", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.actors.push({
+    actor_id: "AIFactoryCreativeResourceNode_01",
+    name: "AIFactoryCreativeResourceNode_01",
+    class_path: "/Script/AIFactoryCopilot.AIFactoryCreativeResourceNode",
+    owner_mod: "AIFactoryCopilot",
+    kind: "resource_node",
+    location: { x: 1200, y: -400, z: 300 },
+    occupied: false,
+    resource_class: "/Game/FactoryGame/Resource/RawResources/OreCopper/Desc_OreCopper.Desc_OreCopper_C",
+    resource_name: "Copper Ore",
+    node_type: "Node",
+    purity: "RP_Pure",
+    amount_type: "RA_Infinite",
+    has_resources: true,
+    inventories: [],
+    connections: [],
+  });
+
+  const result = solveActorLookup(buildGraph(snapshot), {
+    actor_id: "aifactorycreativeresourcenode_01",
+  });
+  assert.equal(result.found, true);
+  assert.equal(result.matches[0].class_path, "/Script/AIFactoryCopilot.AIFactoryCreativeResourceNode");
+  assert.equal(result.matches[0].resource_name, "Copper Ore");
+  assert.equal(result.matches[0].purity, "pure");
+  assert.equal(result.matches[0].can_host_a_miner, true);
+});
 
 /* ---------------- per-minute transformation solver ---------------- */
 

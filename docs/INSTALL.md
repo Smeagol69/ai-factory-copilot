@@ -116,7 +116,11 @@ World writes require an explicit opt-in:
 ```
 
 Keep writes off until read-only answers and dry-run action previews match the
-loaded save. `includeVisibleUiText` is also off by default because another mod's
+loaded save. The native Creative Resource Node editor (`/ai node place copper
+ore pure`) uses this same gate; it never silently bypasses it. In multiplayer,
+only a Satisfactory server admin can arm that editor, and its universal Build
+Gun recipe becomes a persistent world-level unlock after the first authorized
+use. `includeVisibleUiText` is also off by default because another mod's
 rendered UI can contain private text.
 
 ## Source build environment

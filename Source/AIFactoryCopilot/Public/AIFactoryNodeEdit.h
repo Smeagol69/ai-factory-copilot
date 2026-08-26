@@ -4,6 +4,7 @@
 #include "Templates/SubclassOf.h"
 
 class AFGResourceNodeBase;
+class AFGPlayerController;
 class UFGResourceDescriptor;
 class UWorld;
 
@@ -33,12 +34,14 @@ class UWorld;
 namespace AIFactoryNodeEdit
 {
     /**
-     * Every resource that actually exists on this map, by display name.
+     * Every registered solid resource descriptor the live game knows, by
+     * display name.
      *
-     * Gathered from the nodes in the world rather than from a hardcoded list, so
-     * it covers modded resources for free and can never offer something whose
-     * class path was guessed. "Coal" resolves only because a Coal node exists
-     * somewhere to resolve it from.
+     * The Recipe Manager owns Satisfactory's complete runtime item catalogue,
+     * including loaded mod content. We filter it to genuine solid
+     * UFGResourceDescriptor subclasses, never a hard-coded ore list. Existing
+     * map nodes remain a fallback for a startup window before that catalogue is
+     * ready.
      */
     TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownResources(UWorld* World);
 
@@ -65,6 +68,7 @@ namespace AIFactoryNodeEdit
      * to make our edit possible is not ours to decide.
      */
     bool SetNodeResource(
+        AFGPlayerController* RequestingPlayer,
         UWorld* World,
         AFGResourceNodeBase* Node,
         TSubclassOf<UFGResourceDescriptor> Resource,

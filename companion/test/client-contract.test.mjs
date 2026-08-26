@@ -69,6 +69,173 @@ test("a saved blueprint can be armed in the requesting player's native Build Gun
   assert.ok(dispatch >= 0 && normalExecute > dispatch);
 });
 
+test("creative resource nodes use the native non-buildable Build Gun path and keep vanilla nodes untouched", () => {
+  const nodeHeader = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Public/AIFactoryCreativeResourceNode.h", import.meta.url),
+    "utf8",
+  );
+  const node = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCreativeResourceNode.cpp", import.meta.url),
+    "utf8",
+  );
+  const contentHeader = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Public/AIFactoryCreativeNodeContent.h", import.meta.url),
+    "utf8",
+  );
+  const content = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCreativeNodeContent.cpp", import.meta.url),
+    "utf8",
+  );
+  const hologramHeader = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Public/AIFactoryCreativeNodeHologram.h", import.meta.url),
+    "utf8",
+  );
+  const hologram = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCreativeNodeHologram.cpp", import.meta.url),
+    "utf8",
+  );
+  const rcoHeader = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Public/AIFactoryCreativeNodeRCO.h", import.meta.url),
+    "utf8",
+  );
+  const rco = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCreativeNodeRCO.cpp", import.meta.url),
+    "utf8",
+  );
+  const placement = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCreativeNodePlacement.cpp", import.meta.url),
+    "utf8",
+  );
+  const access = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryWorldEditAccess.cpp", import.meta.url),
+    "utf8",
+  );
+  const nodeEdit = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryNodeEdit.cpp", import.meta.url),
+    "utf8",
+  );
+  const chat = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryChatCommand.cpp", import.meta.url),
+    "utf8",
+  );
+  const gameWorldModule = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryGameWorldModule.cpp", import.meta.url),
+    "utf8",
+  );
+  const gameInstanceModule = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryGameInstanceModule.cpp", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(nodeHeader, /class AIFACTORYCOPILOT_API AAIFactoryCreativeResourceNode final : public AFGResourceNode/);
+  assert.match(nodeHeader, /UPROPERTY\(SaveGame, ReplicatedUsing = OnRep_CreativeConfiguration\)/);
+  assert.match(nodeHeader, /UPROPERTY\(SaveGame\)\s*int32 SchemaVersion/);
+  assert.match(nodeHeader, /UPROPERTY\(SaveGame\)\s*TSubclassOf<UFGResourceDescriptor> ResourceClass/);
+  assert.match(nodeHeader, /UPROPERTY\(SaveGame\)\s*TEnumAsByte<EResourcePurity> Purity/);
+  assert.match(node, /DOREPLIFETIME\(AAIFactoryCreativeResourceNode, mCreativeConfiguration\)/);
+  assert.match(node, /if \(!HasAuthority\(\)\)/);
+  assert.match(node, /mCanPlaceResourceExtractor = false;\s*mCanPlacePortableMiner = false;/);
+  assert.match(node, /CreateDefaultSubobject<USceneComponent>\(TEXT\("CreativeNodeRoot"\)\)/);
+  assert.match(node, /CreateDefaultSubobject<UBoxComponent>\(TEXT\("CreativeNodeCollision"\)\)/);
+  assert.match(node, /SetRootComponent\(Root\)/);
+  assert.match(node, /SetCollisionResponseToChannel\(ECC_Visibility, ECR_Block\)/);
+  assert.match(node, /UFGItemDescriptor::GetForm\(Resource\) != EResourceForm::RF_SOLID/);
+  assert.match(node, /UFGResourceDescriptor::GetDepositMesh\(Resource\)/);
+  assert.match(node, /InitResource\(Resource, RA_Infinite, Purity\)/);
+  assert.match(node, /SetResourceClassOverride\(Resource\)/);
+  assert.match(node, /SetResourcePurityOverride\(Purity\)/);
+  assert.match(node, /PostLoadGame_Implementation/);
+  assert.match(node, /SchemaVersion != 1/);
+  assert.match(node, /FlushNetDormancy\(\);\s*ForceNetUpdate\(\)/);
+  for (const forbidden of [
+    /SetActorLocation\(/,
+    /SetActorRotation\(/,
+    /AFGResourceNodeManager/,
+    /AssignScannableData/,
+    /\bDestroy\(/,
+  ]) {
+    assert.doesNotMatch(node, forbidden);
+  }
+
+  assert.match(contentHeader, /UAIFactoryCreativeNodeDescriptor final : public UFGBuildDescriptor/);
+  assert.doesNotMatch(contentHeader, /UFGBuildingDescriptor/);
+  assert.match(content, /mProduct\.Add\(FItemAmount\(UAIFactoryCreativeNodeDescriptor::StaticClass\(\), 1\)\)/);
+  assert.match(content, /mProducedIn\.Add\(AFGBuildGun::StaticClass\(\)\)/);
+  assert.match(content, /mUnlocks\.Add\(CreateDefaultSubobject<UAIFactoryCreativeNodeUnlockRecipe>/);
+
+  assert.match(hologramHeader, /AAIFactoryCreativeNodeHologram final : public AFGHologram/);
+  assert.doesNotMatch(hologramHeader, /AFGBuildableHologram/);
+  assert.match(hologramHeader, /UPROPERTY\(Replicated, CustomSerialization\)\s*TSubclassOf<UFGResourceDescriptor> mRequestedResource/);
+  assert.match(hologramHeader, /UPROPERTY\(Replicated, CustomSerialization\)\s*TEnumAsByte<EResourcePurity> mRequestedPurity/);
+  assert.match(hologram, /Super::CheckValidPlacement\(\)/);
+  assert.match(hologram, /AIFactoryCreativeNodeConsumePendingConfiguration/);
+  assert.match(hologram, /GetWorld\(\)->SpawnActorDeferred<AAIFactoryCreativeResourceNode>/);
+  assert.match(hologram, /const FTransform PlacementTransform = GetActorTransform\(\)/);
+  assert.match(hologram, /SpawnActorDeferred<AAIFactoryCreativeResourceNode>\([\s\S]*?PlacementTransform/);
+  assert.match(hologram, /Node->FinishSpawning\(PlacementTransform\)/);
+  assert.match(hologram, /GetWorld\(\)->GetNetMode\(\) == NM_Client/);
+  assert.match(hologram, /Node->ConfigureCreativeNode\(mRequestedResource, mRequestedPurity, Reason\)/);
+
+  assert.match(rcoHeader, /UFUNCTION\(Client, Reliable\)\s*void ClientArmCreativeResourceNode/);
+  assert.match(rco, /AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration/);
+  assert.match(rco, /ObserveBuildGun\(BuildGun\)/);
+  assert.match(rco, /mOnStateChanged\.AddUniqueDynamic/);
+  assert.match(rco, /mOnRecipeChanged\.AddUniqueDynamic/);
+  assert.match(rco, /mOnStateChanged\.RemoveDynamic/);
+  assert.match(rco, /mOnRecipeChanged\.RemoveDynamic/);
+  assert.match(rco, /ExistingHologram->GetIsPendingToBeConstructed\(\)/);
+  assert.match(rco, /current placement is already pending/);
+  assert.match(rco, /ExistingHologram->SetRequestedConfiguration\(Resource, Purity, Reason\)/);
+  assert.ok(
+    rco.indexOf("ExistingHologram->GetIsPendingToBeConstructed()") <
+      rco.indexOf("ExistingHologram->SetRequestedConfiguration(Resource, Purity, Reason)"),
+    "a queued construction message must never be mutated by a same-recipe rearm",
+  );
+  assert.match(rco, /BuildGun->GotoMenuState\(\)/);
+  assert.match(rco, /BuildGun->GotoBuildState\(UAIFactoryCreativeNodeRecipe::StaticClass\(\)\)/);
+  assert.doesNotMatch(rco, /Server_GotoBuildState|SpawnActor/);
+  assert.match(placement, /AIFactoryWorldEditAccess::CanEdit\(PlayerController, OutReason\)/);
+  assert.match(nodeEdit, /AIFactoryWorldEditAccess::CanEdit\(RequestingPlayer, OutReason\)/);
+  assert.match(access, /AAIFactorySubsystem::Get\(World\)/);
+  assert.match(access, /GetSettings\(\)\.bAllowWriteActions/);
+  assert.match(access, /GetPlayerState<AFGPlayerState>\(\)/);
+  assert.match(access, /IsServerAdmin\(\)/);
+  assert.doesNotMatch(access, /only the host can enable the creative node editor/);
+  const writesEnabled = access.indexOf("GetSettings().bAllowWriteActions");
+  const admin = access.indexOf("IsServerAdmin()");
+  const canEdit = placement.indexOf("AIFactoryWorldEditAccess::CanEdit(PlayerController, OutReason)");
+  const schematic = placement.indexOf("Schematics->GiveAccessToSchematic");
+  const recipe = placement.indexOf("Recipes->AddAvailableRecipe");
+  const arm = placement.indexOf("RCO->ClientArmCreativeResourceNode");
+  assert.ok(
+    writesEnabled >= 0 && admin > writesEnabled && canEdit >= 0 && schematic > canEdit && recipe > canEdit && arm > canEdit,
+    "creative node arming must be write-gated and admin-gated before it mutates shared availability or a client Build Gun",
+  );
+  assert.match(placement, /Schematics->GiveAccessToSchematic/);
+  assert.match(placement, /RCO->ClientArmCreativeResourceNode\(Resource, Purity\)/);
+  assert.doesNotMatch(placement, /SpawnActor|SetActorLocation/);
+  assert.match(gameWorldModule, /mSchematics\.Add\(UAIFactoryCreativeNodeSchematic::StaticClass\(\)\)/);
+  assert.match(gameWorldModule, /mSchematics\.Add\(UAIFactoryBlueprintResourceAnchorSchematic::StaticClass\(\)\)/);
+  assert.match(gameWorldModule, /EnableVanillaMinersInBlueprintDesigner\(GetWorld\(\)\)/);
+  assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryCreativeNodeRCO::StaticClass\(\)\)/);
+  assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryBlueprintPreviewRCO::StaticClass\(\)\)/);
+  assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryBlueprintResourceAnchorRCO::StaticClass\(\)\)/);
+  assert.match(nodeEdit, /Cast<AAIFactoryCreativeResourceNode>\(Node\)/);
+  assert.match(nodeEdit, /Node->IsA<AAIFactoryBlueprintAnchorNode>\(\)/);
+  assert.match(nodeEdit, /Cast<AFGResourceNode>\(Node\)/);
+  assert.match(nodeEdit, /Node->GetResourceNodeType\(\) != EResourceNodeType::Node/);
+  assert.ok(
+    nodeEdit.indexOf("Node->IsA<AAIFactoryBlueprintAnchorNode>()") <
+      nodeEdit.indexOf("Node->SetResourceClassOverride(nullptr)"),
+    "a transient Blueprint Anchor must be rejected before the generic vanilla override path",
+  );
+  assert.match(nodeEdit, /Recipes->GetAllItemDescriptors\(\)/);
+  assert.match(nodeEdit, /ValidateCreativeConfiguration\(\s*Resource, RP_Normal, ValidationReason\)/);
+  assert.match(nodeEdit, /TMap<FString, TArray<TSubclassOf<UFGResourceDescriptor>>> Candidates/);
+  assert.match(nodeEdit, /Result\.Add\(FString::Printf\(/);
+  assert.match(chat, /\/ai node place <resource> \[impure\|normal\|pure\]/);
+});
+
 test("native Blueprint preview refreshes only when the player requests a native preview", () => {
   const subsystem = fs.readFileSync(
     new URL("../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp", import.meta.url),
