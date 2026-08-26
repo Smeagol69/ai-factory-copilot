@@ -142,6 +142,8 @@ private:
      * a thousand identical foundations is one lookup, not a thousand.
      */
     TMap<TSubclassOf<class UFGRecipe>, int32> SelectionRecipeCounts;
+    /** Adopt whatever the dismantle tool has marked. Never dismantles anything. */
+    void SelectDismantleMarks();
     void RefreshSelectionCost();
     void SyncDimensionEntries();
     void ApplyTypedDimension(int32 Axis, const FString& Value);

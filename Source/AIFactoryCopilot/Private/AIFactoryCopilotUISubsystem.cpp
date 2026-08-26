@@ -1,6 +1,8 @@
 #include "AIFactoryCopilotUISubsystem.h"
 #include "AIFactoryUpgrade.h"
 #include "Hologram/FGHologram.h"
+#include "Equipment/FGBuildGunDismantle.h"
+#include "Equipment/FGBuildGun.h"
 #include "AIFactoryCompanion.h"
 #include "FGDismantleInterface.h"
 #include "FGLightweightBuildableSubsystem.h"
@@ -1798,6 +1800,23 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                 SNew(SButton)
                 .ButtonColorAndOpacity(AIFactoryPalette::Button)
                 .ForegroundColor(AIFactoryPalette::Orange)
+                .Text(FText::FromString(TEXT("Use dismantle marks")))
+                .ToolTipText(FText::FromString(TEXT(
+                    "Adopt whatever the dismantle tool has marked, then Save blueprint. "
+                    "Nothing is dismantled.")))
+                .OnClicked_Lambda([this]()
+                {
+                    SelectDismantleMarks();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
                 .Text(FText::FromString(TEXT("Select aimed")))
                 .ToolTipText(FText::FromString(TEXT(
                     "Replace the current selection with exactly the buildable under your crosshair. "
@@ -2501,4 +2520,156 @@ void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
         "`/factoryai`.");
 
     AppendTranscript(TEXT("COPILOT"), Text);
+}
+
+/**
+ * Adopt the dismantle tool's marks as the current selection.
+ *
+ * This is the original goal: mark a megabase with the tool the game already
+ * gives you for marking many things, then save it as one blueprint. Nothing
+ * here dismantles -- the marks are borrowed as a pointer, and the existing
+ * exporter runs unchanged afterwards.
+ *
+ * The lightweight caveat is measured rather than assumed. Marked foundations
+ * live in FDismantleLightweightBundle, which has no public accessor, so
+ * whether they also appear among the pending actors is not something the
+ * headers settle. GetNumPendingDismantleActors is the game's own count; when
+ * it exceeds what was captured, the shortfall is reported. A capture that
+ * looks complete and is missing every wall is the exact failure that cost a
+ * day here already.
+ */
+void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
+{
+    AFGPlayerController* Controller = GetLocalPlayerController();
+    UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    AFGCharacterPlayer* Character =
+        IsValid(Controller) ? Cast<AFGCharacterPlayer>(Controller->GetPawn()) : nullptr;
+    if (!IsValid(World) || !IsValid(Character))
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("No player to read a dismantle selection from."));
+        return;
+    }
+
+    AFGBuildGun* BuildGun = Character->GetBuildGun();
+    UFGBuildGunStateDismantle* Dismantle = IsValid(BuildGun)
+        ? Cast<UFGBuildGunStateDismantle>(BuildGun->GetBuildGunStateFor(EBuildGunState::BGS_DISMANTLE))
+        : nullptr;
+    if (!IsValid(Dismantle))
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT(
+            "The dismantle tool is not available. Equip it, hold Ctrl to mass-mark, then try again."));
+        return;
+    }
+
+    // Clear everything first. A dismantle selection that quietly kept lightweight
+    // refs from a previous box would export structure the player never marked.
+    ClearSelectionPreview();
+
+    TArray<AActor*> Marked = Dismantle->GetPendingDismantleActors();
+    // A player who has aimed at one thing and marked none plainly means that one.
+    if (Marked.Num() == 0)
+    {
+        if (AActor* Aimed = Dismantle->GetSelectedActor(); IsValid(Aimed))
+        {
+            Marked.Add(Aimed);
+        }
+    }
+
+    // Overlay entries are built in this same loop rather than by re-walking
+    // the world afterwards; the buildables are already in hand here.
+    TArray<FAIFactorySelectionOverlayEntry> Entries;
+    FBox Volume(ForceInit);
+
+    int32 Filtered = 0;
+    for (AActor* Actor : Marked)
+    {
+        AFGBuildable* Buildable = Cast<AFGBuildable>(Actor);
+        if (!IsValid(Buildable))
+        {
+            continue;
+        }
+        const FString ClassName = Buildable->GetClass()->GetName();
+        if (ClassName.Contains(TEXT("BlueprintDesigner")))
+        {
+            continue;
+        }
+        // The visible category filters still apply, so a player who has
+        // unticked Machines gets what the panel says they will get.
+        const int32 Category = CategoryIndexFor(Buildable->GetClass());
+        if (!SelectionCategoryEnabled[Category])
+        {
+            ++Filtered;
+            continue;
+        }
+        SelectionActorIds.Add(Buildable->GetPathName());
+        ++SelectionCategoryCounts[Category];
+        if (const TSubclassOf<UFGRecipe> Recipe = Buildable->GetBuiltWithRecipe())
+        {
+            SelectionRecipeCounts.FindOrAdd(Recipe) += 1;
+        }
+
+        const FBox Bounds = Buildable->GetCachedBounds();
+        const FBox Use = Bounds.IsValid != 0
+            ? Bounds
+            : FBox(Buildable->GetActorLocation() - FVector(60.0, 60.0, 60.0),
+                   Buildable->GetActorLocation() + FVector(60.0, 60.0, 60.0));
+        FAIFactorySelectionOverlayEntry Entry;
+        Entry.Origin = Use.GetCenter();
+        Entry.Extent = Use.GetExtent();
+        Entries.Add(Entry);
+        Volume += Use;
+    }
+
+    if (SelectionActorIds.Num() == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), Filtered > 0
+            ? FString::Printf(TEXT(
+                "All %d marked buildings were removed by the category filters. Tick the ones you want above."),
+                Filtered)
+            : TEXT("Nothing is marked. Equip the dismantle tool, hold Ctrl and mark what you want saved."));
+        return;
+    }
+
+    // Same shape Codex's aimed selection draws, so the two read alike.
+    if (Entries.Num() > 0)
+    {
+        FAIFactoryOverlayStyle Style;
+        Style.Color = AIFactoryPalette::Orange;
+        Style.bDrawTracers = false;
+        Style.bDrawPillars = false;
+        Style.LifetimeSeconds = 0.0f;
+        AIFactoryOverlay::DrawSelection(World, TEXT("selection"), Volume, Entries, Style);
+    }
+    RefreshSelectionCost();
+
+    // The game's own count of what is marked, against what was captured. Any
+    // difference is lightweight structure the actor list does not expose, and
+    // saying so is the whole point.
+    const int32 GameCount = Dismantle->GetNumPendingDismantleActors(true);
+    const int32 Missing = FMath::Max(0, GameCount - Marked.Num());
+
+    FString Message = FString::Printf(
+        TEXT("Adopted %d marked buildings from the dismantle tool. Name it and press Save blueprint."),
+        SelectionActorIds.Num());
+    if (Filtered > 0)
+    {
+        Message += FString::Printf(TEXT(" %d were excluded by your category filters."), Filtered);
+    }
+    if (Missing > 0)
+    {
+        Message += FString::Printf(
+            TEXT(" The game reports %d marked in total, so %d are structural pieces this ")
+            TEXT("selection cannot see. Use the box sliders for those -- they read lightweight ")
+            TEXT("buildables directly."),
+            GameCount, Missing);
+    }
+    AppendTranscript(TEXT("COPILOT"), Message);
+
+    if (SelectionCountText.IsValid())
+    {
+        SelectionCountText->SetText(FText::FromString(FString::Printf(
+            TEXT("%d from dismantle marks%s"),
+            SelectionActorIds.Num(),
+            Missing > 0 ? *FString::Printf(TEXT("  |  %d structural not captured"), Missing) : TEXT(""))));
+    }
 }
