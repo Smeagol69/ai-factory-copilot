@@ -30,6 +30,16 @@ over. It does not execute commands locally, forward any other slash command, or
 claim that placement succeeded; Satisfactory's native chat reports the server's
 actual arming result.
 
+For this particular command, the panel also has a **Creative Resource Node**
+strip: type the exact registered solid resource name and click **Arm impure**,
+**Arm normal**, or **Arm pure**. Pressing Enter in the field means normal. The
+strip builds the same `/ai node place <resource> <purity>` command and nothing
+else; the server remains the authority for the resource lookup, modded-resource
+support, write/admin gate, recipe availability, RCO staging, hologram, and final
+construction. It refuses multi-line text locally so the transcript cannot hide a
+second command. It is a text field for now, not a client-side guessed resource
+list—use `/ai node` to see exact available names.
+
 The existing `/ai node <resource>` command uses the same world-editor
 write/admin gate before it changes either a previously created Creative
 Resource Node or an ordinary, unoccupied vanilla map node. It explicitly
@@ -106,10 +116,10 @@ see it as a normal miner-hostable node without special guesswork.
 - There is no delete/undo command yet. It will be limited to unoccupied,
   mod-owned creative nodes and require an explicit confirmation; it will never
   be widened into vanilla-node deletion.
-- The Insert panel can forward only the exact documented `/ai node place …`
-  command through the native server chat path. A Build Gun category and a
-  resource/purity picker are follow-on UX, not hidden behind a claim that they
-  already exist.
+- The Insert panel's resource/purity strip can forward only the exact
+  documented `/ai node place …` command through the native server chat path.
+  A Build Gun category and a server-backed pick-list remain follow-on UX; a
+  generic unconfigured Build Gun recipe must not be advertised as usable.
 - Remote-client receipt of a newly granted recipe/schematic must be live tested.
   The server chat response says the client arming was *requested*, not that it
   succeeded, until the player sees the actual hologram.
@@ -146,6 +156,10 @@ save:
    an ordinary vanilla node and restore it. Attempt the generic command on a
    Blueprint Anchor runtime node, deposit, geyser, and fracking node; each must
    refuse without changing its saved/resource configuration.
+8. In the Insert panel, arm Copper Ore using each purity button and Enter
+   (normal). Verify each yields the same server chat arming message and native
+   hologram as the manual command; empty, multi-line, disabled-write, and
+   non-admin attempts must create no actor or recipe/schematic availability.
 
-Until all seven are recorded from the packaged build, this is a verified source
+Until all eight are recorded from the packaged build, this is a verified source
 implementation awaiting live proof—not a claim of a shipped editor.

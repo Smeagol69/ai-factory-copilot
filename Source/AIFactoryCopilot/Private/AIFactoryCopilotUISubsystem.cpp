@@ -162,6 +162,7 @@ void UAIFactoryCopilotUISubsystem::Deinitialize()
     TranscriptBox.Reset();
     LiveStatusText.Reset();
     RequestStatusText.Reset();
+    CreativeNodeResourceBox.Reset();
 
     Super::Deinitialize();
 }
@@ -306,6 +307,12 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                                 ? AIFactoryPalette::Orange
                                 : AIFactoryPalette::TextMuted)
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+                    ]
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+                    [
+                        BuildCreativeNodeSection()
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -502,25 +509,8 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
             CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase);
         if (bIsCreativeNodePlacement)
         {
-            AFGPlayerController* const PlayerController = GetLocalPlayerController();
-            USMLRemoteCallObject* const RemoteCallObject = IsValid(PlayerController)
-                ? Cast<USMLRemoteCallObject>(
-                    PlayerController->GetRemoteCallObjectOfClass(USMLRemoteCallObject::StaticClass()))
-                : nullptr;
-            if (!IsValid(RemoteCallObject))
-            {
-                if (RequestStatusText.IsValid())
-                {
-                    RequestStatusText->SetText(FText::FromString(
-                        TEXT("The native chat bridge is not ready yet. Load a save and try again.")));
-                }
-                return;
-            }
-
             InputBox->SetText(FText::GetEmpty());
-            AppendTranscript(TEXT("YOU"), Question);
-            RemoteCallObject->HandleChatCommand(CommandLine);
-            HidePanel();
+            ForwardCreativeNodePlacementCommand(CommandLine, Question);
             return;
         }
 
@@ -570,6 +560,201 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
     Request.bIncludeContentCatalog = Settings.bIncludeContentCatalog;
     Request.bIncludeReflectedProperties = Settings.bIncludeReflectedProperties;
     Subsystem->AskBridge(Sender, Question, Request, false);
+}
+
+/**
+ * The compact Creative Node picker deliberately produces one already-supported
+ * command rather than acquiring an alternate write path. The chat-command
+ * implementation remains the single server authority for permissions,
+ * descriptor validation, RCO staging, and normal Build Gun construction.
+ */
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()
+{
+    return SNew(SBorder)
+        .Padding(FMargin(8.0f, 6.0f))
+        .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
+        .BorderBackgroundColor(AIFactoryPalette::Field)
+        [
+            SNew(SVerticalBox)
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0.0f, 0.0f, 0.0f, 4.0f)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString(TEXT("CREATIVE RESOURCE NODE")))
+                .ColorAndOpacity(AIFactoryPalette::Orange)
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
+            ]
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .Padding(0.0f, 0.0f, 6.0f, 0.0f)
+                [
+                    SAssignNew(CreativeNodeResourceBox, SEditableTextBox)
+                    .HintText(FText::FromString(TEXT(
+                        "solid resource (for example: Copper Ore)")))
+                    .ToolTipText(FText::FromString(TEXT(
+                        "Enter a registered solid resource name. The server validates the exact choice, "
+                        "including modded resources, before it arms the Build Gun.")))
+                    .SelectAllTextWhenFocused(true)
+                    .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
+                    {
+                        if (CommitType == ETextCommit::OnEnter)
+                        {
+                            ArmCreativeNodeFromPanel(TEXT("normal"));
+                        }
+                    })
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(0.0f, 0.0f, 4.0f, 0.0f)
+                [
+                    SNew(SButton)
+                    .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                    .ForegroundColor(AIFactoryPalette::Text)
+                    .Text(FText::FromString(TEXT("Arm impure")))
+                    .ToolTipText(FText::FromString(TEXT(
+                        "Ask the server to arm the normal Build Gun hologram for an impure node.")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        ArmCreativeNodeFromPanel(TEXT("impure"));
+                        return FReply::Handled();
+                    })
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(0.0f, 0.0f, 4.0f, 0.0f)
+                [
+                    SNew(SButton)
+                    .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                    .ForegroundColor(AIFactoryPalette::Orange)
+                    .Text(FText::FromString(TEXT("Arm normal")))
+                    .ToolTipText(FText::FromString(TEXT(
+                        "Ask the server to arm the normal Build Gun hologram for a normal node.")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        ArmCreativeNodeFromPanel(TEXT("normal"));
+                        return FReply::Handled();
+                    })
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                [
+                    SNew(SButton)
+                    .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                    .ForegroundColor(AIFactoryPalette::Text)
+                    .Text(FText::FromString(TEXT("Arm pure")))
+                    .ToolTipText(FText::FromString(TEXT(
+                        "Ask the server to arm the normal Build Gun hologram for a pure node.")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        ArmCreativeNodeFromPanel(TEXT("pure"));
+                        return FReply::Handled();
+                    })
+                ]
+            ]
+        ];
+}
+
+void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(const FString& Purity)
+{
+    if (bWaitingForAnswer)
+    {
+        if (RequestStatusText.IsValid())
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("Wait for the current Copilot answer before arming a Creative Node.")));
+        }
+        return;
+    }
+
+    const FString Resource = CreativeNodeResourceBox.IsValid()
+        ? CreativeNodeResourceBox->GetText().ToString().TrimStartAndEnd()
+        : FString();
+    if (Resource.IsEmpty())
+    {
+        if (RequestStatusText.IsValid())
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("Type a solid resource name first; the server will validate it before arming.")));
+        }
+        if (CreativeNodeResourceBox.IsValid() && FSlateApplication::IsInitialized())
+        {
+            // ShowPanel's one-frame conversation focus must not steal this
+            // explicit correction back to the generic question box.
+            bFocusInputOnNextTick = false;
+            FSlateApplication::Get().SetAllUserFocus(CreativeNodeResourceBox, EFocusCause::SetDirectly);
+            FSlateApplication::Get().SetKeyboardFocus(CreativeNodeResourceBox, EFocusCause::SetDirectly);
+        }
+        return;
+    }
+
+    // Newlines would make the UI transcript ambiguous and are never a valid
+    // display-name alias. Spaces and the brackets used for an ambiguous modded
+    // descriptor remain valid; the server still resolves the exact resource.
+    if (Resource.Contains(TEXT("\r")) || Resource.Contains(TEXT("\n")))
+    {
+        if (RequestStatusText.IsValid())
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("A resource name must be one line. Use /ai node to list the exact choices.")));
+        }
+        return;
+    }
+
+    const FString CommandLine = FString::Printf(
+        TEXT("ai node place %s %s"), *Resource, *Purity);
+    ForwardCreativeNodePlacementCommand(
+        CommandLine,
+        FString::Printf(TEXT("/%s"), *CommandLine));
+}
+
+bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(
+    const FString& CommandLine,
+    const FString& TranscriptLine)
+{
+    // Keep this defensive check even though both panel call sites create the
+    // exact command. It prevents a later UI button from silently turning this
+    // narrow server handoff into a general arbitrary-chat-command bridge.
+    TArray<FString> CommandTokens;
+    CommandLine.ParseIntoArrayWS(CommandTokens);
+    const bool bIsCreativeNodePlacement =
+        CommandTokens.Num() >= 3 &&
+        CommandTokens[0].Equals(TEXT("ai"), ESearchCase::IgnoreCase) &&
+        CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
+        CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase);
+    if (!bIsCreativeNodePlacement)
+    {
+        if (RequestStatusText.IsValid())
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("Only the Creative Node placement command can be forwarded from this panel.")));
+        }
+        return false;
+    }
+
+    AFGPlayerController* const PlayerController = GetLocalPlayerController();
+    USMLRemoteCallObject* const RemoteCallObject = IsValid(PlayerController)
+        ? Cast<USMLRemoteCallObject>(
+            PlayerController->GetRemoteCallObjectOfClass(USMLRemoteCallObject::StaticClass()))
+        : nullptr;
+    if (!IsValid(RemoteCallObject))
+    {
+        if (RequestStatusText.IsValid())
+        {
+            RequestStatusText->SetText(FText::FromString(
+                TEXT("The native chat bridge is not ready yet. Load a save and try again.")));
+        }
+        return false;
+    }
+
+    AppendTranscript(TEXT("YOU"), TranscriptLine);
+    RemoteCallObject->HandleChatCommand(CommandLine);
+    HidePanel();
+    return true;
 }
 
 void UAIFactoryCopilotUISubsystem::ClearConversation()

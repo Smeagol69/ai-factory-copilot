@@ -81,6 +81,14 @@ private:
     TSharedPtr<STextBlock> SelectionCountText;
     TSharedPtr<class SEditableTextBox> BlueprintNameBox;
 
+    /**
+     * The Creative Node picker deliberately keeps resource selection local to
+     * the panel, but still forwards its one command through the server chat
+     * route. A Build Gun category cannot safely expose this generic recipe:
+     * the hologram has no resource until the server has staged one.
+     */
+    TSharedPtr<class SEditableTextBox> CreativeNodeResourceBox;
+
     /** Metres, full extent rather than half: "100" means 100 m across. */
     float SelectionWidthM = 60.0f;
     float SelectionDepthM = 60.0f;
@@ -179,6 +187,12 @@ private:
     static float SliderToMetres(float Normalised);
     static float MetresToSlider(float Metres);
 
+    TSharedRef<SWidget> BuildCreativeNodeSection();
+    void ArmCreativeNodeFromPanel(const FString& Purity);
+    /** Returns false without a world write when the native chat RCO is not ready. */
+    bool ForwardCreativeNodePlacementCommand(
+        const FString& CommandLine,
+        const FString& TranscriptLine);
     void BuildPanel();
     void ShowPanel();
     void ShowCommandHelp(bool bBecauseSlashWasTyped);

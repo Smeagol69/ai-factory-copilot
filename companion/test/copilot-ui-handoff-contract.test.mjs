@@ -39,6 +39,11 @@ test("the Insert panel forwards only the documented creative-node command throug
   const submit = functionSlice(
     ui,
     "void UAIFactoryCopilotUISubsystem::SubmitQuestion()",
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()",
+  );
+  const forward = functionSlice(
+    ui,
+    "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(",
     "void UAIFactoryCopilotUISubsystem::ClearConversation()",
   );
 
@@ -48,8 +53,35 @@ test("the Insert panel forwards only the documented creative-node command throug
   assert.match(submit, /CommandTokens\[0\]\.Equals\(TEXT\("ai"\), ESearchCase::IgnoreCase\)/);
   assert.match(submit, /CommandTokens\[1\]\.Equals\(TEXT\("node"\), ESearchCase::IgnoreCase\)/);
   assert.match(submit, /CommandTokens\[2\]\.Equals\(TEXT\("place"\), ESearchCase::IgnoreCase\)/);
-  assert.match(submit, /GetRemoteCallObjectOfClass\(USMLRemoteCallObject::StaticClass\(\)\)/);
-  assert.match(submit, /RemoteCallObject->HandleChatCommand\(CommandLine\)/);
-  assert.match(submit, /RemoteCallObject->HandleChatCommand\(CommandLine\);\s*HidePanel\(\);/);
+  assert.match(submit, /ForwardCreativeNodePlacementCommand\(CommandLine, Question\)/);
+  assert.match(forward, /CommandLine\.ParseIntoArrayWS\(CommandTokens\)/);
+  assert.match(forward, /GetRemoteCallObjectOfClass\(USMLRemoteCallObject::StaticClass\(\)\)/);
+  assert.match(forward, /RemoteCallObject->HandleChatCommand\(CommandLine\)/);
+  assert.match(forward, /RemoteCallObject->HandleChatCommand\(CommandLine\);\s*HidePanel\(\);/);
+  assert.doesNotMatch(forward, /AChatCommandSubsystem::RunChatCommand/);
   assert.doesNotMatch(submit, /AChatCommandSubsystem::RunChatCommand/);
+});
+
+test("the Creative Node picker only generates the existing server-validated placement handoff", () => {
+  const picker = functionSlice(
+    ui,
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()",
+    "void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(",
+  );
+  const arm = functionSlice(
+    ui,
+    "void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(",
+    "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(",
+  );
+
+  assert.match(picker, /SAssignNew\(CreativeNodeResourceBox, SEditableTextBox\)/);
+  assert.match(picker, /ArmCreativeNodeFromPanel\(TEXT\("impure"\)\)/);
+  assert.match(picker, /ArmCreativeNodeFromPanel\(TEXT\("normal"\)\)/);
+  assert.match(picker, /ArmCreativeNodeFromPanel\(TEXT\("pure"\)\)/);
+  assert.match(arm, /TEXT\("ai node place %s %s"\)/);
+  assert.match(arm, /ForwardCreativeNodePlacementCommand\(/);
+  assert.match(arm, /Resource\.Contains\(TEXT\("\\r"\)\)/);
+  assert.match(arm, /Resource\.Contains\(TEXT\("\\n"\)\)/);
+  assert.match(arm, /bFocusInputOnNextTick = false/);
+  assert.doesNotMatch(arm, /SpawnActor|SetActorLocation|ConfigureCreativeNode|ClientArmCreativeResourceNode/);
 });
