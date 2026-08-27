@@ -39,6 +39,10 @@ export const WRITE_ACTION_KINDS = [
   // a native .sbp. This writes a durable file, so it is a write even though it
   // does not place or remove anything in the world.
   "export_native_blueprint",
+  // Serialises a complete solver-computed relative layout through the game's
+  // native Blueprint Designer. It stages transient actors only; the durable
+  // effect is the resulting .sbp file.
+  "generate_native_blueprint",
   // Runs a conveyor between two existing connection components. `plan_belt_route`
   // chooses and measures the pair; this builds it. Addressed by connection
   // component rather than by actor, because an actor id does not say which of a
@@ -671,6 +675,146 @@ export function validateAction(graph, proposal) {
     };
   }
 
+  if (kind === "generate_native_blueprint") {
+    const name = String(proposal.blueprint_name ?? "").replace(/[\r\n\t]/g, " ").replace(/\s+/g, " ").trim();
+    if (!name) return reject(kind, "blueprint_name_is_required");
+    if (name.length > 240) return reject(kind, "blueprint_name_is_too_long");
+    if (proposal.layout_schema !== "aifactory.generated-blueprint/v1") {
+      return reject(kind, "unsupported_generated_blueprint_schema", {
+        expected: "aifactory.generated-blueprint/v1",
+      });
+    }
+    if (!Array.isArray(proposal.buildables) || proposal.buildables.length === 0) {
+      return reject(kind, "generated_blueprint_needs_at_least_one_buildable");
+    }
+
+    const catalog = graph?.recipesByClass ?? new Map();
+    const availabilityKnown = graph?.snapshot?.content?.availability_known === true;
+    if (!availabilityKnown || catalog.size === 0) {
+      return reject(kind, "generated_blueprint_requires_authoritative_recipe_unlock_capture");
+    }
+
+    const ids = new Set();
+    const buildables = [];
+    let configuredManufacturers = 0;
+    for (const [index, proposedPart] of proposal.buildables.entries()) {
+      if (!proposedPart || typeof proposedPart !== "object") {
+        return reject(kind, "generated_blueprint_part_is_not_an_object", { part: index + 1 });
+      }
+      const partId = String(proposedPart.part_id ?? "").trim();
+      if (!partId || partId.length > 120 || ids.has(partId)) {
+        return reject(kind, ids.has(partId)
+          ? "generated_blueprint_part_ids_must_be_unique"
+          : "generated_blueprint_part_id_is_required", { part: index + 1, part_id: partId });
+      }
+      ids.add(partId);
+
+      const role = String(proposedPart.role ?? "standalone").trim().toLowerCase();
+      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone"].includes(role)) {
+        return reject(kind, "generated_blueprint_part_role_is_unsupported", {
+          part: index + 1,
+          part_id: partId,
+          role,
+        });
+      }
+
+      const location = explicitVector(proposedPart.relative_location);
+      const yaw = finite(proposedPart.yaw ?? 0);
+      if (!location || yaw === null) {
+        return reject(kind, "generated_blueprint_part_transform_must_be_finite", {
+          part: index + 1,
+          part_id: partId,
+        });
+      }
+
+      const requestedBuildRecipe = String(proposedPart.recipe_class ?? "").trim();
+      const buildRecipe = catalog.get(requestedBuildRecipe) ??
+        findRecipeByShortName(catalog, requestedBuildRecipe);
+      if (!requestedBuildRecipe || !buildRecipe) {
+        return reject(kind, "generated_build_recipe_not_in_catalog", {
+          part: index + 1,
+          part_id: partId,
+          recipe_class: requestedBuildRecipe,
+          did_you_mean: nearestRecipeNames(catalog, requestedBuildRecipe),
+        });
+      }
+      if (buildRecipe.available !== true) {
+        return reject(kind, "generated_build_recipe_is_not_unlocked", {
+          part: index + 1,
+          part_id: partId,
+          recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+        });
+      }
+      if (!(buildRecipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun"))) {
+        return reject(kind, "generated_recipe_is_not_a_build_gun_recipe", {
+          part: index + 1,
+          part_id: partId,
+          recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+        });
+      }
+
+      const requestedProductionRecipe = String(proposedPart.production_recipe_class ?? "").trim();
+      let productionRecipe = null;
+      if (requestedProductionRecipe) {
+        productionRecipe = catalog.get(requestedProductionRecipe) ??
+          findRecipeByShortName(catalog, requestedProductionRecipe);
+        if (!productionRecipe) {
+          return reject(kind, "generated_production_recipe_not_in_catalog", {
+            part: index + 1,
+            part_id: partId,
+            production_recipe_class: requestedProductionRecipe,
+            did_you_mean: nearestRecipeNames(catalog, requestedProductionRecipe),
+          });
+        }
+        if (productionRecipe.available !== true) {
+          return reject(kind, "generated_production_recipe_is_not_unlocked", {
+            part: index + 1,
+            part_id: partId,
+            production_recipe_class: productionRecipe.class_path ?? requestedProductionRecipe,
+          });
+        }
+        configuredManufacturers += 1;
+      }
+
+      buildables.push({
+        part_id: partId,
+        role,
+        recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+        ...(productionRecipe
+          ? { production_recipe_class: productionRecipe.class_path ?? requestedProductionRecipe }
+          : {}),
+        relative_location: location,
+        yaw,
+      });
+    }
+
+    warnings.push(
+      "No world building is being placed yet. The game stages transient native actors, validates their exact resolved bounds, writes one native .sbp through a real Blueprint Designer, destroys the staging actors, and reads the archive back before reporting success.",
+      "Generated Blueprint v1 refuses belts, pipes, wires, miners/resource anchors, and host-dependent attachments until each native serialization topology is independently proven.",
+    );
+    return {
+      valid: true,
+      warnings,
+      checks: {
+        ...checks,
+        layout_schema: proposal.layout_schema,
+        buildables: buildables.length,
+        configured_manufacturers: configuredManufacturers,
+        authoritative_unlock_capture: true,
+        arbitrary_blueprint_size_cap: "none",
+        native_internal_collision_readback: "game_side_required",
+      },
+      action: bindWorldRevision(graph, {
+        action: kind,
+        blueprint_name: name,
+        description: String(proposal.description ?? "").trim().slice(0, 1_000),
+        layout_schema: proposal.layout_schema,
+        buildables,
+        commit: proposal.commit === true,
+      }, proposal),
+    };
+  }
+
   if (kind === "export_native_blueprint") {
     const name = String(proposal.blueprint_name ?? "").trim();
     if (!name) return reject(kind, "blueprint_name_is_required");
@@ -1173,7 +1317,7 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
   // entry. Keep it single-step so an archive failure or name collision cannot
   // be mistaken for a reversible construction transaction.
   const nativeExports = committedWrites.filter(
-    (action) => action.action === "export_native_blueprint",
+    (action) => ["export_native_blueprint", "generate_native_blueprint"].includes(action.action),
   );
   if (nativeExports.length > 0 && committedWrites.length > 1) {
     return {
@@ -1228,7 +1372,7 @@ export function summarizePlan(graph, plan) {
 
   const irreversible = plan.actions.filter((action) => action.action === "dismantle").length;
   const nativeExports = plan.actions.filter(
-    (action) => action.action === "export_native_blueprint",
+    (action) => ["export_native_blueprint", "generate_native_blueprint"].includes(action.action),
   ).length;
   const clientPreviews = plan.actions.filter((action) => CLIENT_ACTION_KINDS.includes(action.action)).length;
 

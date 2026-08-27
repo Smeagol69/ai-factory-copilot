@@ -126,6 +126,9 @@ draws overlays. Every action runs through the same contract:
 |---|---|
 | `place_building` | Places one machine from its build recipe, ground and clearance probed first |
 | `place_blueprint` | Stamps a saved blueprint via `AFGBlueprintHologram`, so snapping, validation, layout, wiring, and proxy grouping stay in Satisfactory's systems |
+| `generate_native_blueprint` | Converts a solver-computed relative factory layout into one native `.sbp` through a real empty Blueprint Designer, transient native staging, bounds validation, and game-side disk readback; initial v1 omits unproven transport/power/miner topology explicitly |
+| `export_native_blueprint` | Packages the exact existing factory selection the player made into a native `.sbp`; this is capture, distinct from AI generation |
+| `preview_blueprint` | Arms an active-session saved Blueprint in the requesting player's vanilla Build Gun without constructing or spending anything |
 | `teleport_player` | Moves the player, snapping to measured ground so a bare coordinate cannot drop them through the map |
 | `dismantle` | Removes a building. The one action with no undo, and it says so everywhere |
 | `undo_last` | Reverses the previous action |

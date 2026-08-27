@@ -59,6 +59,7 @@ import {
   surveyStructuralPieces,
 } from "./architecture.mjs";
 import { planCoalPower } from "./power.mjs";
+import { compileGeneratedBlueprint, generatedBlueprintAction } from "./generated-blueprints.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
 import {
@@ -1134,7 +1135,7 @@ export function parseUndoHistoryRequest(question) {
  * matched against the wrong proposal.
  */
 const BASE_DESIGN_VERB =
-  /^(?:can you |could you |please )?(?:(design|plan|lay ?out)|(build|make|construct|spawn))(?:\s+me)?(?:\s+(?:a|an|the))?(?:\s+(?:new|whole|complete|full))?(?:\s+\d+[- ]?(?:storey|story|storeys|stories|floor|floors|level|levels|tier|tiers))?\s+(?:base|factory|setup|production(?:\s+line)?|line|module)\s+/i;
+  /^(?:can you |could you |please )?(?:(design|plan|lay ?out)|(build|make|construct|spawn|create))(?:\s+me)?(?:\s+(?:a|an|the))?(?:\s+(?:new|whole|complete|full))?(?:\s+\d+[- ]?(?:storey|story|storeys|stories|floor|floors|level|levels|tier|tiers))?\s+(?:factory\s+blueprint|base\s+blueprint|blue\s?print|base|factory|setup|production(?:\s+line)?|line|module)\s+/i;
 
 /**
  * The rate is found by its unit, and the number by being a number.
@@ -1255,6 +1256,7 @@ export function parseBaseDesignRequest(question) {
     bare,
     levels: Number.isInteger(levels) && levels >= 1 && levels <= 12 ? levels : 1,
     at_best_site: atBestSite,
+    ...(/\bblue\s?print\b/i.test(text) ? { as_blueprint: true } : {}),
     raw_text: text,
   };
 }
@@ -4766,7 +4768,7 @@ export function answerLocally(question, graph, services) {
         // resources and distance, so this is one solver feeding another rather
         // than a second opinion about where to build.
         let sitedAt = null;
-        if (design.at_best_site) {
+        if (design.at_best_site && !design.as_blueprint) {
           const site = solveSiteSelection(graph, {});
           const best = site?.sites?.[0];
           if (best?.center_cm) {
@@ -4826,9 +4828,42 @@ export function answerLocally(question, graph, services) {
                 structure_actions: structureActions,
               })
             : baseBuildActions(plan, { commit: design.commit });
-          const emitted = design.commit
-            ? emitValidatedPlan(graph, services, actions)
-            : true;
+          let generated = null;
+          let emitted = true;
+          if (design.as_blueprint) {
+            const revision = String(graph.world_revision ?? "draft").replace(/[^A-Za-z0-9_-]+/g, "-");
+            const rate = String(design.per_minute).replace(/[^0-9]+/g, "-");
+            const blueprintName = `AI ${item.name} ${rate}pm r${revision}`.slice(0, 240);
+            // Topology is deliberately not dropped by accident: it is named in
+            // the compiled manifest as unsupported v1 work. This first native
+            // proof serialises the complete shell and configured machines;
+            // belts/pipes/wires enter only after their component references can
+            // be constructed and read back exactly.
+            const buildingsOnly = actions.filter((action) => action.action === "place_building");
+            generated = compileGeneratedBlueprint({
+              blueprint_name: blueprintName,
+              actions: buildingsOnly,
+              description:
+                `${design.per_minute}/min ${item.name} factory designed from revision ` +
+                `${graph.world_revision ?? "unknown"}. Native shell and configured machines; transport/power topology pending.`,
+            });
+            if (!generated.compiled) {
+              return localAnswer(
+                `I couldn't compile that native Blueprint: ${generated.reason}.`,
+                "generate_blueprint_refused",
+                started,
+                "No file or world action was emitted.",
+              );
+            }
+            const proposal = generatedBlueprintAction(generated, { commit: design.commit });
+            emitted = design.commit
+              ? emitValidatedPlan(graph, services, [proposal])
+              : true;
+          } else {
+            emitted = design.commit
+              ? emitValidatedPlan(graph, services, actions)
+              : true;
+          }
 
           if (emitted) {
             const rows = plan.steps
@@ -4883,15 +4918,28 @@ export function answerLocally(question, graph, services) {
                 })()
               : "";
 
+            const blueprintIntro = generated
+              ? `**${design.commit ? "Generating native Blueprint" : "Blueprint design for"} ` +
+                `${design.per_minute}/min ${item.name} — ${generated.blueprint_name}** `
+              : `**${design.commit ? "Building" : "Design for"} ${design.per_minute}/min ${item.name}** `;
             return localAnswer(
-              `**${design.commit ? "Building" : "Design for"} ${design.per_minute}/min ${item.name}** ` +
+              blueprintIntro +
                 `— ${plan.machines_total} machine(s) across ${plan.rows} row(s), ` +
-                `${plan.belts_planned} belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
-                (design.commit
+                `${plan.belts_planned} planned belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
+                (generated && design.commit
+                  ? `The game is now resolving ${generated.counts.buildables} exact native parts, ` +
+                    "measuring their colliding-component bounds, refusing internal overlap, " +
+                    "serialising them through the real Designer and reading the .sbp back. " +
+                    `If that result commits, say **"preview blueprint ${generated.blueprint_name}"** ` +
+                    "and place it with the vanilla Build Gun. Belts, pipes, wires, miners and power " +
+                    "are explicitly not generated in this first topology version."
+                  : design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +
                     'the whole transaction rolls back if one fails. Say "undo" to reverse it.'
                   : `Say **"build a base for ${design.per_minute} ${item.name} per minute"** to place it.`),
-              design.commit ? "build_base" : "design_base",
+              generated
+                ? (design.commit ? "generate_native_blueprint" : "design_native_blueprint")
+                : (design.commit ? "build_base" : "design_base"),
               started,
               "Recipes, machine counts and positions all came from captured data.",
             );

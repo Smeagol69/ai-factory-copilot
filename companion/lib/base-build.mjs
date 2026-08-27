@@ -395,6 +395,7 @@ export function baseBuildActions(plan, { commit = false, step_offset: stepOffset
         // belts between them do not line up either.
         exact_z: true,
         yaw: 0,
+        generated_role: "machine",
         commit,
       });
     }

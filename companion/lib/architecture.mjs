@@ -363,6 +363,9 @@ export function structureActions(plan, { commit = false } = {}) {
       // that traces down for its own build surface is not on that storey.
       exact_z: true,
       yaw: part.yaw ?? 0,
+      // Used only when the same deterministic plan is compiled into a native
+      // Blueprint. Direct world placement ignores this metadata.
+      generated_role: part.kind,
       commit,
     }));
 }

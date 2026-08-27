@@ -5,6 +5,25 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added the first true **AI plan → native Blueprint** pipeline. A request such
+  as `create a blueprint that makes 60 wire per minute` now sizes the production
+  chain from the live recipe catalog, lays out an enclosed factory, converts
+  every exact build/production recipe and transform into Blueprint-relative
+  geometry, and submits one standalone `generate_native_blueprint` file write
+  instead of hundreds of live-world placements. The game independently checks
+  current unlocks and class compatibility, stages only deferred `RF_Transient`
+  native buildables inside an empty real Designer, applies and reads back
+  manufacturer recipes, measures the actors' native colliding-component bounds,
+  refuses unapproved internal overlap, serializes with `SaveBlueprint`, unwinds
+  Designer membership, destroys every staging actor, refreshes the native
+  library, and accepts the result only when `ReadBlueprintFromDisc` succeeds.
+  The resulting `.sbp` is then placed through the existing vanilla Build Gun
+  preview/placement workflow. Initial v1 deliberately refuses conveyor, pipe,
+  wire, miner/resource-anchor, and host-dependent attachment topology; it does
+  not pretend a machine-only graph is a finished powered factory. Exact CL
+  502094 headers, 845 companion tests, and Editor/Shipping module builds pass;
+  packaged and live Build Gun proof remain required before calling generation
+  gameplay-proven.
 - Added the experimental **Creative Resource Node** world-editor foundation.
   `/ai node place <resource> [impure|normal|pure]` arms Satisfactory's normal
   Build Gun hologram for a new mod-owned, saveable, replicated infinite solid

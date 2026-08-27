@@ -8,6 +8,16 @@ struct FAIFactoryActionContext;
 struct FAIFactoryActionResult;
 class AFGBuildable;
 
+/** One exact, Blueprint-relative native buildable requested by a planner. */
+struct FAIFactoryGeneratedBlueprintPart
+{
+    FString PartId;
+    FString Role;
+    FString BuildRecipeClassPath;
+    FString ProductionRecipeClassPath;
+    FTransform RelativeTransform = FTransform::Identity;
+};
+
 /**
  * Writing a real `.sbp` from buildings standing in the world.
  *
@@ -49,4 +59,22 @@ namespace AIFactoryBlueprintExport
         const FString& BlueprintName,
         const TArray<AFGBuildable*>& Buildables,
         const TArray<FLightweightBuildableInstanceRef>& LightweightInstances = {});
+
+    /**
+     * Writes a solver-computed layout as one native Blueprint.
+     *
+     * Every part is resolved from an unlocked Build Gun recipe by the game.
+     * Commit staging uses RF_Transient deferred-spawned native buildables owned
+     * by an empty real Blueprint Designer; they are destroyed on every exit.
+     * The archive is accepted only after native readback succeeds.
+     *
+     * Initial contract: ordinary standalone buildables and optional compatible
+     * manufacturer recipes. Conveyor/pipe/wire topology, resource extractors,
+     * and host-dependent attachments are refused until separately proven.
+     */
+    FAIFactoryActionResult GenerateLayout(
+        const FAIFactoryActionContext& Context,
+        const FString& BlueprintName,
+        const FString& BlueprintDescription,
+        const TArray<FAIFactoryGeneratedBlueprintPart>& Parts);
 }

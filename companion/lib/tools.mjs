@@ -823,7 +823,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list, and never say an .sbp was written until the game reports it. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, generate_native_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). generate_native_blueprint writes a solver-computed Blueprint-relative layout through the game's real Designer and must be the only committed write; v1 accepts foundations and ordinary standalone buildables only, not belts, pipes, wires, miners, or host-dependent attachments. export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list. Never say an .sbp was written until the game reports readback. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -835,14 +835,42 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "preview_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
+                enum: ["place_building", "place_blueprint", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
-              blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
+              blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. generate_native_blueprint: the name of the new native Blueprint file. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
+              description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
+              layout_schema: {
+                type: "string",
+                enum: ["aifactory.generated-blueprint/v1"],
+                description: "generate_native_blueprint: exact generated-layout contract version.",
+              },
+              buildables: {
+                type: "array",
+                description: "generate_native_blueprint: complete Blueprint-relative layout. Every recipe is rechecked against current game unlocks and each native staged actor is bounds-checked before serialization.",
+                items: {
+                  type: "object",
+                  properties: {
+                    part_id: { type: "string" },
+                    role: { type: "string", enum: ["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone"] },
+                    recipe_class: { type: "string", description: "Exact unlocked Build Gun recipe class." },
+                    production_recipe_class: { type: "string", description: "Optional exact unlocked recipe to configure on a compatible manufacturer." },
+                    relative_location: {
+                      type: "object",
+                      properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+                      required: ["x", "y", "z"],
+                      additionalProperties: false,
+                    },
+                    yaw: { type: "number" },
+                  },
+                  required: ["part_id", "recipe_class", "relative_location", "yaw"],
+                  additionalProperties: false,
+                },
+              },
               selection_source: {
                 type: "string",
                 enum: ["dismantle_selection", "box_selection"],

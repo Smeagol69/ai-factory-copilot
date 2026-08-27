@@ -8,8 +8,18 @@
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
 #include "Buildables/FGBuildableConveyorBase.h"
+#include "Buildables/FGBuildableConveyorAttachment.h"
+#include "Buildables/FGBuildableManufacturer.h"
+#include "Buildables/FGBuildablePipeBase.h"
+#include "Buildables/FGBuildablePipelineAttachment.h"
+#include "Buildables/FGBuildableResourceExtractorBase.h"
+#include "Buildables/FGBuildableWire.h"
 #include "FGBuildableSubsystem.h"
 #include "FGLightweightBuildableSubsystem.h"
+#include "FGRecipe.h"
+#include "FGRecipeManager.h"
+#include "Resources/FGBuildingDescriptor.h"
+#include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
 
 /**
@@ -306,6 +316,382 @@ namespace
         }
         return nullptr;
     }
+
+    UClass* FindGeneratedClassByPath(const FString& ClassPath)
+    {
+        if (ClassPath.IsEmpty())
+        {
+            return nullptr;
+        }
+        if (UClass* Direct = FindObject<UClass>(nullptr, *ClassPath))
+        {
+            return Direct;
+        }
+        if (UClass* Loaded = LoadObject<UClass>(nullptr, *ClassPath))
+        {
+            return Loaded;
+        }
+        for (TObjectIterator<UClass> It; It; ++It)
+        {
+            if (It->GetName() == ClassPath || It->GetPathName() == ClassPath)
+            {
+                return *It;
+            }
+        }
+        return nullptr;
+    }
+
+    struct FResolvedGeneratedPart
+    {
+        FAIFactoryGeneratedBlueprintPart Source;
+        TSubclassOf<UFGRecipe> BuildRecipe;
+        TSubclassOf<UFGRecipe> ProductionRecipe;
+        TSubclassOf<AFGBuildable> BuildableClass;
+    };
+
+    bool ResolveGeneratedPart(
+        const FAIFactoryGeneratedBlueprintPart& Part,
+        UWorld* World,
+        FResolvedGeneratedPart& Out,
+        FString& OutReason)
+    {
+        if (Part.PartId.TrimStartAndEnd().IsEmpty())
+        {
+            OutReason = TEXT("generated_part_id_is_required");
+            return false;
+        }
+        if (Part.Role != TEXT("floor") && Part.Role != TEXT("pillar") &&
+            Part.Role != TEXT("wall") && Part.Role != TEXT("roof") &&
+            Part.Role != TEXT("ramp") && Part.Role != TEXT("machine") &&
+            Part.Role != TEXT("standalone"))
+        {
+            OutReason = TEXT("generated_part_role_is_unsupported:") + Part.PartId;
+            return false;
+        }
+        if (Part.RelativeTransform.ContainsNaN())
+        {
+            OutReason = TEXT("generated_part_transform_is_not_finite:") + Part.PartId;
+            return false;
+        }
+
+        UClass* RecipeObject = FindGeneratedClassByPath(Part.BuildRecipeClassPath);
+        if (!RecipeObject || !RecipeObject->IsChildOf(UFGRecipe::StaticClass()))
+        {
+            OutReason = TEXT("generated_build_recipe_not_found:") + Part.BuildRecipeClassPath;
+            return false;
+        }
+        const TSubclassOf<UFGRecipe> BuildRecipe = RecipeObject;
+
+        TSubclassOf<AFGBuildable> BuildableClass = nullptr;
+        for (const FItemAmount& Product : UFGRecipe::GetProducts(BuildRecipe))
+        {
+            if (Product.ItemClass &&
+                Product.ItemClass->IsChildOf(UFGBuildingDescriptor::StaticClass()))
+            {
+                const TSubclassOf<UFGBuildingDescriptor> Descriptor{ Product.ItemClass.Get() };
+                BuildableClass = UFGBuildingDescriptor::GetBuildableClass(Descriptor);
+                break;
+            }
+        }
+        if (!BuildableClass)
+        {
+            OutReason = TEXT("generated_recipe_is_not_a_build_recipe:") + Part.BuildRecipeClassPath;
+            return false;
+        }
+        if (BuildableClass->HasAnyClassFlags(CLASS_Abstract))
+        {
+            OutReason = TEXT("generated_buildable_class_is_abstract:") + BuildableClass->GetPathName();
+            return false;
+        }
+
+        // These classes need topology or a native placement target, not just a
+        // transform. Serialising an unconnected spline, wire, attachment, or
+        // extractor would create a file that looks populated but cannot work.
+        if (BuildableClass->IsChildOf(AFGBuildableConveyorBase::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildableConveyorAttachment::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildablePipeBase::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildablePipelineAttachment::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildableWire::StaticClass()) ||
+            BuildableClass->IsChildOf(AFGBuildableResourceExtractorBase::StaticClass()))
+        {
+            OutReason = TEXT("generated_buildable_needs_an_unimplemented_native_topology:") +
+                BuildableClass->GetPathName();
+            return false;
+        }
+
+        AFGRecipeManager* RecipeManager = AFGRecipeManager::Get(World);
+        if (!IsValid(RecipeManager))
+        {
+            OutReason = TEXT("no_recipe_manager");
+            return false;
+        }
+        if (!RecipeManager->IsRecipeAvailable(BuildRecipe))
+        {
+            OutReason = TEXT("generated_build_recipe_is_not_unlocked:") +
+                RecipeObject->GetPathName();
+            return false;
+        }
+        if (!RecipeManager->IsBuildingAvailable(BuildableClass))
+        {
+            OutReason = TEXT("generated_building_is_not_unlocked:") +
+                BuildableClass->GetPathName();
+            return false;
+        }
+
+        TSubclassOf<UFGRecipe> ProductionRecipe = nullptr;
+        if (!Part.ProductionRecipeClassPath.IsEmpty())
+        {
+            UClass* ProductionObject = FindGeneratedClassByPath(Part.ProductionRecipeClassPath);
+            if (!ProductionObject || !ProductionObject->IsChildOf(UFGRecipe::StaticClass()))
+            {
+                OutReason = TEXT("generated_production_recipe_not_found:") +
+                    Part.ProductionRecipeClassPath;
+                return false;
+            }
+            ProductionRecipe = ProductionObject;
+            if (!RecipeManager->IsRecipeAvailable(ProductionRecipe))
+            {
+                OutReason = TEXT("generated_production_recipe_is_not_unlocked:") +
+                    ProductionObject->GetPathName();
+                return false;
+            }
+            if (!UFGRecipe::IsProducedIn(ProductionRecipe, BuildableClass))
+            {
+                OutReason = TEXT("generated_production_recipe_is_not_compatible:") +
+                    ProductionObject->GetPathName();
+                return false;
+            }
+        }
+
+        Out.Source = Part;
+        Out.BuildRecipe = BuildRecipe;
+        Out.ProductionRecipe = ProductionRecipe;
+        Out.BuildableClass = BuildableClass;
+        return true;
+    }
+
+    struct FStagedGeneratedPart
+    {
+        FResolvedGeneratedPart Resolved;
+        AFGBuildable* Buildable = nullptr;
+        FBox CollisionBounds = FBox(ForceInit);
+    };
+
+    class FScopedGeneratedBuildables
+    {
+    public:
+        FScopedGeneratedBuildables(
+            UWorld* World,
+            AFGBuildableBlueprintDesigner* Designer,
+            const TArray<FResolvedGeneratedPart>& Parts)
+        {
+            if (!IsValid(World) || !IsValid(Designer))
+            {
+                Failure = TEXT("generated_blueprint_staging_world_or_designer_is_invalid");
+                return;
+            }
+
+            for (const FResolvedGeneratedPart& Part : Parts)
+            {
+                const FTransform WorldTransform =
+                    Part.Source.RelativeTransform * Designer->GetActorTransform();
+                FActorSpawnParameters Params;
+                Params.SpawnCollisionHandlingOverride =
+                    ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Params.bDeferConstruction = true;
+                Params.ObjectFlags |= RF_Transient;
+
+                AFGBuildable* Buildable =
+                    World->SpawnActor<AFGBuildable>(Part.BuildableClass, WorldTransform, Params);
+                if (!IsValid(Buildable))
+                {
+                    Failure = TEXT("generated_buildable_spawn_failed:") + Part.Source.PartId;
+                    return;
+                }
+                SpawnedActors.Add(Buildable);
+
+                // This must remain before BeginPlay. The exact same construction
+                // window is used by lightweight materialisation in the proven
+                // selection exporter; calling it on an already-live actor
+                // asserts and previously crashed a real save.
+                Buildable->SetInsideBlueprintDesigner(Designer);
+                Buildable->SetBuiltWithRecipe(Part.BuildRecipe);
+                Buildable->FinishSpawning(WorldTransform);
+                if (!IsValid(Buildable) || !Buildable->IsA(Part.BuildableClass))
+                {
+                    Failure = TEXT("generated_buildable_finish_spawning_failed:") +
+                        Part.Source.PartId;
+                    return;
+                }
+
+                if (Part.ProductionRecipe)
+                {
+                    AFGBuildableManufacturer* Manufacturer =
+                        Cast<AFGBuildableManufacturer>(Buildable);
+                    UFGInventoryComponent* Input = IsValid(Manufacturer)
+                        ? Manufacturer->GetInputInventory()
+                        : nullptr;
+                    UFGInventoryComponent* Output = IsValid(Manufacturer)
+                        ? Manufacturer->GetOutputInventory()
+                        : nullptr;
+                    TArray<TSubclassOf<UFGRecipe>> AvailableRecipes;
+                    if (IsValid(Manufacturer))
+                    {
+                        Manufacturer->GetAvailableRecipes(AvailableRecipes);
+                    }
+                    if (!IsValid(Manufacturer) ||
+                        !IsValid(Input) || !IsValid(Output) ||
+                        !Input->IsEmpty() || !Output->IsEmpty() ||
+                        !AvailableRecipes.Contains(Part.ProductionRecipe))
+                    {
+                        Failure = TEXT("generated_manufacturer_recipe_could_not_be_applied:") +
+                            Part.Source.PartId;
+                        return;
+                    }
+                    Manufacturer->SetRecipe(Part.ProductionRecipe);
+                    if (Manufacturer->GetCurrentRecipe() != Part.ProductionRecipe)
+                    {
+                        Failure = TEXT("generated_manufacturer_recipe_readback_failed:") +
+                            Part.Source.PartId;
+                        return;
+                    }
+                }
+
+                FStagedGeneratedPart& Staged = StagedParts.AddDefaulted_GetRef();
+                Staged.Resolved = Part;
+                Staged.Buildable = Buildable;
+                // Non-colliding decoration must not make two valid grid pieces
+                // appear to intersect. These are the actor's native colliding
+                // component bounds after its construction script has run.
+                Staged.CollisionBounds = Buildable->GetComponentsBoundingBox(false, true);
+                if (!Staged.CollisionBounds.IsValid ||
+                    Staged.CollisionBounds.GetExtent().ContainsNaN())
+                {
+                    Failure = TEXT("generated_buildable_has_no_finite_collision_bounds:") +
+                        Part.Source.PartId;
+                    return;
+                }
+            }
+        }
+
+        ~FScopedGeneratedBuildables()
+        {
+            for (int32 Index = SpawnedActors.Num() - 1; Index >= 0; --Index)
+            {
+                if (AFGBuildable* Buildable = SpawnedActors[Index]; IsValid(Buildable))
+                {
+                    Buildable->Destroy();
+                }
+            }
+            SpawnedActors.Reset();
+            StagedParts.Reset();
+        }
+
+        const TArray<FStagedGeneratedPart>& Get() const { return StagedParts; }
+        bool IsComplete(const int32 Expected) const
+        {
+            return Failure.IsEmpty() && StagedParts.Num() == Expected;
+        }
+        const FString& GetFailure() const { return Failure; }
+
+    private:
+        TArray<AFGBuildable*> SpawnedActors;
+        TArray<FStagedGeneratedPart> StagedParts;
+        FString Failure;
+    };
+
+    bool IsGeneratedStructuralRole(const FString& Role)
+    {
+        return Role == TEXT("floor") || Role == TEXT("pillar") ||
+            Role == TEXT("wall") || Role == TEXT("roof") || Role == TEXT("ramp");
+    }
+
+    /**
+     * Conservative internal collision check over the native actors we staged.
+     *
+     * Adjacent/snapped structural pieces intentionally share collision bounds,
+     * so structure-to-structure pairs are recorded but not rejected. A machine
+     * may touch its floor by at most one decimetre. Every other volumetric AABB
+     * intersection refuses the file. Final site/terrain clearance remains the
+     * vanilla Blueprint hologram's job when the player chooses where to place.
+     */
+    bool ValidateGeneratedInternalBounds(
+        const TArray<FStagedGeneratedPart>& Parts,
+        FString& OutReason,
+        int32& OutStructuralContacts,
+        FBox& OutCombinedBounds)
+    {
+        OutStructuralContacts = 0;
+        OutCombinedBounds = FBox(ForceInit);
+        for (const FStagedGeneratedPart& Part : Parts)
+        {
+            OutCombinedBounds += Part.CollisionBounds;
+        }
+
+        constexpr double MeaningfulPenetrationCm = 1.0;
+        constexpr double MaximumFloorMachineContactCm = 10.0;
+        for (int32 LeftIndex = 0; LeftIndex < Parts.Num(); ++LeftIndex)
+        {
+            for (int32 RightIndex = LeftIndex + 1; RightIndex < Parts.Num(); ++RightIndex)
+            {
+                const FStagedGeneratedPart& Left = Parts[LeftIndex];
+                const FStagedGeneratedPart& Right = Parts[RightIndex];
+                const FVector OverlapMin(
+                    FMath::Max(Left.CollisionBounds.Min.X, Right.CollisionBounds.Min.X),
+                    FMath::Max(Left.CollisionBounds.Min.Y, Right.CollisionBounds.Min.Y),
+                    FMath::Max(Left.CollisionBounds.Min.Z, Right.CollisionBounds.Min.Z));
+                const FVector OverlapMax(
+                    FMath::Min(Left.CollisionBounds.Max.X, Right.CollisionBounds.Max.X),
+                    FMath::Min(Left.CollisionBounds.Max.Y, Right.CollisionBounds.Max.Y),
+                    FMath::Min(Left.CollisionBounds.Max.Z, Right.CollisionBounds.Max.Z));
+                const FVector Penetration = OverlapMax - OverlapMin;
+                if (Penetration.X <= MeaningfulPenetrationCm ||
+                    Penetration.Y <= MeaningfulPenetrationCm ||
+                    Penetration.Z <= MeaningfulPenetrationCm)
+                {
+                    continue;
+                }
+
+                const FString& LeftRole = Left.Resolved.Source.Role;
+                const FString& RightRole = Right.Resolved.Source.Role;
+                if (IsGeneratedStructuralRole(LeftRole) &&
+                    IsGeneratedStructuralRole(RightRole))
+                {
+                    ++OutStructuralContacts;
+                    continue;
+                }
+
+                const FStagedGeneratedPart* Floor = nullptr;
+                const FStagedGeneratedPart* Machine = nullptr;
+                if (LeftRole == TEXT("floor") && RightRole == TEXT("machine"))
+                {
+                    Floor = &Left;
+                    Machine = &Right;
+                }
+                else if (RightRole == TEXT("floor") && LeftRole == TEXT("machine"))
+                {
+                    Floor = &Right;
+                    Machine = &Left;
+                }
+                if (Floor && Machine &&
+                    Machine->CollisionBounds.GetCenter().Z >= Floor->CollisionBounds.GetCenter().Z &&
+                    Penetration.Z <= MaximumFloorMachineContactCm)
+                {
+                    continue;
+                }
+
+                OutReason = FString::Printf(
+                    TEXT("generated_internal_collision:%s:%s:penetration_cm=%.1f,%.1f,%.1f"),
+                    *Left.Resolved.Source.PartId,
+                    *Right.Resolved.Source.PartId,
+                    Penetration.X,
+                    Penetration.Y,
+                    Penetration.Z);
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 namespace AIFactoryBlueprintExport
@@ -488,6 +874,216 @@ FAIFactoryActionResult ExportSelection(
     Result.bUndoable = false;
     Result.UndoDescription =
         TEXT("Exported blueprints are files, not world changes; delete it from the blueprint menu.");
+    return Result;
+}
+
+FAIFactoryActionResult GenerateLayout(
+    const FAIFactoryActionContext& Context,
+    const FString& BlueprintName,
+    const FString& BlueprintDescription,
+    const TArray<FAIFactoryGeneratedBlueprintPart>& Parts)
+{
+    const FString Action = TEXT("generate_native_blueprint");
+    if (BlueprintName.TrimStartAndEnd().IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("blueprint_name_is_required"));
+    }
+    if (Parts.Num() == 0)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("generated_blueprint_needs_at_least_one_buildable"));
+    }
+    if (!IsValid(Context.World))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_world"));
+    }
+    if (Context.World->GetNetMode() == NM_Client)
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("not_server_authoritative"));
+    }
+    if (Context.bRequireUnchangedWorld &&
+        !Context.ExpectedWorldRevision.IsEmpty() &&
+        !Context.ActualWorldRevision.IsEmpty() &&
+        Context.ExpectedWorldRevision != Context.ActualWorldRevision)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("world_revision_moved:expected=%s,actual=%s"),
+                *Context.ExpectedWorldRevision,
+                *Context.ActualWorldRevision));
+    }
+
+    AFGBuildableBlueprintDesigner* Designer = FindAnyDesigner(Context.World);
+    if (!IsValid(Designer))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("no_blueprint_designer_in_this_world_build_one_first"));
+    }
+    if (Designer->HasBuildings())
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("the_blueprint_designer_is_not_empty_clear_it_first"));
+    }
+
+    TSet<FString> PartIds;
+    TArray<FResolvedGeneratedPart> Resolved;
+    Resolved.Reserve(Parts.Num());
+    int32 ConfiguredManufacturers = 0;
+    for (const FAIFactoryGeneratedBlueprintPart& Part : Parts)
+    {
+        if (PartIds.Contains(Part.PartId))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_blueprint_part_ids_must_be_unique:" ) + Part.PartId);
+        }
+        PartIds.Add(Part.PartId);
+
+        FResolvedGeneratedPart& Entry = Resolved.AddDefaulted_GetRef();
+        FString Failure;
+        if (!ResolveGeneratedPart(Part, Context.World, Entry, Failure))
+        {
+            return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+        if (Entry.ProductionRecipe)
+        {
+            ++ConfiguredManufacturers;
+        }
+    }
+
+    const TSharedRef<FJsonObject> Predicted = MakeShared<FJsonObject>();
+    Predicted->SetStringField(TEXT("blueprint_name"), BlueprintName);
+    Predicted->SetStringField(TEXT("layout_schema"), TEXT("aifactory.generated-blueprint/v1"));
+    Predicted->SetNumberField(TEXT("resolved_buildables"), Resolved.Num());
+    Predicted->SetNumberField(TEXT("configured_manufacturers"), ConfiguredManufacturers);
+    Predicted->SetStringField(TEXT("designer"), Designer->GetPathName());
+    Predicted->SetBoolField(TEXT("designer_had_buildings"), Designer->HasBuildings());
+    Predicted->SetStringField(
+        TEXT("staging"),
+        TEXT("RF_Transient deferred native actors; destroyed before return"));
+    Predicted->SetStringField(
+        TEXT("collision_validation"),
+        TEXT("native colliding-component bounds; final site clearance belongs to the vanilla Blueprint hologram"));
+
+    if (Context.bDryRun)
+    {
+        FAIFactoryActionResult Result;
+        Result.Action = Action;
+        Result.bAccepted = true;
+        Result.bDryRun = true;
+        Result.Status = TEXT("dry_run");
+        Result.Predicted = Predicted;
+        return Result;
+    }
+
+    FAIFactoryActionResult Result;
+    Result.Action = Action;
+    Result.Predicted = Predicted;
+
+    FScopedGeneratedBuildables Staging(Context.World, Designer, Resolved);
+    if (!Staging.IsComplete(Resolved.Num()))
+    {
+        Result.Status = TEXT("failed");
+        Result.Reason = Staging.GetFailure().IsEmpty()
+            ? TEXT("generated_blueprint_staging_count_mismatch")
+            : Staging.GetFailure();
+        return Result;
+    }
+
+    FString CollisionFailure;
+    int32 StructuralContacts = 0;
+    FBox CombinedBounds(ForceInit);
+    if (!ValidateGeneratedInternalBounds(
+            Staging.Get(),
+            CollisionFailure,
+            StructuralContacts,
+            CombinedBounds))
+    {
+        Result.Status = TEXT("failed");
+        Result.Reason = CollisionFailure;
+        return Result;
+    }
+    Predicted->SetNumberField(TEXT("allowed_structural_contact_pairs"), StructuralContacts);
+    if (CombinedBounds.IsValid)
+    {
+        const FVector Size = CombinedBounds.GetSize();
+        const TSharedRef<FJsonObject> BoundsJson = MakeShared<FJsonObject>();
+        BoundsJson->SetNumberField(TEXT("x"), Size.X);
+        BoundsJson->SetNumberField(TEXT("y"), Size.Y);
+        BoundsJson->SetNumberField(TEXT("z"), Size.Z);
+        Predicted->SetObjectField(TEXT("measured_native_size_cm"), BoundsJson);
+    }
+
+    int32 Adopted = 0;
+    {
+        FScopedDesignerMembership Membership(Designer);
+        for (const FStagedGeneratedPart& Part : Staging.Get())
+        {
+            if (!Membership.AdoptOwned(Part.Buildable))
+            {
+                Result.Status = TEXT("failed");
+                Result.Reason = TEXT("generated_buildable_could_not_be_adopted:") +
+                    Part.Resolved.Source.PartId;
+                return Result;
+            }
+        }
+        Adopted = Membership.Num();
+        if (Adopted != Resolved.Num())
+        {
+            Result.Status = TEXT("failed");
+            Result.Reason = TEXT("generated_blueprint_adopted_count_mismatch");
+            return Result;
+        }
+
+        FBlueprintRecord Record;
+        Record.BlueprintName = BlueprintName;
+        Record.BlueprintDescription = BlueprintDescription.IsEmpty()
+            ? TEXT("AI-designed native Blueprint generated by AI Factory Copilot.")
+            : BlueprintDescription;
+
+        AFGPlayerController* Controller = IsValid(Context.Player)
+            ? Cast<AFGPlayerController>(Context.Player->GetController())
+            : nullptr;
+        Designer->SaveBlueprint(Record, Controller);
+    }
+    Predicted->SetNumberField(TEXT("adopted"), Adopted);
+
+    const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetBoolField(TEXT("designer_left_empty"), !Designer->HasBuildings());
+    Observed->SetNumberField(TEXT("staged_buildables"), Staging.Get().Num());
+
+    AFGBlueprintSubsystem* Subsystem =
+        AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
+    bool bReadable = false;
+    if (IsValid(Subsystem))
+    {
+        Subsystem->RefreshBlueprintsAndDescriptors();
+        bReadable = Subsystem->ReadBlueprintFromDisc(BlueprintName);
+    }
+    Observed->SetBoolField(TEXT("subsystem_available"), IsValid(Subsystem));
+    Observed->SetBoolField(TEXT("blueprint_readable_from_disc"), bReadable);
+    Observed->SetBoolField(TEXT("all_staging_is_transient"), true);
+    Result.Observed = Observed;
+
+    if (!Designer->HasBuildings() && bReadable)
+    {
+        Result.bAccepted = true;
+        Result.bCommitted = true;
+        Result.Status = TEXT("committed");
+        Result.bUndoable = false;
+        Result.UndoDescription =
+            TEXT("Generated blueprints are files; delete this one from the native blueprint menu.");
+        return Result;
+    }
+
+    Result.Status = TEXT("failed");
+    Result.Reason = Designer->HasBuildings()
+        ? TEXT("generated_blueprint_designer_membership_did_not_unwind")
+        : TEXT("generated_blueprint_save_ran_but_native_readback_failed");
     return Result;
 }
 

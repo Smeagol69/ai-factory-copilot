@@ -3509,6 +3509,7 @@ namespace
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
             Kind == TEXT("export_native_blueprint") ||
+            Kind == TEXT("generate_native_blueprint") ||
             Kind == TEXT("give_item") ||
             Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
@@ -3699,6 +3700,101 @@ namespace
                 Name,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location));
         }
+        if (Kind == TEXT("generate_native_blueprint"))
+        {
+            FString Name;
+            FString Description;
+            FString LayoutSchema;
+            if (!Spec->TryGetStringField(TEXT("blueprint_name"), Name) || Name.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("blueprint_name_is_required"));
+            }
+            Spec->TryGetStringField(TEXT("description"), Description);
+            if (!Spec->TryGetStringField(TEXT("layout_schema"), LayoutSchema) ||
+                LayoutSchema != TEXT("aifactory.generated-blueprint/v1"))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("unsupported_generated_blueprint_schema"));
+            }
+
+            const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+            if (!Spec->TryGetArrayField(TEXT("buildables"), Values) ||
+                !Values || Values->Num() == 0)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("generated_blueprint_needs_at_least_one_buildable"));
+            }
+
+            TArray<FAIFactoryGeneratedBlueprintPart> Parts;
+            Parts.Reserve(Values->Num());
+            for (int32 Index = 0; Index < Values->Num(); ++Index)
+            {
+                const TSharedPtr<FJsonObject>* Object = nullptr;
+                if (!(*Values)[Index].IsValid() ||
+                    !(*Values)[Index]->TryGetObject(Object) || !Object)
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind,
+                        FString::Printf(
+                            TEXT("generated_blueprint_part_is_not_an_object:%d"),
+                            Index + 1));
+                }
+
+                FAIFactoryGeneratedBlueprintPart& Part = Parts.AddDefaulted_GetRef();
+                (*Object)->TryGetStringField(TEXT("part_id"), Part.PartId);
+                (*Object)->TryGetStringField(TEXT("role"), Part.Role);
+                (*Object)->TryGetStringField(TEXT("recipe_class"), Part.BuildRecipeClassPath);
+                (*Object)->TryGetStringField(
+                    TEXT("production_recipe_class"),
+                    Part.ProductionRecipeClassPath);
+                if (Part.PartId.IsEmpty() || Part.BuildRecipeClassPath.IsEmpty())
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind,
+                        FString::Printf(
+                            TEXT("generated_blueprint_part_identity_is_incomplete:%d"),
+                            Index + 1));
+                }
+                if (Part.Role.IsEmpty())
+                {
+                    Part.Role = TEXT("standalone");
+                }
+
+                FVector RelativeLocation;
+                if (!TryReadActionVector(
+                        *Object,
+                        TEXT("relative_location"),
+                        true,
+                        RelativeLocation))
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind,
+                        FString::Printf(
+                            TEXT("generated_blueprint_part_transform_is_invalid:%d"),
+                            Index + 1));
+                }
+                double Yaw = 0.0;
+                if (!(*Object)->TryGetNumberField(TEXT("yaw"), Yaw) ||
+                    !FMath::IsFinite(Yaw))
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind,
+                        FString::Printf(
+                            TEXT("generated_blueprint_part_yaw_is_invalid:%d"),
+                            Index + 1));
+                }
+                Part.RelativeTransform = FTransform(
+                    FRotator(0.0, Yaw, 0.0),
+                    RelativeLocation);
+            }
+            return AIFactoryBlueprintExport::GenerateLayout(
+                Context,
+                Name,
+                Description,
+                Parts);
+        }
         if (Kind == TEXT("export_native_blueprint"))
         {
             FString Name;
@@ -3843,6 +3939,7 @@ FString ExecutePlan(
     int32 WillCommitWrites = 0;
     int32 IrreversibleWrites = 0;
     int32 UndoWrites = 0;
+    int32 BlueprintFileWrites = 0;
     FString PlanRefusal;
 
     for (int32 ActionIndex = 0; ActionIndex < Actions.Num(); ++ActionIndex)
@@ -4017,6 +4114,11 @@ FString ExecutePlan(
             {
                 ++UndoWrites;
             }
+            if (Item.Kind == TEXT("export_native_blueprint") ||
+                Item.Kind == TEXT("generate_native_blueprint"))
+            {
+                ++BlueprintFileWrites;
+            }
             FString ExpectedRevision;
             Item.Spec->TryGetStringField(TEXT("expect_world_revision"), ExpectedRevision);
             if (ExpectedRevision.IsEmpty() && PlanRefusal.IsEmpty())
@@ -4033,6 +4135,10 @@ FString ExecutePlan(
     if (UndoWrites > 0 && WillCommitWrites > 1)
     {
         PlanRefusal = TEXT("undo_must_be_a_standalone_commit");
+    }
+    if (BlueprintFileWrites > 0 && WillCommitWrites > 1)
+    {
+        PlanRefusal = TEXT("native_blueprint_file_write_must_be_a_standalone_commit");
     }
 
     // Preflight every write before the first mutation. A malformed final step

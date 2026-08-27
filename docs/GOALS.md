@@ -174,8 +174,13 @@ not inventing one.
    power-wire edges; it now verifies generated internal routes before Build Gun
    placement while retaining explicit unknowns for direction, load/capacity,
    and external hookups. Companion-side, no build cycle, no crash risk.
-3. **One planner rerouted to blueprint output** — `planCoalPower` is the
-   tightest and the easiest to check against known ratios.
+3. **One planner rerouted to blueprint output** — source-complete for the
+   general rate-sized enclosed-factory route through
+   `aifactory.generated-blueprint/v1`. Its shell and configured manufacturers
+   now become one native file action; native transport, power, miner/anchor,
+   package, and live Build Gun proof remain explicit gates. `planCoalPower`
+   remains the next topology-rich target because its ratios are tight and its
+   belt/pipe/power requirements exercise every missing connection family.
 4. **Measured rates, then the proactive channel** — advice that has never been
    checked against a running factory is arithmetic, not observation.
 
