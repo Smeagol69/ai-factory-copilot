@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-27 | Codex | `codex/planner-native-blueprint` | First true planner → native Blueprint proof. Add a distinct, server-authoritative generated-layout contract that accepts only exact unlocked build recipes and finite Blueprint-relative transforms; validates measured/native bounds and internal overlap; materialises transient native buildables inside an empty real Designer; saves through `AFGBuildableBlueprintDesigner::SaveBlueprint`; destroys all staging actors on every path; reads the resulting `.sbp` back; and hands the registered result to the existing vanilla Build Gun preview path. Initial scope is foundations plus ordinary standalone buildables with selected manufacturer recipes; belts, pipes, wires, miners/resource anchors, and attachment-dependent pieces remain refused until separately proven. Preserve Claude's live-selection exporter and all existing Blueprint workflows. Expected files: `AIFactoryBlueprintExport.{h,cpp}`, `AIFactoryActions.cpp`, companion action/router/planner validation and focused tests/docs. | claimed; claim commit will be pushed before implementation |
+| 2026-08-27 | Codex | `codex/planner-native-blueprint` | First true planner → native Blueprint proof. Add a distinct, server-authoritative generated-layout contract that accepts only exact unlocked build recipes and finite Blueprint-relative transforms; validates measured/native bounds and internal overlap; materialises transient native buildables inside an empty real Designer; saves through `AFGBuildableBlueprintDesigner::SaveBlueprint`; destroys all staging actors on every path; reads the resulting `.sbp` back; and hands the registered result to the existing vanilla Build Gun preview path. Initial scope is foundations plus ordinary standalone buildables with selected manufacturer recipes; belts, pipes, wires, miners/resource anchors, and attachment-dependent pieces remain refused until separately proven. Preserve Claude's live-selection exporter and all existing Blueprint workflows. Expected files: `AIFactoryBlueprintExport.{h,cpp}`, `AIFactoryActions.cpp`, companion action/router/planner validation and focused tests/docs. | complete, packaged, deployed, and bridge-installed from `c4afb14`: exact SML 3.12.0 / FactoryGame CL 502094 validation and **845/845** companion tests pass; FactoryEditor Development and FactoryGameSteam Shipping module builds pass; UAT cook/archive/game copy pass after moving disposable Zen/DDC storage to D:. Archive 19,253,431 bytes, SHA-256 `516F7536C86C62AC7BDF99E69BE9A5479AD1342414937D5185529D0B6A9AFAE3`; deployed Shipping DLL 1,209,344 bytes, SHA-256 `E33C2EB871CC0B25508E54A4B4D9B8BD3BBE282FB168EEE8D1670D8B0E7D681A`. Clean companion install verifies 37 runtime hashes and `/health` is ready on loopback as `1.0.0-beta.2`. A live generated-file/readback/vanilla-Build-Gun placement remains required; Satisfactory was closed during deployment. |
 | 2026-08-25 | Codex | `codex/anchor-audit-compile-fix` | Narrow compile repair for the integrated read-only Blueprint Resource Anchor audit. FactoryEditor's real CL 502094 compiler rejected its JSON helper because a `const TSharedRef<FJsonObject>` call site cannot bind to a non-const handle reference. Scope is the helper signature plus focused compile/test/handoff evidence only; it changes no audit data, Blueprint behavior, node binding, placement, export, or world state. | complete and deployed from `d048456`: the helper now accepts a const handle reference while mutating the underlying JSON object exactly as before; a source contract pins that signature. A clean lockfile install plus **826/826** companion tests, exact header validation, FactoryEditor Development and FactoryGameSteam Shipping builds, UAT cook/archive, and game copy pass with Satisfactory closed. Archive `AIFactoryCopilot-Windows.zip`: 18,742,080 bytes, SHA-256 `A99EE8E2B146894C7EEBA251DA6B2E9B3E5606D396212A3BAF5A9682BAA2434A`; deployed Shipping DLL SHA-256 `E9085AC0086748925C8D3CB0DDEB94F238160B33E78A073F1D25DB22373918C4`. Bridge health is ready on loopback; a live in-game audit remains untested. |
 | 2026-08-24 | Codex | `codex/blueprint-power-topology` | Companion-only, read-only native Blueprint power-wire topology decoder: extend the existing exact native structural parser to resolve saved reciprocal power-wire component references to their owning Blueprint entities, surface bounded evidence-backed wire pairs/counts in `inspect_blueprint_layout`, and add focused parser/solver/router tests and docs. Scope is `companion/lib/blueprints.mjs`, its existing presentation contract/tests, and append-only docs. It will not infer circuit direction, voltage, load, generator behavior, placement fit, terrain, or create/change any world state. It will not touch Claude's Node Editor (`AIFactoryNodeEdit.{h,cpp}`), node chat/UI wiring, or active belt routing work. | complete and deployed from `3a3f280`: `mWires` on exact saved `FGPowerConnectionComponent` records is inverted into physical native wire edges, with bounded endpoints/owners and fail-closed malformed, duplicate, unresolved, unsupported, incomplete, overconnected, blank-name, and missing-owner states. Saved logical `mHiddenConnections` are deliberately excluded. **829/829** companion tests and exact SML 3.12.0 / FactoryGame CL 502094 header validation pass. The owner's on-disk Coal power plant Blueprint proves 49 native power components, 47 native wire actors, 94 saved `mWires` references, and 47 fully owner-resolved physical edges; no direction/load/capacity/external topology is claimed. The clean companion install verified 36 runtime file hashes, and `/health` is ready on loopback with hybrid local/Anthropic providers. No C++ or world write changed. |
 | 2026-08-26 | Codex | `codex/creative-node-picker` | Added a narrow in-panel Creative Node resource/purity selector. Its text field and **Arm impure / normal / pure** controls generate only the existing `/ai node place <resource> <purity>` handoff; empty and multi-line input stay in the UI and cannot obscure the transcript. It reuses all server permissions, descriptor validation, RCO staging, Build-Gun hologram, construction, and focus handling. It does not add a Build Gun category, direct world write, raw spawn, client-side resource guessing, or unproven descriptor-category APIs. | complete and deployed from this branch: exact SML 3.12.0 / FactoryGame CL 502094 header validation and **836/836** companion tests pass; FactoryEditor Development and FactoryGameSteam Shipping builds pass; UAT cook/archive/game copy pass while Satisfactory is closed. Archive `AIFactoryCopilot-Windows.zip`: 19,146,192 bytes, SHA-256 `01C124A1A6C7B025A82C7A9F85DF30A71BAA2FD7137192D20308D176C18FC210`; deployed Shipping DLL SHA-256 `3749FFA660CCD6CFD7EEA4FC6001A824EF9738EAE2DD2097721510B0A2B7E00D`. Live panel/input/host-client testing remains required. |
@@ -4286,3 +4286,51 @@ UI, direct Copilot-panel action, or dynamic Blueprint-created nodes. A future
 delete/undo lane must be explicitly limited to unoccupied mod-owned nodes and
 separately claimed. Avoid editing the new `AIFactoryCreativeNode*` types in the
 Blueprint/audit lanes; they are owned by this branch until integration.
+
+### Codex — 2026-08-27 planner-generated native Blueprint handoff
+
+Branch `codex/planner-native-blueprint`, implementation commit `c4afb14`. This
+is the first distinct **AI layout → native `.sbp`** path. It does not export an
+existing selection and it does not directly place the proposed factory in the
+world. A local request such as `create a blueprint that makes 30 iron ingot per
+minute` runs the live production and enclosure planners, compiles their exact
+`place_building` transforms into `aifactory.generated-blueprint/v1`, and emits
+one standalone `generate_native_blueprint` file-write action. After the game
+commits and registers it, the existing `preview blueprint <name>` route hands
+that file to the player's vanilla Build Gun.
+
+The game remains authoritative. Every build and production recipe must be in
+the current Recipe Manager availability capture. C++ resolves the corresponding
+native classes, rejects abstract or topology-dependent types, spawns transient
+native buildables in an empty real Blueprint Designer, sets the Blueprint flag
+before `FinishSpawning`, applies and reads back manufacturer recipes, and
+measures `GetComponentsBoundingBox(false, true)`. Internal overlap is rejected
+from those measured colliding-component boxes, except for exact structural
+contacts and a shallow machine-on-floor contact. The normal Build Gun remains
+the final terrain/external-clearance authority when the player places the file.
+All staged actors are destroyed on every exit; Designer membership is unwound;
+success requires `SaveBlueprint`, an empty Designer afterward, and
+`ReadBlueprintFromDisc` readback.
+
+V1 deliberately refuses belts, pipes, wires, miners/resource anchors, conveyor
+attachments, and other host-dependent topology instead of saving a Blueprint
+that merely looks complete. Foundations, walls/roofs/structural shell pieces,
+ordinary standalone machines, their exact relative XYZ/yaw, and compatible
+selected production recipes are supported. There is no arbitrary Blueprint
+dimension limit in this path. Extending transport is the next narrow lane:
+encode native component-to-component conveyor connectivity, prove it survives
+save/readback, then add pipes and power before a coal-plant claim.
+
+Verification is source/build/deploy complete: exact SML 3.12.0 / FactoryGame CL
+502094 validation and **845/845** companion tests pass; FactoryEditor Development
+and FactoryGameSteam Shipping module builds pass; UAT cook/archive and Steam
+copy pass. The current archive is 19,253,431 bytes, SHA-256
+`516F7536C86C62AC7BDF99E69BE9A5479AD1342414937D5185529D0B6A9AFAE3`; the
+deployed DLL is 1,209,344 bytes, SHA-256
+`E33C2EB871CC0B25508E54A4B4D9B8BD3BBE282FB168EEE8D1670D8B0E7D681A`.
+The clean `1.0.0-beta.2` companion install verifies 37 runtime hashes and its
+hybrid local/Anthropic health is ready on loopback. The game was closed during
+deployment, so the remaining truth boundary is one live command, generated
+`.sbp` readback, vanilla Build Gun preview, placement, and visual/functional
+inspection in a disposable area. Do not describe that live proof as complete
+until the game's recorded action result and placed world both confirm it.

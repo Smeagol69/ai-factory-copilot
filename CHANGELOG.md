@@ -21,9 +21,10 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   preview/placement workflow. Initial v1 deliberately refuses conveyor, pipe,
   wire, miner/resource-anchor, and host-dependent attachment topology; it does
   not pretend a machine-only graph is a finished powered factory. Exact CL
-  502094 headers, 845 companion tests, and Editor/Shipping module builds pass;
-  packaged and live Build Gun proof remain required before calling generation
-  gameplay-proven.
+  502094 headers, 845 companion tests, Editor/Shipping module builds, UAT
+  archive, game deployment, and the clean companion install pass. A generated
+  file/readback and vanilla Build Gun placement still require live-save proof
+  before calling generation gameplay-proven.
 - Added the experimental **Creative Resource Node** world-editor foundation.
   `/ai node place <resource> [impure|normal|pure]` arms Satisfactory's normal
   Build Gun hologram for a new mod-owned, saveable, replicated infinite solid
