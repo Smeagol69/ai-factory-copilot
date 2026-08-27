@@ -5,6 +5,17 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed the first live AI-generated Blueprint attempt. General Blueprint
+  production planning now treats exact captured/registered extracted resources
+  as external factory inputs and prefers the ordinary product-named recipe, so
+  30 Iron Ingot/min resolves to one Smelter plus 30 Iron Ore/min instead of
+  recursively manufacturing ore through a nine-step Converter/SAM chain.
+  Generated structural parts now use Satisfactory's native `FFGClearanceData`
+  as their primary bounds; registered colliding and then non-colliding primitive
+  bounds are exact fallbacks. This handles server-side lightweight foundations,
+  which intentionally have no registered colliding render primitive, while
+  preserving fail-closed internal-overlap validation and reporting each bounds
+  source in the action result.
 - Added the first true **AI plan → native Blueprint** pipeline. A request such
   as `create a blueprint that makes 60 wire per minute` now sizes the production
   chain from the live recipe catalog, lays out an enclosed factory, converts
@@ -13,7 +24,7 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   instead of hundreds of live-world placements. The game independently checks
   current unlocks and class compatibility, stages only deferred `RF_Transient`
   native buildables inside an empty real Designer, applies and reads back
-  manufacturer recipes, measures the actors' native colliding-component bounds,
+  manufacturer recipes, measures native hologram clearance/primitive bounds,
   refuses unapproved internal overlap, serializes with `SaveBlueprint`, unwinds
   Designer membership, destroys every staging actor, refreshes the native
   library, and accepts the result only when `ReadBlueprintFromDisc` succeeds.
@@ -21,7 +32,7 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   preview/placement workflow. Initial v1 deliberately refuses conveyor, pipe,
   wire, miner/resource-anchor, and host-dependent attachment topology; it does
   not pretend a machine-only graph is a finished powered factory. Exact CL
-  502094 headers, 845 companion tests, Editor/Shipping module builds, UAT
+  502094 headers, 846 companion tests, Editor/Shipping module builds, UAT
   archive, game deployment, and the clean companion install pass. A generated
   file/readback and vanilla Build Gun placement still require live-save proof
   before calling generation gameplay-proven.

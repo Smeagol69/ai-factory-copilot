@@ -123,7 +123,17 @@ test("the local production route emits one native Blueprint file action, not wor
     produced_in: [buildGun],
   }));
   snapshot.content.recipes.push(...structural);
-  snapshot.content.available_recipe_count += structural.length;
+  snapshot.content.recipes.push({
+    class_path: "Recipe_ConvertIronOre",
+    name: "Iron Ore (Limestone)",
+    owner_mod: "FactoryGame",
+    available: true,
+    duration_seconds: 6,
+    ingredients: [{ item_class: "Desc_Stone", item_name: "Limestone", amount: 24 }],
+    products: [{ item_class: "Desc_OreIron", item_name: "Iron Ore", amount: 12 }],
+    produced_in: ["Build_Converter_C"],
+  });
+  snapshot.content.available_recipe_count += structural.length + 1;
   snapshot.content.recipes.find((recipe) => recipe.class_path === "Recipe_IngotIron").produced_in = [
     "/Game/FactoryGame/Buildable/Factory/Build_SmelterMk1.Build_SmelterMk1_C",
   ];
@@ -154,6 +164,13 @@ test("the local production route emits one native Blueprint file action, not wor
   assert.ok(emitted[0].buildables.length > 1);
   assert.ok(emitted[0].buildables.some((part) => part.role === "floor"));
   assert.ok(emitted[0].buildables.some((part) => part.role === "machine"));
+  const machines = emitted[0].buildables.filter((part) => part.role === "machine");
+  assert.equal(machines.length, 1, JSON.stringify(machines));
+  assert.equal(machines[0].production_recipe_class, "Recipe_IngotIron");
+  assert.equal(
+    emitted[0].buildables.some((part) => part.production_recipe_class === "Recipe_ConvertIronOre"),
+    false,
+  );
   assert.equal(emitted.some((action) => action.action === "place_building"), false);
   assert.match(answer.reply, /vanilla Build Gun/i);
   assert.match(answer.reply, /not generated/i);
@@ -191,7 +208,11 @@ test("the game-side generator keeps staging transient, construction-time, bounde
   assert.ok(setDesigner > staging && finishSpawning > setDesigner);
   assert.ok(destroy > finishSpawning);
   assert.ok(source.includes("ValidateGeneratedInternalBounds"));
+  assert.ok(source.includes("Execute_GetClearanceData(Buildable, ClearanceData)"));
+  assert.ok(source.includes("Clearance.GetTransformedClearanceBox()"));
   assert.ok(source.includes("GetComponentsBoundingBox(false, true)"));
+  assert.ok(source.includes("GetComponentsBoundingBox(true, true)"));
+  assert.ok(source.includes("native_clearance_data"));
   assert.ok(source.includes("generated_buildable_needs_an_unimplemented_native_topology"));
   assert.ok(save > staging && readback > save);
   assert.ok(actions.includes('Kind == TEXT("generate_native_blueprint")'));

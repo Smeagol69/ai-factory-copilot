@@ -5,6 +5,7 @@
 #include "Buildables/FGBuildableBlueprintDesigner.h"
 #include "FGBlueprintSubsystem.h"
 #include "FGCharacterPlayer.h"
+#include "FGClearanceInterface.h"
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
 #include "Buildables/FGBuildableConveyorBase.h"
@@ -475,7 +476,85 @@ namespace
         FResolvedGeneratedPart Resolved;
         AFGBuildable* Buildable = nullptr;
         FBox CollisionBounds = FBox(ForceInit);
+        FString BoundsSource;
     };
+
+    bool IsFiniteGeneratedBounds(const FBox& Bounds)
+    {
+        return Bounds.IsValid &&
+            !Bounds.Min.ContainsNaN() &&
+            !Bounds.Max.ContainsNaN() &&
+            Bounds.GetSize().GetAbsMax() > KINDA_SMALL_NUMBER;
+    }
+
+    /**
+     * Resolve the same spatial contract Satisfactory uses for hologram
+     * clearance before falling back to registered primitive bounds.
+     *
+     * Lightweight structural actors such as foundations intentionally have no
+     * registered colliding render primitive on the authoritative server. The
+     * first live generated Blueprint therefore returned an invalid actor box
+     * for a perfectly valid 8x8x2 m foundation. Their FFGClearanceData remains
+     * present because it is the native placement contract. It is expressed in
+     * actor-relative space, so transform it into the staged world before pair
+     * testing. Ordinary machines may instead expose registered primitives;
+     * those remain exact native fallbacks, with non-colliding components last
+     * so a server-only visual/collision mode cannot erase their dimensions.
+     */
+    bool ResolveGeneratedNativeBounds(
+        AFGBuildable* Buildable,
+        FBox& OutBounds,
+        FString& OutSource)
+    {
+        OutBounds = FBox(ForceInit);
+        OutSource.Reset();
+        if (!IsValid(Buildable))
+        {
+            return false;
+        }
+
+        TArray<FFGClearanceData> ClearanceData;
+        IFGClearanceInterface::Execute_GetClearanceData(Buildable, ClearanceData);
+        FBox ClearanceBounds(ForceInit);
+        for (const FFGClearanceData& Clearance : ClearanceData)
+        {
+            if (!Clearance.IsValid())
+            {
+                continue;
+            }
+            const FBox LocalBounds = Clearance.GetTransformedClearanceBox();
+            if (!IsFiniteGeneratedBounds(LocalBounds))
+            {
+                continue;
+            }
+            ClearanceBounds += LocalBounds.TransformBy(Buildable->GetActorTransform());
+        }
+        if (IsFiniteGeneratedBounds(ClearanceBounds))
+        {
+            OutBounds = ClearanceBounds;
+            OutSource = TEXT("native_clearance_data");
+            return true;
+        }
+
+        const FBox CollidingComponents =
+            Buildable->GetComponentsBoundingBox(false, true);
+        if (IsFiniteGeneratedBounds(CollidingComponents))
+        {
+            OutBounds = CollidingComponents;
+            OutSource = TEXT("registered_colliding_components");
+            return true;
+        }
+
+        const FBox AllPrimitiveComponents =
+            Buildable->GetComponentsBoundingBox(true, true);
+        if (IsFiniteGeneratedBounds(AllPrimitiveComponents))
+        {
+            OutBounds = AllPrimitiveComponents;
+            OutSource = TEXT("registered_primitive_components");
+            return true;
+        }
+        return false;
+    }
 
     class FScopedGeneratedBuildables
     {
@@ -560,14 +639,12 @@ namespace
                 FStagedGeneratedPart& Staged = StagedParts.AddDefaulted_GetRef();
                 Staged.Resolved = Part;
                 Staged.Buildable = Buildable;
-                // Non-colliding decoration must not make two valid grid pieces
-                // appear to intersect. These are the actor's native colliding
-                // component bounds after its construction script has run.
-                Staged.CollisionBounds = Buildable->GetComponentsBoundingBox(false, true);
-                if (!Staged.CollisionBounds.IsValid ||
-                    Staged.CollisionBounds.GetExtent().ContainsNaN())
+                if (!ResolveGeneratedNativeBounds(
+                        Buildable,
+                        Staged.CollisionBounds,
+                        Staged.BoundsSource))
                 {
-                    Failure = TEXT("generated_buildable_has_no_finite_collision_bounds:") +
+                    Failure = TEXT("generated_buildable_has_no_finite_native_clearance_or_component_bounds:") +
                         Part.Source.PartId;
                     return;
                 }
@@ -967,7 +1044,7 @@ FAIFactoryActionResult GenerateLayout(
         TEXT("RF_Transient deferred native actors; destroyed before return"));
     Predicted->SetStringField(
         TEXT("collision_validation"),
-        TEXT("native colliding-component bounds; final site clearance belongs to the vanilla Blueprint hologram"));
+        TEXT("native FFGClearanceData first, registered primitive bounds fallback; final site clearance belongs to the vanilla Blueprint hologram"));
 
     if (Context.bDryRun)
     {
@@ -993,6 +1070,18 @@ FAIFactoryActionResult GenerateLayout(
             : Staging.GetFailure();
         return Result;
     }
+
+    TMap<FString, int32> BoundsSourceCounts;
+    for (const FStagedGeneratedPart& Part : Staging.Get())
+    {
+        BoundsSourceCounts.FindOrAdd(Part.BoundsSource) += 1;
+    }
+    const TSharedRef<FJsonObject> BoundsSources = MakeShared<FJsonObject>();
+    for (const TPair<FString, int32>& Entry : BoundsSourceCounts)
+    {
+        BoundsSources->SetNumberField(Entry.Key, Entry.Value);
+    }
+    Predicted->SetObjectField(TEXT("native_bounds_sources"), BoundsSources);
 
     FString CollisionFailure;
     int32 StructuralContacts = 0;

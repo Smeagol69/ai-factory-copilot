@@ -28,8 +28,13 @@ snapshot proves available. The game repeats the decision from live state:
   the staged manufacturer;
 - all staging actors use deferred spawning, `RF_Transient`, and
   `SetInsideBlueprintDesigner` only before `BeginPlay`;
-- native colliding-component bounds are measured after construction scripts
-  have run; machine/machine or machine/shell volumetric overlap refuses the
+- the staged buildable's native `FFGClearanceData`—the contract used by
+  Satisfactory's hologram clearance system—is measured first. Registered
+  colliding primitive bounds and then all registered primitive bounds are exact
+  fallbacks for classes without clearance records. The result reports how many
+  parts used each source. This matters for authoritative-server lightweight
+  foundations, which have native clearance but no registered colliding render
+  primitive. Machine/machine or machine/shell volumetric overlap refuses the
   archive, while native snapped structural contacts and a shallow machine/floor
   contact are explicitly classified;
 - Designer membership is unwound and every staged actor is destroyed on every
@@ -40,6 +45,12 @@ snapshot proves available. The game repeats the decision from live state:
 No world factory is placed during generation. The durable effect is a native
 Blueprint file, so the action is a standalone committed write and is not placed
 in the world undo journal.
+
+For generated factory requests, production recursion stops at an item proven
+to be extracted by a captured resource node/extractor or registered under the
+catalog's `RawResources` descriptor path. An unlocked Converter recipe that can
+also produce that item is not silently expanded. Existing surplus elsewhere in
+the save is not subtracted from a Blueprint's requested standalone capacity.
 
 ## Placement
 

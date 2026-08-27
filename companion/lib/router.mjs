@@ -4756,6 +4756,14 @@ export function answerLocally(question, graph, services) {
       const production = solveProductionPlan(graph, {
         item_class: item.class_path,
         target_rate_per_minute: design.per_minute,
+        // A generated Blueprint must have the requested standalone capacity;
+        // existing surplus elsewhere in the save cannot make its machines
+        // disappear. Prefer the ordinary product-named recipe recursively and
+        // stop at exact extracted resources, which are external belt/pipe
+        // inputs until miner and fluid topology are supported.
+        use_existing_surplus: !design.as_blueprint,
+        prefer_standard_recipes: design.as_blueprint === true,
+        stop_at_extracted_resources: design.as_blueprint === true,
       });
       if (production?.planned) {
         // Housed by default. The owner's goal is a factory that looks like a
@@ -4928,7 +4936,7 @@ export function answerLocally(question, graph, services) {
                 `${plan.belts_planned} planned belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
                 (generated && design.commit
                   ? `The game is now resolving ${generated.counts.buildables} exact native parts, ` +
-                    "measuring their colliding-component bounds, refusing internal overlap, " +
+                    "measuring their native hologram-clearance data (with registered primitive bounds as a fallback), refusing internal overlap, " +
                     "serialising them through the real Designer and reading the .sbp back. " +
                     `If that result commits, say **"preview blueprint ${generated.blueprint_name}"** ` +
                     "and place it with the vanilla Build Gun. Belts, pipes, wires, miners and power " +

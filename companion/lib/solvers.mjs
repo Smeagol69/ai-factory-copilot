@@ -2417,6 +2417,7 @@ export function solveProductionPlan(
     use_existing_surplus = true,
     prefer_standard_recipes = false,
     stop_at_item_classes = [],
+    stop_at_extracted_resources = false,
   } = {},
 ) {
   const targetRate = finitePositive(target_rate_per_minute);
@@ -2480,6 +2481,40 @@ export function solveProductionPlan(
       ? stop_at_item_classes.map((value) => String(value)).filter(Boolean)
       : [],
   );
+
+  // A general factory/Blueprint plan begins at its input ports. It must not
+  // recursively "manufacture" an ore merely because a late-game Converter
+  // recipe can transmute some other resource into it. Resource identity comes
+  // from two captured sources: exact resource classes observed on nodes or
+  // extractors, and the registered descriptor's RawResources package path.
+  // The latter is catalog metadata, not a display-name guess, and is necessary
+  // when the relevant map node is outside the current actor scan.
+  const extractedResourceEvidence = new Map();
+  const rememberExtractedResource = (itemClass, evidence) => {
+    const exact = String(itemClass ?? "").trim();
+    if (!exact) return;
+    if (!extractedResourceEvidence.has(exact)) extractedResourceEvidence.set(exact, new Set());
+    extractedResourceEvidence.get(exact).add(evidence);
+  };
+  if (stop_at_extracted_resources) {
+    for (const item of graph.itemsByClass.values()) {
+      if (/\/RawResources\//i.test(String(item?.class_path ?? ""))) {
+        rememberExtractedResource(item.class_path, "registered_raw_resource_descriptor");
+      }
+    }
+    for (const node of graph.nodes.values()) {
+      const raw = node.raw ?? {};
+      if (raw.kind === "resource_node") {
+        rememberExtractedResource(raw.resource_class, "captured_resource_node");
+      }
+      if (raw.extractor && typeof raw.extractor === "object") {
+        rememberExtractedResource(
+          raw.extractor.resource_class ?? raw.resource_class,
+          "captured_resource_extractor",
+        );
+      }
+    }
+  }
 
   const surplusByItem = new Map();
   if (use_existing_surplus) {
@@ -2554,6 +2589,20 @@ export function solveProductionPlan(
         raw: (rawInputs.get(itemClass)?.raw ?? 0) + remaining,
         display_unit: scale.display_unit,
         supplied_by: "the caller's authoritative source; recipe expansion stops here",
+      });
+      return;
+    }
+
+    if (stop_at_extracted_resources && extractedResourceEvidence.has(itemClass)) {
+      const scale = itemUnitScale(graph, itemClass);
+      rawInputs.set(itemClass, {
+        item_class: itemClass,
+        item_name: graph.itemsByClass.get(itemClass)?.name ?? null,
+        display_units_per_minute: round((rawInputs.get(itemClass)?.raw ?? 0) + remaining),
+        raw: (rawInputs.get(itemClass)?.raw ?? 0) + remaining,
+        display_unit: scale.display_unit,
+        supplied_by: "external extracted-resource input; the planned factory begins here",
+        evidence: [...extractedResourceEvidence.get(itemClass)],
       });
       return;
     }
@@ -2816,6 +2865,17 @@ export function solveProductionPlan(
         terminalInputs.size > 0
           ? [...terminalInputs]
           : "none supplied; catalog recipes may expand resources that can also be manufactured",
+      extracted_resource_inputs:
+        stop_at_extracted_resources
+          ? {
+              enabled: true,
+              item_classes: [...extractedResourceEvidence.keys()],
+              note: "Captured resource-node/extractor classes and registered RawResources descriptors terminate recursion at the factory input ports.",
+            }
+          : {
+              enabled: false,
+              note: "Disabled; catalog recipes may expand resources that can also be manufactured.",
+            },
     },
     source: "deterministic_recipe_expansion_over_the_authoritative_catalog",
     certainty: "calculated",

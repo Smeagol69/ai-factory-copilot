@@ -218,6 +218,35 @@ test("an authoritative source can stop recipe expansion at a manufacturable reso
   assert.match(plan.raw_inputs_required[0].supplied_by, /authoritative source/);
 });
 
+test("a factory plan treats captured extracted resources as external inputs even when Converters can make them", () => {
+  const snapshot = buildFactorySnapshot();
+  snapshot.content.recipes.push({
+    class_path: "Recipe_ConvertIronOre",
+    name: "Iron Ore (Limestone)",
+    available: true,
+    duration_seconds: 6,
+    ingredients: [{ item_class: "Desc_Stone", item_name: "Limestone", amount: 24 }],
+    products: [{ item_class: "Desc_OreIron", item_name: "Iron Ore", amount: 12 }],
+    produced_in: ["Build_Converter_C"],
+  });
+  const plan = solveProductionPlan(buildGraph(snapshot), {
+    item_name: "Iron Ingot",
+    target_rate_per_minute: 30,
+    use_existing_surplus: false,
+    prefer_standard_recipes: true,
+    stop_at_extracted_resources: true,
+  });
+
+  assert.equal(plan.steps.length, 1, JSON.stringify(plan));
+  assert.equal(plan.steps[0].recipe_class, "Recipe_IngotIron");
+  assert.equal(plan.steps[0].machines_required, 1);
+  assert.equal(plan.raw_inputs_required.length, 1);
+  assert.equal(plan.raw_inputs_required[0].item_class, "Desc_OreIron");
+  assert.match(plan.raw_inputs_required[0].supplied_by, /external extracted-resource input/);
+  assert.deepEqual(plan.raw_inputs_required[0].evidence, ["captured_resource_node"]);
+  assert.equal(plan.steps.some((step) => step.recipe_class === "Recipe_ConvertIronOre"), false);
+});
+
 test("bounds recursion and reports what it did not expand", () => {
   const plan = solveProductionPlan(graphWithoutSurplus(), {
     item_name: "Iron Rod",
