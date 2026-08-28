@@ -14,9 +14,11 @@
 #include "Buildables/FGBuildableFactory.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildablePipeline.h"
+#include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableGenerator.h"
 #include "Buildables/FGBuildableGeneratorFuel.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
+#include "Buildables/FGBuildableWire.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/PanelWidget.h"
 #include "Components/PrimitiveComponent.h"
@@ -1550,6 +1552,113 @@ namespace
                 static_cast<int64>(UFGItemDescriptor::GetForm(ItemClass))));
             Entry->SetNumberField(TEXT("stack_size"), UFGItemDescriptor::GetStackSize(ItemClass));
             Entry->SetNumberField(TEXT("registration_flags"), static_cast<uint8>(Registration.Flags));
+            if (ItemClassObject->IsChildOf(UFGBuildingDescriptor::StaticClass()))
+            {
+                const TSubclassOf<UFGBuildingDescriptor> BuildingDescriptor(ItemClassObject);
+                const TSubclassOf<AFGBuildable> BuildableClass =
+                    UFGBuildingDescriptor::GetBuildableClass(BuildingDescriptor);
+                if (BuildableClass)
+                {
+                    const TSharedRef<FJsonObject> Building = MakeShared<FJsonObject>();
+                    Building->SetStringField(TEXT("class_path"), BuildableClass->GetPathName());
+                    Building->SetNumberField(
+                        TEXT("power_consumption_mw"),
+                        UFGBuildingDescriptor::GetPowerConsumption(BuildingDescriptor));
+                    Building->SetBoolField(
+                        TEXT("has_variable_power_consumption"),
+                        UFGBuildingDescriptor::HasVariablePowerConsumption(BuildingDescriptor));
+                    Building->SetNumberField(
+                        TEXT("minimum_power_consumption_mw"),
+                        UFGBuildingDescriptor::GetMinimumPowerConsumption(BuildingDescriptor));
+                    Building->SetNumberField(
+                        TEXT("maximum_power_consumption_mw"),
+                        UFGBuildingDescriptor::GetMaximumPowerConsumption(BuildingDescriptor));
+                    Building->SetNumberField(
+                        TEXT("power_production_mw"),
+                        UFGBuildingDescriptor::GetPowerProduction(BuildingDescriptor));
+
+                    AFGBuildable* DefaultBuildable =
+                        BuildableClass->GetDefaultObject<AFGBuildable>();
+                    TArray<TSharedPtr<FJsonValue>> PowerConnections;
+                    int32 VisiblePowerConnections = 0;
+                    int32 VisiblePowerLinkCapacity = 0;
+                    if (IsValid(DefaultBuildable))
+                    {
+                        TInlineComponentArray<UFGCircuitConnectionComponent*> CircuitConnections;
+                        DefaultBuildable->GetComponents(CircuitConnections);
+                        for (UFGCircuitConnectionComponent* Connection : CircuitConnections)
+                        {
+                            if (!IsValid(Connection))
+                            {
+                                continue;
+                            }
+                            const TSharedRef<FJsonObject> ConnectionEntry =
+                                MakeShared<FJsonObject>();
+                            ConnectionEntry->SetStringField(
+                                TEXT("component_name"),
+                                Connection->GetName());
+                            ConnectionEntry->SetStringField(
+                                TEXT("component_class_path"),
+                                Connection->GetClass()->GetPathName());
+                            ConnectionEntry->SetBoolField(
+                                TEXT("hidden"),
+                                Connection->IsHidden());
+                            ConnectionEntry->SetNumberField(
+                                TEXT("max_links"),
+                                Connection->GetMaxNumConnections());
+                            ConnectionEntry->SetStringField(
+                                TEXT("circuit_type_class_path"),
+                                ClassPath(Connection->GetCircuitType().Get()));
+                            ConnectionEntry->SetObjectField(
+                                TEXT("native_default_location_cm"),
+                                VectorJson(Connection->GetComponentLocation()));
+                            PowerConnections.Add(
+                                MakeShared<FJsonValueObject>(ConnectionEntry));
+                            if (!Connection->IsHidden())
+                            {
+                                ++VisiblePowerConnections;
+                                VisiblePowerLinkCapacity +=
+                                    FMath::Max(0, Connection->GetMaxNumConnections());
+                            }
+                        }
+                    }
+                    Building->SetArrayField(
+                        TEXT("native_circuit_connections"),
+                        PowerConnections);
+                    Building->SetNumberField(
+                        TEXT("visible_circuit_connection_count"),
+                        VisiblePowerConnections);
+                    Building->SetNumberField(
+                        TEXT("visible_circuit_link_capacity"),
+                        VisiblePowerLinkCapacity);
+
+                    if (const AFGBuildablePowerPole* PowerPole =
+                            Cast<AFGBuildablePowerPole>(DefaultBuildable))
+                    {
+                        Building->SetStringField(
+                            TEXT("native_topology_kind"),
+                            TEXT("power_pole"));
+                        Building->SetStringField(
+                            TEXT("power_pole_type"),
+                            StaticEnum<EPowerPoleType>()->GetNameStringByValue(
+                                static_cast<int64>(PowerPole->GetPowerPoleType())));
+                    }
+                    else if (const AFGBuildableWire* Wire =
+                                 Cast<AFGBuildableWire>(DefaultBuildable))
+                    {
+                        Building->SetStringField(
+                            TEXT("native_topology_kind"),
+                            TEXT("power_wire"));
+                        Building->SetNumberField(
+                            TEXT("wire_max_length_cm"),
+                            Wire->mMaxLength);
+                        Building->SetNumberField(
+                            TEXT("wire_max_power_tower_length_cm"),
+                            Wire->mMaxPowerTowerLength);
+                    }
+                    Entry->SetObjectField(TEXT("building"), Building);
+                }
+            }
             if (IsValid(RecipeManager))
             {
                 const bool bAvailable = RecipeManager->IsItemDescriptorAvailable(ItemClass);

@@ -14,6 +14,7 @@
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildablePipeBase.h"
 #include "Buildables/FGBuildablePipelineAttachment.h"
+#include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableResourceExtractorBase.h"
 #include "Buildables/FGBuildableWire.h"
 #include "FGCircuitConnectionComponent.h"
@@ -1050,6 +1051,35 @@ namespace
                     RecipeFailure))
             {
                 Failure = RecipeFailure + TEXT(":") + Link.LinkId;
+                return false;
+            }
+
+            const AFGBuildableWire* WireDefault =
+                BuildableClass->GetDefaultObject<AFGBuildableWire>();
+            const AFGBuildablePowerPole* FromPole =
+                Cast<AFGBuildablePowerPole>(FromBuildable);
+            const AFGBuildablePowerPole* ToPole =
+                Cast<AFGBuildablePowerPole>(ToBuildable);
+            const bool bPowerTowerLink =
+                IsValid(FromPole) && IsValid(ToPole) &&
+                FromPole->GetPowerPoleType() == EPowerPoleType::PPT_TOWER &&
+                ToPole->GetPowerPoleType() == EPowerPoleType::PPT_TOWER;
+            const double MaximumLength = IsValid(WireDefault)
+                ? (bPowerTowerLink
+                    ? WireDefault->mMaxPowerTowerLength
+                    : WireDefault->mMaxLength)
+                : 0.0;
+            const double EndpointDistance = FVector::Distance(
+                From->GetComponentLocation(),
+                To->GetComponentLocation());
+            if (!FMath::IsFinite(MaximumLength) || MaximumLength <= 0.0 ||
+                !FMath::IsFinite(EndpointDistance) || EndpointDistance > MaximumLength)
+            {
+                Failure = FString::Printf(
+                    TEXT("generated_power_wire_exceeds_native_length:%s:distance_cm=%.1f,max_cm=%.1f"),
+                    *Link.LinkId,
+                    EndpointDistance,
+                    MaximumLength);
                 return false;
             }
 

@@ -60,6 +60,7 @@ import {
 } from "./architecture.mjs";
 import { planCoalPower } from "./power.mjs";
 import { compileGeneratedBlueprint, generatedBlueprintAction } from "./generated-blueprints.mjs";
+import { planGeneratedBlueprintPower } from "./generated-power.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
 import {
@@ -4837,18 +4838,30 @@ export function answerLocally(question, graph, services) {
               })
             : baseBuildActions(plan, { commit: design.commit });
           let generated = null;
+          let generatedPower = null;
           let emitted = true;
           if (design.as_blueprint) {
             const revision = String(graph.world_revision ?? "draft").replace(/[^A-Za-z0-9_-]+/g, "-");
             const rate = String(design.per_minute).replace(/[^0-9]+/g, "-");
             const blueprintName = `AI ${item.name} ${rate}pm r${revision}`.slice(0, 240);
+            generatedPower = planGeneratedBlueprintPower(graph, actions, {
+              shell_footprint: enclosed?.structure?.footprint ?? null,
+            });
+            const generatedActions = generatedPower.planned
+              ? generatedPower.actions
+              : actions;
             generated = compileGeneratedBlueprint({
               blueprint_name: blueprintName,
-              actions,
+              actions: generatedActions,
+              power_connections: generatedPower.planned
+                ? generatedPower.power_connections
+                : [],
               description:
                 `${design.per_minute}/min ${item.name} factory designed from revision ` +
                 `${graph.world_revision ?? "unknown"}. Native shell, configured machines, and ` +
-                `${actions.filter((action) => action.action === "place_belt").length} explicit conveyor link(s).`,
+                `${generatedActions.filter((action) => action.action === "place_belt").length} ` +
+                `explicit conveyor link(s), ${generatedPower.planned ? generatedPower.wires : 0} ` +
+                "captured-capacity physical power wire(s).",
             });
             if (!generated.compiled) {
               return localAnswer(
@@ -4881,10 +4894,18 @@ export function answerLocally(question, graph, services) {
                   .map((entry) => `${entry.produces ?? "?"} (${entry.reason})`)
                   .join("; ")}.`
               : "";
+            const generatedPowerText = generated
+              ? generatedPower?.planned
+                ? generatedPower.mode === "single_external_machine_endpoint"
+                  ? " This Blueprint has one powered machine, so its exact native connector is reserved for the external grid; no internal wire is necessary."
+                  : ` Internal power is wired with ${generatedPower.wires} native Power Line(s)` +
+                    `${generatedPower.poles > 0 ? ` through ${generatedPower.poles} captured-capacity pole(s)` : " as a captured-capacity machine daisy chain"}; one exact connector remains reserved for the external grid.`
+                : ` Internal power was not generated: ${generatedPower?.reason ?? "native connector capability was unavailable"}.`
+              : " Power is not wired by this plan.";
             const power = plan.power?.plan_draw_mw
               ? `\n\nDraws ${plan.power.plan_draw_mw} MW; ` +
-                `${plan.power.fits_on_existing_power ? "your existing circuit can carry that" : "**more generation is needed**"}. ` +
-                "Power is not wired by this plan."
+                `${plan.power.fits_on_existing_power ? "your existing circuit can carry that" : "**more generation is needed**"}.` +
+                generatedPowerText
               : "";
 
             // The building is the headline when there is one: it is the part
@@ -4936,8 +4957,8 @@ export function answerLocally(question, graph, services) {
                     "measuring their native hologram-clearance data (with registered primitive bounds as a fallback), refusing internal overlap, " +
                     "serialising them through the real Designer, loading the saved .sbp into Satisfactory's isolated Blueprint world, and requiring reciprocal native endpoint readback. " +
                     `If that result commits, say **"preview blueprint ${generated.blueprint_name}"** ` +
-                    "and place it with the vanilla Build Gun. Straight planned belts are included. " +
-                    "Pipes, miners/resource anchors, belt lifts/poles, and automatic power-pole design remain explicit follow-up work; no missing topology is silently claimed."
+                    "and place it with the vanilla Build Gun. Straight planned belts are included; any reported internal power topology is included too. " +
+                    "Pipes, miners/resource anchors, and conveyor lifts/poles remain explicit follow-up work; no missing topology is silently claimed."
                   : design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +
                     'the whole transaction rolls back if one fails. Say "undo" to reverse it.'

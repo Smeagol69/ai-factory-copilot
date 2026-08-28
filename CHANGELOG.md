@@ -5,6 +5,23 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added deterministic **internal power distribution** to planner-generated
+  native Blueprints. The scanner now captures each registered building
+  descriptor's native circuit-component names, circuit type, hidden state, and
+  exact `GetMaxNumConnections()` capacity, plus native wire length and ground
+  pole type, directly from the installed class defaults. The companion
+  daisy-chains machines only when that captured capacity supports it; otherwise
+  it adds the minimum compatible unlocked ground-pole trunk, reserves one real
+  link for the external grid, and refuses missing, ambiguous, overloaded, or
+  obviously overlength topology instead of applying vanilla assumptions to
+  modded content. Generated wires are length-checked again against their
+  resolved native endpoints in the game, serialized as physical wire actors,
+  and must pass the existing isolated-Blueprint-world reciprocal endpoint
+  readback. Exact CL 502094 header validation, **859/859** companion tests,
+  Editor/Shipping module builds, UAT cook/archive/game deployment, and the clean
+  companion install pass. A fresh live snapshot and generated multi-machine
+  Blueprint placement remain required before calling the new power lane
+  gameplay-proven.
 - Fixed the first live AI-generated Blueprint attempt. General Blueprint
   production planning now treats exact captured/registered extracted resources
   as external factory inputs and prefers the ordinary product-named recipe, so

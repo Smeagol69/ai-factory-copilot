@@ -700,6 +700,7 @@ export function validateAction(graph, proposal) {
 
     const ids = new Set();
     const buildables = [];
+    const nativePowerByPartId = new Map();
     let configuredManufacturers = 0;
     for (const [index, proposedPart] of proposal.buildables.entries()) {
       if (!proposedPart || typeof proposedPart !== "object") {
@@ -754,6 +755,24 @@ export function validateAction(graph, proposal) {
           part: index + 1,
           part_id: partId,
           recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+        });
+      }
+      const buildProduct = (buildRecipe.products ?? [])[0];
+      const buildItem = buildProduct?.item_class
+        ? findItemInCatalog(graph, String(buildProduct.item_class))
+        : null;
+      const nativeBuilding = buildItem?.building;
+      if (nativeBuilding && Array.isArray(nativeBuilding.native_circuit_connections)) {
+        const visible = nativeBuilding.native_circuit_connections.filter(
+          (connection) => connection?.hidden !== true,
+        );
+        nativePowerByPartId.set(partId, {
+          captured: true,
+          visible,
+          capacity: visible.reduce(
+            (sum, connection) => sum + Math.max(0, finite(connection?.max_links) ?? 0),
+            0,
+          ),
         });
       }
 
@@ -871,10 +890,17 @@ export function validateAction(graph, proposal) {
         const productIdentity = (buildRecipe.products ?? [])
           .map((product) => `${product.item_class ?? ""} ${product.item_name ?? ""}`)
           .join(" ");
+        const topologyProduct = (buildRecipe.products ?? [])[0];
+        const topologyItem = topologyProduct?.item_class
+          ? findItemInCatalog(graph, String(topologyProduct.item_class))
+          : null;
         const expectedProduct = topologyKind === "conveyor"
           ? /ConveyorBelt|Conveyor Belt/i
           : /PowerLine|Power Line/i;
-        if (!expectedProduct.test(productIdentity)) {
+        const expectedNativeKind = topologyKind === "conveyor" ? "conveyor" : "power_wire";
+        const capturedNativeKind = String(topologyItem?.building?.native_topology_kind ?? "");
+        if ((capturedNativeKind && capturedNativeKind !== expectedNativeKind) ||
+            (!capturedNativeKind && !expectedProduct.test(productIdentity))) {
           return reject(kind, "generated_topology_recipe_has_wrong_product_type", {
             topology: topologyKind,
             link: index + 1,
@@ -911,6 +937,36 @@ export function validateAction(graph, proposal) {
     if (!powerValidation.valid) return powerValidation;
     const conveyors = conveyorValidation.links;
     const powerWires = powerValidation.links;
+    const capturedPowerDegrees = new Map();
+    for (const wire of powerWires) {
+      capturedPowerDegrees.set(
+        wire.from_part_id,
+        (capturedPowerDegrees.get(wire.from_part_id) ?? 0) + 1,
+      );
+      capturedPowerDegrees.set(
+        wire.to_part_id,
+        (capturedPowerDegrees.get(wire.to_part_id) ?? 0) + 1,
+      );
+    }
+    let capacityCheckedEndpoints = 0;
+    for (const [partId, degree] of capturedPowerDegrees) {
+      const capability = nativePowerByPartId.get(partId);
+      if (!capability?.captured) continue;
+      capacityCheckedEndpoints += 1;
+      if (capability.visible.length !== 1) {
+        return reject(kind, "generated_power_endpoint_needs_exactly_one_visible_captured_connector", {
+          part_id: partId,
+          visible_connector_count: capability.visible.length,
+        });
+      }
+      if (degree > capability.capacity) {
+        return reject(kind, "generated_power_endpoint_exceeds_captured_native_capacity", {
+          part_id: partId,
+          requested_links: degree,
+          captured_max_links: capability.capacity,
+        });
+      }
+    }
 
     warnings.push(
       "No world building is being placed yet. The game stages transient native actors, validates their exact resolved bounds, writes one native .sbp through a real Blueprint Designer, destroys the staging actors, and reads the archive back before reporting success.",
@@ -928,6 +984,7 @@ export function validateAction(graph, proposal) {
         configured_manufacturers: configuredManufacturers,
         conveyors: conveyors.length,
         power_wires: powerWires.length,
+        captured_power_capacity_checked_endpoints: capacityCheckedEndpoints,
         authoritative_unlock_capture: true,
         arbitrary_blueprint_size_cap: "none",
         native_internal_collision_readback: "game_side_required",
