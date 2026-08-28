@@ -179,21 +179,25 @@ not prove that the generator has learned good taste yet.
    placement while retaining explicit unknowns for direction, load/capacity,
    and external hookups. Companion-side, no build cycle, no crash risk.
 3. **One planner rerouted to blueprint output** — source-complete for the
-   general rate-sized enclosed-factory route through
-   `aifactory.generated-blueprint/v2`. Its shell, configured manufacturers, and
-   planner-proven straight conveyor links now become one native file action.
-   Explicit physical power-wire links are supported by the same schema. The
-   game serialises the staged actors and then loads the saved archive into its
-   isolated Blueprint world; buildable counts, configured recipes, reciprocal
-   conveyor endpoints, and both ends of every power wire must read back exactly
-   before the action can commit. Internal power design is now derived from
-   captured native connector capacity, circuit type, unlocked ground-pole
-   recipes, and native wire length: machines daisy-chain only when their real
-   connectors permit it, otherwise a minimum-capacity pole trunk is included
-   with one external-grid link reserved. The game package and companion are
-   deployed; a fresh live capture plus generated multi-machine Build Gun proof
-   remain release gates. Pipes and miner/anchor generation remain explicit
-   topology gaps.
+   general rate-sized enclosed-factory route. The versioned contract preserves
+   old behavior: v1 is standalone geometry, v2 adds explicit straight conveyors
+   and physical power wires, and v3 adds explicit straight native pipelines.
+   The generic dry-production route still emits v2 because it does not invent a
+   fluid edge. When a v3 pipe edge is supplied, both endpoints, their native
+   connection types/transforms, the unlocked pipeline recipe, and the installed
+   hologram's minimum/maximum spline lengths must be captured and compatible.
+   The game serialises the staged actors and then loads the saved archive into
+   its isolated Blueprint world; buildable counts, configured recipes,
+   reciprocal conveyor/pipeline endpoints, and both ends of every power wire
+   must read back exactly before the action can commit. Internal power design is
+   derived from captured native connector capacity, circuit type, unlocked
+   ground-pole recipes, and native wire length: machines daisy-chain only when
+   their real connectors permit it, otherwise a minimum-capacity pole trunk is
+   included with one external-grid link reserved. The v3 game package and
+   companion are deployed; a fresh live capture plus generated multi-machine
+   Build Gun proof remain release gates. Pumps, head lift, junction manifolds,
+   automatic water routing, and miner/resource-anchor generation remain
+   explicit topology gaps.
    `planCoalPower` remains the next topology-rich target because its ratios are
    tight and its belt/pipe/power requirements exercise every missing connection
    family.

@@ -5,6 +5,24 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added the first exact native **pipeline topology** primitive to
+  planner-generated Blueprints through `aifactory.generated-blueprint/v3`.
+  Registered building descriptors now expose their real pipe-connection names,
+  connection types, local transforms, connector-clearance values, and snapping
+  restrictions. Unlocked pipeline descriptors additionally expose their native
+  flow limit and the installed pipeline hologram's exact minimum/maximum spline
+  lengths; no vanilla pipe tier, capacity, or distance is hard-coded. The
+  companion accepts only explicit straight, collinear links between compatible,
+  oppositely facing, unused ports and checks their transformed length before the
+  game independently creates the native two-point spline. Commit requires
+  reciprocal endpoint readback both before save and after loading the `.sbp` in
+  Satisfactory's isolated Blueprint world. v1 and v2 remain unchanged, and v2
+  refuses rather than drops v3 pipe data. Exact CL 502094 header validation,
+  **861/861** companion tests, Editor/Shipping module builds, UAT cook/archive
+  and Steam deployment, and a clean 39-file companion install pass. Live
+  generated-file/Build-Gun placement is still required; pumps, head lift,
+  junction manifolds, automatic fluid routing, and miner/resource anchoring are
+  not claimed.
 - Added deterministic **internal power distribution** to planner-generated
   native Blueprints. The scanner now captures each registered building
   descriptor's native circuit-component names, circuit type, hidden state, and

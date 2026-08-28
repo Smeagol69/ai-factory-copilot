@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-28 | Codex | `codex/generated-blueprint-pipeline-topology` | Add the next topology primitive on top of deployed `a1f11f4`: explicit native pipeline links inside planner-generated Blueprints. Ground every API in CL 502094; capture exact pipe-connector type/direction metadata and native pipeline spline/length capability from unlocked Build Gun recipes; extend the generated schema, transient Designer staging, and isolated Blueprint-world readback so a straight pipe is accepted only when both exact endpoints are compatible and reciprocal after save/load. Add focused companion/source tests, then compile/package/deploy with the game closed. This does not claim pumps, head lift, fluid rate, junction manifolds, miner/resource anchoring, or automatic coal-power layout yet. Existing conveyors, power topology, vision, selection export, Node Editor, direct builds, and v1/v2 compatibility remain preserved. | claimed from deployed `a1f11f4`; exact-header research in progress |
+| 2026-08-28 | Codex | `codex/generated-blueprint-pipeline-topology` | Add the next topology primitive on top of deployed `a1f11f4`: explicit native pipeline links inside planner-generated Blueprints. Ground every API in CL 502094; capture exact pipe-connector type/direction metadata and native pipeline spline/length capability from unlocked Build Gun recipes; extend the generated schema, transient Designer staging, and isolated Blueprint-world readback so a straight pipe is accepted only when both exact endpoints are compatible and reciprocal after save/load. Add focused companion/source tests, then compile/package/deploy with the game closed. This does not claim pumps, head lift, fluid rate, junction manifolds, miner/resource anchoring, or automatic coal-power layout yet. Existing conveyors, power topology, vision, selection export, Node Editor, direct builds, and v1/v2 compatibility remain preserved. | complete, packaged, deployed, and companion-installed from `4fd5237`: v3 captures exact native pipe-port type/transform/clearance plus pipeline flow and hologram length limits, stages a narrow straight spline, and requires reciprocal isolated-world readback. Exact headers, 861/861 tests, Editor/Shipping, and UAT pass. Fresh live snapshot and Build Gun placement remain unverified. |
 | 2026-08-28 | Codex | `codex/generated-blueprint-power-design` | Add deterministic internal power distribution to planner-generated native Blueprints without hard-coded vanilla capacities. Capture each registered building descriptor's exact native circuit-connector count/max links from its buildable CDO in `AIFactorySnapshot.cpp`; add a companion planner that selects only captured-unlocked ground pole and physical wire recipes (including modded tiers), lays out a capacity-safe pole trunk beside generated machines, and passes explicit pole buildables plus wire edges into the already-proven v2 staging/readback contract. Update router copy and focused snapshot/planner/action/source tests. Existing belts, selection export, Build Gun preview/placement, Node Editor, vision, direct world builds, and v1 behavior remain preserved. No pipe/miner/hidden-wall-connection topology is claimed. | complete, packaged, deployed, and companion-installed from `cb2fdf5`: exact native connector/circuit/pole/wire capability capture; capacity-safe daisy chains or a minimum compatible pole trunk with one external-grid link reserved; exact game-side endpoint-length and reciprocal native readback. Exact headers, 859/859 tests, Editor/Shipping, and UAT pass. Fresh live snapshot and Build Gun placement remain unverified. |
 | 2026-08-27 | Codex | `codex/generated-blueprint-topology-vision` | Extend planner-generated native Blueprints without weakening the existing v1 fail-closed path. Phase 1: add explicit generated conveyor and physical power-wire topology contracts, stage them through verified CL 502094 native classes/components inside the transient Designer, then parse the saved `.sbp` and require exact reciprocal endpoint/wire readback before success. Phase 2: connect Claude's existing bounded `Vision/` PNG+sidecar ring to the companion/provider request path with strict size/age/count limits and explicit multimodal capability fallback, so screenshots can score aesthetics while snapshots/solvers remain authoritative for recipes, rates, geometry and writes. Expected crossings: `AIFactoryBlueprintExport.{h,cpp}`, generated action contract/router/tests, `providers.mjs`/server configuration/tests, append-only docs. Existing selection export, Build Gun preview, live placement, node editor, and non-vision text behavior remain preserved. | claimed; implementation starting from `origin/master` (`2fd3d95`) |
 | 2026-08-27 | Codex | `codex/generated-blueprint-live-fix` | Live-proof repair for the first planner-generated native Blueprint. Revision 221 proved two fail-closed defects without mutating the save: `plan_production` recursively selected unlocked Converter resource-conversion recipes instead of treating Iron Ore as the external factory input, producing a nonsensical nine-row chain; generated Foundation part `part-0001` then staged with no finite colliding-component bounds. Scope: preserve every existing planner/export/preview lane; make deterministic Blueprint planning stop at honest external/raw inputs and choose the smallest standard unlocked production path for this request, correct native staged-component registration/bounds using only verified CL 502094 APIs, add exact regressions for both observed failures, compile and deploy after the game closes, then repeat the same live command. No belts/pipes/wires/miners/power are claimed in this repair. | complete, packaged, deployed, and bridge-installed from `4b0ef70`: the exact revision-221 snapshot now plans one Smelter/standard Iron Ingot recipe with 30 Iron Ore/min as an evidenced external input and no Converter step. `FFGClearanceData` is the primary staged bound, with registered colliding/all-primitive bounds as exact fallbacks and per-source result counts. Exact headers plus **846/846** tests, Editor/Shipping builds, UAT archive/game copy pass. Archive 19,252,578 bytes, SHA-256 `2CA1375743A45AFF03DE83939E5ECA542B5A0BFF3C74FCD6DBDB37A37D52B8F3`; deployed DLL 1,214,464 bytes, SHA-256 `EA54FD147957D74C8A9764BAE90DAE7F44CEE2635E094925723DFD67D9E4ED89`. Bridge `1.0.0-beta.2` is ready. Repeat live generated-file/readback/Build-Gun placement remains required. |
@@ -4508,3 +4508,53 @@ class probe or a real instance. The current 8 m pole corridor is a deterministic
 geometry proposal whose final collision check remains native; learning compact
 wall-outlet topology from the owner's sample Blueprint is the next aesthetic
 power improvement after this live proof.
+
+### Codex — 2026-08-28 generated Blueprint v3 pipeline handoff
+
+Branch: `codex/generated-blueprint-pipeline-topology`; implementation commit
+`4fd5237`. This extends the deployed v1/v2 contracts without changing them.
+`aifactory.generated-blueprint/v3` adds explicit pipeline edges between generated
+`part_id`s. A v2 request containing pipeline data is refused rather than silently
+discarded.
+
+The scanner now records every registered descriptor CDO's native pipe-connection
+component name/class, exact `EPipeConnectionType`, connector clearance, snapping
+restriction, relative location, and outward normal. Registered pipeline
+descriptors also expose `AFGBuildablePipeline::GetFlowLimit()`, the public
+`AFGPipelineHologram::MINIMUM_HOLOGRAM_LENGTH`, and that exact descriptor
+hologram CDO's reflected `mMaxSplineLength`. The companion contains no recalled
+vanilla pipe capacity or length table.
+
+The first primitive is deliberately narrow: one explicit unlocked native
+pipeline recipe joins two exact unused ports only when their captured types are
+compatible, their transformed endpoints are collinear and oppositely facing,
+and their separation is inside the captured native length interval. The game
+repeats those checks, stages a deferred transient `AFGBuildablePipeline`, sets a
+native two-point spline before finishing spawn, connects both real
+`UFGPipeConnectionComponent`s, and requires reciprocal component readback.
+Cleanup clears those links. After Designer save, commit requires the isolated
+Blueprint world to contain the expected pipeline actor count and exact reciprocal
+endpoint pairs.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation and
+**861/861** companion tests pass; FactoryEditor Development and
+FactoryGameSteam Shipping module builds pass; UAT cook/archive and Steam copy
+pass with Satisfactory closed. The successful UAT run used the process-scoped
+`UE-ZenDataPath=D:\\Modding\\Satisfactory\\ZenCache`. The clean beta.2
+companion install verifies 39 runtime hashes; `/health` is ready on loopback
+with 27 tools, hybrid local/Anthropic, and vision enabled.
+
+Archive: 19,408,150 bytes, SHA-256
+`35D7CC662B3718CEDAA347B64AA3F8FDC21C118F30972762548246CB49A85F4F`.
+Deployed Shipping DLL: 1,273,856 bytes, SHA-256
+`5144FFBF2C13E8F1735BFB62FD71DF93720B99F4795D6F83B7D1F53FEB538528`.
+
+Live proof remains mandatory. On the next launch, first confirm a fresh snapshot
+exposes nonzero pipe-port metadata for the chosen producer/consumer and pipeline
+recipe. Generate a minimal aligned v3 Blueprint, require exact native topology
+readback, then preview/place it through the vanilla Build Gun and inspect the
+placed reciprocal pipe endpoints and fluid flow. If a class initializes ports
+dynamically and its CDO is incomplete, do not add a hard-coded fallback: capture
+a transient probe or real instance. Pumps, head lift, fluid-rate sizing,
+junction/manifold routing, terrain-aware water extraction, miner/resource-node
+anchoring, and an automatic coal-power Blueprint are still open.
