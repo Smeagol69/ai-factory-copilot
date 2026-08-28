@@ -9,12 +9,15 @@
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
 #include "Buildables/FGBuildableConveyorBase.h"
+#include "Buildables/FGBuildableConveyorBelt.h"
 #include "Buildables/FGBuildableConveyorAttachment.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildablePipeBase.h"
 #include "Buildables/FGBuildablePipelineAttachment.h"
 #include "Buildables/FGBuildableResourceExtractorBase.h"
 #include "Buildables/FGBuildableWire.h"
+#include "FGCircuitConnectionComponent.h"
+#include "FGFactoryConnectionComponent.h"
 #include "FGBuildableSubsystem.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "FGRecipe.h"
@@ -479,6 +482,150 @@ namespace
         FString BoundsSource;
     };
 
+    bool ResolveGeneratedTopologyRecipe(
+        const FString& RecipeClassPath,
+        UWorld* World,
+        UClass* RequiredBuildableBase,
+        TSubclassOf<UFGRecipe>& OutRecipe,
+        TSubclassOf<AFGBuildable>& OutBuildableClass,
+        FString& OutReason)
+    {
+        UClass* RecipeObject = FindGeneratedClassByPath(RecipeClassPath);
+        if (!RecipeObject || !RecipeObject->IsChildOf(UFGRecipe::StaticClass()))
+        {
+            OutReason = TEXT("generated_topology_recipe_not_found:") + RecipeClassPath;
+            return false;
+        }
+        const TSubclassOf<UFGRecipe> Recipe = RecipeObject;
+
+        TSubclassOf<AFGBuildable> BuildableClass = nullptr;
+        for (const FItemAmount& Product : UFGRecipe::GetProducts(Recipe))
+        {
+            if (Product.ItemClass &&
+                Product.ItemClass->IsChildOf(UFGBuildingDescriptor::StaticClass()))
+            {
+                const TSubclassOf<UFGBuildingDescriptor> Descriptor{Product.ItemClass.Get()};
+                BuildableClass = UFGBuildingDescriptor::GetBuildableClass(Descriptor);
+                break;
+            }
+        }
+        if (!BuildableClass || !BuildableClass->IsChildOf(RequiredBuildableBase) ||
+            BuildableClass->HasAnyClassFlags(CLASS_Abstract))
+        {
+            OutReason = TEXT("generated_topology_recipe_has_wrong_buildable_type:") +
+                RecipeClassPath;
+            return false;
+        }
+
+        AFGRecipeManager* RecipeManager = AFGRecipeManager::Get(World);
+        if (!IsValid(RecipeManager))
+        {
+            OutReason = TEXT("no_recipe_manager");
+            return false;
+        }
+        if (!RecipeManager->IsRecipeAvailable(Recipe))
+        {
+            OutReason = TEXT("generated_topology_recipe_is_not_unlocked:") +
+                RecipeObject->GetPathName();
+            return false;
+        }
+        if (!RecipeManager->IsBuildingAvailable(BuildableClass))
+        {
+            OutReason = TEXT("generated_topology_building_is_not_unlocked:") +
+                BuildableClass->GetPathName();
+            return false;
+        }
+
+        OutRecipe = Recipe;
+        OutBuildableClass = BuildableClass;
+        return true;
+    }
+
+    UFGFactoryConnectionComponent* ResolveGeneratedFactoryConnection(
+        AFGBuildable* Buildable,
+        const FString& ExplicitName,
+        const EFactoryConnectionDirection Wanted,
+        FString& OutReason)
+    {
+        if (!IsValid(Buildable))
+        {
+            OutReason = TEXT("generated_conveyor_endpoint_buildable_is_invalid");
+            return nullptr;
+        }
+
+        TInlineComponentArray<UFGFactoryConnectionComponent*> Components;
+        Buildable->GetComponents(Components);
+        TArray<UFGFactoryConnectionComponent*> Candidates;
+        for (UFGFactoryConnectionComponent* Component : Components)
+        {
+            if (!IsValid(Component) || Component->IsConnected())
+            {
+                continue;
+            }
+            const EFactoryConnectionDirection Direction = Component->GetDirection();
+            if (Direction != Wanted && Direction != EFactoryConnectionDirection::FCD_ANY)
+            {
+                continue;
+            }
+            if (!ExplicitName.IsEmpty() &&
+                Component->GetName() != ExplicitName &&
+                !Component->GetPathName().EndsWith(TEXT(".") + ExplicitName))
+            {
+                continue;
+            }
+            Candidates.Add(Component);
+        }
+        if (Candidates.Num() != 1)
+        {
+            OutReason = FString::Printf(
+                TEXT("generated_conveyor_endpoint_requires_exactly_one_free_matching_connector:%s:candidates=%d"),
+                *Buildable->GetName(),
+                Candidates.Num());
+            return nullptr;
+        }
+        return Candidates[0];
+    }
+
+    UFGCircuitConnectionComponent* ResolveGeneratedCircuitConnection(
+        AFGBuildable* Buildable,
+        const FString& ExplicitName,
+        FString& OutReason)
+    {
+        if (!IsValid(Buildable))
+        {
+            OutReason = TEXT("generated_power_endpoint_buildable_is_invalid");
+            return nullptr;
+        }
+
+        TInlineComponentArray<UFGCircuitConnectionComponent*> Components;
+        Buildable->GetComponents(Components);
+        TArray<UFGCircuitConnectionComponent*> Candidates;
+        for (UFGCircuitConnectionComponent* Component : Components)
+        {
+            if (!IsValid(Component) || Component->IsHidden() ||
+                Component->GetNumFreeConnections() <= 0)
+            {
+                continue;
+            }
+            if (!ExplicitName.IsEmpty() &&
+                Component->GetName() != ExplicitName &&
+                !Component->GetPathName().EndsWith(TEXT(".") + ExplicitName))
+            {
+                continue;
+            }
+            Candidates.Add(Component);
+        }
+        if (Candidates.Num() != 1)
+        {
+            OutReason = FString::Printf(
+                TEXT("generated_power_endpoint_requires_exactly_one_free_matching_connector:%s:candidates=%d"),
+                *Buildable->GetName(),
+                Candidates.Num());
+            return nullptr;
+        }
+        return Candidates[0];
+    }
+
     bool IsFiniteGeneratedBounds(const FBox& Bounds)
     {
         return Bounds.IsValid &&
@@ -562,7 +709,10 @@ namespace
         FScopedGeneratedBuildables(
             UWorld* World,
             AFGBuildableBlueprintDesigner* Designer,
-            const TArray<FResolvedGeneratedPart>& Parts)
+            const TArray<FResolvedGeneratedPart>& Parts,
+            const TArray<FAIFactoryGeneratedBlueprintConveyor>& Conveyors,
+            const TArray<FAIFactoryGeneratedBlueprintPowerWire>& PowerWires)
+            : StagingWorld(World), StagingDesigner(Designer)
         {
             if (!IsValid(World) || !IsValid(Designer))
             {
@@ -648,6 +798,22 @@ namespace
                         Part.Source.PartId;
                     return;
                 }
+                BuildablesByPartId.Add(Part.Source.PartId, Buildable);
+            }
+
+            for (const FAIFactoryGeneratedBlueprintConveyor& Conveyor : Conveyors)
+            {
+                if (!StageConveyor(Conveyor))
+                {
+                    return;
+                }
+            }
+            for (const FAIFactoryGeneratedBlueprintPowerWire& Wire : PowerWires)
+            {
+                if (!StagePowerWire(Wire))
+                {
+                    return;
+                }
             }
         }
 
@@ -657,6 +823,29 @@ namespace
             {
                 if (AFGBuildable* Buildable = SpawnedActors[Index]; IsValid(Buildable))
                 {
+                    if (AFGBuildableWire* Wire = Cast<AFGBuildableWire>(Buildable))
+                    {
+                        Wire->Disconnect();
+                    }
+                    if (AFGBuildableConveyorBase* Conveyor =
+                            Cast<AFGBuildableConveyorBase>(Buildable))
+                    {
+                        if (IsValid(Conveyor->GetConnection0()) &&
+                            Conveyor->GetConnection0()->IsConnected())
+                        {
+                            Conveyor->GetConnection0()->ClearConnection();
+                        }
+                        if (IsValid(Conveyor->GetConnection1()) &&
+                            Conveyor->GetConnection1()->IsConnected())
+                        {
+                            Conveyor->GetConnection1()->ClearConnection();
+                        }
+                        if (AFGBuildableSubsystem* Buildables =
+                                AFGBuildableSubsystem::Get(Buildable->GetWorld()))
+                        {
+                            Buildables->RemoveConveyor(Conveyor);
+                        }
+                    }
                     Buildable->Destroy();
                 }
             }
@@ -665,15 +854,249 @@ namespace
         }
 
         const TArray<FStagedGeneratedPart>& Get() const { return StagedParts; }
+        const TArray<AFGBuildable*>& GetAll() const { return SpawnedActors; }
         bool IsComplete(const int32 Expected) const
         {
             return Failure.IsEmpty() && StagedParts.Num() == Expected;
         }
         const FString& GetFailure() const { return Failure; }
+        int32 NumConveyors() const { return StagedConveyors; }
+        int32 NumPowerWires() const { return StagedPowerWires; }
+        int32 NumAllBuildables() const { return SpawnedActors.Num(); }
 
     private:
+        bool StageConveyor(const FAIFactoryGeneratedBlueprintConveyor& Link)
+        {
+            AFGBuildable* FromBuildable = BuildablesByPartId.FindRef(Link.FromPartId);
+            AFGBuildable* ToBuildable = BuildablesByPartId.FindRef(Link.ToPartId);
+            if (!IsValid(FromBuildable) || !IsValid(ToBuildable) ||
+                FromBuildable == ToBuildable)
+            {
+                Failure = TEXT("generated_conveyor_part_reference_is_invalid:") + Link.LinkId;
+                return false;
+            }
+
+            FString ConnectorFailure;
+            UFGFactoryConnectionComponent* From = ResolveGeneratedFactoryConnection(
+                FromBuildable,
+                Link.FromConnectorName,
+                EFactoryConnectionDirection::FCD_OUTPUT,
+                ConnectorFailure);
+            if (!IsValid(From))
+            {
+                Failure = ConnectorFailure + TEXT(":") + Link.LinkId + TEXT(":from");
+                return false;
+            }
+            UFGFactoryConnectionComponent* To = ResolveGeneratedFactoryConnection(
+                ToBuildable,
+                Link.ToConnectorName,
+                EFactoryConnectionDirection::FCD_INPUT,
+                ConnectorFailure);
+            if (!IsValid(To))
+            {
+                Failure = ConnectorFailure + TEXT(":") + Link.LinkId + TEXT(":to");
+                return false;
+            }
+
+            TSubclassOf<UFGRecipe> BuildRecipe;
+            TSubclassOf<AFGBuildable> BuildableClass;
+            FString RecipeFailure;
+            if (!ResolveGeneratedTopologyRecipe(
+                    Link.BuildRecipeClassPath,
+                    StagingWorld,
+                    AFGBuildableConveyorBelt::StaticClass(),
+                    BuildRecipe,
+                    BuildableClass,
+                    RecipeFailure))
+            {
+                Failure = RecipeFailure + TEXT(":") + Link.LinkId;
+                return false;
+            }
+
+            // v2's first transport primitive is intentionally narrow and
+            // exact: one straight native belt between collinear machine ports.
+            // Non-collinear routes need explicit poles/lifts and multiple
+            // native spline pieces; silently drawing a curve here would bypass
+            // the hologram's bend and incline contract.
+            const FVector Start = From->GetConnectorLocation(false);
+            const FVector End = To->GetConnectorLocation(false);
+            const FVector Delta = End - Start;
+            const double Distance = Delta.Size();
+            if (!FMath::IsFinite(Distance) || Distance <= KINDA_SMALL_NUMBER)
+            {
+                Failure = TEXT("generated_conveyor_endpoints_have_no_finite_separation:") +
+                    Link.LinkId;
+                return false;
+            }
+            const FVector Travel = Delta / Distance;
+            const double FromAlignment = FVector::DotProduct(
+                From->GetConnectorNormal().GetSafeNormal(), Travel);
+            const double ToAlignment = FVector::DotProduct(
+                To->GetConnectorNormal().GetSafeNormal(), Travel);
+            constexpr double MinimumStraightAlignment = 0.995;
+            if (FromAlignment < MinimumStraightAlignment ||
+                ToAlignment > -MinimumStraightAlignment)
+            {
+                Failure = FString::Printf(
+                    TEXT("generated_conveyor_requires_explicit_multi_leg_route:%s:from_alignment=%.3f,to_alignment=%.3f"),
+                    *Link.LinkId,
+                    FromAlignment,
+                    ToAlignment);
+                return false;
+            }
+
+            const FTransform BeltTransform = StagingDesigner->GetActorTransform();
+            const FVector LocalStart = BeltTransform.InverseTransformPosition(Start);
+            const FVector LocalEnd = BeltTransform.InverseTransformPosition(End);
+            const FVector LocalDelta = LocalEnd - LocalStart;
+            TArray<FSplinePointData> SplineData{
+                FSplinePointData(LocalStart, LocalDelta),
+                FSplinePointData(LocalEnd, LocalDelta),
+            };
+
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride =
+                ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            Params.bDeferConstruction = true;
+            Params.ObjectFlags |= RF_Transient;
+            AFGBuildableConveyorBelt* Belt = Cast<AFGBuildableConveyorBelt>(
+                StagingWorld->SpawnActor<AFGBuildable>(BuildableClass, BeltTransform, Params));
+            if (!IsValid(Belt))
+            {
+                Failure = TEXT("generated_conveyor_spawn_failed:") + Link.LinkId;
+                return false;
+            }
+            SpawnedActors.Add(Belt);
+            Belt->SetInsideBlueprintDesigner(StagingDesigner);
+            Belt->SetBuiltWithRecipe(BuildRecipe);
+            TArray<FSplinePointData>* MutableSpline = Belt->GetMutableSplinePointData();
+            if (MutableSpline == nullptr)
+            {
+                Failure = TEXT("generated_conveyor_has_no_mutable_native_spline:") + Link.LinkId;
+                return false;
+            }
+            *MutableSpline = MoveTemp(SplineData);
+            Belt->FinishSpawning(BeltTransform);
+
+            UFGFactoryConnectionComponent* BeltInput = Belt->GetConnection0();
+            UFGFactoryConnectionComponent* BeltOutput = Belt->GetConnection1();
+            if (!IsValid(BeltInput) || !IsValid(BeltOutput) ||
+                !BeltInput->CanConnectTo(From) || !BeltOutput->CanConnectTo(To))
+            {
+                Failure = TEXT("generated_conveyor_native_connections_rejected_endpoints:") +
+                    Link.LinkId;
+                return false;
+            }
+            BeltInput->SetConnection(From);
+            BeltOutput->SetConnection(To);
+            const bool bInputExact = BeltInput->GetConnection() == From &&
+                From->GetConnection() == BeltInput;
+            const bool bOutputExact = BeltOutput->GetConnection() == To &&
+                To->GetConnection() == BeltOutput;
+            if (!bInputExact || !bOutputExact)
+            {
+                Failure = TEXT("generated_conveyor_endpoint_readback_failed:") + Link.LinkId;
+                return false;
+            }
+            ++StagedConveyors;
+            return true;
+        }
+
+        bool StagePowerWire(const FAIFactoryGeneratedBlueprintPowerWire& Link)
+        {
+            AFGBuildable* FromBuildable = BuildablesByPartId.FindRef(Link.FromPartId);
+            AFGBuildable* ToBuildable = BuildablesByPartId.FindRef(Link.ToPartId);
+            if (!IsValid(FromBuildable) || !IsValid(ToBuildable) ||
+                FromBuildable == ToBuildable)
+            {
+                Failure = TEXT("generated_power_wire_part_reference_is_invalid:") + Link.LinkId;
+                return false;
+            }
+
+            FString ConnectorFailure;
+            UFGCircuitConnectionComponent* From = ResolveGeneratedCircuitConnection(
+                FromBuildable,
+                Link.FromConnectorName,
+                ConnectorFailure);
+            if (!IsValid(From))
+            {
+                Failure = ConnectorFailure + TEXT(":") + Link.LinkId + TEXT(":from");
+                return false;
+            }
+            UFGCircuitConnectionComponent* To = ResolveGeneratedCircuitConnection(
+                ToBuildable,
+                Link.ToConnectorName,
+                ConnectorFailure);
+            if (!IsValid(To))
+            {
+                Failure = ConnectorFailure + TEXT(":") + Link.LinkId + TEXT(":to");
+                return false;
+            }
+            if (From->GetCircuitType() != To->GetCircuitType())
+            {
+                Failure = TEXT("generated_power_wire_circuit_types_do_not_match:") + Link.LinkId;
+                return false;
+            }
+
+            TSubclassOf<UFGRecipe> BuildRecipe;
+            TSubclassOf<AFGBuildable> BuildableClass;
+            FString RecipeFailure;
+            if (!ResolveGeneratedTopologyRecipe(
+                    Link.BuildRecipeClassPath,
+                    StagingWorld,
+                    AFGBuildableWire::StaticClass(),
+                    BuildRecipe,
+                    BuildableClass,
+                    RecipeFailure))
+            {
+                Failure = RecipeFailure + TEXT(":") + Link.LinkId;
+                return false;
+            }
+
+            const FTransform WireTransform = StagingDesigner->GetActorTransform();
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride =
+                ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            Params.bDeferConstruction = true;
+            Params.ObjectFlags |= RF_Transient;
+            AFGBuildableWire* Wire = Cast<AFGBuildableWire>(
+                StagingWorld->SpawnActor<AFGBuildable>(BuildableClass, WireTransform, Params));
+            if (!IsValid(Wire))
+            {
+                Failure = TEXT("generated_power_wire_spawn_failed:") + Link.LinkId;
+                return false;
+            }
+            SpawnedActors.Add(Wire);
+            Wire->SetInsideBlueprintDesigner(StagingDesigner);
+            Wire->SetBuiltWithRecipe(BuildRecipe);
+            Wire->FinishSpawning(WireTransform);
+            if (!Wire->Connect(From, To) ||
+                Wire->GetConnection(0) != From || Wire->GetConnection(1) != To)
+            {
+                Failure = TEXT("generated_power_wire_endpoint_readback_failed:") + Link.LinkId;
+                return false;
+            }
+            TArray<AFGBuildableWire*> FromWires;
+            TArray<AFGBuildableWire*> ToWires;
+            From->GetWires(FromWires);
+            To->GetWires(ToWires);
+            if (!FromWires.Contains(Wire) || !ToWires.Contains(Wire))
+            {
+                Failure = TEXT("generated_power_wire_reciprocal_component_readback_failed:") +
+                    Link.LinkId;
+                return false;
+            }
+            ++StagedPowerWires;
+            return true;
+        }
+
+        UWorld* StagingWorld = nullptr;
+        AFGBuildableBlueprintDesigner* StagingDesigner = nullptr;
         TArray<AFGBuildable*> SpawnedActors;
         TArray<FStagedGeneratedPart> StagedParts;
+        TMap<FString, AFGBuildable*> BuildablesByPartId;
+        int32 StagedConveyors = 0;
+        int32 StagedPowerWires = 0;
         FString Failure;
     };
 
@@ -766,6 +1189,132 @@ namespace
                     Penetration.Z);
                 return false;
             }
+        }
+        return true;
+    }
+
+    bool ValidateGeneratedNativeTopologyReadback(
+        const TArray<AFGBuildable*>& Loaded,
+        const int32 ExpectedBuildables,
+        const int32 ExpectedConfiguredManufacturers,
+        const int32 ExpectedConveyors,
+        const int32 ExpectedPowerWires,
+        TSharedRef<FJsonObject> Observed,
+        FString& OutReason)
+    {
+        int32 ValidBuildables = 0;
+        int32 ConfiguredManufacturers = 0;
+        int32 ConveyorCount = 0;
+        int32 ExactConveyorLinks = 0;
+        int32 PowerWireCount = 0;
+        int32 ExactPowerWireLinks = 0;
+
+        for (AFGBuildable* Buildable : Loaded)
+        {
+            if (!IsValid(Buildable))
+            {
+                continue;
+            }
+            ++ValidBuildables;
+            if (AFGBuildableManufacturer* Manufacturer =
+                    Cast<AFGBuildableManufacturer>(Buildable))
+            {
+                if (Manufacturer->GetCurrentRecipe())
+                {
+                    ++ConfiguredManufacturers;
+                }
+            }
+            if (AFGBuildableConveyorBase* Conveyor =
+                    Cast<AFGBuildableConveyorBase>(Buildable))
+            {
+                ++ConveyorCount;
+                UFGFactoryConnectionComponent* BeltInput = Conveyor->GetConnection0();
+                UFGFactoryConnectionComponent* BeltOutput = Conveyor->GetConnection1();
+                UFGFactoryConnectionComponent* Source =
+                    IsValid(BeltInput) ? BeltInput->GetConnection() : nullptr;
+                UFGFactoryConnectionComponent* Destination =
+                    IsValid(BeltOutput) ? BeltOutput->GetConnection() : nullptr;
+                const bool bExact =
+                    IsValid(Source) && IsValid(Destination) &&
+                    Source->GetConnection() == BeltInput &&
+                    Destination->GetConnection() == BeltOutput &&
+                    Source->GetDirection() != EFactoryConnectionDirection::FCD_INPUT &&
+                    Destination->GetDirection() != EFactoryConnectionDirection::FCD_OUTPUT;
+                if (bExact)
+                {
+                    ++ExactConveyorLinks;
+                }
+            }
+            if (AFGBuildableWire* Wire = Cast<AFGBuildableWire>(Buildable))
+            {
+                ++PowerWireCount;
+                UFGCircuitConnectionComponent* First = Wire->GetConnection(0);
+                UFGCircuitConnectionComponent* Second = Wire->GetConnection(1);
+                TArray<AFGBuildableWire*> FirstWires;
+                TArray<AFGBuildableWire*> SecondWires;
+                if (IsValid(First))
+                {
+                    First->GetWires(FirstWires);
+                }
+                if (IsValid(Second))
+                {
+                    Second->GetWires(SecondWires);
+                }
+                if (IsValid(First) && IsValid(Second) && First != Second &&
+                    FirstWires.Contains(Wire) && SecondWires.Contains(Wire))
+                {
+                    ++ExactPowerWireLinks;
+                }
+            }
+        }
+
+        Observed->SetNumberField(TEXT("native_loaded_buildables"), ValidBuildables);
+        Observed->SetNumberField(
+            TEXT("native_loaded_configured_manufacturers"),
+            ConfiguredManufacturers);
+        Observed->SetNumberField(TEXT("native_loaded_conveyors"), ConveyorCount);
+        Observed->SetNumberField(
+            TEXT("native_loaded_exact_reciprocal_conveyor_links"),
+            ExactConveyorLinks);
+        Observed->SetNumberField(TEXT("native_loaded_power_wires"), PowerWireCount);
+        Observed->SetNumberField(
+            TEXT("native_loaded_exact_reciprocal_power_wire_links"),
+            ExactPowerWireLinks);
+
+        if (ValidBuildables != ExpectedBuildables)
+        {
+            OutReason = FString::Printf(
+                TEXT("native_blueprint_buildable_count_readback_mismatch:expected=%d,actual=%d"),
+                ExpectedBuildables,
+                ValidBuildables);
+            return false;
+        }
+        if (ConfiguredManufacturers != ExpectedConfiguredManufacturers)
+        {
+            OutReason = FString::Printf(
+                TEXT("native_blueprint_manufacturer_recipe_readback_mismatch:expected=%d,actual=%d"),
+                ExpectedConfiguredManufacturers,
+                ConfiguredManufacturers);
+            return false;
+        }
+        if (ConveyorCount != ExpectedConveyors || ExactConveyorLinks != ExpectedConveyors)
+        {
+            OutReason = FString::Printf(
+                TEXT("native_blueprint_conveyor_topology_readback_mismatch:expected=%d,actors=%d,exact_links=%d"),
+                ExpectedConveyors,
+                ConveyorCount,
+                ExactConveyorLinks);
+            return false;
+        }
+        if (PowerWireCount != ExpectedPowerWires ||
+            ExactPowerWireLinks != ExpectedPowerWires)
+        {
+            OutReason = FString::Printf(
+                TEXT("native_blueprint_power_topology_readback_mismatch:expected=%d,actors=%d,exact_links=%d"),
+                ExpectedPowerWires,
+                PowerWireCount,
+                ExactPowerWireLinks);
+            return false;
         }
         return true;
     }
@@ -958,7 +1507,10 @@ FAIFactoryActionResult GenerateLayout(
     const FAIFactoryActionContext& Context,
     const FString& BlueprintName,
     const FString& BlueprintDescription,
-    const TArray<FAIFactoryGeneratedBlueprintPart>& Parts)
+    const TArray<FAIFactoryGeneratedBlueprintPart>& Parts,
+    const TArray<FAIFactoryGeneratedBlueprintConveyor>& Conveyors,
+    const TArray<FAIFactoryGeneratedBlueprintPowerWire>& PowerWires,
+    const FString& LayoutSchema)
 {
     const FString Action = TEXT("generate_native_blueprint");
     if (BlueprintName.TrimStartAndEnd().IsEmpty())
@@ -978,6 +1530,20 @@ FAIFactoryActionResult GenerateLayout(
     if (Context.World->GetNetMode() == NM_Client)
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("not_server_authoritative"));
+    }
+    const bool bSchemaV1 = LayoutSchema == TEXT("aifactory.generated-blueprint/v1");
+    const bool bSchemaV2 = LayoutSchema == TEXT("aifactory.generated-blueprint/v2");
+    if (!bSchemaV1 && !bSchemaV2)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("unsupported_generated_blueprint_schema"));
+    }
+    if (bSchemaV1 && (Conveyors.Num() > 0 || PowerWires.Num() > 0))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("generated_blueprint_v1_cannot_carry_topology"));
     }
     if (Context.bRequireUnchangedWorld &&
         !Context.ExpectedWorldRevision.IsEmpty() &&
@@ -1032,11 +1598,64 @@ FAIFactoryActionResult GenerateLayout(
         }
     }
 
+    TSet<FString> TopologyIds;
+    const auto ValidateLinkIdentity = [&PartIds, &TopologyIds](
+        const FString& LinkId,
+        const FString& FromPartId,
+        const FString& ToPartId,
+        FString& OutFailure)
+    {
+        if (LinkId.TrimStartAndEnd().IsEmpty())
+        {
+            OutFailure = TEXT("generated_topology_link_id_is_required");
+            return false;
+        }
+        if (TopologyIds.Contains(LinkId))
+        {
+            OutFailure = TEXT("generated_topology_link_ids_must_be_unique:") + LinkId;
+            return false;
+        }
+        if (!PartIds.Contains(FromPartId) || !PartIds.Contains(ToPartId) ||
+            FromPartId == ToPartId)
+        {
+            OutFailure = TEXT("generated_topology_part_reference_is_invalid:") + LinkId;
+            return false;
+        }
+        TopologyIds.Add(LinkId);
+        return true;
+    };
+    for (const FAIFactoryGeneratedBlueprintConveyor& Conveyor : Conveyors)
+    {
+        FString Failure;
+        if (!ValidateLinkIdentity(
+                Conveyor.LinkId,
+                Conveyor.FromPartId,
+                Conveyor.ToPartId,
+                Failure))
+        {
+            return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+    }
+    for (const FAIFactoryGeneratedBlueprintPowerWire& Wire : PowerWires)
+    {
+        FString Failure;
+        if (!ValidateLinkIdentity(
+                Wire.LinkId,
+                Wire.FromPartId,
+                Wire.ToPartId,
+                Failure))
+        {
+            return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+    }
+
     const TSharedRef<FJsonObject> Predicted = MakeShared<FJsonObject>();
     Predicted->SetStringField(TEXT("blueprint_name"), BlueprintName);
-    Predicted->SetStringField(TEXT("layout_schema"), TEXT("aifactory.generated-blueprint/v1"));
+    Predicted->SetStringField(TEXT("layout_schema"), LayoutSchema);
     Predicted->SetNumberField(TEXT("resolved_buildables"), Resolved.Num());
     Predicted->SetNumberField(TEXT("configured_manufacturers"), ConfiguredManufacturers);
+    Predicted->SetNumberField(TEXT("requested_conveyors"), Conveyors.Num());
+    Predicted->SetNumberField(TEXT("requested_power_wires"), PowerWires.Num());
     Predicted->SetStringField(TEXT("designer"), Designer->GetPathName());
     Predicted->SetBoolField(TEXT("designer_had_buildings"), Designer->HasBuildings());
     Predicted->SetStringField(
@@ -1061,7 +1680,12 @@ FAIFactoryActionResult GenerateLayout(
     Result.Action = Action;
     Result.Predicted = Predicted;
 
-    FScopedGeneratedBuildables Staging(Context.World, Designer, Resolved);
+    FScopedGeneratedBuildables Staging(
+        Context.World,
+        Designer,
+        Resolved,
+        Conveyors,
+        PowerWires);
     if (!Staging.IsComplete(Resolved.Num()))
     {
         Result.Status = TEXT("failed");
@@ -1082,6 +1706,8 @@ FAIFactoryActionResult GenerateLayout(
         BoundsSources->SetNumberField(Entry.Key, Entry.Value);
     }
     Predicted->SetObjectField(TEXT("native_bounds_sources"), BoundsSources);
+    Predicted->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
+    Predicted->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
 
     FString CollisionFailure;
     int32 StructuralContacts = 0;
@@ -1110,18 +1736,18 @@ FAIFactoryActionResult GenerateLayout(
     int32 Adopted = 0;
     {
         FScopedDesignerMembership Membership(Designer);
-        for (const FStagedGeneratedPart& Part : Staging.Get())
+        for (AFGBuildable* Buildable : Staging.GetAll())
         {
-            if (!Membership.AdoptOwned(Part.Buildable))
+            if (!Membership.AdoptOwned(Buildable))
             {
                 Result.Status = TEXT("failed");
                 Result.Reason = TEXT("generated_buildable_could_not_be_adopted:") +
-                    Part.Resolved.Source.PartId;
+                    (IsValid(Buildable) ? Buildable->GetName() : TEXT("invalid"));
                 return Result;
             }
         }
         Adopted = Membership.Num();
-        if (Adopted != Resolved.Num())
+        if (Adopted != Staging.NumAllBuildables())
         {
             Result.Status = TEXT("failed");
             Result.Reason = TEXT("generated_blueprint_adopted_count_mismatch");
@@ -1143,22 +1769,65 @@ FAIFactoryActionResult GenerateLayout(
 
     const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetBoolField(TEXT("designer_left_empty"), !Designer->HasBuildings());
-    Observed->SetNumberField(TEXT("staged_buildables"), Staging.Get().Num());
+    Observed->SetNumberField(TEXT("staged_buildables"), Staging.NumAllBuildables());
+    Observed->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
+    Observed->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
 
     AFGBlueprintSubsystem* Subsystem =
         AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
     bool bReadable = false;
+    bool bExactNativeReadback = bSchemaV1;
+    FString NativeReadbackFailure;
     if (IsValid(Subsystem))
     {
         Subsystem->RefreshBlueprintsAndDescriptors();
         bReadable = Subsystem->ReadBlueprintFromDisc(BlueprintName);
+        if (bReadable && bSchemaV2)
+        {
+            UFGBlueprintDescriptor* Descriptor =
+                Subsystem->GetBlueprintDescriptorByNameString(BlueprintName);
+            Observed->SetBoolField(
+                TEXT("native_readback_descriptor_resolved"),
+                IsValid(Descriptor));
+            if (IsValid(Descriptor))
+            {
+                // Load the file Satisfactory just wrote into the subsystem's
+                // existing isolated Blueprint world. The subsystem owns that
+                // world's lifecycle; recreating it here could invalidate native
+                // preview state. This is stronger than trusting SaveBlueprint or
+                // parsing only a header: all native objects are reconstructed,
+                // including component references and FWireInstance endpoints.
+                TArray<AFGBuildable*> NativeLoaded;
+                Subsystem->LoadStoredBlueprint(
+                    Descriptor,
+                    FTransform::Identity,
+                    NativeLoaded,
+                    /*useBlueprintWorld*/ true,
+                    /*designer*/ nullptr,
+                    Context.Player);
+                bExactNativeReadback = ValidateGeneratedNativeTopologyReadback(
+                    NativeLoaded,
+                    Staging.NumAllBuildables(),
+                    ConfiguredManufacturers,
+                    Conveyors.Num(),
+                    PowerWires.Num(),
+                    Observed,
+                    NativeReadbackFailure);
+            }
+            else
+            {
+                NativeReadbackFailure =
+                    TEXT("native_blueprint_descriptor_did_not_resolve_after_refresh");
+            }
+        }
     }
     Observed->SetBoolField(TEXT("subsystem_available"), IsValid(Subsystem));
     Observed->SetBoolField(TEXT("blueprint_readable_from_disc"), bReadable);
+    Observed->SetBoolField(TEXT("exact_native_topology_readback"), bExactNativeReadback);
     Observed->SetBoolField(TEXT("all_staging_is_transient"), true);
     Result.Observed = Observed;
 
-    if (!Designer->HasBuildings() && bReadable)
+    if (!Designer->HasBuildings() && bReadable && bExactNativeReadback)
     {
         Result.bAccepted = true;
         Result.bCommitted = true;
@@ -1172,7 +1841,11 @@ FAIFactoryActionResult GenerateLayout(
     Result.Status = TEXT("failed");
     Result.Reason = Designer->HasBuildings()
         ? TEXT("generated_blueprint_designer_membership_did_not_unwind")
-        : TEXT("generated_blueprint_save_ran_but_native_readback_failed");
+        : (!bReadable
+            ? TEXT("generated_blueprint_save_ran_but_native_readback_failed")
+            : (NativeReadbackFailure.IsEmpty()
+                ? TEXT("generated_blueprint_exact_native_topology_readback_failed")
+                : NativeReadbackFailure));
     return Result;
 }
 

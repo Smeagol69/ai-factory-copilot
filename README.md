@@ -4,6 +4,10 @@ AI Factory Copilot is an SML C++ mod plus a localhost companion process. The
 mod reads authoritative runtime state from Satisfactory and sends a bounded,
 evidence-bearing snapshot to a configurable AI provider. It never asks the
 model to identify machines from screenshots or guess undisclosed game state.
+For visual questions it can attach one recent bounded game frame to a declared
+multimodal provider for appearance and architectural critique; actor identity,
+recipes, rates, coordinates, unlocks, collision and writes still come only from
+the snapshot, solvers and game-side readback.
 
 This repository implements a working **AI co-player that can act**: it reads the
 world, computes answers deterministically, and — when asked — changes the world
@@ -39,6 +43,9 @@ through server-authoritative actions the game itself executes and confirms.
 - local multi-turn conversation memory, per-save/player reset, and optional
   OpenAI web search for clearly labeled outside references
 - strict context compaction that reports every omitted category
+- freshness-checked vision handoff: the game writes a bounded screenshot ring,
+  the bridge rejects stale/incomplete/oversized frames, ignores sidecar paths,
+  and uses native OpenAI/Anthropic image blocks only when the question is visual
 
 ## Deterministic solvers
 

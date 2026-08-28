@@ -4842,18 +4842,13 @@ export function answerLocally(question, graph, services) {
             const revision = String(graph.world_revision ?? "draft").replace(/[^A-Za-z0-9_-]+/g, "-");
             const rate = String(design.per_minute).replace(/[^0-9]+/g, "-");
             const blueprintName = `AI ${item.name} ${rate}pm r${revision}`.slice(0, 240);
-            // Topology is deliberately not dropped by accident: it is named in
-            // the compiled manifest as unsupported v1 work. This first native
-            // proof serialises the complete shell and configured machines;
-            // belts/pipes/wires enter only after their component references can
-            // be constructed and read back exactly.
-            const buildingsOnly = actions.filter((action) => action.action === "place_building");
             generated = compileGeneratedBlueprint({
               blueprint_name: blueprintName,
-              actions: buildingsOnly,
+              actions,
               description:
                 `${design.per_minute}/min ${item.name} factory designed from revision ` +
-                `${graph.world_revision ?? "unknown"}. Native shell and configured machines; transport/power topology pending.`,
+                `${graph.world_revision ?? "unknown"}. Native shell, configured machines, and ` +
+                `${actions.filter((action) => action.action === "place_belt").length} explicit conveyor link(s).`,
             });
             if (!generated.compiled) {
               return localAnswer(
@@ -4936,11 +4931,13 @@ export function answerLocally(question, graph, services) {
                 `${plan.belts_planned} planned belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
                 (generated && design.commit
                   ? `The game is now resolving ${generated.counts.buildables} exact native parts, ` +
+                    `${generated.counts.conveyors} conveyor link(s), and ` +
+                    `${generated.counts.power_wires} physical power wire(s), ` +
                     "measuring their native hologram-clearance data (with registered primitive bounds as a fallback), refusing internal overlap, " +
-                    "serialising them through the real Designer and reading the .sbp back. " +
+                    "serialising them through the real Designer, loading the saved .sbp into Satisfactory's isolated Blueprint world, and requiring reciprocal native endpoint readback. " +
                     `If that result commits, say **"preview blueprint ${generated.blueprint_name}"** ` +
-                    "and place it with the vanilla Build Gun. Belts, pipes, wires, miners and power " +
-                    "are explicitly not generated in this first topology version."
+                    "and place it with the vanilla Build Gun. Straight planned belts are included. " +
+                    "Pipes, miners/resource anchors, belt lifts/poles, and automatic power-pole design remain explicit follow-up work; no missing topology is silently claimed."
                   : design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +
                     'the whole transaction rolls back if one fails. Say "undo" to reverse it.'

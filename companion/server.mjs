@@ -22,6 +22,7 @@ import {
   resolveSourcePolicy,
 } from "./lib/sources.mjs";
 import { SOLVER_TOOLS } from "./lib/tools.mjs";
+import { defaultVisionDirectory, loadVisionFrames } from "./lib/vision.mjs";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const MAXIMUM_BLUEPRINT_FILE_BYTES = 128 * 1024 * 1024;
@@ -741,6 +742,13 @@ export function createBridgeServer({ env = process.env } = {}) {
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
           blueprint_layout_inspection: Boolean(inspectBlueprint),
+          vision: {
+            enabled: envFlag(env.AIFACTORY_VISION, true),
+            directory_configured: Boolean(defaultVisionDirectory(env)),
+            automatic_intent_filter: !envFlag(env.AIFACTORY_VISION_ALWAYS, false),
+            maximum_frames: Math.min(3, positiveInteger(env.AIFACTORY_VISION_MAX_FRAMES, 1)),
+            local_multimodal_declared: envFlag(env.LOCAL_AI_VISION, false),
+          },
           outside_references: {
             web_search: sourcePolicy.enabled && sourceCapability.webSearch,
             requested_but_unavailable:
@@ -881,6 +889,7 @@ export function createBridgeServer({ env = process.env } = {}) {
 
       const sessionId = String(body.session_id || "default").trim().slice(0, 256);
       const history = sessions.get(sessionId) ?? [];
+      const vision = await loadVisionFrames({ question: body.question, env });
       const context = {
         question: body.question.trim(),
         snapshot: view.snapshot,
@@ -892,6 +901,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         graph,
         services: requestServices,
         history,
+        vision,
       };
       // Questions a single solver fully answers never reach the model: the
       // arithmetic was already done, and paying to have it narrated is the
@@ -1072,6 +1082,10 @@ export function createBridgeServer({ env = process.env } = {}) {
           total_remembered: restored.cache_size,
         },
         solver_calls: answer.solver_calls ?? [],
+        vision: answer.vision ?? {
+          status: vision.status,
+          frames_attached: 0,
+        },
         // Prompt-cache accounting for this answer, so the saving is observable
         // rather than assumed.
         cache: answer.cache ?? null,

@@ -42,7 +42,7 @@ function compiledFactory() {
 test("a deterministic placement plan compiles to exact Blueprint-relative geometry", () => {
   const compiled = compiledFactory();
   assert.equal(compiled.compiled, true, compiled.reason);
-  assert.equal(compiled.schema, "aifactory.generated-blueprint/v1");
+  assert.equal(compiled.schema, "aifactory.generated-blueprint/v2");
   assert.deepEqual(compiled.origin_cm, { x: 12_000, y: -4_000, z: 800 });
   assert.deepEqual(compiled.buildables.map((part) => part.relative_location), [
     { x: 0, y: 0, z: 0 },
@@ -53,9 +53,10 @@ test("a deterministic placement plan compiles to exact Blueprint-relative geomet
   assert.equal(compiled.buildables[0].role, "machine");
 });
 
-test("the compiler refuses topology it cannot yet serialize instead of dropping it", () => {
+test("v1 keeps refusing topology instead of silently dropping it", () => {
   const compiled = compileGeneratedBlueprint({
     blueprint_name: "No Silent Belt Loss",
+    schema: "aifactory.generated-blueprint/v1",
     actions: [
       { action: "place_building", recipe_class: "Recipe_SmelterMk1", location: { x: 0, y: 0, z: 0 } },
       { action: "place_belt", recipe_class: "Recipe_ConveyorBeltMk1", from_step: 1, to_step: 2 },
@@ -64,6 +65,34 @@ test("the compiler refuses topology it cannot yet serialize instead of dropping 
   assert.equal(compiled.compiled, false);
   assert.equal(compiled.reason, "generated_blueprint_v1_accepts_only_standalone_buildings");
   assert.deepEqual(compiled.unsupported, [{ step: 2, action: "place_belt" }]);
+});
+
+test("v2 compiles directed belts and physical power wires to generated part ids", () => {
+  const compiled = compileGeneratedBlueprint({
+    blueprint_name: "Native Topology",
+    actions: [
+      { action: "place_building", recipe_class: "Recipe_SmelterMk1", location: { x: 0, y: 0, z: 0 } },
+      { action: "place_building", recipe_class: "Recipe_SmelterMk1", location: { x: 2_000, y: 0, z: 0 } },
+      { action: "place_belt", recipe_class: "Recipe_ConveyorBeltMk1", from_step: 1, to_step: 2 },
+    ],
+    power_connections: [
+      { recipe_class: "Recipe_PowerLine", from_step: 1, to_step: 2 },
+    ],
+  });
+  assert.equal(compiled.compiled, true, JSON.stringify(compiled));
+  assert.equal(compiled.schema, "aifactory.generated-blueprint/v2");
+  assert.deepEqual(compiled.conveyors, [{
+    link_id: "conveyor-0001",
+    recipe_class: "Recipe_ConveyorBeltMk1",
+    from_part_id: "part-0001",
+    to_part_id: "part-0002",
+  }]);
+  assert.deepEqual(compiled.power_wires, [{
+    link_id: "power_wire-0001",
+    recipe_class: "Recipe_PowerLine",
+    from_part_id: "part-0001",
+    to_part_id: "part-0002",
+  }]);
 });
 
 test("generated native Blueprint validation requires captured unlock truth for every recipe", () => {
@@ -83,6 +112,56 @@ test("generated native Blueprint validation requires captured unlock truth for e
   const refused = validateAction(buildGraph(missingUnlockTruth), proposal);
   assert.equal(refused.valid, false);
   assert.equal(refused.reason, "generated_blueprint_requires_authoritative_recipe_unlock_capture");
+});
+
+test("v2 topology recipes and endpoint references are revalidated from captured unlock truth", () => {
+  const snapshot = buildFactorySnapshot();
+  const buildGun = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
+  snapshot.content.recipes.push(
+    {
+      class_path: "Recipe_ConveyorBeltMk1",
+      name: "Conveyor Belt Mk.1",
+      owner_mod: "FactoryGame",
+      available: true,
+      products: [{ item_class: "Desc_ConveyorBeltMk1", item_name: "Conveyor Belt Mk.1", amount: 1 }],
+      ingredients: [],
+      produced_in: [buildGun],
+    },
+    {
+      class_path: "Recipe_PowerLine",
+      name: "Power Line",
+      owner_mod: "FactoryGame",
+      available: true,
+      products: [{ item_class: "Desc_PowerLine", item_name: "Power Line", amount: 1 }],
+      ingredients: [],
+      produced_in: [buildGun],
+    },
+  );
+  snapshot.content.available_recipe_count += 2;
+  const graph = buildGraph(snapshot);
+  const compiled = compileGeneratedBlueprint({
+    blueprint_name: "Topology Validation",
+    actions: [
+      { action: "place_building", recipe_class: "Recipe_SmelterMk1", location: { x: 0, y: 0, z: 0 } },
+      { action: "place_building", recipe_class: "Recipe_SmelterMk1", location: { x: 2_000, y: 0, z: 0 } },
+      { action: "place_belt", recipe_class: "Recipe_ConveyorBeltMk1", from_step: 1, to_step: 2 },
+    ],
+    power_connections: [{ recipe_class: "Recipe_PowerLine", from_step: 1, to_step: 2 }],
+  });
+  const result = validateAction(graph, generatedBlueprintAction(compiled, { commit: true }));
+  assert.equal(result.valid, true, JSON.stringify(result));
+  assert.equal(result.action.conveyors.length, 1);
+  assert.equal(result.action.power_wires.length, 1);
+  assert.equal(
+    result.checks.native_topology_readback,
+    "isolated_blueprint_world_exact_reciprocal_endpoints_required",
+  );
+
+  const wrongType = structuredClone(generatedBlueprintAction(compiled, { commit: true }));
+  wrongType.conveyors[0].recipe_class = "Recipe_PowerLine";
+  const refused = validateAction(graph, wrongType);
+  assert.equal(refused.valid, false);
+  assert.equal(refused.reason, "generated_topology_recipe_has_wrong_product_type");
 });
 
 test("generated Blueprint files are standalone committed writes", () => {
@@ -173,18 +252,27 @@ test("the local production route emits one native Blueprint file action, not wor
   );
   assert.equal(emitted.some((action) => action.action === "place_building"), false);
   assert.match(answer.reply, /vanilla Build Gun/i);
-  assert.match(answer.reply, /not generated/i);
+  assert.match(answer.reply, /Straight planned belts are included/i);
 });
 
 test("the model action schema exposes generated relative buildables", () => {
   const tool = SOLVER_TOOLS.find((entry) => entry.name === "perform_actions");
   const item = tool.parameters.properties.actions.items;
   assert.ok(item.properties.action.enum.includes("generate_native_blueprint"));
-  assert.deepEqual(item.properties.layout_schema.enum, ["aifactory.generated-blueprint/v1"]);
+  assert.deepEqual(item.properties.layout_schema.enum, [
+    "aifactory.generated-blueprint/v1",
+    "aifactory.generated-blueprint/v2",
+  ]);
   assert.deepEqual(
     item.properties.buildables.items.required,
     ["part_id", "recipe_class", "relative_location", "yaw"],
   );
+  assert.deepEqual(item.properties.conveyors.items.required, [
+    "link_id", "recipe_class", "from_part_id", "to_part_id",
+  ]);
+  assert.deepEqual(item.properties.power_wires.items.required, [
+    "link_id", "recipe_class", "from_part_id", "to_part_id",
+  ]);
 });
 
 test("the game-side generator keeps staging transient, construction-time, bounded, and native", () => {
@@ -214,6 +302,11 @@ test("the game-side generator keeps staging transient, construction-time, bounde
   assert.ok(source.includes("GetComponentsBoundingBox(true, true)"));
   assert.ok(source.includes("native_clearance_data"));
   assert.ok(source.includes("generated_buildable_needs_an_unimplemented_native_topology"));
+  assert.ok(source.includes("StageConveyor"));
+  assert.ok(source.includes("StagePowerWire"));
+  assert.ok(source.includes("ValidateGeneratedNativeTopologyReadback"));
+  assert.ok(source.includes("LoadStoredBlueprint"));
+  assert.ok(source.includes("exact_native_topology_readback"));
   assert.ok(save > staging && readback > save);
   assert.ok(actions.includes('Kind == TEXT("generate_native_blueprint")'));
   assert.ok(actions.includes("native_blueprint_file_write_must_be_a_standalone_commit"));

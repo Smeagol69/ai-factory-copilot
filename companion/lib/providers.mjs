@@ -12,6 +12,7 @@ import {
   runSolverTool,
 } from "./tools.mjs";
 import { narrateFindings } from "./narrate.mjs";
+import { isVisionQuestion, visionMetadataText } from "./vision.mjs";
 
 const DEFAULT_MAXIMUM_SOLVER_ROUNDS = 6;
 // A server-side search can pause a turn; each resume is bounded separately from
@@ -126,7 +127,14 @@ rules for doing so:
   apologise for it or claim to have done the work anyway.
 
 Never claim placement validity unless a deterministic game placement validator
-supplied that result.`;
+supplied that result.
+
+When a current vision frame is attached, use it only for visible appearance,
+composition, readability, clipping and aesthetic critique. Pixels never prove
+an actor identity, recipe, rate, coordinate, collision result, unlock, or world
+write; those remain snapshot/solver/game-readback facts. If vision status says
+no recent complete frame, say visual evidence is unavailable instead of
+describing an image.`;
 
 /**
  * The system prompt for one request: the invariant rules plus the outside-source
@@ -144,6 +152,7 @@ export function userInput({
   serializedDerivedFacts,
   serializedAnalysisDigest,
   omissions,
+  vision,
 }) {
   const omittedText = omissions.length
     ? `Bridge compaction omitted: ${omissions.join(", ")}. Treat omitted data as unknown.`
@@ -164,14 +173,66 @@ CURRENT-TURN AUTHORITATIVE WORLD SNAPSHOT JSON:
 ${serializedSnapshot}
 
 CURRENT-TURN DETERMINISTIC DERIVED FACTS JSON:
-${serializedDerivedFacts}${digestText}`;
+${serializedDerivedFacts}${digestText}${visionMetadataText(vision)}`;
 }
 
-export function providerMessages(context) {
+export function providerMessages(context, { visionFormat = null } = {}) {
   const history = (context.history ?? [])
     .filter((entry) => entry?.role === "user" || entry?.role === "assistant")
     .map((entry) => ({ role: entry.role, content: String(entry.text ?? "") }));
-  return [...history, { role: "user", content: userInput(context) }];
+  const vision = visionFormat
+    ? context.vision
+    : (context.vision?.requested
+      ? { requested: true, status: "provider_did_not_attach_vision", frames: [] }
+      : context.vision);
+  const text = userInput({ ...context, vision });
+  const frames = visionFormat && Array.isArray(context.vision?.frames)
+    ? context.vision.frames
+    : [];
+  if (frames.length === 0) return [...history, { role: "user", content: text }];
+
+  if (visionFormat === "anthropic") {
+    return [...history, {
+      role: "user",
+      content: [
+        ...frames.map((frame) => ({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: frame.media_type,
+            data: frame.data_base64,
+          },
+        })),
+        { type: "text", text },
+      ],
+    }];
+  }
+  if (visionFormat === "openai") {
+    return [...history, {
+      role: "user",
+      content: [
+        { type: "input_text", text },
+        ...frames.map((frame) => ({
+          type: "input_image",
+          image_url: `data:${frame.media_type};base64,${frame.data_base64}`,
+          detail: "high",
+        })),
+      ],
+    }];
+  }
+  if (visionFormat === "chat") {
+    return [...history, {
+      role: "user",
+      content: [
+        { type: "text", text },
+        ...frames.map((frame) => ({
+          type: "image_url",
+          image_url: { url: `data:${frame.media_type};base64,${frame.data_base64}` },
+        })),
+      ],
+    }];
+  }
+  return [...history, { role: "user", content: text }];
 }
 
 /* ---------------- prompt caching ---------------- */
@@ -225,6 +286,13 @@ export function markLastUserMessageCacheable(messages) {
         role: "user",
         content: [{ type: "text", text: message.content, cache_control: EPHEMERAL }],
       };
+    } else if (Array.isArray(message.content)) {
+      for (let blockIndex = message.content.length - 1; blockIndex >= 0; blockIndex -= 1) {
+        const block = message.content[blockIndex];
+        if (block?.type !== "text") continue;
+        message.content[blockIndex] = { ...block, cache_control: EPHEMERAL };
+        break;
+      }
     }
     return;
   }
@@ -969,7 +1037,7 @@ export async function askOpenAI(context, env = process.env) {
     tools.push(...openAIToolDefinitions());
   }
 
-  let input = providerMessages(context);
+  let input = providerMessages(context, { visionFormat: "openai" });
   const solverCalls = [];
   const sources = new Map();
   const usage = emptyCacheUsage();
@@ -1041,6 +1109,10 @@ export async function askOpenAI(context, env = process.env) {
         response_id: lastResponseId,
         sources: collected,
         solver_calls: solverCalls,
+        vision: {
+          status: context.vision?.status ?? "not_requested",
+          frames_attached: context.vision?.frames?.length ?? 0,
+        },
         cache: summarizeCacheUsage(usage),
       };
     }
@@ -1184,7 +1256,7 @@ export async function askAnthropic(context, env = process.env) {
     requestBase.output_config = { effort: env.ANTHROPIC_EFFORT };
   }
 
-  const messages = providerMessages(context);
+  const messages = providerMessages(context, { visionFormat: "anthropic" });
   if (caching) markLastUserMessageCacheable(messages);
   const cacheUsage = emptyCacheUsage();
   const solverCalls = [];
@@ -1277,6 +1349,10 @@ export async function askAnthropic(context, env = process.env) {
         model,
         sources: collected,
         solver_calls: solverCalls,
+        vision: {
+          status: context.vision?.status ?? "not_requested",
+          frames_attached: context.vision?.frames?.length ?? 0,
+        },
         search_errors: searchErrors,
         cache: summarizeCacheUsage(cacheUsage),
       };
@@ -1404,7 +1480,9 @@ export async function askLocal(context, env = process.env) {
               ? ""
               : "\n\nSolver tools are unavailable for this local model. Do not state live-game numbers, causes, coordinates, or actions."),
         },
-        ...providerMessages(context),
+        ...providerMessages(context, {
+          visionFormat: envFlag(env.LOCAL_AI_VISION, false) ? "chat" : null,
+        }),
       ];
   const solverCalls = [];
   const usage = emptyCacheUsage();
@@ -1474,6 +1552,12 @@ export async function askLocal(context, env = process.env) {
         model,
         sources: [],
         solver_calls: solverCalls,
+        vision: {
+          status: context.vision?.status ?? "not_requested",
+          frames_attached: envFlag(env.LOCAL_AI_VISION, false)
+            ? (context.vision?.frames?.length ?? 0)
+            : 0,
+        },
         cache: summarizeCacheUsage(usage),
       };
     }
@@ -1555,6 +1639,10 @@ ${narrated.text}` : "";
     provider: "mock",
     model: "deterministic-diagnostic",
     solver_calls: solverCalls,
+    vision: {
+      status: context.vision?.status ?? "not_requested",
+      frames_attached: 0,
+    },
     reply:
       `I received verified revision ${summary.world_revision ?? "unknown"} with ` +
       `${summary.actors} actors, ${summary.recipes} recipes, ${summary.items} items, and ` +
@@ -1603,6 +1691,10 @@ export function needsStrongModel(question, env = process.env) {
   const text = String(question ?? "");
   if (env.AIFACTORY_ESCALATE === "always") return true;
   if (env.AIFACTORY_ESCALATE === "never") return false;
+
+  // The local tier on this machine is text-only. A fresh game frame is useful
+  // only if it reaches a provider that can actually inspect pixels.
+  if (isVisionQuestion(text, env) && !envFlag(env.LOCAL_AI_VISION, false)) return true;
 
   // A question that reasons is one to escalate however it is phrased, so the
   // patterns are checked before anything can excuse a question from them.

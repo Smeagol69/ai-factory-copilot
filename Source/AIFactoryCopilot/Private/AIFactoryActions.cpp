@@ -3711,7 +3711,8 @@ namespace
             }
             Spec->TryGetStringField(TEXT("description"), Description);
             if (!Spec->TryGetStringField(TEXT("layout_schema"), LayoutSchema) ||
-                LayoutSchema != TEXT("aifactory.generated-blueprint/v1"))
+                (LayoutSchema != TEXT("aifactory.generated-blueprint/v1") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v2")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -3789,11 +3790,117 @@ namespace
                     FRotator(0.0, Yaw, 0.0),
                     RelativeLocation);
             }
+
+            TArray<FAIFactoryGeneratedBlueprintConveyor> Conveyors;
+            TArray<FAIFactoryGeneratedBlueprintPowerWire> PowerWires;
+            const auto ReadGeneratedTopologyArray = [Spec](
+                const TCHAR* Field,
+                const bool bPower,
+                TArray<FAIFactoryGeneratedBlueprintConveyor>& OutConveyors,
+                TArray<FAIFactoryGeneratedBlueprintPowerWire>& OutPowerWires,
+                FString& OutFailure)
+            {
+                const TArray<TSharedPtr<FJsonValue>>* Links = nullptr;
+                if (!Spec->TryGetArrayField(Field, Links) || !Links)
+                {
+                    return true;
+                }
+                for (int32 Index = 0; Index < Links->Num(); ++Index)
+                {
+                    const TSharedPtr<FJsonObject>* Object = nullptr;
+                    if (!(*Links)[Index].IsValid() ||
+                        !(*Links)[Index]->TryGetObject(Object) || !Object)
+                    {
+                        OutFailure = FString::Printf(
+                            TEXT("generated_blueprint_topology_link_is_not_an_object:%s:%d"),
+                            Field,
+                            Index + 1);
+                        return false;
+                    }
+
+                    FString LinkId;
+                    FString RecipeClass;
+                    FString FromPartId;
+                    FString ToPartId;
+                    FString FromConnectorName;
+                    FString ToConnectorName;
+                    (*Object)->TryGetStringField(TEXT("link_id"), LinkId);
+                    (*Object)->TryGetStringField(TEXT("recipe_class"), RecipeClass);
+                    (*Object)->TryGetStringField(TEXT("from_part_id"), FromPartId);
+                    (*Object)->TryGetStringField(TEXT("to_part_id"), ToPartId);
+                    (*Object)->TryGetStringField(
+                        TEXT("from_connector_name"),
+                        FromConnectorName);
+                    (*Object)->TryGetStringField(
+                        TEXT("to_connector_name"),
+                        ToConnectorName);
+                    if (LinkId.IsEmpty() || RecipeClass.IsEmpty() ||
+                        FromPartId.IsEmpty() || ToPartId.IsEmpty())
+                    {
+                        OutFailure = FString::Printf(
+                            TEXT("generated_blueprint_topology_link_identity_is_incomplete:%s:%d"),
+                            Field,
+                            Index + 1);
+                        return false;
+                    }
+
+                    if (bPower)
+                    {
+                        FAIFactoryGeneratedBlueprintPowerWire& Link =
+                            OutPowerWires.AddDefaulted_GetRef();
+                        Link.LinkId = LinkId;
+                        Link.BuildRecipeClassPath = RecipeClass;
+                        Link.FromPartId = FromPartId;
+                        Link.ToPartId = ToPartId;
+                        Link.FromConnectorName = FromConnectorName;
+                        Link.ToConnectorName = ToConnectorName;
+                    }
+                    else
+                    {
+                        FAIFactoryGeneratedBlueprintConveyor& Link =
+                            OutConveyors.AddDefaulted_GetRef();
+                        Link.LinkId = LinkId;
+                        Link.BuildRecipeClassPath = RecipeClass;
+                        Link.FromPartId = FromPartId;
+                        Link.ToPartId = ToPartId;
+                        Link.FromConnectorName = FromConnectorName;
+                        Link.ToConnectorName = ToConnectorName;
+                    }
+                }
+                return true;
+            };
+
+            FString TopologyFailure;
+            if (!ReadGeneratedTopologyArray(
+                    TEXT("conveyors"),
+                    false,
+                    Conveyors,
+                    PowerWires,
+                    TopologyFailure) ||
+                !ReadGeneratedTopologyArray(
+                    TEXT("power_wires"),
+                    true,
+                    Conveyors,
+                    PowerWires,
+                    TopologyFailure))
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TopologyFailure);
+            }
+            if (LayoutSchema == TEXT("aifactory.generated-blueprint/v1") &&
+                (Conveyors.Num() > 0 || PowerWires.Num() > 0))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("generated_blueprint_v1_cannot_carry_topology"));
+            }
             return AIFactoryBlueprintExport::GenerateLayout(
                 Context,
                 Name,
                 Description,
-                Parts);
+                Parts,
+                Conveyors,
+                PowerWires,
+                LayoutSchema);
         }
         if (Kind == TEXT("export_native_blueprint"))
         {

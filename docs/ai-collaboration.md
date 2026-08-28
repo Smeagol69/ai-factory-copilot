@@ -4381,3 +4381,70 @@ native bounds-source counts, `designer_left_empty: true`, and
 <name>` command, place through the vanilla Build Gun, and inspect the resulting
 structure. Belts, pipes, wires, miners and power are still explicitly outside
 v1; this repair does not claim them.
+
+### Codex — 2026-08-28 generated Blueprint v2 topology and visual-feedback handoff
+
+Branch: `codex/generated-blueprint-topology-vision`. This extends the v1 native
+generator rather than replacing it. `aifactory.generated-blueprint/v1` keeps its
+fail-closed standalone-buildings contract; v2 adds explicit native conveyor and
+physical power-wire records whose endpoints reference generated `part_id`s.
+Companion validation resolves every topology build recipe against the captured
+catalog, unlock state, and build-gun availability before the action is emitted.
+The generic factory route now carries its planner-proven straight belt legs into
+the generated Blueprint instead of silently dropping them. Power-wire topology
+is supported explicitly but automatic pole/wire design is not claimed yet.
+
+The game stages ordinary parts first, then resolves one exact free output and
+input connector for each belt. This first transport primitive accepts only
+collinear, oppositely facing endpoints; bends require future explicit poles,
+lifts, or multi-leg native pieces. It spawns the unlocked native belt class,
+sets its two-point spline before `FinishSpawning`, connects the real factory
+components, and requires reciprocal component readback. Physical wires use
+`AFGBuildableWire::Connect` and must appear in both native circuit components'
+wire arrays. All topology actors join the same transient Designer membership and
+cleanup scope as the machines and shell.
+
+After `SaveBlueprint`, v2 resolves the descriptor and asks
+`AFGBlueprintSubsystem::LoadStoredBlueprint(..., useBlueprintWorld=true)` to
+reconstruct the just-written file in the subsystem-owned isolated Blueprint
+world. Commit requires exact total buildable and configured-manufacturer counts,
+exact conveyor actor count with reciprocal input/output links, and exact
+physical-wire actor count with both endpoints reading back. The verifier does
+not recreate the subsystem's Blueprint world; that lifecycle stays game-owned.
+
+The existing mod screenshot ring is now connected to provider requests for
+explicitly visual questions. The companion accepts only recent, complete PNGs
+inside its configured ring directory, checks PNG signature/IHDR, dimensions,
+age, request-time freshness, per-file and aggregate byte limits, and ignores
+sidecar paths outside the ring. Default is one frame; maximum is capped at
+three. Anthropic receives native base64 image blocks, OpenAI Responses receives
+native `input_image` Base64 data URLs, and a local Chat-compatible endpoint gets
+pixels only when `LOCAL_AI_VISION=true`. Hybrid visual requests go to the strong
+tier by default. Prompt and response metadata explicitly keep pixels
+non-authoritative for identity, recipes, rates, coordinates, unlocks, collision,
+or writes; snapshot and solver evidence remains authoritative.
+
+Verification and deployment are complete at source/package level. Exact SML
+3.12.0 / FactoryGame CL 502094 header validation and **852/852** companion tests
+pass. FactoryEditor Development and FactoryGameSteam Shipping module builds
+pass. UAT cook/archive and Steam deployment pass with Satisfactory closed. The
+first cook attempt failed only because the default C: Zen cache was below its
+2 GB free-space floor; no files were deleted. The successful retry set the
+process-scoped `UE-ZenDataPath` to `D:\Modding\Satisfactory\ZenCache`.
+
+Archive: 19,366,756 bytes, SHA-256
+`87954257A31B8A1F04D542467D480EB417AE186F34E0C1A5CAB3E0EC0BC93840`.
+Deployed Shipping DLL: 1,243,648 bytes, SHA-256
+`AA973ADB9E1929E5DCE4A80AF620084B2D39D3FE45726D75E5D2053C61C4A890`.
+The clean beta.2 companion install verifies 38 runtime hashes; loopback health
+is ready with hybrid local/Anthropic, 27 tools, and vision enabled with a
+one-frame intent filter.
+
+Still open and not to be overstated: generated v2 save/readback and vanilla
+Build Gun placement have not yet been exercised in a live save; the game was
+closed for deployment. The next proof should generate a simple linear factory
+whose machine ports are actually collinear, require
+`exact_native_topology_readback: true`, preview it through the vanilla Build Gun,
+place it, and inspect the belt's reciprocal endpoints in the placed world.
+After that: explicit bend/pole/lift routing, automatic physical power topology,
+pipes, miner/anchor generation, and a vision-guided aesthetic revision loop.

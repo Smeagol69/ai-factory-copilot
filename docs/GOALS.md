@@ -136,7 +136,8 @@ worthless after fifty hours of building around it.
 
 ### 4. BUILD — write things worth looking at
 
-Status: **the mechanism landed by accident, and has not been used yet.**
+Status: **the first native generator is source-complete; live placement remains
+the release gate.**
 
 There are ~4,200 lines of planners already (`planStructure`, `planTower`,
 `planEnclosedFactory`, `planCoalPower`, `planComposition`, `planModularShell`,
@@ -157,13 +158,16 @@ places it with the vanilla Build Gun. Every planner should be rerouted through
 that instead of through live placement.
 
 **On "beautiful", honestly.** Efficiency is a solver problem and is close to
-solved. Aesthetics is not, and pretending otherwise would be dishonest. Claude
-cannot see the game and has no taste of its own to apply to it. What is
-achievable is learning the owner's: their builds are genuinely well-made, and
-once a `.sbp` can be parsed structurally their own library becomes the style
-vocabulary -- spacing conventions, which beam goes with which wall, where
-railings and catwalks run. That is imitating a taste that demonstrably exists,
-not inventing one.
+solved. Aesthetics is not, and pretending otherwise would be dishonest. The
+companion can now attach a recent frame from the mod's bounded screenshot ring
+to explicitly visual questions, so a vision-capable strong provider can inspect
+the actual game and critique composition, repetition, silhouettes, access, and
+finish. Pixels remain deliberately non-authoritative for identity, rates,
+coordinates, unlocks, collision, or writes; the snapshot and deterministic
+solvers still own those facts. The owner's structurally parsed `.sbp` library
+remains the style vocabulary -- spacing conventions, which beam goes with which
+wall, where railings and catwalks run. Vision closes the feedback loop; it does
+not prove that the generator has learned good taste yet.
 
 ### The order, and why
 
@@ -176,11 +180,17 @@ not inventing one.
    and external hookups. Companion-side, no build cycle, no crash risk.
 3. **One planner rerouted to blueprint output** — source-complete for the
    general rate-sized enclosed-factory route through
-   `aifactory.generated-blueprint/v1`. Its shell and configured manufacturers
-   now become one native file action; native transport, power, miner/anchor,
-   package, and live Build Gun proof remain explicit gates. `planCoalPower`
-   remains the next topology-rich target because its ratios are tight and its
-   belt/pipe/power requirements exercise every missing connection family.
+   `aifactory.generated-blueprint/v2`. Its shell, configured manufacturers, and
+   planner-proven straight conveyor links now become one native file action.
+   Explicit physical power-wire links are supported by the same schema. The
+   game serialises the staged actors and then loads the saved archive into its
+   isolated Blueprint world; buildable counts, configured recipes, reciprocal
+   conveyor endpoints, and both ends of every power wire must read back exactly
+   before the action can commit. Automatic pole design, pipes, miner/anchor
+   generation, package/deploy, and live Build Gun proof remain explicit gates.
+   `planCoalPower` remains the next topology-rich target because its ratios are
+   tight and its belt/pipe/power requirements exercise every missing connection
+   family.
 4. **Measured rates, then the proactive channel** — advice that has never been
    checked against a running factory is arithmetic, not observation.
 

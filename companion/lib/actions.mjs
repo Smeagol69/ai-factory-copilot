@@ -679,9 +679,13 @@ export function validateAction(graph, proposal) {
     const name = String(proposal.blueprint_name ?? "").replace(/[\r\n\t]/g, " ").replace(/\s+/g, " ").trim();
     if (!name) return reject(kind, "blueprint_name_is_required");
     if (name.length > 240) return reject(kind, "blueprint_name_is_too_long");
-    if (proposal.layout_schema !== "aifactory.generated-blueprint/v1") {
+    const generatedSchemas = new Set([
+      "aifactory.generated-blueprint/v1",
+      "aifactory.generated-blueprint/v2",
+    ]);
+    if (!generatedSchemas.has(proposal.layout_schema)) {
       return reject(kind, "unsupported_generated_blueprint_schema", {
-        expected: "aifactory.generated-blueprint/v1",
+        expected: [...generatedSchemas],
       });
     }
     if (!Array.isArray(proposal.buildables) || proposal.buildables.length === 0) {
@@ -788,9 +792,131 @@ export function validateAction(graph, proposal) {
       });
     }
 
+    const proposedConveyors = proposal.conveyors ?? [];
+    const proposedPowerWires = proposal.power_wires ?? [];
+    if (!Array.isArray(proposedConveyors) || !Array.isArray(proposedPowerWires)) {
+      return reject(kind, "generated_blueprint_topology_fields_must_be_arrays");
+    }
+    if (proposal.layout_schema.endsWith("/v1") &&
+        (proposedConveyors.length > 0 || proposedPowerWires.length > 0)) {
+      return reject(kind, "generated_blueprint_v1_cannot_carry_topology");
+    }
+
+    const topologyIds = new Set();
+    const validateTopology = (proposedLinks, topologyKind) => {
+      const links = [];
+      const directedEdges = new Set();
+      for (const [index, proposedLink] of proposedLinks.entries()) {
+        if (!proposedLink || typeof proposedLink !== "object") {
+          return reject(kind, "generated_blueprint_topology_link_is_not_an_object", {
+            topology: topologyKind,
+            link: index + 1,
+          });
+        }
+        const linkId = String(proposedLink.link_id ?? "").trim();
+        const fromPartId = String(proposedLink.from_part_id ?? "").trim();
+        const toPartId = String(proposedLink.to_part_id ?? "").trim();
+        if (!linkId || linkId.length > 120 || topologyIds.has(linkId)) {
+          return reject(kind, topologyIds.has(linkId)
+            ? "generated_topology_link_ids_must_be_unique"
+            : "generated_topology_link_id_is_required", {
+            topology: topologyKind,
+            link: index + 1,
+            link_id: linkId,
+          });
+        }
+        if (!ids.has(fromPartId) || !ids.has(toPartId) || fromPartId === toPartId) {
+          return reject(kind, "generated_topology_part_reference_is_invalid", {
+            topology: topologyKind,
+            link: index + 1,
+            from_part_id: fromPartId,
+            to_part_id: toPartId,
+          });
+        }
+        const edgeKey = topologyKind === "power_wire"
+          ? [fromPartId, toPartId].sort().join("|")
+          : `${fromPartId}|${toPartId}`;
+        if (directedEdges.has(edgeKey)) {
+          return reject(kind, "generated_topology_edge_is_duplicated", {
+            topology: topologyKind,
+            link: index + 1,
+          });
+        }
+
+        const requestedRecipe = String(proposedLink.recipe_class ?? "").trim();
+        const buildRecipe = catalog.get(requestedRecipe) ??
+          findRecipeByShortName(catalog, requestedRecipe);
+        if (!requestedRecipe || !buildRecipe) {
+          return reject(kind, "generated_topology_recipe_not_in_catalog", {
+            topology: topologyKind,
+            link: index + 1,
+            recipe_class: requestedRecipe,
+            did_you_mean: nearestRecipeNames(catalog, requestedRecipe),
+          });
+        }
+        if (buildRecipe.available !== true) {
+          return reject(kind, "generated_topology_recipe_is_not_unlocked", {
+            topology: topologyKind,
+            link: index + 1,
+            recipe_class: buildRecipe.class_path ?? requestedRecipe,
+          });
+        }
+        if (!(buildRecipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun"))) {
+          return reject(kind, "generated_topology_recipe_is_not_a_build_gun_recipe", {
+            topology: topologyKind,
+            link: index + 1,
+            recipe_class: buildRecipe.class_path ?? requestedRecipe,
+          });
+        }
+        const productIdentity = (buildRecipe.products ?? [])
+          .map((product) => `${product.item_class ?? ""} ${product.item_name ?? ""}`)
+          .join(" ");
+        const expectedProduct = topologyKind === "conveyor"
+          ? /ConveyorBelt|Conveyor Belt/i
+          : /PowerLine|Power Line/i;
+        if (!expectedProduct.test(productIdentity)) {
+          return reject(kind, "generated_topology_recipe_has_wrong_product_type", {
+            topology: topologyKind,
+            link: index + 1,
+            recipe_class: buildRecipe.class_path ?? requestedRecipe,
+            product_identity: productIdentity,
+          });
+        }
+
+        const fromConnectorName = String(proposedLink.from_connector_name ?? "").trim();
+        const toConnectorName = String(proposedLink.to_connector_name ?? "").trim();
+        if (fromConnectorName.length > 160 || toConnectorName.length > 160) {
+          return reject(kind, "generated_topology_connector_name_is_too_long", {
+            topology: topologyKind,
+            link: index + 1,
+          });
+        }
+        topologyIds.add(linkId);
+        directedEdges.add(edgeKey);
+        links.push({
+          link_id: linkId,
+          recipe_class: buildRecipe.class_path ?? requestedRecipe,
+          from_part_id: fromPartId,
+          to_part_id: toPartId,
+          ...(fromConnectorName ? { from_connector_name: fromConnectorName } : {}),
+          ...(toConnectorName ? { to_connector_name: toConnectorName } : {}),
+        });
+      }
+      return { valid: true, links };
+    };
+
+    const conveyorValidation = validateTopology(proposedConveyors, "conveyor");
+    if (!conveyorValidation.valid) return conveyorValidation;
+    const powerValidation = validateTopology(proposedPowerWires, "power_wire");
+    if (!powerValidation.valid) return powerValidation;
+    const conveyors = conveyorValidation.links;
+    const powerWires = powerValidation.links;
+
     warnings.push(
       "No world building is being placed yet. The game stages transient native actors, validates their exact resolved bounds, writes one native .sbp through a real Blueprint Designer, destroys the staging actors, and reads the archive back before reporting success.",
-      "Generated Blueprint v1 refuses belts, pipes, wires, miners/resource anchors, and host-dependent attachments until each native serialization topology is independently proven.",
+      proposal.layout_schema.endsWith("/v2")
+        ? "Generated Blueprint v2 stages explicit straight conveyor links and physical circuit wires with native components, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pipes, miners/resource anchors, lifts, routed belt poles, and host-dependent attachments remain fail-closed."
+        : "Generated Blueprint v1 refuses belts, pipes, wires, miners/resource anchors, and host-dependent attachments.",
     );
     return {
       valid: true,
@@ -800,9 +926,14 @@ export function validateAction(graph, proposal) {
         layout_schema: proposal.layout_schema,
         buildables: buildables.length,
         configured_manufacturers: configuredManufacturers,
+        conveyors: conveyors.length,
+        power_wires: powerWires.length,
         authoritative_unlock_capture: true,
         arbitrary_blueprint_size_cap: "none",
         native_internal_collision_readback: "game_side_required",
+        native_topology_readback: proposal.layout_schema.endsWith("/v2")
+          ? "isolated_blueprint_world_exact_reciprocal_endpoints_required"
+          : "not_applicable_v1",
       },
       action: bindWorldRevision(graph, {
         action: kind,
@@ -810,6 +941,9 @@ export function validateAction(graph, proposal) {
         description: String(proposal.description ?? "").trim().slice(0, 1_000),
         layout_schema: proposal.layout_schema,
         buildables,
+        ...(proposal.layout_schema.endsWith("/v2")
+          ? { conveyors, power_wires: powerWires }
+          : {}),
         commit: proposal.commit === true,
       }, proposal),
     };

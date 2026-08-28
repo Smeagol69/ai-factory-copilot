@@ -77,6 +77,7 @@ $requiredFiles = @(
     'companion\lib\solvers.mjs',
     'companion\lib\tools.mjs',
     'companion\lib\sources.mjs',
+    'companion\lib\vision.mjs',
     'scripts\package-local.ps1',
     'scripts\package-release.ps1',
     'scripts\install-companion.ps1',

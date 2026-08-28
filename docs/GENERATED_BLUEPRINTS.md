@@ -7,7 +7,7 @@ the world:
 live recipe/unlock snapshot
   -> deterministic production quantities
   -> measured/grid-aligned architecture and machine transforms
-  -> aifactory.generated-blueprint/v1
+  -> aifactory.generated-blueprint/v1 (standalone) or /v2 (explicit topology)
   -> transient native actors in an empty real Blueprint Designer
   -> native SaveBlueprint + ReadBlueprintFromDisc
   -> vanilla Blueprint library and Build Gun hologram
@@ -40,7 +40,11 @@ snapshot proves available. The game repeats the decision from live state:
 - Designer membership is unwound and every staged actor is destroyed on every
   exit path;
 - `SaveBlueprint` returning is not success. The native subsystem must refresh
-  and read the named archive back from disk.
+  and read the named archive back from disk. For v2 it then loads that exact
+  archive into Satisfactory's isolated Blueprint world and requires the same
+  buildable count, configured manufacturer recipes, conveyor actors with exact
+  reciprocal output-to-input component links, and physical power wires present
+  in both endpoint components.
 
 No world factory is placed during generation. The durable effect is a native
 Blueprint file, so the action is a standalone committed write and is not placed
@@ -65,20 +69,28 @@ Gun. The player chooses the site, rotation, and final click in the vanilla
 hologram. Terrain and external-factory collision are therefore tested at the
 only meaningful time: against the actual destination.
 
-## Initial topology boundary
+## Topology contracts
 
-Version 1 serializes foundations, structural shell pieces, ordinary standalone
+Version 1 remains frozen and fail-closed. It serializes foundations, structural shell pieces, ordinary standalone
 buildables, and configured manufacturers. It refuses rather than silently
-drops:
+drops all topology.
 
-- conveyor belts/lifts and their component references;
+Version 2 adds:
+
+- directed straight conveyor belts between two generated part ids. A missing
+  connector name is allowed only when the source has exactly one free output
+  and the destination exactly one free input. Endpoints must be collinear and
+  facing each other; bends require explicit future poles/lifts rather than a
+  guessed curve;
+- physical power wires between generated part ids. Each endpoint must resolve
+  to exactly one compatible circuit component with free capacity. Power poles
+  are ordinary generated buildables, so a planner can explicitly fan out while
+  the native component enforces its real connection limit.
+
+Both are reconstructed from the saved file and read back before success. The
+remaining fail-closed boundary is:
+
 - pipes, pumps, junction topology, and fluids;
-- physical power wires;
+- conveyor lifts, poles, and non-collinear multi-leg routing;
 - miners and Blueprint Resource Anchors;
 - pieces whose validity depends on a separate snapped host.
-
-Those are staged follow-ups. The existing native `.sbp` parser can already read
-back conveyor, pipe, and power-wire topology, so each generator extension has a
-clear acceptance gate: create native references, serialize, parse the resulting
-file, and prove the exact reciprocal endpoints before exposing that topology to
-normal factory requests.
