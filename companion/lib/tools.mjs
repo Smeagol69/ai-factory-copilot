@@ -823,7 +823,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, generate_native_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). generate_native_blueprint writes a solver-computed Blueprint-relative layout through the game's real Designer and must be the only committed write. v1 preserves the fail-closed standalone-buildable contract. v2 additionally accepts explicit straight conveyor links and physical power wires; the game reconstructs the saved archive in its isolated Blueprint world and requires reciprocal native endpoint readback before success. Pipes, miners/resource anchors, conveyor lifts/poles and host-dependent attachments remain unsupported. export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list. Never say an .sbp was written until the game reports readback. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, generate_native_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). generate_native_blueprint writes a solver-computed Blueprint-relative layout through the game's real Designer and must be the only committed write. v1 preserves the fail-closed standalone-buildable contract. v2 additionally accepts explicit straight conveyor links and physical power wires; v3 adds explicit straight native pipelines. The game reconstructs the saved archive in its isolated Blueprint world and requires reciprocal native endpoint readback before success. Pumps, head lift, junction manifolds, miners/resource anchors, conveyor lifts/poles and host-dependent attachments remain unsupported. export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list. Never say an .sbp was written until the game reports readback. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -846,7 +846,7 @@ export const SOLVER_TOOLS = [
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {
                 type: "string",
-                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2"],
+                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3"],
                 description: "generate_native_blueprint: exact generated-layout contract version.",
               },
               buildables: {
@@ -896,6 +896,23 @@ export const SOLVER_TOOLS = [
                   properties: {
                     link_id: { type: "string" },
                     recipe_class: { type: "string", description: "Exact unlocked Power Line Build Gun recipe." },
+                    from_part_id: { type: "string" },
+                    to_part_id: { type: "string" },
+                    from_connector_name: { type: "string" },
+                    to_connector_name: { type: "string" },
+                  },
+                  required: ["link_id", "recipe_class", "from_part_id", "to_part_id"],
+                  additionalProperties: false,
+                },
+              },
+              pipelines: {
+                type: "array",
+                description: "generate_native_blueprint v3: explicit directed straight native fluid pipelines between exact generated pipe ports. This does not infer pumps, head lift, fluid rate, or junction routing.",
+                items: {
+                  type: "object",
+                  properties: {
+                    link_id: { type: "string" },
+                    recipe_class: { type: "string", description: "Exact unlocked Pipeline Build Gun recipe." },
                     from_part_id: { type: "string" },
                     to_part_id: { type: "string" },
                     from_connector_name: { type: "string" },

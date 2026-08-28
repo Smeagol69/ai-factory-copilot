@@ -40,6 +40,17 @@ struct FAIFactoryGeneratedBlueprintPowerWire
     FString ToConnectorName;
 };
 
+/** One directed fluid pipeline between two generated buildables. */
+struct FAIFactoryGeneratedBlueprintPipeline
+{
+    FString LinkId;
+    FString BuildRecipeClassPath;
+    FString FromPartId;
+    FString ToPartId;
+    FString FromConnectorName;
+    FString ToConnectorName;
+};
+
 /**
  * Writing a real `.sbp` from buildings standing in the world.
  *
@@ -91,10 +102,11 @@ namespace AIFactoryBlueprintExport
      * The archive is accepted only after native readback succeeds.
      *
      * v1 remains the ordinary-standalone-buildable contract. v2 additionally
-     * carries explicit directed conveyor edges and physical circuit wires.
-     * Those links are built from native connection components, then the saved
-     * archive is loaded into FactoryGame's isolated Blueprint world and its
-     * reciprocal endpoints are read back before success is reported.
+     * carries explicit directed conveyor edges and physical circuit wires. v3
+     * adds explicit straight native fluid pipelines. Those links are built
+     * from native connection components, then the saved archive is loaded into
+     * FactoryGame's isolated Blueprint world and its reciprocal endpoints are
+     * read back before success is reported.
      */
     FAIFactoryActionResult GenerateLayout(
         const FAIFactoryActionContext& Context,
@@ -103,5 +115,6 @@ namespace AIFactoryBlueprintExport
         const TArray<FAIFactoryGeneratedBlueprintPart>& Parts,
         const TArray<FAIFactoryGeneratedBlueprintConveyor>& Conveyors = {},
         const TArray<FAIFactoryGeneratedBlueprintPowerWire>& PowerWires = {},
+        const TArray<FAIFactoryGeneratedBlueprintPipeline>& Pipelines = {},
         const FString& LayoutSchema = TEXT("aifactory.generated-blueprint/v1"));
 }

@@ -57,9 +57,11 @@
 #include "FGVehicle.h"
 #include "GameFramework/Pawn.h"
 #include "HAL/PlatformTime.h"
+#include "Hologram/FGPipelineHologram.h"
 #include "Kismet/BlueprintAssetHelperLibrary.h"
 #include "ModLoading/ModLoadingLibrary.h"
 #include "Registry/ModContentRegistry.h"
+#include "Resources/FGBuildDescriptor.h"
 #include "Resources/FGBuildingDescriptor.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceNode.h"
@@ -1632,6 +1634,54 @@ namespace
                         TEXT("visible_circuit_link_capacity"),
                         VisiblePowerLinkCapacity);
 
+                    TArray<TSharedPtr<FJsonValue>> PipeConnections;
+                    if (IsValid(DefaultBuildable))
+                    {
+                        TInlineComponentArray<UFGPipeConnectionComponentBase*>
+                            NativePipeConnections;
+                        DefaultBuildable->GetComponents(NativePipeConnections);
+                        for (UFGPipeConnectionComponentBase* Connection :
+                             NativePipeConnections)
+                        {
+                            if (!IsValid(Connection))
+                            {
+                                continue;
+                            }
+                            const TSharedRef<FJsonObject> ConnectionEntry =
+                                MakeShared<FJsonObject>();
+                            ConnectionEntry->SetStringField(
+                                TEXT("component_name"),
+                                Connection->GetName());
+                            ConnectionEntry->SetStringField(
+                                TEXT("component_class_path"),
+                                Connection->GetClass()->GetPathName());
+                            ConnectionEntry->SetStringField(
+                                TEXT("pipe_connection_type"),
+                                StaticEnum<EPipeConnectionType>()->GetNameStringByValue(
+                                    static_cast<int64>(Connection->GetPipeConnectionType())));
+                            ConnectionEntry->SetNumberField(
+                                TEXT("connector_clearance_cm"),
+                                Connection->GetConnectorClearance());
+                            ConnectionEntry->SetBoolField(
+                                TEXT("snapping_disallowed"),
+                                Connection->IsSnappingToDisallowed());
+                            ConnectionEntry->SetObjectField(
+                                TEXT("native_default_location_cm"),
+                                VectorJson(Connection->GetComponentLocation()));
+                            ConnectionEntry->SetObjectField(
+                                TEXT("native_default_normal"),
+                                VectorJson(Connection->GetConnectorNormal()));
+                            PipeConnections.Add(
+                                MakeShared<FJsonValueObject>(ConnectionEntry));
+                        }
+                    }
+                    Building->SetArrayField(
+                        TEXT("native_pipe_connections"),
+                        PipeConnections);
+                    Building->SetNumberField(
+                        TEXT("native_pipe_connection_count"),
+                        PipeConnections.Num());
+
                     if (const AFGBuildablePowerPole* PowerPole =
                             Cast<AFGBuildablePowerPole>(DefaultBuildable))
                     {
@@ -1655,6 +1705,47 @@ namespace
                         Building->SetNumberField(
                             TEXT("wire_max_power_tower_length_cm"),
                             Wire->mMaxPowerTowerLength);
+                    }
+                    else if (const AFGBuildablePipeline* Pipeline =
+                                 Cast<AFGBuildablePipeline>(DefaultBuildable))
+                    {
+                        Building->SetStringField(
+                            TEXT("native_topology_kind"),
+                            TEXT("pipeline"));
+                        Building->SetNumberField(
+                            TEXT("pipeline_flow_limit_m3_s"),
+                            Pipeline->GetFlowLimit());
+                        Building->SetNumberField(
+                            TEXT("pipeline_min_length_cm"),
+                            AFGPipelineHologram::MINIMUM_HOLOGRAM_LENGTH);
+
+                        UClass* HologramClass =
+                            UFGBuildDescriptor::GetHologramClass(BuildingDescriptor);
+                        const FFloatProperty* MaxLengthProperty =
+                            IsValid(HologramClass) &&
+                            HologramClass->IsChildOf(AFGPipelineHologram::StaticClass())
+                                ? FindFProperty<FFloatProperty>(
+                                      HologramClass,
+                                      TEXT("mMaxSplineLength"))
+                                : nullptr;
+                        const UObject* HologramDefault = IsValid(HologramClass)
+                            ? HologramClass->GetDefaultObject()
+                            : nullptr;
+                        if (MaxLengthProperty && IsValid(HologramDefault))
+                        {
+                            const float MaxLength =
+                                MaxLengthProperty->GetPropertyValue_InContainer(
+                                    HologramDefault);
+                            if (FMath::IsFinite(MaxLength) && MaxLength > 0.0f)
+                            {
+                                Building->SetNumberField(
+                                    TEXT("pipeline_max_length_cm"),
+                                    MaxLength);
+                                Building->SetStringField(
+                                    TEXT("pipeline_max_length_source"),
+                                    TEXT("native_pipeline_hologram_cdo_property"));
+                            }
+                        }
                     }
                     Entry->SetObjectField(TEXT("building"), Building);
                 }

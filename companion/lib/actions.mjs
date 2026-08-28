@@ -682,6 +682,7 @@ export function validateAction(graph, proposal) {
     const generatedSchemas = new Set([
       "aifactory.generated-blueprint/v1",
       "aifactory.generated-blueprint/v2",
+      "aifactory.generated-blueprint/v3",
     ]);
     if (!generatedSchemas.has(proposal.layout_schema)) {
       return reject(kind, "unsupported_generated_blueprint_schema", {
@@ -701,6 +702,8 @@ export function validateAction(graph, proposal) {
     const ids = new Set();
     const buildables = [];
     const nativePowerByPartId = new Map();
+    const nativePipeByPartId = new Map();
+    const generatedTransformByPartId = new Map();
     let configuredManufacturers = 0;
     for (const [index, proposedPart] of proposal.buildables.entries()) {
       if (!proposedPart || typeof proposedPart !== "object") {
@@ -775,6 +778,17 @@ export function validateAction(graph, proposal) {
           ),
         });
       }
+      if (nativeBuilding && Array.isArray(nativeBuilding.native_pipe_connections)) {
+        nativePipeByPartId.set(partId, nativeBuilding.native_pipe_connections.map(
+          (connection) => ({
+            name: String(connection?.component_name ?? "").trim(),
+            type: String(connection?.pipe_connection_type ?? "").trim(),
+            location: explicitVector(connection?.native_default_location_cm),
+            normal: explicitVector(connection?.native_default_normal),
+          }),
+        ));
+      }
+      generatedTransformByPartId.set(partId, { location, yaw });
 
       const requestedProductionRecipe = String(proposedPart.production_recipe_class ?? "").trim();
       let productionRecipe = null;
@@ -813,12 +827,18 @@ export function validateAction(graph, proposal) {
 
     const proposedConveyors = proposal.conveyors ?? [];
     const proposedPowerWires = proposal.power_wires ?? [];
-    if (!Array.isArray(proposedConveyors) || !Array.isArray(proposedPowerWires)) {
+    const proposedPipelines = proposal.pipelines ?? [];
+    if (!Array.isArray(proposedConveyors) || !Array.isArray(proposedPowerWires) ||
+        !Array.isArray(proposedPipelines)) {
       return reject(kind, "generated_blueprint_topology_fields_must_be_arrays");
     }
     if (proposal.layout_schema.endsWith("/v1") &&
-        (proposedConveyors.length > 0 || proposedPowerWires.length > 0)) {
+        (proposedConveyors.length > 0 || proposedPowerWires.length > 0 ||
+         proposedPipelines.length > 0)) {
       return reject(kind, "generated_blueprint_v1_cannot_carry_topology");
+    }
+    if (proposal.layout_schema.endsWith("/v2") && proposedPipelines.length > 0) {
+      return reject(kind, "generated_blueprint_v2_cannot_carry_pipelines");
     }
 
     const topologyIds = new Set();
@@ -896,8 +916,14 @@ export function validateAction(graph, proposal) {
           : null;
         const expectedProduct = topologyKind === "conveyor"
           ? /ConveyorBelt|Conveyor Belt/i
-          : /PowerLine|Power Line/i;
-        const expectedNativeKind = topologyKind === "conveyor" ? "conveyor" : "power_wire";
+          : topologyKind === "pipeline"
+            ? /Pipeline|Pipe Mk/i
+            : /PowerLine|Power Line/i;
+        const expectedNativeKind = topologyKind === "conveyor"
+          ? "conveyor"
+          : topologyKind === "pipeline"
+            ? "pipeline"
+            : "power_wire";
         const capturedNativeKind = String(topologyItem?.building?.native_topology_kind ?? "");
         if ((capturedNativeKind && capturedNativeKind !== expectedNativeKind) ||
             (!capturedNativeKind && !expectedProduct.test(productIdentity))) {
@@ -935,8 +961,11 @@ export function validateAction(graph, proposal) {
     if (!conveyorValidation.valid) return conveyorValidation;
     const powerValidation = validateTopology(proposedPowerWires, "power_wire");
     if (!powerValidation.valid) return powerValidation;
+    const pipelineValidation = validateTopology(proposedPipelines, "pipeline");
+    if (!pipelineValidation.valid) return pipelineValidation;
     const conveyors = conveyorValidation.links;
     const powerWires = powerValidation.links;
+    const pipelines = pipelineValidation.links;
     const capturedPowerDegrees = new Map();
     for (const wire of powerWires) {
       capturedPowerDegrees.set(
@@ -968,10 +997,102 @@ export function validateAction(graph, proposal) {
       }
     }
 
+    const usedPipeConnectors = new Set();
+    const resolvedPipeConnectors = new Map();
+    let capturedPipeEndpoints = 0;
+    for (const [index, pipeline] of pipelines.entries()) {
+      for (const side of ["from", "to"]) {
+        const partId = pipeline[`${side}_part_id`];
+        if (!nativePipeByPartId.has(partId)) continue;
+        const captured = nativePipeByPartId.get(partId);
+        const requestedName = String(pipeline[`${side}_connector_name`] ?? "").trim();
+        const wanted = side === "from" ? "PCT_PRODUCER" : "PCT_CONSUMER";
+        const matches = requestedName
+          ? captured.filter((connection) => connection.name === requestedName)
+          : captured.filter((connection) =>
+              connection.type === wanted || connection.type === "PCT_ANY");
+        if (matches.length !== 1 || !matches[0].name) {
+          return reject(kind, "generated_pipeline_endpoint_needs_one_exact_captured_connector", {
+            pipeline: index + 1,
+            side,
+            part_id: partId,
+            requested_connector_name: requestedName || null,
+            captured_connector_count: captured.length,
+            matching_connector_count: matches.length,
+            expected_unless_explicit: `${wanted}_or_PCT_ANY`,
+          });
+        }
+        const connectorKey = `${partId}|${matches[0].name}`;
+        if (usedPipeConnectors.has(connectorKey)) {
+          return reject(kind, "generated_pipeline_connector_is_used_more_than_once", {
+            pipeline: index + 1,
+            side,
+            part_id: partId,
+            connector_name: matches[0].name,
+          });
+        }
+        usedPipeConnectors.add(connectorKey);
+        pipeline[`${side}_connector_name`] = matches[0].name;
+        resolvedPipeConnectors.set(`${index}|${side}`, matches[0]);
+        capturedPipeEndpoints += 1;
+      }
+    }
+
+    const transformCapturedPoint = (partId, point) => {
+      const transform = generatedTransformByPartId.get(partId);
+      if (!transform || !point) return null;
+      const radians = transform.yaw * Math.PI / 180;
+      const cosine = Math.cos(radians);
+      const sine = Math.sin(radians);
+      return {
+        x: transform.location.x + point.x * cosine - point.y * sine,
+        y: transform.location.y + point.x * sine + point.y * cosine,
+        z: transform.location.z + point.z,
+      };
+    };
+    let capturedPipeLengthsChecked = 0;
+    for (const [index, pipeline] of pipelines.entries()) {
+      const fromConnection = resolvedPipeConnectors.get(`${index}|from`);
+      const toConnection = resolvedPipeConnectors.get(`${index}|to`);
+      const fromLocation = transformCapturedPoint(
+        pipeline.from_part_id,
+        fromConnection?.location,
+      );
+      const toLocation = transformCapturedPoint(
+        pipeline.to_part_id,
+        toConnection?.location,
+      );
+      const pipelineRecipe = catalog.get(pipeline.recipe_class) ??
+        findRecipeByShortName(catalog, pipeline.recipe_class);
+      const pipelineProduct = (pipelineRecipe?.products ?? [])[0];
+      const pipelineItem = pipelineProduct?.item_class
+        ? findItemInCatalog(graph, String(pipelineProduct.item_class))
+        : null;
+      const minimum = finite(pipelineItem?.building?.pipeline_min_length_cm);
+      const maximum = finite(pipelineItem?.building?.pipeline_max_length_cm);
+      if (!fromLocation || !toLocation || minimum === null || maximum === null) continue;
+      const distance = Math.hypot(
+        toLocation.x - fromLocation.x,
+        toLocation.y - fromLocation.y,
+        toLocation.z - fromLocation.z,
+      );
+      capturedPipeLengthsChecked += 1;
+      if (distance < minimum || distance > maximum) {
+        return reject(kind, "generated_pipeline_exceeds_captured_native_length_limits", {
+          pipeline: index + 1,
+          distance_cm: distance,
+          captured_minimum_cm: minimum,
+          captured_maximum_cm: maximum,
+        });
+      }
+    }
+
     warnings.push(
       "No world building is being placed yet. The game stages transient native actors, validates their exact resolved bounds, writes one native .sbp through a real Blueprint Designer, destroys the staging actors, and reads the archive back before reporting success.",
-      proposal.layout_schema.endsWith("/v2")
-        ? "Generated Blueprint v2 stages explicit straight conveyor links and physical circuit wires with native components, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pipes, miners/resource anchors, lifts, routed belt poles, and host-dependent attachments remain fail-closed."
+      proposal.layout_schema.endsWith("/v3")
+        ? "Generated Blueprint v3 stages explicit straight conveyor links, physical circuit wires, and straight native pipelines with exact captured endpoints, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pumps, head lift, junction manifolds, miners/resource anchors, lifts, routed supports, and host-dependent attachments remain fail-closed."
+        : proposal.layout_schema.endsWith("/v2")
+          ? "Generated Blueprint v2 stages explicit straight conveyor links and physical circuit wires with native components, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pipes, miners/resource anchors, lifts, routed belt poles, and host-dependent attachments remain fail-closed."
         : "Generated Blueprint v1 refuses belts, pipes, wires, miners/resource anchors, and host-dependent attachments.",
     );
     return {
@@ -984,11 +1105,14 @@ export function validateAction(graph, proposal) {
         configured_manufacturers: configuredManufacturers,
         conveyors: conveyors.length,
         power_wires: powerWires.length,
+        pipelines: pipelines.length,
         captured_power_capacity_checked_endpoints: capacityCheckedEndpoints,
+        captured_pipe_connector_checked_endpoints: capturedPipeEndpoints,
+        captured_pipe_length_checked_links: capturedPipeLengthsChecked,
         authoritative_unlock_capture: true,
         arbitrary_blueprint_size_cap: "none",
         native_internal_collision_readback: "game_side_required",
-        native_topology_readback: proposal.layout_schema.endsWith("/v2")
+        native_topology_readback: !proposal.layout_schema.endsWith("/v1")
           ? "isolated_blueprint_world_exact_reciprocal_endpoints_required"
           : "not_applicable_v1",
       },
@@ -998,8 +1122,12 @@ export function validateAction(graph, proposal) {
         description: String(proposal.description ?? "").trim().slice(0, 1_000),
         layout_schema: proposal.layout_schema,
         buildables,
-        ...(proposal.layout_schema.endsWith("/v2")
-          ? { conveyors, power_wires: powerWires }
+        ...(!proposal.layout_schema.endsWith("/v1")
+          ? {
+              conveyors,
+              power_wires: powerWires,
+              ...(proposal.layout_schema.endsWith("/v3") ? { pipelines } : {}),
+            }
           : {}),
         commit: proposal.commit === true,
       }, proposal),

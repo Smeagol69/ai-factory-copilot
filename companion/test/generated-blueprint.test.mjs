@@ -95,6 +95,43 @@ test("v2 compiles directed belts and physical power wires to generated part ids"
   }]);
 });
 
+test("v3 compiles an explicit straight native pipeline without weakening v2", () => {
+  const args = {
+    blueprint_name: "Native Fluid Topology",
+    actions: [
+      { action: "place_building", recipe_class: "Recipe_WaterExtractor", location: { x: 0, y: 0, z: 0 } },
+      { action: "place_building", recipe_class: "Recipe_CoalGenerator", location: { x: 2_000, y: 0, z: 0 } },
+    ],
+    pipeline_connections: [{
+      recipe_class: "Recipe_PipelineMk1",
+      from_step: 1,
+      to_step: 2,
+      from_connector_name: "PipeOutput",
+      to_connector_name: "PipeInput",
+    }],
+  };
+  const refusedV2 = compileGeneratedBlueprint(args);
+  assert.equal(refusedV2.compiled, false);
+  assert.equal(refusedV2.reason, "generated_blueprint_v2_cannot_carry_pipelines");
+
+  const compiled = compileGeneratedBlueprint({
+    ...args,
+    schema: "aifactory.generated-blueprint/v3",
+  });
+  assert.equal(compiled.compiled, true, JSON.stringify(compiled));
+  assert.deepEqual(compiled.pipelines, [{
+    link_id: "pipeline-0001",
+    recipe_class: "Recipe_PipelineMk1",
+    from_part_id: "part-0001",
+    to_part_id: "part-0002",
+    from_connector_name: "PipeOutput",
+    to_connector_name: "PipeInput",
+  }]);
+  assert.equal(compiled.counts.pipelines, 1);
+  assert.equal(compiled.topology.pipes, "1_explicit_straight_native_links");
+  assert.deepEqual(generatedBlueprintAction(compiled).pipelines, compiled.pipelines);
+});
+
 test("generated native Blueprint validation requires captured unlock truth for every recipe", () => {
   const graph = buildGraph(buildFactorySnapshot());
   const proposal = generatedBlueprintAction(compiledFactory(), { commit: true });
@@ -162,6 +199,104 @@ test("v2 topology recipes and endpoint references are revalidated from captured 
   const refused = validateAction(graph, wrongType);
   assert.equal(refused.valid, false);
   assert.equal(refused.reason, "generated_topology_recipe_has_wrong_product_type");
+});
+
+test("v3 resolves captured native producer and consumer pipe ports exactly", () => {
+  const snapshot = buildFactorySnapshot();
+  const buildGun = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
+  const descriptor = (classPath, name, connection, type, extra = {}) => ({
+    class_path: classPath,
+    name,
+    owner_mod: "FactoryGame",
+    available: true,
+    form: "RF_SOLID",
+    stack_size: 50,
+    building: {
+      class_path: `Build_${name.replace(/\s+/g, "")}`,
+      native_circuit_connections: [],
+      native_pipe_connections: [{
+        component_name: connection,
+        component_class_path: "/Script/FactoryGame.FGPipeConnectionComponent",
+        pipe_connection_type: type,
+        connector_clearance_cm: 100,
+        native_default_location_cm: {
+          x: type === "PCT_PRODUCER" ? 100 : -100,
+          y: 0,
+          z: 100,
+        },
+        native_default_normal: { x: type === "PCT_PRODUCER" ? 1 : -1, y: 0, z: 0 },
+      }],
+      ...extra,
+    },
+  });
+  snapshot.content.items.push(
+    descriptor("Desc_WaterExtractor", "Water Extractor", "PipeOutput", "PCT_PRODUCER"),
+    descriptor("Desc_CoalGenerator", "Coal Generator", "PipeInput", "PCT_CONSUMER"),
+    descriptor("Desc_PipelineMk1", "Pipeline Mk.1", "", "PCT_ANY", {
+      native_topology_kind: "pipeline",
+      pipeline_min_length_cm: 200,
+      pipeline_max_length_cm: 5600.1,
+      pipeline_flow_limit_m3_s: 5,
+    }),
+  );
+  snapshot.content.recipes.push(
+    ...[
+      ["Recipe_WaterExtractor", "Desc_WaterExtractor", "Water Extractor"],
+      ["Recipe_CoalGenerator", "Desc_CoalGenerator", "Coal Generator"],
+      ["Recipe_PipelineMk1", "Desc_PipelineMk1", "Pipeline Mk.1"],
+    ].map(([classPath, itemClass, name]) => ({
+      class_path: classPath,
+      name,
+      owner_mod: "FactoryGame",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: itemClass, item_name: name, amount: 1 }],
+      produced_in: [buildGun],
+    })),
+  );
+  snapshot.content.available_item_count += 3;
+  snapshot.content.available_recipe_count += 3;
+  const compiled = compileGeneratedBlueprint({
+    blueprint_name: "Validated Native Fluid Topology",
+    schema: "aifactory.generated-blueprint/v3",
+    actions: [
+      { action: "place_building", recipe_class: "Recipe_WaterExtractor", location: { x: 0, y: 0, z: 0 } },
+      { action: "place_building", recipe_class: "Recipe_CoalGenerator", location: { x: 2_000, y: 0, z: 0 } },
+    ],
+    pipeline_connections: [{ recipe_class: "Recipe_PipelineMk1", from_step: 1, to_step: 2 }],
+  });
+  const result = validateAction(
+    buildGraph(snapshot),
+    generatedBlueprintAction(compiled, { commit: true }),
+  );
+  assert.equal(result.valid, true, JSON.stringify(result));
+  assert.equal(result.action.pipelines.length, 1);
+  assert.equal(result.action.pipelines[0].from_connector_name, "PipeOutput");
+  assert.equal(result.action.pipelines[0].to_connector_name, "PipeInput");
+  assert.equal(result.checks.captured_pipe_connector_checked_endpoints, 2);
+  assert.equal(result.checks.captured_pipe_length_checked_links, 1);
+
+  const reused = structuredClone(generatedBlueprintAction(compiled, { commit: true }));
+  reused.pipelines.push({ ...reused.pipelines[0], link_id: "pipeline-0002" });
+  const refused = validateAction(buildGraph(snapshot), reused);
+  assert.equal(refused.valid, false);
+  assert.equal(refused.reason, "generated_topology_edge_is_duplicated");
+
+  const overlengthCompiled = compileGeneratedBlueprint({
+    blueprint_name: "Overlength Native Fluid Topology",
+    schema: "aifactory.generated-blueprint/v3",
+    actions: [
+      { action: "place_building", recipe_class: "Recipe_WaterExtractor", location: { x: 0, y: 0, z: 0 } },
+      { action: "place_building", recipe_class: "Recipe_CoalGenerator", location: { x: 10_000, y: 0, z: 0 } },
+    ],
+    pipeline_connections: [{ recipe_class: "Recipe_PipelineMk1", from_step: 1, to_step: 2 }],
+  });
+  const overlength = validateAction(
+    buildGraph(snapshot),
+    generatedBlueprintAction(overlengthCompiled, { commit: true }),
+  );
+  assert.equal(overlength.valid, false);
+  assert.equal(overlength.reason, "generated_pipeline_exceeds_captured_native_length_limits");
 });
 
 test("generated Blueprint files are standalone committed writes", () => {
@@ -262,6 +397,7 @@ test("the model action schema exposes generated relative buildables", () => {
   assert.deepEqual(item.properties.layout_schema.enum, [
     "aifactory.generated-blueprint/v1",
     "aifactory.generated-blueprint/v2",
+    "aifactory.generated-blueprint/v3",
   ]);
   assert.deepEqual(
     item.properties.buildables.items.required,
@@ -273,6 +409,9 @@ test("the model action schema exposes generated relative buildables", () => {
   assert.deepEqual(item.properties.power_wires.items.required, [
     "link_id", "recipe_class", "from_part_id", "to_part_id",
   ]);
+  assert.deepEqual(item.properties.pipelines.items.required, [
+    "link_id", "recipe_class", "from_part_id", "to_part_id",
+  ]);
 });
 
 test("the game-side generator keeps staging transient, construction-time, bounded, and native", () => {
@@ -282,6 +421,10 @@ test("the game-side generator keeps staging transient, construction-time, bounde
   );
   const actions = readFileSync(
     new URL("../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp", import.meta.url),
+    "utf8",
+  );
+  const snapshot = readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp", import.meta.url),
     "utf8",
   );
   const staging = source.indexOf("class FScopedGeneratedBuildables");
@@ -304,6 +447,14 @@ test("the game-side generator keeps staging transient, construction-time, bounde
   assert.ok(source.includes("generated_buildable_needs_an_unimplemented_native_topology"));
   assert.ok(source.includes("StageConveyor"));
   assert.ok(source.includes("StagePowerWire"));
+  assert.ok(source.includes("StagePipeline"));
+  assert.ok(source.includes("AFGPipelineHologram::MINIMUM_HOLOGRAM_LENGTH"));
+  assert.ok(source.includes("mMaxSplineLength"));
+  assert.ok(source.includes("native_blueprint_pipeline_topology_readback_mismatch"));
+  assert.ok(snapshot.includes("native_pipe_connections"));
+  assert.ok(snapshot.includes("GetPipeConnectionType()"));
+  assert.ok(snapshot.includes("pipeline_flow_limit_m3_s"));
+  assert.ok(snapshot.includes("native_pipeline_hologram_cdo_property"));
   assert.ok(source.includes("ValidateGeneratedNativeTopologyReadback"));
   assert.ok(source.includes("LoadStoredBlueprint"));
   assert.ok(source.includes("exact_native_topology_readback"));

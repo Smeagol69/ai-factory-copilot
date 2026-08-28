@@ -3712,7 +3712,8 @@ namespace
             Spec->TryGetStringField(TEXT("description"), Description);
             if (!Spec->TryGetStringField(TEXT("layout_schema"), LayoutSchema) ||
                 (LayoutSchema != TEXT("aifactory.generated-blueprint/v1") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v2")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v2") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v3")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -3793,11 +3794,13 @@ namespace
 
             TArray<FAIFactoryGeneratedBlueprintConveyor> Conveyors;
             TArray<FAIFactoryGeneratedBlueprintPowerWire> PowerWires;
+            TArray<FAIFactoryGeneratedBlueprintPipeline> Pipelines;
             const auto ReadGeneratedTopologyArray = [Spec](
                 const TCHAR* Field,
-                const bool bPower,
+                const int32 TopologyKind,
                 TArray<FAIFactoryGeneratedBlueprintConveyor>& OutConveyors,
                 TArray<FAIFactoryGeneratedBlueprintPowerWire>& OutPowerWires,
+                TArray<FAIFactoryGeneratedBlueprintPipeline>& OutPipelines,
                 FString& OutFailure)
             {
                 const TArray<TSharedPtr<FJsonValue>>* Links = nullptr;
@@ -3844,10 +3847,21 @@ namespace
                         return false;
                     }
 
-                    if (bPower)
+                    if (TopologyKind == 1)
                     {
                         FAIFactoryGeneratedBlueprintPowerWire& Link =
                             OutPowerWires.AddDefaulted_GetRef();
+                        Link.LinkId = LinkId;
+                        Link.BuildRecipeClassPath = RecipeClass;
+                        Link.FromPartId = FromPartId;
+                        Link.ToPartId = ToPartId;
+                        Link.FromConnectorName = FromConnectorName;
+                        Link.ToConnectorName = ToConnectorName;
+                    }
+                    else if (TopologyKind == 2)
+                    {
+                        FAIFactoryGeneratedBlueprintPipeline& Link =
+                            OutPipelines.AddDefaulted_GetRef();
                         Link.LinkId = LinkId;
                         Link.BuildRecipeClassPath = RecipeClass;
                         Link.FromPartId = FromPartId;
@@ -3873,25 +3887,42 @@ namespace
             FString TopologyFailure;
             if (!ReadGeneratedTopologyArray(
                     TEXT("conveyors"),
-                    false,
+                    0,
                     Conveyors,
                     PowerWires,
+                    Pipelines,
                     TopologyFailure) ||
                 !ReadGeneratedTopologyArray(
                     TEXT("power_wires"),
-                    true,
+                    1,
                     Conveyors,
                     PowerWires,
+                    Pipelines,
+                    TopologyFailure) ||
+                !ReadGeneratedTopologyArray(
+                    TEXT("pipelines"),
+                    2,
+                    Conveyors,
+                    PowerWires,
+                    Pipelines,
                     TopologyFailure))
             {
                 return FAIFactoryActionResult::Refuse(Kind, TopologyFailure);
             }
             if (LayoutSchema == TEXT("aifactory.generated-blueprint/v1") &&
-                (Conveyors.Num() > 0 || PowerWires.Num() > 0))
+                (Conveyors.Num() > 0 || PowerWires.Num() > 0 ||
+                 Pipelines.Num() > 0))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
                     TEXT("generated_blueprint_v1_cannot_carry_topology"));
+            }
+            if (LayoutSchema == TEXT("aifactory.generated-blueprint/v2") &&
+                Pipelines.Num() > 0)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("generated_blueprint_v2_cannot_carry_pipelines"));
             }
             return AIFactoryBlueprintExport::GenerateLayout(
                 Context,
@@ -3900,6 +3931,7 @@ namespace
                 Parts,
                 Conveyors,
                 PowerWires,
+                Pipelines,
                 LayoutSchema);
         }
         if (Kind == TEXT("export_native_blueprint"))

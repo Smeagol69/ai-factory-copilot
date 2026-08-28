@@ -13,17 +13,22 @@
 #include "Buildables/FGBuildableConveyorAttachment.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildablePipeBase.h"
+#include "Buildables/FGBuildablePipeline.h"
 #include "Buildables/FGBuildablePipelineAttachment.h"
 #include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableResourceExtractorBase.h"
 #include "Buildables/FGBuildableWire.h"
 #include "FGCircuitConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
+#include "FGPipeConnectionComponent.h"
 #include "FGBuildableSubsystem.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
+#include "Hologram/FGPipelineHologram.h"
+#include "Resources/FGBuildDescriptor.h"
 #include "Resources/FGBuildingDescriptor.h"
+#include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
 
@@ -627,6 +632,94 @@ namespace
         return Candidates[0];
     }
 
+    UFGPipeConnectionComponentBase* ResolveGeneratedPipeConnection(
+        AFGBuildable* Buildable,
+        const FString& ExplicitName,
+        const EPipeConnectionType Wanted,
+        FString& OutReason)
+    {
+        if (!IsValid(Buildable))
+        {
+            OutReason = TEXT("generated_pipeline_endpoint_buildable_is_invalid");
+            return nullptr;
+        }
+
+        TInlineComponentArray<UFGPipeConnectionComponentBase*> Components;
+        Buildable->GetComponents(Components);
+        TArray<UFGPipeConnectionComponentBase*> Candidates;
+        for (UFGPipeConnectionComponentBase* Component : Components)
+        {
+            if (!IsValid(Component) || Component->IsConnected())
+            {
+                continue;
+            }
+            if (!ExplicitName.IsEmpty() &&
+                Component->GetName() != ExplicitName &&
+                !Component->GetPathName().EndsWith(TEXT(".") + ExplicitName))
+            {
+                continue;
+            }
+            if (ExplicitName.IsEmpty())
+            {
+                const EPipeConnectionType Actual = Component->GetPipeConnectionType();
+                const bool bDirectionMatches =
+                    Actual == EPipeConnectionType::PCT_ANY || Actual == Wanted;
+                if (!bDirectionMatches)
+                {
+                    continue;
+                }
+            }
+            Candidates.Add(Component);
+        }
+        if (Candidates.Num() != 1)
+        {
+            OutReason = FString::Printf(
+                TEXT("generated_pipeline_endpoint_requires_exactly_one_free_matching_connector:%s:candidates=%d"),
+                *Buildable->GetName(),
+                Candidates.Num());
+            return nullptr;
+        }
+        return Candidates[0];
+    }
+
+    bool ResolveGeneratedPipelineMaximumLength(
+        const TSubclassOf<UFGRecipe> BuildRecipe,
+        double& OutMaximumLength)
+    {
+        OutMaximumLength = 0.0;
+        for (const FItemAmount& Product : UFGRecipe::GetProducts(BuildRecipe))
+        {
+            if (!Product.ItemClass ||
+                !Product.ItemClass->IsChildOf(UFGBuildDescriptor::StaticClass()))
+            {
+                continue;
+            }
+            const TSubclassOf<UFGBuildDescriptor> Descriptor(Product.ItemClass.Get());
+            UClass* HologramClass = UFGBuildDescriptor::GetHologramClass(Descriptor);
+            if (!IsValid(HologramClass) ||
+                !HologramClass->IsChildOf(AFGPipelineHologram::StaticClass()))
+            {
+                continue;
+            }
+            const FFloatProperty* Property = FindFProperty<FFloatProperty>(
+                HologramClass,
+                TEXT("mMaxSplineLength"));
+            const UObject* Default = HologramClass->GetDefaultObject();
+            if (!Property || !IsValid(Default))
+            {
+                return false;
+            }
+            const float Value = Property->GetPropertyValue_InContainer(Default);
+            if (!FMath::IsFinite(Value) || Value <= 0.0f)
+            {
+                return false;
+            }
+            OutMaximumLength = Value;
+            return true;
+        }
+        return false;
+    }
+
     bool IsFiniteGeneratedBounds(const FBox& Bounds)
     {
         return Bounds.IsValid &&
@@ -712,7 +805,8 @@ namespace
             AFGBuildableBlueprintDesigner* Designer,
             const TArray<FResolvedGeneratedPart>& Parts,
             const TArray<FAIFactoryGeneratedBlueprintConveyor>& Conveyors,
-            const TArray<FAIFactoryGeneratedBlueprintPowerWire>& PowerWires)
+            const TArray<FAIFactoryGeneratedBlueprintPowerWire>& PowerWires,
+            const TArray<FAIFactoryGeneratedBlueprintPipeline>& Pipelines)
             : StagingWorld(World), StagingDesigner(Designer)
         {
             if (!IsValid(World) || !IsValid(Designer))
@@ -816,6 +910,13 @@ namespace
                     return;
                 }
             }
+            for (const FAIFactoryGeneratedBlueprintPipeline& Pipeline : Pipelines)
+            {
+                if (!StagePipeline(Pipeline))
+                {
+                    return;
+                }
+            }
         }
 
         ~FScopedGeneratedBuildables()
@@ -847,6 +948,20 @@ namespace
                             Buildables->RemoveConveyor(Conveyor);
                         }
                     }
+                    if (AFGBuildablePipeline* Pipeline =
+                            Cast<AFGBuildablePipeline>(Buildable))
+                    {
+                        if (IsValid(Pipeline->GetConnection0()) &&
+                            Pipeline->GetConnection0()->IsConnected())
+                        {
+                            Pipeline->GetConnection0()->ClearConnection();
+                        }
+                        if (IsValid(Pipeline->GetConnection1()) &&
+                            Pipeline->GetConnection1()->IsConnected())
+                        {
+                            Pipeline->GetConnection1()->ClearConnection();
+                        }
+                    }
                     Buildable->Destroy();
                 }
             }
@@ -863,6 +978,7 @@ namespace
         const FString& GetFailure() const { return Failure; }
         int32 NumConveyors() const { return StagedConveyors; }
         int32 NumPowerWires() const { return StagedPowerWires; }
+        int32 NumPipelines() const { return StagedPipelines; }
         int32 NumAllBuildables() const { return SpawnedActors.Num(); }
 
     private:
@@ -1120,6 +1236,169 @@ namespace
             return true;
         }
 
+        bool StagePipeline(const FAIFactoryGeneratedBlueprintPipeline& Link)
+        {
+            AFGBuildable* FromBuildable = BuildablesByPartId.FindRef(Link.FromPartId);
+            AFGBuildable* ToBuildable = BuildablesByPartId.FindRef(Link.ToPartId);
+            if (!IsValid(FromBuildable) || !IsValid(ToBuildable) ||
+                FromBuildable == ToBuildable)
+            {
+                Failure = TEXT("generated_pipeline_part_reference_is_invalid:") + Link.LinkId;
+                return false;
+            }
+
+            FString ConnectorFailure;
+            UFGPipeConnectionComponentBase* From = ResolveGeneratedPipeConnection(
+                FromBuildable,
+                Link.FromConnectorName,
+                EPipeConnectionType::PCT_PRODUCER,
+                ConnectorFailure);
+            if (!IsValid(From))
+            {
+                Failure = ConnectorFailure + TEXT(":") + Link.LinkId + TEXT(":from");
+                return false;
+            }
+            UFGPipeConnectionComponentBase* To = ResolveGeneratedPipeConnection(
+                ToBuildable,
+                Link.ToConnectorName,
+                EPipeConnectionType::PCT_CONSUMER,
+                ConnectorFailure);
+            if (!IsValid(To))
+            {
+                Failure = ConnectorFailure + TEXT(":") + Link.LinkId + TEXT(":to");
+                return false;
+            }
+
+            TSubclassOf<UFGRecipe> BuildRecipe;
+            TSubclassOf<AFGBuildable> BuildableClass;
+            FString RecipeFailure;
+            if (!ResolveGeneratedTopologyRecipe(
+                    Link.BuildRecipeClassPath,
+                    StagingWorld,
+                    AFGBuildablePipeline::StaticClass(),
+                    BuildRecipe,
+                    BuildableClass,
+                    RecipeFailure))
+            {
+                Failure = RecipeFailure + TEXT(":") + Link.LinkId;
+                return false;
+            }
+
+            // v3 intentionally starts with the same narrow primitive that made
+            // v2 conveyors auditable: one straight native spline between two
+            // exact, oppositely facing ports. Junctions, supports and pumps
+            // must become explicit generated parts before bent/elevated routes
+            // are allowed; a synthetic curve would bypass the hologram's bend
+            // radius and head-lift semantics.
+            const FVector Start = From->GetConnectorLocation(false);
+            const FVector End = To->GetConnectorLocation(false);
+            const FVector Delta = End - Start;
+            const double Distance = Delta.Size();
+            double MaximumLength = 0.0;
+            if (!FMath::IsFinite(Distance) ||
+                Distance < AFGPipelineHologram::MINIMUM_HOLOGRAM_LENGTH ||
+                !ResolveGeneratedPipelineMaximumLength(BuildRecipe, MaximumLength) ||
+                Distance > MaximumLength)
+            {
+                Failure = FString::Printf(
+                    TEXT("generated_pipeline_length_outside_native_hologram_limits:%s:distance_cm=%.1f,min_cm=%.1f,max_cm=%.1f"),
+                    *Link.LinkId,
+                    Distance,
+                    static_cast<double>(AFGPipelineHologram::MINIMUM_HOLOGRAM_LENGTH),
+                    MaximumLength);
+                return false;
+            }
+            const FVector Travel = Delta / Distance;
+            const double FromAlignment = FVector::DotProduct(
+                From->GetConnectorNormal().GetSafeNormal(),
+                Travel);
+            const double ToAlignment = FVector::DotProduct(
+                To->GetConnectorNormal().GetSafeNormal(),
+                Travel);
+            constexpr double MinimumStraightAlignment = 0.995;
+            if (FromAlignment < MinimumStraightAlignment ||
+                ToAlignment > -MinimumStraightAlignment)
+            {
+                Failure = FString::Printf(
+                    TEXT("generated_pipeline_requires_explicit_multi_leg_route:%s:from_alignment=%.3f,to_alignment=%.3f"),
+                    *Link.LinkId,
+                    FromAlignment,
+                    ToAlignment);
+                return false;
+            }
+            if (!From->CanConnectTo(To) || !To->CanConnectTo(From) ||
+                !From->CheckCompatibility(To, nullptr) ||
+                !To->CheckCompatibility(From, nullptr))
+            {
+                Failure = TEXT("generated_pipeline_native_endpoints_are_incompatible:") +
+                    Link.LinkId;
+                return false;
+            }
+
+            const FTransform PipeTransform = StagingDesigner->GetActorTransform();
+            const FVector LocalStart = PipeTransform.InverseTransformPosition(Start);
+            const FVector LocalEnd = PipeTransform.InverseTransformPosition(End);
+            const FVector LocalDelta = LocalEnd - LocalStart;
+            TArray<FSplinePointData> SplineData{
+                FSplinePointData(LocalStart, LocalDelta),
+                FSplinePointData(LocalEnd, LocalDelta),
+            };
+
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride =
+                ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            Params.bDeferConstruction = true;
+            Params.ObjectFlags |= RF_Transient;
+            AFGBuildablePipeline* Pipeline = Cast<AFGBuildablePipeline>(
+                StagingWorld->SpawnActor<AFGBuildable>(
+                    BuildableClass,
+                    PipeTransform,
+                    Params));
+            if (!IsValid(Pipeline))
+            {
+                Failure = TEXT("generated_pipeline_spawn_failed:") + Link.LinkId;
+                return false;
+            }
+            SpawnedActors.Add(Pipeline);
+            Pipeline->SetInsideBlueprintDesigner(StagingDesigner);
+            Pipeline->SetBuiltWithRecipe(BuildRecipe);
+            TArray<FSplinePointData>* MutableSpline =
+                Pipeline->GetMutableSplinePointData();
+            if (MutableSpline == nullptr)
+            {
+                Failure = TEXT("generated_pipeline_has_no_mutable_native_spline:") +
+                    Link.LinkId;
+                return false;
+            }
+            *MutableSpline = MoveTemp(SplineData);
+            Pipeline->FinishSpawning(PipeTransform);
+
+            UFGPipeConnectionComponentBase* PipeStart = Pipeline->GetConnection0();
+            UFGPipeConnectionComponentBase* PipeEnd = Pipeline->GetConnection1();
+            if (!IsValid(PipeStart) || !IsValid(PipeEnd) ||
+                !PipeStart->CanConnectTo(From) || !PipeEnd->CanConnectTo(To) ||
+                !PipeStart->CheckCompatibility(From, nullptr) ||
+                !PipeEnd->CheckCompatibility(To, nullptr))
+            {
+                Failure = TEXT("generated_pipeline_native_connections_rejected_endpoints:") +
+                    Link.LinkId;
+                return false;
+            }
+            PipeStart->SetConnection(From);
+            PipeEnd->SetConnection(To);
+            const bool bStartExact = PipeStart->GetConnection() == From &&
+                From->GetConnection() == PipeStart;
+            const bool bEndExact = PipeEnd->GetConnection() == To &&
+                To->GetConnection() == PipeEnd;
+            if (!bStartExact || !bEndExact)
+            {
+                Failure = TEXT("generated_pipeline_endpoint_readback_failed:") + Link.LinkId;
+                return false;
+            }
+            ++StagedPipelines;
+            return true;
+        }
+
         UWorld* StagingWorld = nullptr;
         AFGBuildableBlueprintDesigner* StagingDesigner = nullptr;
         TArray<AFGBuildable*> SpawnedActors;
@@ -1127,6 +1406,7 @@ namespace
         TMap<FString, AFGBuildable*> BuildablesByPartId;
         int32 StagedConveyors = 0;
         int32 StagedPowerWires = 0;
+        int32 StagedPipelines = 0;
         FString Failure;
     };
 
@@ -1229,6 +1509,7 @@ namespace
         const int32 ExpectedConfiguredManufacturers,
         const int32 ExpectedConveyors,
         const int32 ExpectedPowerWires,
+        const int32 ExpectedPipelines,
         TSharedRef<FJsonObject> Observed,
         FString& OutReason)
     {
@@ -1238,6 +1519,8 @@ namespace
         int32 ExactConveyorLinks = 0;
         int32 PowerWireCount = 0;
         int32 ExactPowerWireLinks = 0;
+        int32 PipelineCount = 0;
+        int32 ExactPipelineLinks = 0;
 
         for (AFGBuildable* Buildable : Loaded)
         {
@@ -1296,6 +1579,24 @@ namespace
                     ++ExactPowerWireLinks;
                 }
             }
+            if (AFGBuildablePipeline* Pipeline =
+                    Cast<AFGBuildablePipeline>(Buildable))
+            {
+                ++PipelineCount;
+                UFGPipeConnectionComponentBase* First = Pipeline->GetConnection0();
+                UFGPipeConnectionComponentBase* Second = Pipeline->GetConnection1();
+                UFGPipeConnectionComponentBase* FirstPeer =
+                    IsValid(First) ? First->GetConnection() : nullptr;
+                UFGPipeConnectionComponentBase* SecondPeer =
+                    IsValid(Second) ? Second->GetConnection() : nullptr;
+                if (IsValid(FirstPeer) && IsValid(SecondPeer) &&
+                    FirstPeer != SecondPeer &&
+                    FirstPeer->GetConnection() == First &&
+                    SecondPeer->GetConnection() == Second)
+                {
+                    ++ExactPipelineLinks;
+                }
+            }
         }
 
         Observed->SetNumberField(TEXT("native_loaded_buildables"), ValidBuildables);
@@ -1310,6 +1611,10 @@ namespace
         Observed->SetNumberField(
             TEXT("native_loaded_exact_reciprocal_power_wire_links"),
             ExactPowerWireLinks);
+        Observed->SetNumberField(TEXT("native_loaded_pipelines"), PipelineCount);
+        Observed->SetNumberField(
+            TEXT("native_loaded_exact_reciprocal_pipeline_links"),
+            ExactPipelineLinks);
 
         if (ValidBuildables != ExpectedBuildables)
         {
@@ -1344,6 +1649,16 @@ namespace
                 ExpectedPowerWires,
                 PowerWireCount,
                 ExactPowerWireLinks);
+            return false;
+        }
+        if (PipelineCount != ExpectedPipelines ||
+            ExactPipelineLinks != ExpectedPipelines)
+        {
+            OutReason = FString::Printf(
+                TEXT("native_blueprint_pipeline_topology_readback_mismatch:expected=%d,actors=%d,exact_links=%d"),
+                ExpectedPipelines,
+                PipelineCount,
+                ExactPipelineLinks);
             return false;
         }
         return true;
@@ -1540,6 +1855,7 @@ FAIFactoryActionResult GenerateLayout(
     const TArray<FAIFactoryGeneratedBlueprintPart>& Parts,
     const TArray<FAIFactoryGeneratedBlueprintConveyor>& Conveyors,
     const TArray<FAIFactoryGeneratedBlueprintPowerWire>& PowerWires,
+    const TArray<FAIFactoryGeneratedBlueprintPipeline>& Pipelines,
     const FString& LayoutSchema)
 {
     const FString Action = TEXT("generate_native_blueprint");
@@ -1563,17 +1879,25 @@ FAIFactoryActionResult GenerateLayout(
     }
     const bool bSchemaV1 = LayoutSchema == TEXT("aifactory.generated-blueprint/v1");
     const bool bSchemaV2 = LayoutSchema == TEXT("aifactory.generated-blueprint/v2");
-    if (!bSchemaV1 && !bSchemaV2)
+    const bool bSchemaV3 = LayoutSchema == TEXT("aifactory.generated-blueprint/v3");
+    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3)
     {
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("unsupported_generated_blueprint_schema"));
     }
-    if (bSchemaV1 && (Conveyors.Num() > 0 || PowerWires.Num() > 0))
+    if (bSchemaV1 &&
+        (Conveyors.Num() > 0 || PowerWires.Num() > 0 || Pipelines.Num() > 0))
     {
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("generated_blueprint_v1_cannot_carry_topology"));
+    }
+    if (bSchemaV2 && Pipelines.Num() > 0)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("generated_blueprint_v2_cannot_carry_pipelines"));
     }
     if (Context.bRequireUnchangedWorld &&
         !Context.ExpectedWorldRevision.IsEmpty() &&
@@ -1678,6 +2002,18 @@ FAIFactoryActionResult GenerateLayout(
             return FAIFactoryActionResult::Refuse(Action, Failure);
         }
     }
+    for (const FAIFactoryGeneratedBlueprintPipeline& Pipeline : Pipelines)
+    {
+        FString Failure;
+        if (!ValidateLinkIdentity(
+                Pipeline.LinkId,
+                Pipeline.FromPartId,
+                Pipeline.ToPartId,
+                Failure))
+        {
+            return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+    }
 
     const TSharedRef<FJsonObject> Predicted = MakeShared<FJsonObject>();
     Predicted->SetStringField(TEXT("blueprint_name"), BlueprintName);
@@ -1686,6 +2022,7 @@ FAIFactoryActionResult GenerateLayout(
     Predicted->SetNumberField(TEXT("configured_manufacturers"), ConfiguredManufacturers);
     Predicted->SetNumberField(TEXT("requested_conveyors"), Conveyors.Num());
     Predicted->SetNumberField(TEXT("requested_power_wires"), PowerWires.Num());
+    Predicted->SetNumberField(TEXT("requested_pipelines"), Pipelines.Num());
     Predicted->SetStringField(TEXT("designer"), Designer->GetPathName());
     Predicted->SetBoolField(TEXT("designer_had_buildings"), Designer->HasBuildings());
     Predicted->SetStringField(
@@ -1715,7 +2052,8 @@ FAIFactoryActionResult GenerateLayout(
         Designer,
         Resolved,
         Conveyors,
-        PowerWires);
+        PowerWires,
+        Pipelines);
     if (!Staging.IsComplete(Resolved.Num()))
     {
         Result.Status = TEXT("failed");
@@ -1738,6 +2076,7 @@ FAIFactoryActionResult GenerateLayout(
     Predicted->SetObjectField(TEXT("native_bounds_sources"), BoundsSources);
     Predicted->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
     Predicted->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
+    Predicted->SetNumberField(TEXT("staged_pipelines"), Staging.NumPipelines());
 
     FString CollisionFailure;
     int32 StructuralContacts = 0;
@@ -1802,6 +2141,7 @@ FAIFactoryActionResult GenerateLayout(
     Observed->SetNumberField(TEXT("staged_buildables"), Staging.NumAllBuildables());
     Observed->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
     Observed->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
+    Observed->SetNumberField(TEXT("staged_pipelines"), Staging.NumPipelines());
 
     AFGBlueprintSubsystem* Subsystem =
         AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
@@ -1812,7 +2152,7 @@ FAIFactoryActionResult GenerateLayout(
     {
         Subsystem->RefreshBlueprintsAndDescriptors();
         bReadable = Subsystem->ReadBlueprintFromDisc(BlueprintName);
-        if (bReadable && bSchemaV2)
+        if (bReadable && (bSchemaV2 || bSchemaV3))
         {
             UFGBlueprintDescriptor* Descriptor =
                 Subsystem->GetBlueprintDescriptorByNameString(BlueprintName);
@@ -1841,6 +2181,7 @@ FAIFactoryActionResult GenerateLayout(
                     ConfiguredManufacturers,
                     Conveyors.Num(),
                     PowerWires.Num(),
+                    Pipelines.Num(),
                     Observed,
                     NativeReadbackFailure);
             }
