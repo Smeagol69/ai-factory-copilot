@@ -1824,11 +1824,13 @@ namespace
         int32 ExpectedResourceAnchors = 0;
         int32 ExpectedMiners = 0;
         TMap<FString, int32> ExpectedAnchorConfigurations;
+        TMap<FString, const FResolvedGeneratedPart*> ExpectedAnchorsByPartId;
         for (const FResolvedGeneratedPart& Part : ExpectedParts)
         {
             if (Part.Source.Role == TEXT("resource_anchor"))
             {
                 ++ExpectedResourceAnchors;
+                ExpectedAnchorsByPartId.Add(Part.Source.PartId, &Part);
                 const FString Fingerprint = FString::Printf(
                     TEXT("%s|%d"),
                     IsValid(Part.ResourceClass.Get())
@@ -1843,7 +1845,30 @@ namespace
             }
         }
 
+        TMap<FString, int32> ExpectedAnchorMinerPairings;
+        for (const FResolvedGeneratedPart& Part : ExpectedParts)
+        {
+            if (Part.Source.Role != TEXT("miner"))
+            {
+                continue;
+            }
+            const FResolvedGeneratedPart* const* AnchorEntry =
+                ExpectedAnchorsByPartId.Find(Part.Source.ResourceAnchorPartId);
+            const FResolvedGeneratedPart* Anchor = AnchorEntry ? *AnchorEntry : nullptr;
+            const FString PairingFingerprint = FString::Printf(
+                TEXT("%s|%d|%s"),
+                Anchor && IsValid(Anchor->ResourceClass.Get())
+                    ? *Anchor->ResourceClass.Get()->GetPathName()
+                    : TEXT("none"),
+                Anchor ? static_cast<int32>(Anchor->ResourcePurity) : -1,
+                IsValid(Part.BuildableClass.Get())
+                    ? *Part.BuildableClass.Get()->GetPathName()
+                    : TEXT("none"));
+            ExpectedAnchorMinerPairings.FindOrAdd(PairingFingerprint) += 1;
+        }
+
         TMap<FString, int32> LoadedAnchorConfigurations;
+        TMap<FString, int32> LoadedAnchorMinerPairings;
         TSet<AFGBuildableResourceExtractorBase*> MappedMiners;
         int32 ExactAnchorMinerMappings = 0;
         int32 AnchorsWithExactlyOneMiner = 0;
@@ -1871,6 +1896,16 @@ namespace
                     ++MappedOnAnchor;
                     ++ExactAnchorMinerMappings;
                     MappedMiners.Add(Miner);
+                    const FString PairingFingerprint = FString::Printf(
+                        TEXT("%s|%d|%s"),
+                        IsValid(Configuration.ResourceClass.Get())
+                            ? *Configuration.ResourceClass.Get()->GetPathName()
+                            : TEXT("none"),
+                        static_cast<int32>(Configuration.Purity),
+                        IsValid(Miner->GetClass())
+                            ? *Miner->GetClass()->GetPathName()
+                            : TEXT("none"));
+                    LoadedAnchorMinerPairings.FindOrAdd(PairingFingerprint) += 1;
                 }
             }
             if (MappedOnAnchor == 1)
@@ -1901,6 +1936,10 @@ namespace
             ConfigurationMapsMatch(
                 ExpectedAnchorConfigurations,
                 LoadedAnchorConfigurations);
+        const bool bExactAnchorMinerPairings =
+            ConfigurationMapsMatch(
+                ExpectedAnchorMinerPairings,
+                LoadedAnchorMinerPairings);
 
         Observed->SetNumberField(TEXT("native_loaded_buildables"), ValidBuildables);
         Observed->SetNumberField(
@@ -1936,6 +1975,9 @@ namespace
         Observed->SetBoolField(
             TEXT("native_loaded_exact_anchor_configurations"),
             bExactAnchorConfigurations);
+        Observed->SetBoolField(
+            TEXT("native_loaded_exact_anchor_miner_pairings"),
+            bExactAnchorMinerPairings);
 
         if (ValidBuildables != ExpectedBuildables)
         {
@@ -1987,10 +2029,11 @@ namespace
             ExactAnchorMinerMappings != ExpectedMiners ||
             MappedMiners.Num() != ExpectedMiners ||
             AnchorsWithExactlyOneMiner != ExpectedResourceAnchors ||
-            !bExactAnchorConfigurations)
+            !bExactAnchorConfigurations ||
+            !bExactAnchorMinerPairings)
         {
             OutReason = FString::Printf(
-                TEXT("native_blueprint_resource_anchor_topology_readback_mismatch:expected_anchors=%d,actual_anchors=%d,expected_miners=%d,actual_miners=%d,exact_mappings=%d,unique_miners=%d,one_to_one_anchors=%d,exact_configurations=%s"),
+                TEXT("native_blueprint_resource_anchor_topology_readback_mismatch:expected_anchors=%d,actual_anchors=%d,expected_miners=%d,actual_miners=%d,exact_mappings=%d,unique_miners=%d,one_to_one_anchors=%d,exact_configurations=%s,exact_pairings=%s"),
                 ExpectedResourceAnchors,
                 LoadedResourceAnchors.Num(),
                 ExpectedMiners,
@@ -1998,7 +2041,8 @@ namespace
                 ExactAnchorMinerMappings,
                 MappedMiners.Num(),
                 AnchorsWithExactlyOneMiner,
-                bExactAnchorConfigurations ? TEXT("true") : TEXT("false"));
+                bExactAnchorConfigurations ? TEXT("true") : TEXT("false"),
+                bExactAnchorMinerPairings ? TEXT("true") : TEXT("false"));
             return false;
         }
         return true;

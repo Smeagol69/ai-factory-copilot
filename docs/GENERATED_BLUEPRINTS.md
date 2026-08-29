@@ -102,7 +102,8 @@ Version 4 adds one narrow raw-resource primitive:
   Build Gun recipe and naming that Anchor's generated `part_id`;
 - the game builds the Anchor's real transient node, binds the exact staged
   Miner, writes the native `.sbp`, reloads it in the isolated Blueprint world,
-  and refuses success unless configuration and object-identity mapping survive.
+  and refuses success unless configuration, object-identity mapping, and each
+  resource/purity/Miner-class pairing survive.
 
 This does not spawn a raw world node and it does not claim a destination node
 or terrain is aligned. Final placement remains the vanilla Build Gun hologram's

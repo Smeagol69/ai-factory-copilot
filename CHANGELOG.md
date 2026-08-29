@@ -8,7 +8,8 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 - Added generated native Blueprint schema v4: the API may now serialize an
   explicitly configured solid-resource Blueprint Resource Anchor paired
   one-to-one with a captured vanilla Miner Mk.1-Mk.3. Both bridge and game
-  revalidate exact unlocks, resource form/purity, roles, and identity mapping;
+  revalidate exact unlocks, resource form/purity, roles, identity mapping, and
+  the per-Anchor Miner class pairing;
   the game refuses success unless the saved `.sbp` reload preserves the exact
   Anchor configuration and Miner relationship. Destination terrain/node
   alignment, fluid extractors, portable/modded miners, and automatic siting

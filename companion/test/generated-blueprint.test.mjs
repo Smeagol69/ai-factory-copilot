@@ -620,6 +620,8 @@ test("the game-side generator keeps staging transient, construction-time, bounde
   assert.ok(source.includes("HasRecordedBoundExtractor"));
   assert.ok(source.includes("native_blueprint_resource_anchor_topology_readback_mismatch"));
   assert.ok(source.includes("native_loaded_exact_anchor_configurations"));
+  assert.ok(source.includes("native_loaded_exact_anchor_miner_pairings"));
+  assert.ok(source.includes("ExpectedAnchorMinerPairings"));
   assert.ok(snapshot.includes("native_pipe_connections"));
   assert.ok(snapshot.includes("supports_generated_blueprint_resource_anchor"));
   assert.ok(snapshot.includes("supports_generated_solid_resource_configuration"));
