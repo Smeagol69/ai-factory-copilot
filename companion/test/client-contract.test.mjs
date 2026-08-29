@@ -118,6 +118,10 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
     new URL("../../Source/AIFactoryCopilot/Private/AIFactoryChatCommand.cpp", import.meta.url),
     "utf8",
   );
+  const ui = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCopilotUISubsystem.cpp", import.meta.url),
+    "utf8",
+  );
   const gameWorldModule = fs.readFileSync(
     new URL("../../Source/AIFactoryCopilot/Private/AIFactoryGameWorldModule.cpp", import.meta.url),
     "utf8",
@@ -128,6 +132,7 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   );
 
   assert.match(nodeHeader, /class AIFACTORYCOPILOT_API AAIFactoryCreativeResourceNode final : public AFGResourceNodeGeyser/);
+  assert.match(nodeHeader, /AAIFactoryCreativeOrdinaryResourceNode final\s*: public AFGResourceNode/);
   assert.match(nodeHeader, /UPROPERTY\(SaveGame, ReplicatedUsing = OnRep_CreativeConfiguration\)/);
   assert.match(nodeHeader, /UPROPERTY\(SaveGame\)\s*int32 SchemaVersion/);
   assert.match(nodeHeader, /UPROPERTY\(SaveGame\)\s*TSubclassOf<UFGResourceDescriptor> ResourceClass/);
@@ -135,6 +140,7 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(nodeHeader, /UPROPERTY\(SaveGame\)\s*EResourceNodeType NodeType/);
   assert.match(nodeHeader, /NodeTypeForResource\(/);
   assert.match(node, /DOREPLIFETIME\(AAIFactoryCreativeResourceNode, mCreativeConfiguration\)/);
+  assert.match(node, /DOREPLIFETIME\(\s*AAIFactoryCreativeOrdinaryResourceNode,\s*mCreativeConfiguration\)/);
   assert.match(node, /if \(!HasAuthority\(\)\)/);
   assert.match(node, /mCanPlaceResourceExtractor = false;\s*mCanPlacePortableMiner = false;/);
   assert.match(node, /CreateDefaultSubobject<UBoxComponent>\(TEXT\("CreativeNodeCollision"\)\)/);
@@ -147,6 +153,8 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(node, /EResourceForm::RF_GAS/);
   assert.match(node, /UFGResourceDescriptorGeyser::StaticClass\(\)/);
   assert.match(node, /GetPlacementLocation\(/);
+  assert.match(node, /GetDisplayNameTextByValue/);
+  assert.match(node, /CreativeNodeLookAtDescription/);
   assert.match(node, /UFGResourceDescriptor::GetDepositMesh\(Resource\)/);
   assert.match(node, /InitResource\(Resource, RA_Infinite, Purity\)/);
   assert.match(node, /SetResourceClassOverride\(Resource\)/);
@@ -169,6 +177,7 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.doesNotMatch(contentHeader, /UFGBuildingDescriptor/);
   assert.match(content, /mProduct\.Add\(FItemAmount\(UAIFactoryCreativeNodeDescriptor::StaticClass\(\), 1\)\)/);
   assert.match(content, /mProducedIn\.Add\(AFGBuildGun::StaticClass\(\)\)/);
+  assert.match(content, /AAIFactoryCreativeOrdinaryResourceNode::StaticClass\(\)/);
   assert.match(content, /mUnlocks\.Add\(CreateDefaultSubobject<UAIFactoryCreativeNodeUnlockRecipe>/);
 
   assert.match(hologramHeader, /AAIFactoryCreativeNodeHologram final : public AFGHologram/);
@@ -177,15 +186,21 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(hologramHeader, /UPROPERTY\(Replicated, CustomSerialization\)\s*TEnumAsByte<EResourcePurity> mRequestedPurity/);
   assert.match(hologram, /Super::CheckValidPlacement\(\)/);
   assert.match(hologram, /AIFactoryCreativeNodeConsumePendingConfiguration/);
-  assert.match(hologram, /GetWorld\(\)->SpawnActorDeferred<AAIFactoryCreativeResourceNode>/);
+  assert.match(hologram, /World->SpawnActorDeferred<AAIFactoryCreativeResourceNode>/);
+  assert.match(hologram, /World->SpawnActorDeferred<AAIFactoryCreativeOrdinaryResourceNode>/);
+  assert.match(hologram, /World->SpawnActorDeferred<AFGResourceNode>\([\s\S]*?mRequestedTemplateClass/);
   assert.match(hologram, /const FTransform PlacementTransform = GetActorTransform\(\)/);
   assert.match(hologram, /SpawnActorDeferred<AAIFactoryCreativeResourceNode>\([\s\S]*?PlacementTransform/);
   assert.match(hologram, /Node->FinishSpawning\(PlacementTransform\)/);
-  assert.match(hologram, /GetWorld\(\)->GetNetMode\(\) == NM_Client/);
-  assert.match(hologram, /Node->ConfigureCreativeNode\([\s\S]*mRequestedNodeType[\s\S]*Reason\)/);
+  assert.match(hologram, /World->GetNetMode\(\) == NM_Client/);
+  assert.match(hologram, /Node->ConfigureCreativeNode\([\s\S]*EResourceNodeType::Geyser[\s\S]*Reason\)/);
   assert.match(hologramHeader, /UPROPERTY\(Replicated, CustomSerialization\)\s*EResourceNodeType mRequestedNodeType/);
+  assert.match(hologramHeader, /UPROPERTY\(Replicated, CustomSerialization\)\s*TSubclassOf<AFGResourceNode> mRequestedTemplateClass/);
+  assert.match(hologram, /ValidateCreativeNodeTemplate\(/);
+  assert.match(hologram, /Node->GetClass\(\) != mRequestedTemplateClass\.Get\(\)/);
 
   assert.match(rcoHeader, /UFUNCTION\(Client, Reliable\)\s*void ClientArmCreativeResourceNode/);
+  assert.match(rcoHeader, /ClientArmCreativeResourceNodeTemplate/);
   assert.match(rco, /AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration/);
   assert.match(rco, /ObserveBuildGun\(BuildGun\)/);
   assert.match(rco, /mOnStateChanged\.AddUniqueDynamic/);
@@ -195,6 +210,7 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(rco, /ExistingHologram->GetIsPendingToBeConstructed\(\)/);
   assert.match(rco, /current placement is already pending/);
   assert.match(rco, /ExistingHologram->SetRequestedConfiguration\([\s\S]*Resource[\s\S]*Purity[\s\S]*NodeType[\s\S]*Reason\)/);
+  assert.match(rco, /ExistingHologram->SetRequestedTemplateConfiguration/);
   assert.ok(
     rco.indexOf("ExistingHologram->GetIsPendingToBeConstructed()") <
       rco.indexOf("ExistingHologram->SetRequestedConfiguration("),
@@ -222,6 +238,7 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   );
   assert.match(placement, /Schematics->GiveAccessToSchematic/);
   assert.match(placement, /RCO->ClientArmCreativeResourceNode\(Resource, Purity, NodeType\)/);
+  assert.match(placement, /RCO->ClientArmCreativeResourceNodeTemplate\(TemplateClass, Resource, Purity\)/);
   assert.doesNotMatch(placement, /SpawnActor|SetActorLocation/);
   assert.match(gameWorldModule, /mSchematics\.Add\(UAIFactoryCreativeNodeSchematic::StaticClass\(\)\)/);
   assert.match(gameWorldModule, /mSchematics\.Add\(UAIFactoryBlueprintResourceAnchorSchematic::StaticClass\(\)\)/);
@@ -230,6 +247,9 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryBlueprintPreviewRCO::StaticClass\(\)\)/);
   assert.match(gameInstanceModule, /RemoteCallObjects\.Add\(UAIFactoryBlueprintResourceAnchorRCO::StaticClass\(\)\)/);
   assert.match(nodeEdit, /Cast<AAIFactoryCreativeResourceNode>\(Node\)/);
+  assert.match(nodeEdit, /Cast<AAIFactoryCreativeOrdinaryResourceNode>\(Node\)/);
+  assert.match(nodeEdit, /KnownCreativeNodeTemplates\(/);
+  assert.match(nodeEdit, /Evidence->GetClass\(\) != NodeClass\.Get\(\)/);
   assert.match(nodeEdit, /Node->IsA<AAIFactoryBlueprintAnchorNode>\(\)/);
   assert.match(nodeEdit, /Cast<AFGResourceNode>\(Node\)/);
   assert.match(nodeEdit, /Node->GetResourceNodeType\(\) != EResourceNodeType::Node/);
@@ -243,6 +263,10 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(nodeEdit, /TMap<FString, TArray<TSubclassOf<UFGResourceDescriptor>>> Candidates/);
   assert.match(nodeEdit, /Result\.Add\(FString::Printf\(/);
   assert.match(chat, /\/ai node place <resource> \[impure\|normal\|pure\]/);
+  assert.match(chat, /Arguments\[1\]\.Equals\(TEXT\("place-template"\)/);
+  assert.match(chat, /ArmTemplateForPlayer\(/);
+  assert.match(ui, /KnownCreativeNodeTemplates\(World\)/);
+  assert.match(ui, /TEXT\("ai node place-template %s %s"\)/);
 });
 
 test("native Blueprint preview refreshes only when the player requests a native preview", () => {

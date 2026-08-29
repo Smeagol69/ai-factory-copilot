@@ -1,12 +1,30 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Resources/FGResourceNode.h"
 #include "Templates/SubclassOf.h"
 
 class AFGResourceNodeBase;
 class AFGPlayerController;
 class UFGResourceDescriptor;
 class UWorld;
+
+/**
+ * One exact special resource-node template proven by a live actor.
+ *
+ * Some mods intentionally use RF_INVALID descriptors and custom
+ * AFGResourceNode subclasses because their extractor is not an item/fluid
+ * miner. Reproducing only the descriptor loses the mod's behavior. This
+ * contract keeps the exact loaded actor class beside its exact resource and
+ * node type, and is never synthesized from a name.
+ */
+struct FAIFactoryCreativeNodeTemplate
+{
+    TSubclassOf<AFGResourceNode> NodeClass;
+    TSubclassOf<UFGResourceDescriptor> Resource;
+    FString DisplayName;
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+};
 
 /**
  * Changing what a resource node yields.
@@ -52,6 +70,28 @@ namespace AIFactoryNodeEdit
      * only and cannot accidentally turn a map node into a special source.
      */
     TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownCreativeResources(UWorld* World);
+
+    /**
+     * Exact special node classes discovered from live loaded actors, keyed by
+     * lowercase class path and (when unambiguous) lowercase display name.
+     * Ordinary solid/liquid/gas nodes and native geysers stay on the managed
+     * creative-node path instead of being cloned as map classes.
+     */
+    TMap<FString, FAIFactoryCreativeNodeTemplate> KnownCreativeNodeTemplates(
+        UWorld* World);
+
+    /**
+     * Re-proves a selected special template against a live actor in this
+     * world. Both the arming server and the construction server call this;
+     * neither trusts a class/resource pair carried by the client.
+     */
+    bool ValidateCreativeNodeTemplate(
+        UWorld* World,
+        TSubclassOf<AFGResourceNode> NodeClass,
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        EResourceNodeType& OutNodeType,
+        FString& OutReason);
 
     /**
      * The resource node the player is aiming at, or null.

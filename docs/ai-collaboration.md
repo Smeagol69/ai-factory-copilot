@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-29 | Codex | `codex/creative-node-runtime-compat` | Live follow-up to the deployed Creative Node Spawner after owner testing. Preserve the existing solid/liquid/gas/geyser path while fixing player-facing purity titles, separating ordinary Miner-compatible node actors from geyser inheritance, and adding a fail-closed discovered-template lane for exact mod-owned resource-node classes whose descriptors/forms use special contracts (first evidence: Refined Power `BP_WaterTurbineNode_C`, `RF_INVALID`, node type `Invalid`, with native 8/20/50 MW behavior). Revalidate the selected template class/resource/purity against live registered node evidence on both client and server; never approximate a special node as generic Water or mutate a vanilla node. Expected files: creative node actor/hologram/RCO/placement/UI/chat contracts, focused source tests, changelog and append-only handoff. | claimed; live snapshot/log evidence captured, implementation not started |
+| 2026-08-29 | Codex | `codex/creative-node-runtime-compat` | Live follow-up to the deployed Creative Node Spawner after owner testing. Preserve the existing solid/liquid/gas/geyser path while fixing player-facing purity titles, separating ordinary Miner-compatible node actors from geyser inheritance, and adding a fail-closed discovered-template lane for exact mod-owned resource-node classes whose descriptors/forms use special contracts (first evidence: Refined Power `BP_WaterTurbineNode_C`, `RF_INVALID`, node type `Invalid`, with native 8/20/50 MW behavior). Revalidate the selected template class/resource/purity against live registered node evidence on both client and server; never approximate a special node as generic Water or mutate a vanilla node. Expected files: creative node actor/hologram/RCO/placement/UI/chat contracts, focused source tests, changelog and append-only handoff. | implementation packaged and deployed; 887/887 tests, exact CL 502094 header validation, Shipping/Editor and UAT pass. Steam DLL matches Starter SHA-256 `FD9E48807C424F8BBC1618DB0E74E1FA100AF6A129661E15658365504DE171D6`; live Miner/Water Turbine placement remains pending. |
 | 2026-08-29 | Codex | `codex/creative-node-fluids-geysers` | Extend the mod-owned Creative Node Spawner beyond solid resources with explicit liquid, gas, and geothermal geyser modes. Preserve the native Build Gun/hologram path, saved configuration, resource-form validation, and fail-closed extractor/node-type rules; prove every new engine seam against CL 502094 before implementation. No retargeting or mutation of vanilla nodes, fracking satellites/cores, or direct client spawning. | complete in `562e4e9`; 887/887 companion tests, exact header validation, Editor/Shipping builds, and guarded UAT package/deploy pass. DLL SHA-256 `4F78131685B791C167421E99CFB5E748DB8601C75F8D76405D02CEC6514064EB`; live Miner/fluid/geothermal placement still pending. |
 | 2026-08-29 | Codex | `codex/generated-blueprint-two-stage-wire` | Extend the merged one-stage source/fan-out proof into one exact balanced two-stage linear production graph, aimed first at standard Copper Ore → Copper Ingot → Wire. Rebuild the generic base planner's explicitly logical-only row edge into distinct named-port native conveyors: Miner → one regular raw splitter → fully utilized Smelters, then each Smelter → its own regular splitter → the exact number of fully utilized Constructors supported by its captured per-machine output/input rates. Select only current unlocked recipes/parts, exact CDO factory ports, observed belt capacity and live collision footprints; keep every port unique and let the unchanged bridge/game/isolated-world gates revalidate. Refuse non-integral balance, partial clocks, coproducts, more than one intermediate edge, merger-required graphs, over-capacity legs, insufficient regular-splitter outputs, or geometry that cannot be proven inside the shell. Preserve generic Blueprints, the one-stage lane, power, pipelines, Anchor/Miner v4, Claude's Node Editor/Spawner/discovery/UI, and all write gates. No deploy while the game is open. | claimed; mapping exact production-step provenance and generated action indices before implementation |
 | 2026-08-29 | Codex | `codex/generated-blueprint-source-fanout` | Extend the newly merged aimed-node generated Blueprint source lane with one explicit native regular-splitter fan-out stage. Select only an exact unlocked splitter Build Gun recipe whose building CDO exposes one native input and enough distinct native outputs; derive splitter transform and every belt endpoint from captured class-default connection geometry; capacity-check the source belt and every branch; and preserve unique-port use through the existing generated v4 conveyor compiler/readback. Initial scope is one aimed solid resource feeding multiple identical first-stage consumers. Multi-stage production routing, mergers, Smart/Programmable rules, lifts/poles, fluids, automatic destination siting, Claude's creative-node discovery/UI lane, deployment, and any simulated direct multi-use output remain out of scope. Expected crossings: the aimed-node helper/router, focused tests, bridge-side generated-conveyor endpoint validation, and append-only docs; scanner CDO port capture from `ac2d5cc` is reused unchanged. | implementation complete and source-verified: 60 Iron Ingots/min emits one v4 Anchor, Miner Mk.1, regular Splitter, two configured Smelters, three distinct named-port conveyor links, and captured-capacity power topology. Bridge validation checks all six conveyor endpoints and refuses reused or direction-wrong ports. **884/884** tests and exact CL 502094/SML validation pass. Companion/game deployment and native `.sbp`/isolated-world/Build Gun proof remain pending while Satisfactory PID 40336 stays open. |
@@ -5082,3 +5082,59 @@ archive `19,649,966` bytes (SHA-256
 The packaged Miner snap, fluid extractor, and geothermal generator still need
 an in-game test after launching the deployed build; no live success is claimed
 until those holograms and the post-placement snapshot are observed.
+
+### Codex — 2026-08-29 creative node runtime compatibility handoff
+
+Branch: `codex/creative-node-runtime-compat`; claim commit `7f3a8b4`. The owner
+live-tested the deployed spawner and supplied two decisive screenshots. A
+generic spawned Water node displayed `Water RP_Pure`, while Refined Power's
+real target displayed `Water Turbine Node 20 MW`; Miner holograms also did not
+snap to generated ordinary nodes. The live snapshot and FactoryGame log proved
+these are three separate contracts, not one missing flag.
+
+The title leak came from native `AFGResourceNode` subclasses lacking the
+Blueprint CDO's private purity-text array. Both creative node classes now
+override the look-at description with the enum's localized display metadata,
+so `RP_Pure` is presented as `Pure`. The Miner issue came after every captured
+runtime gate already read true: the universal creative actor was still an
+`AFGResourceNodeGeyser` subclass with its node-type enum changed to `Node`.
+Ordinary resources now construct `AAIFactoryCreativeOrdinaryResourceNode`, a
+direct `AFGResourceNode` subclass with the existing Resource collision/root,
+save/replication, infinite-resource, occupancy, portable-miner, and canonical
+snap contracts preserved. The old geyser-derived class remains loadable for
+existing saves and is still used for real geothermal descriptors.
+
+Refined Power's live Water Turbine node is exact class
+`/RefinedPower/World/ResourceNodes/WaterTurbine/BP_WaterTurbineNode.BP_WaterTurbineNode_C`
+with exact descriptor
+`/RefinedPower/World/ResourceNodes/WaterTurbine/Desc_WaterTurbineNode.Desc_WaterTurbineNode_C`,
+form `RF_INVALID`, node type `Invalid`, and its custom native
+`RPWaterTurbineNode` fields for 8/20/50 MW. That is intentionally not generic
+Water, so the ordinary catalogue validator was right to reject the descriptor
+but the UI was wrong to omit the usable special actor. The new additive
+template lane discovers exact special class/resource pairs only from live
+loaded actors, deduplicates their aliases, and shows them as `Mod node
+template` rows. Arming and construction each re-prove the exact pair against a
+live node; construction uses the exact loaded mod class, runs its Blueprint
+construction, reapplies resource/purity overrides, and accepts only exact
+class/resource/purity/amount/type/extractor readback. Managed Copilot nodes,
+Blueprint Anchors, ordinary nodes, abstract classes, and unsupported purity
+values cannot become templates. Generic Water remains separately labelled as
+a liquid node for compatible node extractors; vanilla Water Extractors target
+water volumes rather than resource nodes.
+
+Verification: `npm test` and `scripts/validate.ps1` pass **887/887**; exact SML
+3.12.0 / FactoryGame CL 502094 header checks pass; FactoryGameSteam Shipping
+and FactoryEditor Development module builds both succeed after syncing into
+`StarterProject-502094`. Satisfactory then closed and the guarded UAT
+cook/archive/deploy passed. The installed and Starter DLLs match at 1,409,024
+bytes with SHA-256
+`FD9E48807C424F8BBC1618DB0E74E1FA100AF6A129661E15658365504DE171D6`;
+the 19,779,270-byte archive SHA-256 is
+`6E23BC9EC3C7587F3F6C4D80B824D3EAF89977B29AE3EE9725CB500C3A6E5FF8`.
+No live success is claimed yet. Launch the game and test two independent
+paths: spawn Iron or Copper and place a native Miner Mk.1 on it; Rescan the
+Node Spawner, choose
+`Water Turbine Node`, place Normal and Pure variants, and confirm Refined
+Power's own prompt/output changes from 20 MW to 50 MW. Also confirm an existing
+saved generic Water node now reads `Water (Pure)` after reload.

@@ -44,6 +44,7 @@
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "AIFactoryCreativeResourceNode.h"
+#include "AIFactoryNodeEdit.h"
 #include "FGRecipeManager.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "Widgets/Layout/SBorder.h"
@@ -584,7 +585,8 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
             CommandTokens.Num() >= 3 &&
             CommandTokens[0].Equals(TEXT("ai"), ESearchCase::IgnoreCase) &&
             CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
-            CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase);
+            (CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase) ||
+             CommandTokens[2].Equals(TEXT("place-template"), ESearchCase::IgnoreCase));
         if (bIsCreativeNodePlacement)
         {
             InputBox->SetText(FText::GetEmpty());
@@ -883,6 +885,21 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
 
     // The registered item catalogue is the only authoritative list that also
     // contains modded resources, and it does not require guessing class paths.
+    const TMap<FString, FAIFactoryCreativeNodeTemplate> TemplateAliases =
+        AIFactoryNodeEdit::KnownCreativeNodeTemplates(World);
+    TMap<FString, FAIFactoryCreativeNodeTemplate> TemplatesByClass;
+    TSet<UClass*> TemplateResources;
+    for (const TPair<FString, FAIFactoryCreativeNodeTemplate>& Alias : TemplateAliases)
+    {
+        if (!IsValid(Alias.Value.NodeClass) || !IsValid(Alias.Value.Resource))
+        {
+            continue;
+        }
+        TemplatesByClass.FindOrAdd(
+            Alias.Value.NodeClass->GetPathName(), Alias.Value);
+        TemplateResources.Add(Alias.Value.Resource.Get());
+    }
+
     TSet<UClass*> Seen;
     int32 Spawnable = 0;
     for (const TSubclassOf<UFGItemDescriptor> Descriptor : Recipes->GetAllItemDescriptors())
@@ -923,9 +940,42 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
         // something the server would then refuse.
         Entry.bSpawnable = AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
             Resource, RP_Normal, NodeType, Entry.Reason);
+        // A special live node gets one exact-class row below. Hiding only its
+        // rejected generic approximation avoids the confusing combination of
+        // "Water Turbine Node — unavailable" beside the working template.
+        if (!Entry.bSpawnable && TemplateResources.Contains(Resource.Get()))
+        {
+            continue;
+        }
         if (Entry.bSpawnable)
         {
             ++Spawnable;
+        }
+        NodeCatalog.Add(MoveTemp(Entry));
+    }
+
+    int32 SpecialTemplates = 0;
+    for (const TPair<FString, FAIFactoryCreativeNodeTemplate>& Pair : TemplatesByClass)
+    {
+        const FAIFactoryCreativeNodeTemplate& Template = Pair.Value;
+        FAIFactoryNodeCatalogEntry Entry;
+        Entry.Resource = Template.Resource;
+        Entry.TemplateClass = Template.NodeClass;
+        Entry.DisplayName = Template.DisplayName;
+        Entry.Kind = TEXT("Mod node template");
+        EResourceNodeType ProvenNodeType = EResourceNodeType::Invalid;
+        Entry.bSpawnable = AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            World,
+            Template.NodeClass,
+            Template.Resource,
+            RP_Normal,
+            ProvenNodeType,
+            Entry.Reason);
+        if (Entry.bSpawnable)
+        {
+            Entry.Reason = TEXT("Exact loaded mod class; behavior is preserved.");
+            ++Spawnable;
+            ++SpecialTemplates;
         }
         NodeCatalog.Add(MoveTemp(Entry));
     }
@@ -943,10 +993,10 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
     if (NodeSpawnerStatusText.IsValid())
     {
         NodeSpawnerStatusText->SetText(FText::FromString(FString::Printf(
-            TEXT("%d registered resources, %d spawnable as a node. Solid, liquid, gas, and ")
-            TEXT("geothermal geyser entries use the native Build Gun hologram and remain ")
-            TEXT("separate from vanilla-node retargeting."),
-            NodeCatalog.Num(), Spawnable)));
+            TEXT("%d node choices, %d spawnable, including %d exact mod-node template(s). ")
+            TEXT("Solid nodes snap native Miners; liquid nodes require a compatible node extractor. ")
+            TEXT("Vanilla Water Extractors still target water volumes, not Water resource nodes."),
+            NodeCatalog.Num(), Spawnable, SpecialTemplates)));
     }
     RebuildNodeSpawnerRows();
 }
@@ -978,10 +1028,15 @@ void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()
         const FString Kind = Entry.Kind;
         const FString Reason = Entry.Reason;
         const bool bSpawnable = Entry.bSpawnable;
+        const FString TemplateClassPath = IsValid(Entry.TemplateClass)
+            ? Entry.TemplateClass->GetPathName()
+            : FString();
 
         // Arming reuses the existing server-validated command path rather than
         // introducing a second way to write the world.
-        const auto MakeArm = [this, Name](const TCHAR* const Label, const TCHAR* const PurityToken)
+        const auto MakeArm = [this, Name, TemplateClassPath](
+            const TCHAR* const Label,
+            const TCHAR* const PurityToken)
         {
             return SNew(SButton)
                 .ButtonColorAndOpacity(AIFactoryPalette::Button)
@@ -989,10 +1044,14 @@ void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()
                 .Text(FText::FromString(Label))
                 .ToolTipText(FText::FromString(FString::Printf(
                     TEXT("Arm the Build Gun for a %s %s node."), *Name, Label)))
-                .OnClicked_Lambda([this, Name, PurityToken]()
+                .OnClicked_Lambda([this, Name, TemplateClassPath, PurityToken]()
                 {
-                    const FString CommandLine = FString::Printf(
-                        TEXT("ai node place %s %s"), *Name, PurityToken);
+                    const FString CommandLine = TemplateClassPath.IsEmpty()
+                        ? FString::Printf(TEXT("ai node place %s %s"), *Name, PurityToken)
+                        : FString::Printf(
+                            TEXT("ai node place-template %s %s"),
+                            *TemplateClassPath,
+                            PurityToken);
                     ForwardCreativeNodePlacementCommand(
                         CommandLine, FString::Printf(TEXT("/%s"), *CommandLine));
                     return FReply::Handled();
@@ -1081,7 +1140,8 @@ bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(
         CommandTokens.Num() >= 3 &&
         CommandTokens[0].Equals(TEXT("ai"), ESearchCase::IgnoreCase) &&
         CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
-        CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase);
+        (CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase) ||
+         CommandTokens[2].Equals(TEXT("place-template"), ESearchCase::IgnoreCase));
     if (!bIsCreativeNodePlacement)
     {
         if (RequestStatusText.IsValid())
@@ -2882,7 +2942,8 @@ void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
     {
         Text += TEXT(
             "Most chat commands do not run from this box — press **Enter** for the "
-            "game's chat and type them there. The deliberate exception is `/ai node place …`, "
+            "game's chat and type them there. The deliberate exceptions are the Node Spawner's "
+            "`/ai node place …` and exact-template placement commands, "
             "which this panel forwards through SML's server command path. The full list:\n\n");
     }
 

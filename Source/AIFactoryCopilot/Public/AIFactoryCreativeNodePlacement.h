@@ -22,4 +22,11 @@ namespace AIFactoryCreativeNodePlacement
         EResourcePurity Purity,
         EResourceNodeType NodeType,
         FString& OutReason);
+
+    bool ArmTemplateForPlayer(
+        AFGPlayerController* PlayerController,
+        TSubclassOf<AFGResourceNode> TemplateClass,
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        FString& OutReason);
 }

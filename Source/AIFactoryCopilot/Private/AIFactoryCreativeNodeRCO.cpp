@@ -4,6 +4,7 @@
 #include "AIFactoryCreativeNodeContent.h"
 #include "AIFactoryCreativeNodeHologram.h"
 #include "AIFactoryCreativeResourceNode.h"
+#include "AIFactoryNodeEdit.h"
 #include "Equipment/FGBuildGun.h"
 #include "Equipment/FGBuildGunBuild.h"
 #include "FGCharacterPlayer.h"
@@ -37,9 +38,42 @@ void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
     const EResourcePurity Purity,
     const EResourceNodeType NodeType)
 {
+    ArmCreativeResourceNodeLocal(Resource, Purity, NodeType, nullptr);
+}
+
+void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNodeTemplate_Implementation(
+    const TSubclassOf<AFGResourceNode> TemplateClass,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity)
+{
     FString Reason;
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            Resource, Purity, NodeType, Reason))
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+    if (!AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            GetWorld(), TemplateClass, Resource, Purity, NodeType, Reason))
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Creative special-node Build Gun handoff rejected its template: %s"),
+            *Reason);
+        return;
+    }
+    ArmCreativeResourceNodeLocal(Resource, Purity, NodeType, TemplateClass);
+}
+
+void UAIFactoryCreativeNodeRCO::ArmCreativeResourceNodeLocal(
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
+    const TSubclassOf<AFGResourceNode> TemplateClass)
+{
+    FString Reason;
+    EResourceNodeType ProvenNodeType = NodeType;
+    const bool bTemplate = IsValid(TemplateClass);
+    const bool bValid = bTemplate
+        ? AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            GetWorld(), TemplateClass, Resource, Purity, ProvenNodeType, Reason)
+        : AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, Purity, NodeType, Reason);
+    if (!bValid || ProvenNodeType != NodeType)
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
             TEXT("Creative node Build Gun handoff rejected its invalid configuration: %s"), *Reason);
@@ -89,13 +123,19 @@ void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
                 return;
             }
 
-            if (ExistingHologram->SetRequestedConfiguration(
-                    Resource, Purity, NodeType, Reason))
+            const bool bReconfigured = bTemplate
+                ? ExistingHologram->SetRequestedTemplateConfiguration(
+                    TemplateClass, Resource, Purity, Reason)
+                : ExistingHologram->SetRequestedConfiguration(
+                    Resource, Purity, NodeType, Reason);
+            if (bReconfigured)
             {
                 UE_LOG(LogAIFactoryCopilot, Display,
-                    TEXT("Creative node Build Gun preview reconfigured locally (resource=%s purity=%s)"),
+                    TEXT("Creative node Build Gun preview reconfigured locally (resource=%s purity=%s template=%s)"),
                     *Resource->GetPathName(),
-                    *StaticEnum<EResourcePurity>()->GetNameStringByValue(static_cast<int64>(Purity)));
+                    *StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+                        static_cast<int64>(Purity)).ToString(),
+                    bTemplate ? *TemplateClass->GetPathName() : TEXT("ordinary"));
                 return;
             }
 
@@ -113,8 +153,12 @@ void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
     // Store before the normal local Build Gun call. If Hologram creation is
     // deferred to the next client tick, the entry remains world-scoped until
     // that particular Creative Node preview consumes it.
-    if (!AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration(
-            GetWorld(), Resource, Purity, NodeType, Reason))
+    const bool bStaged = bTemplate
+        ? AAIFactoryCreativeNodeHologram::SetPendingLocalTemplateConfiguration(
+            GetWorld(), TemplateClass, Resource, Purity, Reason)
+        : AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration(
+            GetWorld(), Resource, Purity, NodeType, Reason);
+    if (!bStaged)
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
             TEXT("Creative node Build Gun handoff could not stage its configuration: %s"), *Reason);
@@ -131,9 +175,11 @@ void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
     }
 
     UE_LOG(LogAIFactoryCopilot, Display,
-        TEXT("Creative node Build Gun hologram armed locally (resource=%s purity=%s)"),
+        TEXT("Creative node Build Gun hologram armed locally (resource=%s purity=%s template=%s)"),
         *Resource->GetPathName(),
-        *StaticEnum<EResourcePurity>()->GetNameStringByValue(static_cast<int64>(Purity)));
+        *StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+            static_cast<int64>(Purity)).ToString(),
+        bTemplate ? *TemplateClass->GetPathName() : TEXT("ordinary"));
 }
 
 void UAIFactoryCreativeNodeRCO::HandleBuildGunStateChanged(const EBuildGunState NewState)

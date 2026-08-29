@@ -83,6 +83,12 @@ public:
         EResourcePurity Purity,
         EResourceNodeType NodeType,
         FString& OutReason);
+    static bool SetPendingLocalTemplateConfiguration(
+        UWorld* World,
+        TSubclassOf<AFGResourceNode> TemplateClass,
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        FString& OutReason);
     static void ClearPendingLocalConfiguration(UWorld* World);
 
 protected:
@@ -99,6 +105,11 @@ private:
         EResourcePurity Purity,
         EResourceNodeType NodeType,
         FString& OutReason);
+    bool SetRequestedTemplateConfiguration(
+        TSubclassOf<AFGResourceNode> TemplateClass,
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        FString& OutReason);
     bool HasOverlappingResourceNode() const;
     void UpdateRequestedVisual();
 
@@ -113,4 +124,12 @@ private:
     /** Serialized node kind; Geyser is the only special supported type. */
     UPROPERTY(Replicated, CustomSerialization)
     EResourceNodeType mRequestedNodeType = EResourceNodeType::Node;
+
+    /**
+     * Exact loaded special-node class, or null for a mod-owned ordinary/geyser
+     * node. The server re-proves this class/resource pair against a live node
+     * before it can construct anything.
+     */
+    UPROPERTY(Replicated, CustomSerialization)
+    TSubclassOf<AFGResourceNode> mRequestedTemplateClass = nullptr;
 };

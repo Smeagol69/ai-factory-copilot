@@ -8,6 +8,7 @@
 
 class UFGResourceDescriptor;
 class UStaticMeshComponent;
+class AFGCharacterPlayer;
 
 /**
  * The persisted, authoritative identity of a Copilot-created resource node.
@@ -69,6 +70,9 @@ public:
     virtual bool CanPlaceResourceExtractor() const override;
     virtual FVector GetPlacementLocation(const FVector& HitLocation) const override;
     virtual FRotator GetPlacementRotation(const FVector& HitLocation) const override;
+    virtual FText GetLookAtDecription_Implementation(
+        AFGCharacterPlayer* ByCharacter,
+        const FUseState& State) const override;
 
     /**
      * Configures a just-spawned or already placed creative node on the host.
@@ -141,6 +145,67 @@ private:
     TObjectPtr<UStaticMeshComponent> mCreativeVisual;
 
     /** The source of truth we restore on load and replicate to clients. */
+    UPROPERTY(SaveGame, ReplicatedUsing = OnRep_CreativeConfiguration)
+    FAIFactoryCreativeResourceNodeConfiguration mCreativeConfiguration;
+};
+
+/**
+ * Ordinary creative resource node used for solid, liquid and gas descriptors.
+ *
+ * This is intentionally an actual AFGResourceNode, not an
+ * AFGResourceNodeGeyser whose enum is changed after construction. Extractor
+ * holograms are allowed to specialize by concrete node class, so matching the
+ * native ordinary-node inheritance is part of the snap contract rather than a
+ * cosmetic implementation detail. The older AAIFactoryCreativeResourceNode
+ * remains loadable for existing saves and is retained for real geysers.
+ */
+UCLASS(NotBlueprintable)
+class AIFACTORYCOPILOT_API AAIFactoryCreativeOrdinaryResourceNode final
+    : public AFGResourceNode
+{
+    GENERATED_BODY()
+
+public:
+    AAIFactoryCreativeOrdinaryResourceNode();
+
+    virtual void GetLifetimeReplicatedProps(
+        TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void PostLoadGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
+    virtual void GetClearanceData_Implementation(
+        TArray<FFGClearanceData>& OutData) const override;
+    virtual bool CanPlaceResourceExtractor() const override;
+    virtual FVector GetPlacementLocation(const FVector& HitLocation) const override;
+    virtual FRotator GetPlacementRotation(const FVector& HitLocation) const override;
+    virtual FText GetLookAtDecription_Implementation(
+        AFGCharacterPlayer* ByCharacter,
+        const FUseState& State) const override;
+
+    bool ConfigureCreativeNode(
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        FString& OutReason);
+
+    const FAIFactoryCreativeResourceNodeConfiguration& GetCreativeConfiguration() const
+    {
+        return mCreativeConfiguration;
+    }
+
+    EResourcePurity GetCreativePurity() const
+    {
+        return mCreativeConfiguration.Purity;
+    }
+
+protected:
+    UFUNCTION()
+    void OnRep_CreativeConfiguration();
+
+private:
+    bool ApplyCreativeConfiguration(FString& OutReason);
+    void UpdateCreativeVisual();
+
+    UPROPERTY(VisibleAnywhere, Category = "AI Factory Copilot|Creative Node")
+    TObjectPtr<UStaticMeshComponent> mCreativeVisual;
+
     UPROPERTY(SaveGame, ReplicatedUsing = OnRep_CreativeConfiguration)
     FAIFactoryCreativeResourceNodeConfiguration mCreativeConfiguration;
 };

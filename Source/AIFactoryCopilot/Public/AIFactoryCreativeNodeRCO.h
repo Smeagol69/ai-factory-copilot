@@ -32,6 +32,12 @@ public:
         EResourcePurity Purity,
         EResourceNodeType NodeType);
 
+    UFUNCTION(Client, Reliable)
+    void ClientArmCreativeResourceNodeTemplate(
+        TSubclassOf<AFGResourceNode> TemplateClass,
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity);
+
 private:
     /** Clears a staged configuration if the Build Gun leaves this recipe/state. */
     UFUNCTION()
@@ -43,6 +49,11 @@ private:
 
     void ObserveBuildGun(AFGBuildGun* BuildGun);
     void StopObservingBuildGun();
+    void ArmCreativeResourceNodeLocal(
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        EResourceNodeType NodeType,
+        TSubclassOf<AFGResourceNode> TemplateClass);
 
     /** Weak: the Build Gun owns its delegates and must not be kept alive by an RCO. */
     TWeakObjectPtr<AFGBuildGun> mObservedBuildGun;

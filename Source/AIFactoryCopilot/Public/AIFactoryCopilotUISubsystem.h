@@ -213,6 +213,8 @@ private:
     struct FAIFactoryNodeCatalogEntry
     {
         TSubclassOf<class UFGResourceDescriptor> Resource;
+        /** Exact live special-node class; null for a mod-owned ordinary node. */
+        TSubclassOf<class AFGResourceNode> TemplateClass;
         FString DisplayName;
         /** Solid / Liquid / Gas, or Geyser for a geyser descriptor. */
         FString Kind;

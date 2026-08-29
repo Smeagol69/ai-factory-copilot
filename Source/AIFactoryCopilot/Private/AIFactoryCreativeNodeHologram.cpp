@@ -2,6 +2,7 @@
 
 #include "AIFactoryCopilotModule.h"
 #include "AIFactoryCreativeResourceNode.h"
+#include "AIFactoryNodeEdit.h"
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -12,7 +13,15 @@
 namespace
 {
     constexpr float CreativeNodeMinimumPlanarSeparationCm = 450.0f;
-    TMap<TWeakObjectPtr<UWorld>, FAIFactoryCreativeResourceNodeConfiguration>
+    struct FAIFactoryPendingCreativeNodeConfiguration
+    {
+        TSubclassOf<UFGResourceDescriptor> ResourceClass = nullptr;
+        TEnumAsByte<EResourcePurity> Purity = RP_Normal;
+        EResourceNodeType NodeType = EResourceNodeType::Node;
+        TSubclassOf<AFGResourceNode> TemplateClass = nullptr;
+    };
+
+    TMap<TWeakObjectPtr<UWorld>, FAIFactoryPendingCreativeNodeConfiguration>
         GPendingCreativeNodeConfigurations;
 
     // Unity builds compile module .cpp files into shared translation units.
@@ -20,7 +29,7 @@ namespace
     // specific symbol even inside this anonymous namespace.
     bool AIFactoryCreativeNodeConsumePendingConfiguration(
         UWorld* const World,
-        FAIFactoryCreativeResourceNodeConfiguration& OutConfiguration)
+        FAIFactoryPendingCreativeNodeConfiguration& OutConfiguration)
     {
         if (!IsValid(World))
         {
@@ -28,7 +37,7 @@ namespace
         }
 
         const TWeakObjectPtr<UWorld> Key(World);
-        const FAIFactoryCreativeResourceNodeConfiguration* const Pending =
+        const FAIFactoryPendingCreativeNodeConfiguration* const Pending =
             GPendingCreativeNodeConfigurations.Find(Key);
         if (Pending == nullptr)
         {
@@ -48,6 +57,7 @@ void AAIFactoryCreativeNodeHologram::GetLifetimeReplicatedProps(
     DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedResource);
     DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedPurity);
     DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedNodeType);
+    DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedTemplateClass);
 }
 
 void AAIFactoryCreativeNodeHologram::BeginPlay()
@@ -59,15 +69,22 @@ void AAIFactoryCreativeNodeHologram::BeginPlay()
     // they never consult process-local client state.
     if (IsLocalHologram())
     {
-        FAIFactoryCreativeResourceNodeConfiguration Pending;
+        FAIFactoryPendingCreativeNodeConfiguration Pending;
         if (AIFactoryCreativeNodeConsumePendingConfiguration(GetWorld(), Pending))
         {
             FString Reason;
-            if (!SetRequestedConfiguration(
+            const bool bAccepted = IsValid(Pending.TemplateClass)
+                ? SetRequestedTemplateConfiguration(
+                    Pending.TemplateClass,
+                    Pending.ResourceClass,
+                    Pending.Purity,
+                    Reason)
+                : SetRequestedConfiguration(
                     Pending.ResourceClass,
                     Pending.Purity,
                     Pending.NodeType,
-                    Reason))
+                    Reason);
+            if (!bAccepted)
             {
                 UE_LOG(LogAIFactoryCopilot, Warning,
                     TEXT("Creative node Build Gun configuration was rejected locally: %s"),
@@ -99,61 +116,168 @@ AActor* AAIFactoryCreativeNodeHologram::Construct(
     const FNetConstructionID ConstructionID)
 {
     FString Reason;
-    if (GetWorld() == nullptr || GetWorld()->GetNetMode() == NM_Client ||
-        !AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            mRequestedResource, mRequestedPurity, mRequestedNodeType, Reason) ||
+    UWorld* const World = GetWorld();
+    if (!IsValid(World) || World->GetNetMode() == NM_Client)
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Creative node construction refused outside the authoritative world"));
+        return nullptr;
+    }
+
+    EResourceNodeType ProvenNodeType = mRequestedNodeType;
+    const bool bTemplate = IsValid(mRequestedTemplateClass);
+    const bool bConfigurationValid = bTemplate
+        ? AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            World,
+            mRequestedTemplateClass,
+            mRequestedResource,
+            mRequestedPurity,
+            ProvenNodeType,
+            Reason)
+        : AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            mRequestedResource,
+            mRequestedPurity,
+            mRequestedNodeType,
+            Reason);
+    if (!bConfigurationValid || ProvenNodeType != mRequestedNodeType ||
         HasOverlappingResourceNode())
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
             TEXT("Creative node construction refused server-side: %s"),
-            Reason.IsEmpty() ? TEXT("a resource node overlaps this location") : *Reason);
+            Reason.IsEmpty()
+                ? ProvenNodeType != mRequestedNodeType
+                    ? TEXT("the special template's node type changed before construction")
+                    : TEXT("a resource node overlaps this location")
+                : *Reason);
         return nullptr;
     }
 
-    // This construct path runs only inside UFGBuildGunStateBuild's normal
-    // server RPC. The deferred spawn lets us install the saved configuration
-    // before BeginPlay; there is no companion-side spawn and no client write.
     const FTransform PlacementTransform = GetActorTransform();
-    AAIFactoryCreativeResourceNode* const Node =
-        GetWorld()->SpawnActorDeferred<AAIFactoryCreativeResourceNode>(
-            AAIFactoryCreativeResourceNode::StaticClass(),
+
+    if (bTemplate)
+    {
+        // Preserve the mod's exact actor class. Refined Power's Water Turbine
+        // node, for example, owns its 8/20/50 MW behavior in that subclass and
+        // intentionally reports RF_INVALID/Invalid; a generic Water node is
+        // not equivalent. The class/resource pair was proved by a live actor
+        // above and is read back again after its Blueprint construction script.
+        AFGResourceNode* const Node = World->SpawnActorDeferred<AFGResourceNode>(
+            mRequestedTemplateClass,
             PlacementTransform,
             GetOwner(),
             GetConstructionInstigator(),
             ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-    if (!IsValid(Node))
-    {
-        UE_LOG(LogAIFactoryCopilot, Warning,
-            TEXT("Creative node Build Gun construct could not spawn its mod-owned actor"));
-        return nullptr;
+        if (!IsValid(Node))
+        {
+            UE_LOG(LogAIFactoryCopilot, Warning,
+                TEXT("Creative node Build Gun could not spawn special template %s"),
+                *GetNameSafe(mRequestedTemplateClass.Get()));
+            return nullptr;
+        }
+
+        Node->InitResource(mRequestedResource, RA_Infinite, mRequestedPurity);
+        Node->SetResourceClassOverride(mRequestedResource);
+        Node->SetResourcePurityOverride(mRequestedPurity);
+        Node->FinishSpawning(PlacementTransform);
+
+        // Blueprint construction may reapply class defaults. The overrides are
+        // the game's SaveGame/replicated seams, so set them once more and then
+        // require the exact custom node contract to survive readback.
+        Node->SetResourceClassOverride(mRequestedResource);
+        Node->SetResourcePurityOverride(mRequestedPurity);
+        if (Node->GetClass() != mRequestedTemplateClass.Get() ||
+            Node->GetResourceClass() != mRequestedResource ||
+            Node->GetResourcePurity() != mRequestedPurity ||
+            Node->GetResourceAmount() != RA_Infinite ||
+            Node->GetResourceNodeType() != mRequestedNodeType ||
+            !Node->HasAnyResources() ||
+            !Node->CanPlaceResourceExtractor())
+        {
+            UE_LOG(LogAIFactoryCopilot, Warning,
+                TEXT("Creative special node template failed exact post-construction readback and was removed"));
+            Node->Destroy();
+            return nullptr;
+        }
+
+        Node->FlushNetDormancy();
+        Node->ForceNetUpdate();
+        FNetConstructionID ConstructionIdForLog = ConstructionID;
+        UE_LOG(LogAIFactoryCopilot, Display,
+            TEXT("Creative special node constructed through Build Gun at %s ")
+            TEXT("(template=%s resource=%s purity=%s construction=%s)"),
+            *Node->GetActorLocation().ToCompactString(),
+            *mRequestedTemplateClass->GetPathName(),
+            *mRequestedResource->GetPathName(),
+            *StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+                static_cast<int64>(mRequestedPurity)).ToString(),
+            *ConstructionIdForLog.ToString());
+        return Node;
     }
 
-    if (!Node->ConfigureCreativeNode(
+    if (mRequestedNodeType == EResourceNodeType::Geyser)
+    {
+        AAIFactoryCreativeResourceNode* const Node =
+            World->SpawnActorDeferred<AAIFactoryCreativeResourceNode>(
+                AAIFactoryCreativeResourceNode::StaticClass(),
+                PlacementTransform,
+                GetOwner(),
+                GetConstructionInstigator(),
+                ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+        if (!IsValid(Node) || !Node->ConfigureCreativeNode(
+                mRequestedResource,
+                mRequestedPurity,
+                EResourceNodeType::Geyser,
+                Reason))
+        {
+            UE_LOG(LogAIFactoryCopilot, Warning,
+                TEXT("Creative geyser construct was refused: %s"), *Reason);
+            if (IsValid(Node))
+            {
+                Node->Destroy();
+            }
+            return nullptr;
+        }
+        Node->FinishSpawning(PlacementTransform);
+        Node->FlushNetDormancy();
+        Node->ForceNetUpdate();
+        return Node;
+    }
+
+    // Ordinary resources use an actual AFGResourceNode subclass. This concrete
+    // inheritance is what a native Miner hologram expects when it specializes
+    // its snap behavior; changing a geyser's enum to Node is not equivalent.
+    AAIFactoryCreativeOrdinaryResourceNode* const Node =
+        World->SpawnActorDeferred<AAIFactoryCreativeOrdinaryResourceNode>(
+            AAIFactoryCreativeOrdinaryResourceNode::StaticClass(),
+            PlacementTransform,
+            GetOwner(),
+            GetConstructionInstigator(),
+            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!IsValid(Node) || !Node->ConfigureCreativeNode(
             mRequestedResource,
             mRequestedPurity,
-            mRequestedNodeType,
             Reason))
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
-            TEXT("Creative node Build Gun construct rolled back before finish: %s"), *Reason);
-        Node->Destroy();
+            TEXT("Creative ordinary node construct was refused: %s"), *Reason);
+        if (IsValid(Node))
+        {
+            Node->Destroy();
+        }
         return nullptr;
     }
 
     Node->FinishSpawning(PlacementTransform);
-    // AAIFactoryCreativeResourceNode inherits static-actor dormancy. The
-    // configuration is set while deferred, before the actor is necessarily
-    // registered with a replication graph, so wake it again after the normal
-    // Build Gun finish point for remote players.
     Node->FlushNetDormancy();
     Node->ForceNetUpdate();
     FNetConstructionID ConstructionIdForLog = ConstructionID;
     UE_LOG(LogAIFactoryCopilot, Display,
-        TEXT("Creative node constructed through Build Gun at %s (resource=%s purity=%s construction=%s)"),
+        TEXT("Creative ordinary node constructed through Build Gun at %s ")
+        TEXT("(resource=%s purity=%s construction=%s)"),
         *Node->GetActorLocation().ToCompactString(),
         *mRequestedResource->GetPathName(),
-        *StaticEnum<EResourcePurity>()->GetNameStringByValue(
-            static_cast<int64>(mRequestedPurity)),
+        *StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+            static_cast<int64>(mRequestedPurity)).ToString(),
         *ConstructionIdForLog.ToString());
     return Node;
 }
@@ -191,12 +315,42 @@ bool AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration(
         return false;
     }
 
-    FAIFactoryCreativeResourceNodeConfiguration& Pending =
+    FAIFactoryPendingCreativeNodeConfiguration& Pending =
         GPendingCreativeNodeConfigurations.FindOrAdd(TWeakObjectPtr<UWorld>(World));
-    Pending.SchemaVersion = 2;
     Pending.ResourceClass = Resource;
     Pending.Purity = Purity;
     Pending.NodeType = NodeType;
+    Pending.TemplateClass = nullptr;
+    return true;
+}
+
+bool AAIFactoryCreativeNodeHologram::SetPendingLocalTemplateConfiguration(
+    UWorld* const World,
+    const TSubclassOf<AFGResourceNode> TemplateClass,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    FString& OutReason)
+{
+    OutReason.Reset();
+    if (!IsValid(World))
+    {
+        OutReason = TEXT("the local world is unavailable");
+        return false;
+    }
+
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+    if (!AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            World, TemplateClass, Resource, Purity, NodeType, OutReason))
+    {
+        return false;
+    }
+
+    FAIFactoryPendingCreativeNodeConfiguration& Pending =
+        GPendingCreativeNodeConfigurations.FindOrAdd(TWeakObjectPtr<UWorld>(World));
+    Pending.ResourceClass = Resource;
+    Pending.Purity = Purity;
+    Pending.NodeType = NodeType;
+    Pending.TemplateClass = TemplateClass;
     return true;
 }
 
@@ -213,8 +367,18 @@ void AAIFactoryCreativeNodeHologram::CheckValidPlacement()
     Super::CheckValidPlacement();
 
     FString Reason;
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            mRequestedResource, mRequestedPurity, mRequestedNodeType, Reason))
+    EResourceNodeType ProvenNodeType = mRequestedNodeType;
+    const bool bConfigurationValid = IsValid(mRequestedTemplateClass)
+        ? AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            GetWorld(),
+            mRequestedTemplateClass,
+            mRequestedResource,
+            mRequestedPurity,
+            ProvenNodeType,
+            Reason)
+        : AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            mRequestedResource, mRequestedPurity, mRequestedNodeType, Reason);
+    if (!bConfigurationValid || ProvenNodeType != mRequestedNodeType)
     {
         AddConstructDisqualifier(
             UAIFactoryCreativeNodeInvalidConfigurationDisqualifier::StaticClass());
@@ -243,6 +407,28 @@ bool AAIFactoryCreativeNodeHologram::SetRequestedConfiguration(
     mRequestedResource = Resource;
     mRequestedPurity = Purity;
     mRequestedNodeType = NodeType;
+    mRequestedTemplateClass = nullptr;
+    UpdateRequestedVisual();
+    return true;
+}
+
+bool AAIFactoryCreativeNodeHologram::SetRequestedTemplateConfiguration(
+    const TSubclassOf<AFGResourceNode> TemplateClass,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    FString& OutReason)
+{
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+    if (!AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            GetWorld(), TemplateClass, Resource, Purity, NodeType, OutReason))
+    {
+        return false;
+    }
+
+    mRequestedResource = Resource;
+    mRequestedPurity = Purity;
+    mRequestedNodeType = NodeType;
+    mRequestedTemplateClass = TemplateClass;
     UpdateRequestedVisual();
     return true;
 }

@@ -3,6 +3,7 @@
 #include "AIFactoryCreativeNodeContent.h"
 #include "AIFactoryCreativeNodeRCO.h"
 #include "AIFactoryCreativeResourceNode.h"
+#include "AIFactoryNodeEdit.h"
 #include "AIFactoryWorldEditAccess.h"
 #include "Engine/World.h"
 #include "FGCharacterPlayer.h"
@@ -11,27 +12,14 @@
 #include "FGSchematicManager.h"
 #include "Resources/FGResourceDescriptor.h"
 
-namespace AIFactoryCreativeNodePlacement
+namespace
 {
-bool ArmForPlayer(
-    AFGPlayerController* const PlayerController,
-    const TSubclassOf<UFGResourceDescriptor> Resource,
-    const EResourcePurity Purity,
-    FString& OutReason)
-{
-    return ArmForPlayer(
-        PlayerController,
-        Resource,
-        Purity,
-        AAIFactoryCreativeResourceNode::NodeTypeForResource(Resource),
-        OutReason);
-}
-
-bool ArmForPlayer(
+bool AIFactoryArmCreativeNodeValidated(
     AFGPlayerController* const PlayerController,
     const TSubclassOf<UFGResourceDescriptor> Resource,
     const EResourcePurity Purity,
     const EResourceNodeType NodeType,
+    const TSubclassOf<AFGResourceNode> TemplateClass,
     FString& OutReason)
 {
     OutReason.Reset();
@@ -47,10 +35,19 @@ bool ArmForPlayer(
     }
 
     UWorld* const World = PlayerController->GetWorld();
-
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            Resource, Purity, NodeType, OutReason))
+    EResourceNodeType ProvenNodeType = NodeType;
+    const bool bTemplate = IsValid(TemplateClass);
+    const bool bConfigurationValid = bTemplate
+        ? AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            World, TemplateClass, Resource, Purity, ProvenNodeType, OutReason)
+        : AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, Purity, NodeType, OutReason);
+    if (!bConfigurationValid || ProvenNodeType != NodeType)
     {
+        if (OutReason.IsEmpty())
+        {
+            OutReason = TEXT("the special node template changed before the Build Gun could be armed");
+        }
         return false;
     }
 
@@ -64,11 +61,11 @@ bool ArmForPlayer(
     }
 
     // Grant through the real schematic system first so the normal Build Gun
-    // availability list is persistent and multiplayer-aware. The recipe
-    // availability itself is world/save scoped, so it must never be presented
-    // as a per-player entitlement; the write/admin gates above protect arming.
-    // The explicit fallback only covers a same-frame recipe-manager refresh gap.
-    if (!Schematics->IsSchematicPurchased(UAIFactoryCreativeNodeSchematic::StaticClass(), PlayerController))
+    // availability list is persistent and multiplayer-aware. The exact special
+    // node class is not granted as a recipe; it remains a validated payload on
+    // this mod's one universal editor hologram.
+    if (!Schematics->IsSchematicPurchased(
+            UAIFactoryCreativeNodeSchematic::StaticClass(), PlayerController))
     {
         Schematics->GiveAccessToSchematic(
             UAIFactoryCreativeNodeSchematic::StaticClass(),
@@ -93,10 +90,69 @@ bool ArmForPlayer(
         return false;
     }
 
-    // The RCO is a client-only selection handoff. The player still sees and
-    // confirms a normal hologram; its construction returns through the Build
-    // Gun's own server-authoritative RPC.
-    RCO->ClientArmCreativeResourceNode(Resource, Purity, NodeType);
+    if (bTemplate)
+    {
+        RCO->ClientArmCreativeResourceNodeTemplate(TemplateClass, Resource, Purity);
+    }
+    else
+    {
+        RCO->ClientArmCreativeResourceNode(Resource, Purity, NodeType);
+    }
     return true;
+}
+}
+
+namespace AIFactoryCreativeNodePlacement
+{
+bool ArmForPlayer(
+    AFGPlayerController* const PlayerController,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    FString& OutReason)
+{
+    return ArmForPlayer(
+        PlayerController,
+        Resource,
+        Purity,
+        AAIFactoryCreativeResourceNode::NodeTypeForResource(Resource),
+        OutReason);
+}
+
+bool ArmForPlayer(
+    AFGPlayerController* const PlayerController,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
+    FString& OutReason)
+{
+    return AIFactoryArmCreativeNodeValidated(
+        PlayerController, Resource, Purity, NodeType, nullptr, OutReason);
+}
+
+bool ArmTemplateForPlayer(
+    AFGPlayerController* const PlayerController,
+    const TSubclassOf<AFGResourceNode> TemplateClass,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    FString& OutReason)
+{
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+    if (!IsValid(PlayerController) ||
+        !AIFactoryNodeEdit::ValidateCreativeNodeTemplate(
+            PlayerController->GetWorld(),
+            TemplateClass,
+            Resource,
+            Purity,
+            NodeType,
+            OutReason))
+    {
+        if (OutReason.IsEmpty())
+        {
+            OutReason = TEXT("the requested special node template is unavailable");
+        }
+        return false;
+    }
+    return AIFactoryArmCreativeNodeValidated(
+        PlayerController, Resource, Purity, NodeType, TemplateClass, OutReason);
 }
 }

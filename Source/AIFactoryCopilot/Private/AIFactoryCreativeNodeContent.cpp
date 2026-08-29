@@ -27,7 +27,11 @@ TSubclassOf<AFGHologram> UAIFactoryCreativeNodeDescriptor::GetHologramClassInter
 
 TSubclassOf<AActor> UAIFactoryCreativeNodeDescriptor::GetBuildClassInternal() const
 {
-    return AAIFactoryCreativeResourceNode::StaticClass();
+    // The descriptor's normal class is a real ordinary AFGResourceNode so
+    // Miner holograms see the same inheritance contract as BP_ResourceNode.
+    // The custom hologram selects the retained geyser class only for an exact
+    // UFGResourceDescriptorGeyser request.
+    return AAIFactoryCreativeOrdinaryResourceNode::StaticClass();
 }
 
 UAIFactoryCreativeNodeRecipe::UAIFactoryCreativeNodeRecipe()

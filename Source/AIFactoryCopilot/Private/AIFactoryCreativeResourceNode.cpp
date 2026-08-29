@@ -41,6 +41,19 @@ namespace
         return NodeType == EResourceNodeType::Node ||
             NodeType == EResourceNodeType::Geyser;
     }
+
+    FText CreativeNodeLookAtDescription(const AFGResourceNode& Node)
+    {
+        const FText Purity = StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+            static_cast<int64>(Node.GetResourcePurity()));
+        return FText::Format(
+            NSLOCTEXT(
+                "AIFactoryCopilot",
+                "CreativeResourceNodeLookAtDescription",
+                "{0} ({1})"),
+            Node.GetResourceName(),
+            Purity);
+    }
 }
 
 AAIFactoryCreativeResourceNode::AAIFactoryCreativeResourceNode()
@@ -190,6 +203,18 @@ FRotator AAIFactoryCreativeResourceNode::GetPlacementRotation(
     const FVector& HitLocation) const
 {
     return GetActorRotation();
+}
+
+FText AAIFactoryCreativeResourceNode::GetLookAtDecription_Implementation(
+    AFGCharacterPlayer* const,
+    const FUseState&) const
+{
+    // Native BP_ResourceNode fills a private purity-text array in its Blueprint
+    // CDO. A native mod subclass has no access to that array, so the inherited
+    // formatter falls back to the internal enum token (for example RP_Pure).
+    // The enum already carries localized DisplayName metadata; use that exact
+    // player-facing text instead of leaking the implementation name.
+    return CreativeNodeLookAtDescription(*this);
 }
 
 bool AAIFactoryCreativeResourceNode::ConfigureCreativeNode(
@@ -458,4 +483,230 @@ bool AAIFactoryCreativeResourceNode::ApplyCreativeConfiguration(FString& OutReas
 void AAIFactoryCreativeResourceNode::UpdateCreativeVisual()
 {
     ApplyCreativeVisual(mCreativeVisual, mCreativeConfiguration.ResourceClass);
+}
+
+AAIFactoryCreativeOrdinaryResourceNode::AAIFactoryCreativeOrdinaryResourceNode()
+{
+    mResourceNodeType = EResourceNodeType::Node;
+    mCanPlaceResourceExtractor = false;
+    mCanPlacePortableMiner = false;
+
+    // Match the component contract of BP_ResourceNode: the Resource-profile
+    // box is the actor root and therefore the exact hit actor/component seen by
+    // AFGResourceExtractorHologram. This class deliberately derives directly
+    // from AFGResourceNode so a Miner never sees a disguised geyser subclass.
+    mBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CreativeOrdinaryNodeCollision"));
+    SetRootComponent(mBoxComponent);
+    mBoxComponent->SetBoxExtent(FVector(
+        CreativeNodeClearanceRadiusCm,
+        CreativeNodeClearanceRadiusCm,
+        CreativeNodeClearanceHeightCm * 0.5f));
+    mBoxComponent->SetRelativeLocation(FVector::ZeroVector);
+    mBoxComponent->SetCollisionProfileName(TEXT("Resource"));
+    mBoxComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel5, ECR_Overlap);
+    mBoxComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    mBoxComponent->SetGenerateOverlapEvents(true);
+
+    mCreativeVisual = CreateDefaultSubobject<UStaticMeshComponent>(
+        TEXT("CreativeOrdinaryNodeVisual"));
+    mCreativeVisual->SetupAttachment(mBoxComponent);
+    mCreativeVisual->ComponentTags.Add(TEXT("AIFactoryCreativeNodeVisual"));
+    mCreativeVisual->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    mCreativeVisual->SetCollisionObjectType(ECC_WorldStatic);
+    mCreativeVisual->SetCollisionResponseToAllChannels(ECR_Ignore);
+    mCreativeVisual->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    mCreativeVisual->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    mCreativeVisual->SetCollisionResponseToChannel(ECC_Camera, ECR_Block);
+    mCreativeVisual->SetGenerateOverlapEvents(false);
+}
+
+void AAIFactoryCreativeOrdinaryResourceNode::GetLifetimeReplicatedProps(
+    TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(
+        AAIFactoryCreativeOrdinaryResourceNode,
+        mCreativeConfiguration);
+}
+
+void AAIFactoryCreativeOrdinaryResourceNode::PostLoadGame_Implementation(
+    const int32 SaveVersion,
+    const int32 GameVersion)
+{
+    Super::PostLoadGame_Implementation(SaveVersion, GameVersion);
+
+    FString Reason;
+    if (!ApplyCreativeConfiguration(Reason))
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Creative ordinary resource node %s could not restore its saved configuration: %s"),
+            *GetPathName(),
+            *Reason);
+    }
+}
+
+void AAIFactoryCreativeOrdinaryResourceNode::GetClearanceData_Implementation(
+    TArray<FFGClearanceData>& OutData) const
+{
+    Super::GetClearanceData_Implementation(OutData);
+
+    FFGClearanceData Clearance;
+    Clearance.Type = EClearanceType::CT_Default;
+    Clearance.ClearanceBox = FBox(
+        FVector(-CreativeNodeClearanceRadiusCm, -CreativeNodeClearanceRadiusCm, 0.0f),
+        FVector(
+            CreativeNodeClearanceRadiusCm,
+            CreativeNodeClearanceRadiusCm,
+            CreativeNodeClearanceHeightCm));
+    Clearance.ExcludeForSnapping = true;
+    OutData.Add(Clearance);
+}
+
+bool AAIFactoryCreativeOrdinaryResourceNode::CanPlaceResourceExtractor() const
+{
+    FString Reason;
+    return (mCreativeConfiguration.SchemaVersion == 1 ||
+            mCreativeConfiguration.SchemaVersion == 2) &&
+        AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            mCreativeConfiguration.ResourceClass,
+            mCreativeConfiguration.Purity,
+            EResourceNodeType::Node,
+            Reason) &&
+        Super::CanPlaceResourceExtractor();
+}
+
+FVector AAIFactoryCreativeOrdinaryResourceNode::GetPlacementLocation(
+    const FVector& HitLocation) const
+{
+    return GetActorLocation();
+}
+
+FRotator AAIFactoryCreativeOrdinaryResourceNode::GetPlacementRotation(
+    const FVector& HitLocation) const
+{
+    return GetActorRotation();
+}
+
+FText AAIFactoryCreativeOrdinaryResourceNode::GetLookAtDecription_Implementation(
+    AFGCharacterPlayer* const,
+    const FUseState&) const
+{
+    return CreativeNodeLookAtDescription(*this);
+}
+
+bool AAIFactoryCreativeOrdinaryResourceNode::ConfigureCreativeNode(
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    FString& OutReason)
+{
+    OutReason.Reset();
+    if (!HasAuthority())
+    {
+        OutReason = TEXT("only the host can configure a creative ordinary resource node");
+        return false;
+    }
+    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource,
+            Purity,
+            EResourceNodeType::Node,
+            OutReason))
+    {
+        return false;
+    }
+
+    const FAIFactoryCreativeResourceNodeConfiguration Previous = mCreativeConfiguration;
+    mCreativeConfiguration.SchemaVersion = 2;
+    mCreativeConfiguration.ResourceClass = Resource;
+    mCreativeConfiguration.Purity = Purity;
+    mCreativeConfiguration.NodeType = EResourceNodeType::Node;
+    if (!ApplyCreativeConfiguration(OutReason))
+    {
+        mCreativeConfiguration = Previous;
+        FString RestoreReason;
+        ApplyCreativeConfiguration(RestoreReason);
+        return false;
+    }
+
+    FlushNetDormancy();
+    ForceNetUpdate();
+    return true;
+}
+
+void AAIFactoryCreativeOrdinaryResourceNode::OnRep_CreativeConfiguration()
+{
+    FString Reason;
+    if (!ApplyCreativeConfiguration(Reason))
+    {
+        UE_LOG(LogAIFactoryCopilot, Warning,
+            TEXT("Creative ordinary resource node %s received an invalid configuration: %s"),
+            *GetPathName(),
+            *Reason);
+    }
+}
+
+bool AAIFactoryCreativeOrdinaryResourceNode::ApplyCreativeConfiguration(
+    FString& OutReason)
+{
+    mCanPlaceResourceExtractor = false;
+    mCanPlacePortableMiner = false;
+
+    if ((mCreativeConfiguration.SchemaVersion != 1 &&
+         mCreativeConfiguration.SchemaVersion != 2) ||
+        !AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            mCreativeConfiguration.ResourceClass,
+            mCreativeConfiguration.Purity,
+            EResourceNodeType::Node,
+            OutReason))
+    {
+        AAIFactoryCreativeResourceNode::ApplyCreativeVisual(mCreativeVisual, nullptr);
+        if (OutReason.IsEmpty())
+        {
+            OutReason = FString::Printf(
+                TEXT("creative ordinary node configuration schema %d is unsupported"),
+                mCreativeConfiguration.SchemaVersion);
+        }
+        return false;
+    }
+
+    const TSubclassOf<UFGResourceDescriptor> Resource =
+        mCreativeConfiguration.ResourceClass;
+    const EResourcePurity Purity = mCreativeConfiguration.Purity;
+    mResourceNodeType = EResourceNodeType::Node;
+    InitResource(Resource, RA_Infinite, Purity);
+    SetResourceClassOverride(Resource);
+    SetResourcePurityOverride(Purity);
+
+    if (GetResourceClass() != Resource ||
+        GetResourcePurity() != Purity ||
+        GetResourceAmount() != RA_Infinite ||
+        !HasAnyResources())
+    {
+        AAIFactoryCreativeResourceNode::ApplyCreativeVisual(mCreativeVisual, nullptr);
+        OutReason = TEXT("Satisfactory did not retain the requested ordinary node configuration");
+        return false;
+    }
+
+    mCanPlaceResourceExtractor = true;
+    mCanPlacePortableMiner = UFGItemDescriptor::GetForm(Resource) == EResourceForm::RF_SOLID;
+    UpdateCanPlacePortableMiner();
+    UpdateCreativeVisual();
+
+    UE_LOG(LogAIFactoryCopilot, Display,
+        TEXT("Creative ordinary node gates: canPlaceExtractor=%d canBecomeOccupied=%d ")
+        TEXT("isOccupied=%d hasResources=%d resource=%s purity=%s"),
+        CanPlaceResourceExtractor() ? 1 : 0,
+        CanBecomeOccupied() ? 1 : 0,
+        IsOccupied() ? 1 : 0,
+        HasAnyResources() ? 1 : 0,
+        *GetNameSafe(GetResourceClass()),
+        *StaticEnum<EResourcePurity>()->GetNameStringByValue(
+            static_cast<int64>(GetResourcePurity())));
+    return true;
+}
+
+void AAIFactoryCreativeOrdinaryResourceNode::UpdateCreativeVisual()
+{
+    AAIFactoryCreativeResourceNode::ApplyCreativeVisual(
+        mCreativeVisual,
+        mCreativeConfiguration.ResourceClass);
 }

@@ -258,6 +258,182 @@ TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownCreativeResources(UWorld*
     return Result;
 }
 
+namespace
+{
+bool IsManagedCopilotNode(const AFGResourceNode* const Node)
+{
+    return IsValid(Node) &&
+        (Node->IsA<AAIFactoryCreativeResourceNode>() ||
+         Node->IsA<AAIFactoryCreativeOrdinaryResourceNode>() ||
+         Node->IsA<AAIFactoryBlueprintAnchorNode>());
+}
+
+bool IsSpecialTemplateEvidence(
+    const AFGResourceNode* const Node,
+    TSubclassOf<UFGResourceDescriptor>& OutResource)
+{
+    OutResource = nullptr;
+    if (!IsValid(Node) || IsManagedCopilotNode(Node) || !Node->HasAnyResources())
+    {
+        return false;
+    }
+
+    UClass* const NodeClass = Node->GetClass();
+    if (!IsValid(NodeClass) ||
+        NodeClass->HasAnyClassFlags(
+            CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+    {
+        return false;
+    }
+
+    OutResource = Node->GetResourceClassOriginal();
+    if (!IsValid(OutResource))
+    {
+        OutResource = Node->GetResourceClass();
+    }
+    if (!IsValid(OutResource))
+    {
+        return false;
+    }
+
+    // Normal resources and real geysers already have the safer mod-owned
+    // classes above. Template cloning exists only for mod-specific contracts
+    // such as Refined Power's RF_INVALID / Invalid Water Turbine node.
+    const EResourceForm Form = UFGItemDescriptor::GetForm(OutResource);
+    const EResourceNodeType NodeType = Node->GetResourceNodeType();
+    if (Form != EResourceForm::RF_INVALID &&
+        (NodeType == EResourceNodeType::Node ||
+         NodeType == EResourceNodeType::Geyser))
+    {
+        return false;
+    }
+
+    // An occupied live node is itself proof that its custom extractor can use
+    // the class. For an open node require the native gate to be true now.
+    return Node->IsOccupied() || Node->CanPlaceResourceExtractor();
+}
+}
+
+TMap<FString, FAIFactoryCreativeNodeTemplate> KnownCreativeNodeTemplates(
+    UWorld* World)
+{
+    TMap<FString, FAIFactoryCreativeNodeTemplate> Result;
+    if (!IsValid(World))
+    {
+        return Result;
+    }
+
+    TMap<FString, FAIFactoryCreativeNodeTemplate> ByClassPath;
+    TMap<FString, TArray<FString>> ClassPathsByDisplayName;
+    for (TActorIterator<AFGResourceNode> It(World); It; ++It)
+    {
+        AFGResourceNode* const Node = *It;
+        TSubclassOf<UFGResourceDescriptor> Resource;
+        if (!IsSpecialTemplateEvidence(Node, Resource))
+        {
+            continue;
+        }
+
+        UClass* const NodeClassObject = Node->GetClass();
+        const FString ClassPath = NodeClassObject->GetPathName();
+        if (ByClassPath.Contains(ClassPath))
+        {
+            continue;
+        }
+
+        FAIFactoryCreativeNodeTemplate Template;
+        Template.NodeClass = TSubclassOf<AFGResourceNode>(NodeClassObject);
+        Template.Resource = Resource;
+        Template.DisplayName =
+            UFGItemDescriptor::GetItemName(Resource).ToString().TrimStartAndEnd();
+        if (Template.DisplayName.IsEmpty())
+        {
+            Template.DisplayName = NodeClassObject->GetName();
+        }
+        Template.NodeType = Node->GetResourceNodeType();
+
+        ByClassPath.Add(ClassPath, Template);
+        ClassPathsByDisplayName.FindOrAdd(Template.DisplayName.ToLower()).Add(ClassPath);
+    }
+
+    for (const TPair<FString, FAIFactoryCreativeNodeTemplate>& Entry : ByClassPath)
+    {
+        Result.Add(Entry.Key.ToLower(), Entry.Value);
+    }
+    for (const TPair<FString, TArray<FString>>& Entry : ClassPathsByDisplayName)
+    {
+        if (Entry.Value.Num() == 1)
+        {
+            Result.Add(Entry.Key, ByClassPath.FindChecked(Entry.Value[0]));
+            continue;
+        }
+
+        for (const FString& ClassPath : Entry.Value)
+        {
+            const FAIFactoryCreativeNodeTemplate& Template =
+                ByClassPath.FindChecked(ClassPath);
+            Result.Add(
+                FString::Printf(
+                    TEXT("%s [%s]"),
+                    *Template.DisplayName,
+                    *Template.NodeClass->GetName()).ToLower(),
+                Template);
+        }
+    }
+    return Result;
+}
+
+bool ValidateCreativeNodeTemplate(
+    UWorld* World,
+    const TSubclassOf<AFGResourceNode> NodeClass,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    EResourceNodeType& OutNodeType,
+    FString& OutReason)
+{
+    OutNodeType = EResourceNodeType::Invalid;
+    OutReason.Reset();
+    if (!IsValid(World))
+    {
+        OutReason = TEXT("the live world is unavailable");
+        return false;
+    }
+    if (!IsValid(NodeClass) || !IsValid(Resource) ||
+        !NodeClass->IsChildOf(AFGResourceNode::StaticClass()))
+    {
+        OutReason = TEXT("a special node template needs an exact loaded resource-node class and descriptor");
+        return false;
+    }
+    if (Purity != RP_Inpure && Purity != RP_Normal && Purity != RP_Pure)
+    {
+        OutReason = TEXT("special node purity must be Impure, Normal, or Pure");
+        return false;
+    }
+
+    for (TActorIterator<AFGResourceNode> It(World); It; ++It)
+    {
+        AFGResourceNode* const Evidence = *It;
+        if (!IsValid(Evidence) || Evidence->GetClass() != NodeClass.Get())
+        {
+            continue;
+        }
+
+        TSubclassOf<UFGResourceDescriptor> EvidencedResource;
+        if (!IsSpecialTemplateEvidence(Evidence, EvidencedResource) ||
+            EvidencedResource != Resource)
+        {
+            continue;
+        }
+
+        OutNodeType = Evidence->GetResourceNodeType();
+        return true;
+    }
+
+    OutReason = TEXT(
+        "that special node class/resource pair is not proven by a live loaded node in this world");
+    return false;
+}
+
 bool SetNodeResource(
     AFGPlayerController* const RequestingPlayer,
     UWorld* World,
@@ -316,6 +492,22 @@ bool SetNodeResource(
         // A created node has no immutable map-original resource to restore.
         // Delegating rather than using the base override is what keeps its
         // own SaveGame configuration in sync across a future load.
+        if (!IsValid(Resource))
+        {
+            OutReason = TEXT(
+                "creative nodes have no vanilla original resource to restore. "
+                "Choose the resource you want instead");
+            return false;
+        }
+        return CreativeNode->ConfigureCreativeNode(
+            Resource,
+            CreativeNode->GetCreativePurity(),
+            OutReason);
+    }
+
+    if (AAIFactoryCreativeOrdinaryResourceNode* const CreativeNode =
+            Cast<AAIFactoryCreativeOrdinaryResourceNode>(Node))
+    {
         if (!IsValid(Resource))
         {
             OutReason = TEXT(

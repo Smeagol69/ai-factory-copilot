@@ -5,6 +5,25 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Repaired the live Creative Node Spawner compatibility gaps found against
+  Refined Power. Ordinary solid/liquid/gas resources now construct a true
+  `AFGResourceNode` subclass instead of changing the type flag on a geyser
+  subclass, restoring the concrete native contract used by Miner holograms;
+  the retained geyser class remains load-compatible for old saves and handles
+  real geothermal descriptors. Creative-node prompts now use Unreal's
+  localized purity display text (`Pure`) instead of leaking internal enum
+  names such as `RP_Pure`. The spawner also discovers special resource-node
+  classes from exact live actors, so Refined Power's `BP_WaterTurbineNode_C`
+  appears as `Water Turbine Node` even though it intentionally uses
+  `RF_INVALID` and node type `Invalid`. A selected special class/resource pair
+  is re-proven in the live world before arming and again before construction;
+  the server spawns that exact mod class and rejects mismatched readback rather
+  than approximating it as generic Water. Generic Water remains a liquid node
+  for compatible node extractors; vanilla Water Extractors still target water
+  volumes. Exact CL 502094 headers, Shipping/Editor builds, UAT cook/archive,
+  matched Steam deployment, and **887/887** tests pass. Installed DLL SHA-256
+  is `FD9E48807C424F8BBC1618DB0E74E1FA100AF6A129661E15658365504DE171D6`;
+  live Miner / Water Turbine hologram confirmation remains pending.
 - Extended the Creative Node Spawner beyond solid ores. The registered resource
   catalogue now includes liquid, gas, and geothermal geyser descriptors, while
   the server validates each descriptor against its native node form and node
