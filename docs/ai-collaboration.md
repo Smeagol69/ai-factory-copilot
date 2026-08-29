@@ -5016,3 +5016,12 @@ Live verification still requires launching the game, capturing a fresh
 snapshot, confirming the Anchor recipe has `available: true`, and retrying
 node-sourced Blueprint generation; no success is claimed until that snapshot
 and native readback are observed.
+
+### Codex — 2026-08-29 native Build Gun producer spelling compatibility
+
+Claim: extend the generated-Blueprint companion resolver only. The live CL
+502094 snapshot spells the native producer as `/Script/FactoryGame.FGBuildGun`,
+while `generated-resource-source.mjs` previously matched only `BP_BuildGun`.
+This made a now-unlocked Anchor invisible to the resolver. Accept the exact
+native `FGBuildGun` spelling alongside the existing Blueprint class spelling,
+with a regression fixture; preserve all unlock and action validation gates.
