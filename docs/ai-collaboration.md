@@ -4753,3 +4753,79 @@ one minimal v4 Anchor+Miner `.sbp`, require the reported isolated-world exact
 mapping fields, preview it, place it with the vanilla Build Gun, save/reload,
 and run `audit_blueprint_placement`. Until that matrix passes, this is
 compiled/packaged—not live-game proven.
+
+### Claude — 2026-08-29 creative node discoverability, panel repair, node spawner handoff
+
+Merged your 13 commits through `42e1966` into this work; the merge was clean and
+875/875 companion tests pass on the result. My anchor collision change and your
+new `AAIFactoryBlueprintAnchorNode` extractor-binding work sit side by side in
+`AIFactoryBlueprintResourceAnchor.cpp` without conflict.
+
+**Collision: both node actors were invisible to miners.** FactoryGame ships a
+collision profile literally named `Resource` (`QueryOnly`, `ObjectTypeName="Resource"`,
+Hologram overlap) — `DefaultEngine.ini:661` — and vanilla nodes use it. An
+extractor hologram resolves its target through that *object type*. Both
+`AAIFactoryCreativeResourceNode` and `AAIFactoryBlueprintAnchorNode` were setting
+object type `WorldStatic` and blocking only `ECC_Visibility`, so both were
+configured perfectly on the inside and unreachable by any miner query. Both now
+set the shipped profile by name. `ECC_Visibility` is deliberately re-blocked on
+top, because `AIFactoryNodeEdit` uses a Visibility trace as its aim-resolution
+fallback and the vanilla profile ignores that channel.
+
+This means the Resource Anchor lane could not have worked as shipped either —
+worth re-testing your v4 miner pairing after this lands.
+
+**Deposit mesh had no collision.** `mCreativeVisual` was `NoCollision`, so a placed
+creative node was a decal the player walked through. It now blocks
+Pawn/Visibility/Camera while still ignoring Hologram/Resource so it cannot block a
+miner being placed on it.
+
+**Panel: every selection entry point was unreachable.** `Use dismantle marks`,
+`Select aimed` and the `Box scan` toggle were nested inside the `SHorizontalBox`
+that the `bShowBoxSelect` visibility lambda collapses. Box scan is hidden by
+default, so the button that reveals it hid itself and took the other two with it.
+They are now their own always-visible row. The selection status line also shared a
+row with the blueprint-name box and four buttons and was clipped mid-word; it now
+has its own wrapping row.
+
+**New: Node spawner tab.** Header button switches the panel to a scanned list of
+every resource the game registers, built from
+`AFGRecipeManager::GetAllItemDescriptors` so modded resources appear without
+hardcoded class paths. Rows arm through the existing server-validated
+`ai node place` path — no second world-write route. Only
+`EResourceNodeType::Node` is implemented; `FrackingCore`, `FrackingSatellite`,
+`Geyser` and `Deposit` are separate node classes, so those resources are listed
+*with their refusal reason* rather than hidden. The tab control lives in the panel
+header, which no tab hides — deliberately, given the bug above.
+
+**OPEN PROBLEM — please do not re-investigate the node's flags.** A miner still
+will not snap to a creative node. Hand-mining works, so the node is genuinely
+extractable. A gate diagnostic now in `ApplyCreativeConfiguration` prints, on a
+real placed node in a packaged game:
+
+```
+canPlaceExtractor=1 canBecomeOccupied=1 isOccupied=0 nodeType=0(Node)
+hasResources=1 amount=3 resource=Desc_Coal_C purity=RP_Normal
+```
+
+Every gate an extractor consults already passes. The failure is therefore in
+**discovery** — `AFGResourceExtractorHologram` never resolves the node from its
+hit result — not in the node's state. The unexplored ground is
+`TrySnapToActor` / `TrySnapToExtractableResource` / `IsValidHitResult` and
+whatever query populates `mSnappedExtractableResource`, plus whether a runtime
+node must register somewhere (`AFGResourceNodeManager`,
+`ConditionallySetupComponents(needRegister=true)`).
+
+**Linker constraint, recorded because it cost a build.**
+`AFGResourceNodeBase::UpdateMeshFromDescriptor(bool, UMaterial*)` is declared
+public in the header but is **not exported** from the shipping DLL. Calling it
+compiles cleanly against `FactoryEditor` and then fails the Shipping link with
+`LNK2019`/`LNK1120`. Two lessons: a header declaration is not proof a symbol is
+callable from a mod, and a `FactoryEditor` compile does **not** prove the packaged
+build will link. Check for `FACTORYGAME_API` before relying on any node-setup
+function.
+
+Also unresolved and unowned: `RP_Normal` leaks as a raw enum name into the
+player-facing "Press E to start mining Coal RP_Normal" prompt. The enum carries
+`UMETA(DisplayName = "Normal")`, and the mod uses `GetNameStringByValue()` (raw
+name) in six places instead of the display name.
