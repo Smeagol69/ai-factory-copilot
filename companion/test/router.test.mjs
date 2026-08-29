@@ -944,6 +944,43 @@ test("native-blueprint inspection reports reciprocal belt and pipe evidence with
   assert.doesNotMatch(answer.reply, /flow direction.*proved/i);
 });
 
+test("native-blueprint inspection reports saved rail spline evidence without claiming tunnel joins", () => {
+  const answer = answerLocally("inspect blueprint Mountain tunnel mid", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Mountain tunnel mid",
+      decoded: { buildable_count: 92, component_count: 10 },
+      buildable_classes: [{ class_name: "RailroadTrack", count: 1 }],
+      pivot_bounds_cm: { span_cm: { x: 2000, y: 4400, z: 1300 } },
+      buildables_returned: 80,
+      buildables_truncated: 12,
+      header: { build_cost: [] },
+      connection_topology: { status: "decoded", supported_connection_reference_record_count: 0, reciprocal_connection_pair_count: 0 },
+      power_wire_topology: { status: "decoded", native_power_connection_component_count: 0, saved_power_wire_reference_count: 0, verified_power_wire_count: 0 },
+      rail_topology: {
+        status: "decoded",
+        native_rail_track_entity_count: 1,
+        total_spline_point_count: 2,
+        rail_track_records_returned: 1,
+        rail_track_records_truncated: 0,
+        malformed_rail_track_entity_record_count: 0,
+        missing_track_graph_id_count: 0,
+        malformed_track_graph_id_count: 0,
+        missing_spline_data_count: 0,
+        malformed_spline_data_count: 0,
+        malformed_spline_point_count: 0,
+      },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /1.*native railroad track segment/i);
+  assert.match(answer.reply, /2.*saved spline points/i);
+  assert.match(answer.reply, /do not prove that segments will join/i);
+  assert.match(answer.reply, /clear mountain terrain/i);
+});
+
 test("a listed blueprint reference disambiguates safely, but never accepts traversal", () => {
   assert.deepEqual(
     parseBlueprintLayoutRequest("inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp"),

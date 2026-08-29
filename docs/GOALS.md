@@ -71,13 +71,16 @@ poles and ladders and none of its shell. That was fixed in the exporter on
 Still missing after that: measured production rates per machine (the snapshot
 has `connections` and `inventories` but nothing that says "this smelter is
 running at 84%"). The structural `.sbp` parser now reads saved buildable
-geometry, exact reciprocal conveyor/pipe component links, and exact physical
-native power-wire edges, so it can verify an internal native Blueprint route
-without reconstructing it from an image. It deliberately still does not infer
-item/fluid direction/rate, electricity direction/load/capacity, terrain fit,
-external hookups, or future placement validity. Saved `mHiddenConnections` are
-logical circuit relationships, not physical wires, and remain explicitly
-outside this physical-wire view.
+geometry, exact reciprocal conveyor/pipe component links, exact physical
+native power-wire edges, and saved native railroad-track spline records, so it
+can study an internal native Blueprint route without reconstructing it from an
+image. Track points, tangents, transforms, and `mTrackGraphID` are saved-file
+evidence only: they do not prove segment joins, terrain excavation, collision
+clearance, signals, power, external hookups, or future placement validity. It
+deliberately still does not infer item/fluid direction/rate or electricity
+direction/load/capacity. Saved `mHiddenConnections` are logical circuit
+relationships, not physical wires, and remain explicitly outside this
+physical-wire view.
 
 ### 2. UNDERSTAND — know what the reading means
 
@@ -174,10 +177,11 @@ not prove that the generator has learned good taste yet.
 1. **Snapshot sees lightweight** — written, pending a build. Nothing above it
    is worth doing while four fifths of the world is invisible.
 2. **`.sbp` structural parser** — reads the owner's style, saved geometry,
-   exact reciprocal conveyor/pipe component links, and physical native
-   power-wire edges; it now verifies generated internal routes before Build Gun
-   placement while retaining explicit unknowns for direction, load/capacity,
-   and external hookups. Companion-side, no build cycle, no crash risk.
+   exact reciprocal conveyor/pipe component links, physical native power-wire
+   edges, and native rail spline records; it now verifies generated internal
+   routes before Build Gun placement while retaining explicit unknowns for rail
+   joins, terrain, direction, load/capacity, and external hookups.
+   Companion-side, no build cycle, no crash risk.
 3. **One planner rerouted to blueprint output** — source-complete for the
    general rate-sized enclosed-factory route. The versioned contract preserves
    old behavior: v1 is standalone geometry, v2 adds explicit straight conveyors

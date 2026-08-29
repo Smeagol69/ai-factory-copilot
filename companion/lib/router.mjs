@@ -606,6 +606,35 @@ function formatBlueprintLayout(result) {
     }
     powerWireText += " Saved hidden circuit connections are deliberately excluded. Electricity direction, load, capacity, and external power hookups are not inferred.";
   }
+  const railTopology = result.rail_topology;
+  let railText = " Native railroad-track spline topology was not decoded.";
+  if (railTopology?.status === "decoded") {
+    const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+    const trackCount = count(railTopology.native_rail_track_entity_count) ?? 0;
+    const pointCount = count(railTopology.total_spline_point_count) ?? 0;
+    const returned = count(railTopology.rail_track_records_returned) ?? 0;
+    const truncatedTracks = count(railTopology.rail_track_records_truncated) ?? 0;
+    const malformed = [
+      railTopology.malformed_rail_track_entity_record_count,
+      railTopology.missing_track_graph_id_count,
+      railTopology.malformed_track_graph_id_count,
+      railTopology.missing_spline_data_count,
+      railTopology.malformed_spline_data_count,
+      railTopology.malformed_spline_point_count,
+    ].reduce((total, value) => total + (count(value) ?? 0), 0);
+    if (trackCount > 0) {
+      railText = ` It records **${trackCount}** native railroad track segment${trackCount === 1 ? "" : "s"} with **${pointCount}** saved spline point${pointCount === 1 ? "" : "s"}.`;
+    } else {
+      railText = " It has no saved native railroad track entities.";
+    }
+    if (malformed > 0) {
+      railText += ` **${malformed}** rail record${malformed === 1 ? " is" : "s are"} missing or malformed, so this is not a complete spline-data proof.`;
+    }
+    if (truncatedTracks > 0) {
+      railText += ` I returned ${returned} individual rail segment${returned === 1 ? "" : "s"} and left ${truncatedTracks} out of this compact reply.`;
+    }
+    railText += " Saved local spline points, tangents, and graph IDs do not prove that segments will join after placement, clear mountain terrain, satisfy collision/Build Gun checks, carry signals or power, or connect to external rail.";
+  }
   return `**${result.blueprint_name}** decodes to **${decoded.buildable_count ?? 0} Build_* entities** ` +
     `(${decoded.component_count ?? 0} components).${span}` +
     (classes ? ` Most common classes: ${classes}.` : "") +
@@ -613,6 +642,7 @@ function formatBlueprintLayout(result) {
     (omitted > 0 ? ` and left ${omitted} out of this compact reply.` : ".") +
     topologyText +
     powerWireText +
+    railText +
     " These are native saved transforms and saved component references, not proof that the blueprint will clear terrain or fit at a new location.";
 }
 

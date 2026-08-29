@@ -5,6 +5,15 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added read-only native **rail/tunnel reference inspection** to the Blueprint
+  structural reader. The companion now decodes exact saved
+  `Build_RailroadTrack` `mSplineData` locations/tangents, local spline bounds,
+  chord-length lower bounds, transforms, and `mTrackGraphID` metadata with
+  bounded output. This lets the assistant study modular tunnel references such
+  as entrance, middle, and facade segments without mistaking a saved track for
+  proof of cross-segment joins, terrain excavation, collision clearance,
+  signals, power, or destination Build Gun validity. No writer or world mutation
+  was added; v1/v2 Blueprint behavior is unchanged.
 - Added the first exact native **pipeline topology** primitive to
   planner-generated Blueprints through `aifactory.generated-blueprint/v3`.
   Registered building descriptors now expose their real pipe-connection names,

@@ -4559,3 +4559,34 @@ dynamically and its CDO is incomplete, do not add a hard-coded fallback: capture
 a transient probe or real instance. Pumps, head lift, fluid-rate sizing,
 junction/manifold routing, terrain-aware water extraction, miner/resource-node
 anchoring, and an automatic coal-power Blueprint are still open.
+
+### Codex — 2026-08-28 native rail/tunnel reference handoff
+
+Branch: `codex/blueprint-rail-tunnel-reference`; claim commit `db39e67`.
+This lane is companion-only and read-only. It extends the pinned native
+Blueprint structural parser with exact `Build_RailroadTrack` records: saved
+actor transforms, `mTrackGraphID`, `mSplineData` locations and arrive/leave
+tangents, local point bounds, and a straight-line chord-length lower bound.
+Returned tracks and points are bounded, and malformed or missing fields remain
+explicitly inconclusive. No rail writer, raw actor spawn, terrain edit, or world
+mutation is involved; v1/v2 Blueprint behavior is preserved.
+
+The owner-supplied tunnel reference set was decoded with the pinned parser:
+`Mtn. Tunnel Ent. Straight [Mk. 3]` is FactoryGame CL 488068 with 117
+Build_* entities, 13 components, one native railroad track, and two saved
+spline points; `Mtn. Tunnel Mid. Straight [Mk. 3]` has 92 entities, 10
+components, one track, and two points; `Mtn. Tunnel Facade [Mk.3]` has 21
+entities, no components, and no native track. Their saved buildable pivot spans
+are respectively 22×44×15.5 m, 20×44×13 m, and 22×4×15 m. The entrance and
+middle repeat the polished quarter-pipe shell (24 + 24 + 24 + 12 pieces), while
+the facade carries the exterior wall/roof/door finish. All three use designer
+dimensions 6×6×6. The entrance and middle store `mTrackGraphID = 1`; that is
+preserved metadata, not proof that separate Blueprint placements join.
+
+The assistant can now use these exact records when studying a modular mountain
+tunnel style or comparing a proposed rail segment. It must still tell the
+player to place entrance/exit pieces at both mouths, chain middle pieces with
+the vanilla Build Gun snap, add the facade outside each opening, and connect
+the external railway. The blueprints do not excavate mountains, guarantee
+collision/clearance, create signals or power, or establish a through-route;
+Satisfactory's hologram and live rail graph remain authoritative at placement.

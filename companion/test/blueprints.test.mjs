@@ -9,6 +9,7 @@ import {
   costAgainstInventory,
   decodeBlueprintConnectionTopology,
   decodeBlueprintPowerWireTopology,
+  decodeBlueprintRailTopology,
   inspectBlueprintStructure,
   parseBlueprintConfig,
   parseBlueprintHeader,
@@ -23,6 +24,7 @@ const CABLE = "/Game/FactoryGame/Resource/Parts/Cable/Desc_Cable.Desc_Cable_C";
 const SMELTER_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_SmelterMk1.Recipe_SmelterMk1_C";
 const POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
 const POWER_LINE_CLASS = "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C";
+const RAIL_TRACK_CLASS = "/Game/FactoryGame/Buildable/Factory/Train/Track/Build_RailroadTrack.Build_RailroadTrack_C";
 
 function int32(value) {
   const bytes = Buffer.alloc(4);
@@ -148,6 +150,44 @@ function savedPowerConnection(instanceName, parentEntityName, wireNames, propert
         values: wireNames.map((pathName) => ({ levelName: "Persistent_Level", pathName })),
       },
     },
+  };
+}
+
+function savedRailTrack(instanceName, points, graphId = 1, overrides = {}) {
+  return {
+    type: "SaveEntity",
+    typePath: RAIL_TRACK_CLASS,
+    instanceName,
+    transform: {
+      translation: { x: 100, y: 200, z: 300 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      scale3d: { x: 1, y: 1, z: 1 },
+    },
+    properties: {
+      mTrackGraphID: {
+        type: "IntProperty",
+        name: "mTrackGraphID",
+        propertyTagType: { name: "IntProperty", children: [] },
+        value: graphId,
+      },
+      mSplineData: {
+        type: "ArrayProperty",
+        name: "mSplineData",
+        propertyTagType: {
+          name: "ArrayProperty",
+          children: [{ name: "StructProperty", children: [{ name: "SplinePointData", children: [] }] }],
+        },
+        values: points.map(({ x, y, z, tangent = { x: 0, y: 0, z: 0 } }) => ({
+          type: "SplinePointData",
+          properties: {
+            Location: { type: "StructProperty", name: "Location", value: { x, y, z } },
+            ArriveTangent: { type: "StructProperty", name: "ArriveTangent", value: tangent },
+            LeaveTangent: { type: "StructProperty", name: "LeaveTangent", value: tangent },
+          },
+        })),
+      },
+    },
+    ...overrides,
   };
 }
 
@@ -307,6 +347,8 @@ test("reads exact native buildable transforms through the pinned read-only parse
   assert.equal(result.connection_topology.reciprocal_connection_pair_count, 0);
   assert.equal(result.power_wire_topology.status, "decoded");
   assert.equal(result.power_wire_topology.verified_power_wire_count, 0);
+  assert.equal(result.rail_topology.status, "decoded");
+  assert.equal(result.rail_topology.native_rail_track_entity_count, 0);
   assert.match(result.transform_coverage_caveat, /hologram validity/i);
 });
 
@@ -492,6 +534,65 @@ test("power-wire topology downgrades malformed component identity and missing en
   assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_power_wire_references");
 });
 
+test("rail topology decodes exact saved spline points and bounded track metadata", () => {
+  const topology = decodeBlueprintRailTopology([
+    savedRailTrack("Persistent_Level:Rail_A", [
+      { x: 0, y: 0, z: 0, tangent: { x: 100, y: 0, z: 0 } },
+      { x: 300, y: 400, z: 0, tangent: { x: 0, y: 100, z: 0 } },
+    ], 7),
+    savedRailTrack("Persistent_Level:Rail_B", [
+      { x: -800, y: 0, z: 0 },
+      { x: -400, y: 0, z: 0 },
+    ], 7),
+  ], { maximumRailTracks: 1, maximumRailSplinePoints: 1 });
+
+  assert.equal(topology.status, "decoded");
+  assert.equal(topology.native_rail_track_entity_count, 2);
+  assert.equal(topology.rail_track_records_returned, 1);
+  assert.equal(topology.rail_track_records_truncated, 1);
+  assert.equal(topology.total_spline_point_count, 4);
+  assert.deepEqual(topology.track_graph_ids, [7]);
+  assert.equal(topology.rail_tracks[0].spline_point_count, 2);
+  assert.equal(topology.rail_tracks[0].spline_points_returned, 1);
+  assert.equal(topology.rail_tracks[0].spline_points_truncated, 1);
+  assert.deepEqual(topology.rail_tracks[0].spline_points[0].location_cm, { x: 0, y: 0, z: 0 });
+  assert.deepEqual(topology.rail_tracks[0].local_bounds_cm.span_cm, { x: 300, y: 400, z: 0 });
+  assert.equal(topology.rail_tracks[0].chord_length_cm, 500);
+  assert.equal(topology.rail_connectivity, "not_proven_from_saved_spline_points_or_m_track_graph_id");
+  assert.equal(topology.certainty, "authoritative_for_saved_native_rail_spline_records");
+});
+
+test("rail topology keeps missing and malformed saved rail fields explicit", () => {
+  const topology = decodeBlueprintRailTopology([
+    savedRailTrack("Persistent_Level:Rail_Missing", [], 1, { properties: {} }),
+    savedRailTrack("Persistent_Level:Rail_BadPoint", [
+      { x: 0, y: 0, z: 0 },
+    ], 1, {
+      properties: {
+        mTrackGraphID: {
+          type: "IntProperty",
+          name: "mTrackGraphID",
+          propertyTagType: { name: "IntProperty", children: [] },
+          value: "not-an-id",
+        },
+        mSplineData: {
+          type: "ArrayProperty",
+          name: "mSplineData",
+          propertyTagType: { name: "ArrayProperty", children: [] },
+          values: [{}],
+        },
+      },
+    }),
+    { type: "SaveEntity", typePath: RAIL_TRACK_CLASS, instanceName: "" },
+  ]);
+  assert.equal(topology.native_rail_track_entity_count, 3);
+  assert.equal(topology.malformed_rail_track_entity_record_count, 1);
+  assert.equal(topology.missing_spline_data_count, 2);
+  assert.equal(topology.malformed_track_graph_id_count, 1);
+  assert.equal(topology.malformed_spline_data_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_rail_records");
+});
+
 test("structural inspection preserves an unreadable file as unknown", () => {
   const result = inspectBlueprintStructure("Broken", Buffer.alloc(8), Buffer.alloc(8));
   assert.equal(result.available, false);
@@ -526,6 +627,8 @@ test("the structural solver prices a bounded native layout against the live inve
   assert.equal(result.ingredients[0].item_name, "IronPlate");
   assert.equal(result.ingredients[0].shortfall, 0);
   assert.equal(receivedOptions.maximumPowerWires, 3);
+  assert.equal(receivedOptions.maximumRailTracks, 40);
+  assert.equal(receivedOptions.maximumRailSplinePoints, 200);
 });
 
 test("the configured reader stays inside its library and resolves one exact native blueprint", () => {

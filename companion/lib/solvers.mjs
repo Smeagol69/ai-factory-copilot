@@ -1740,6 +1740,8 @@ export function solveBlueprintLayout(
     maximum_buildables = 80,
     maximum_connections = 80,
     maximum_power_wires = 80,
+    maximum_rail_tracks = 40,
+    maximum_rail_spline_points = 200,
   } = {},
   { inspectBlueprint = null } = {},
 ) {
@@ -1770,6 +1772,8 @@ export function solveBlueprintLayout(
     maximumBuildables: maximum_buildables,
     maximumConnections: maximum_connections,
     maximumPowerWires: maximum_power_wires,
+    maximumRailTracks: maximum_rail_tracks,
+    maximumRailSplinePoints: maximum_rail_spline_points,
   });
   if (!structure?.available) {
     return {

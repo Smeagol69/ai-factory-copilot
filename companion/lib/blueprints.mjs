@@ -29,6 +29,17 @@ const DEFAULT_MAXIMUM_CONNECTIONS = 80;
 const MAXIMUM_CONNECTIONS = 200;
 const PARSER_VERSION = "4.1.2";
 const NATIVE_POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
+// Railroad tracks are spline buildables, but their saved `mSplineData` is not
+// a factory connection component. Keep this class path exact: a property named
+// mSplineData on an arbitrary modded Build_* object is not enough to call it a
+// rail. The native header exposes AFGBuildableRailroadTrack::GetSplinePointData
+// and its persisted mSplineData in the installed CL 502094 Starter Project.
+const NATIVE_RAIL_TRACK_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/Train/Track/Build_RailroadTrack.Build_RailroadTrack_C";
+const DEFAULT_MAXIMUM_RAIL_TRACKS = 40;
+const MAXIMUM_RAIL_TRACKS = 80;
+const DEFAULT_MAXIMUM_RAIL_SPLINE_POINTS = 200;
+const MAXIMUM_RAIL_SPLINE_POINTS = 1000;
 const NATIVE_POWER_LINE_CLASSES = new Set([
   "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
   "/Game/FactoryGame/Events/Christmas/Buildings/PowerLineLights/Build_XmassLightsLine.Build_XmassLightsLine_C",
@@ -463,6 +474,228 @@ function isNativePowerLine(entity) {
   return entity?.type === "SaveEntity" && NATIVE_POWER_LINE_CLASSES.has(entity.typePath);
 }
 
+function isNativeRailTrack(entity) {
+  return entity?.type === "SaveEntity" && entity.typePath === NATIVE_RAIL_TRACK_CLASS;
+}
+
+function railTrackGraphId(entity) {
+  const property = entity?.properties?.mTrackGraphID;
+  if (!property) return { state: "missing", value: null };
+  if (
+    property.type !== "IntProperty" ||
+    property.name !== "mTrackGraphID" ||
+    property.propertyTagType?.name !== "IntProperty" ||
+    !Number.isInteger(property.value)
+  ) {
+    return { state: "malformed", value: null };
+  }
+  return { state: "valid", value: property.value };
+}
+
+function railSplinePoint(point) {
+  if (point?.type !== "SplinePointData" || !point.properties) return null;
+  const vectorProperty = (property, name) =>
+    property?.type === "StructProperty" && property.name === name
+      ? finiteVector(property.value, ["x", "y", "z"])
+      : null;
+  const location = vectorProperty(point.properties.Location, "Location");
+  const arriveTangent = vectorProperty(point.properties.ArriveTangent, "ArriveTangent");
+  const leaveTangent = vectorProperty(point.properties.LeaveTangent, "LeaveTangent");
+  if (!location || !arriveTangent || !leaveTangent) return null;
+  return {
+    location_cm: location,
+    arrive_tangent_cm: arriveTangent,
+    leave_tangent_cm: leaveTangent,
+  };
+}
+
+function railSplineData(entity) {
+  const property = entity?.properties?.mSplineData;
+  if (!property) return { state: "missing", points: [], malformed_point_count: 0 };
+  const exactArray =
+    property.type === "ArrayProperty" &&
+    property.name === "mSplineData" &&
+    property.propertyTagType?.name === "ArrayProperty" &&
+    Array.isArray(property.propertyTagType.children) &&
+    property.propertyTagType.children.length === 1 &&
+    property.propertyTagType.children[0]?.name === "StructProperty" &&
+    property.propertyTagType.children[0]?.children?.[0]?.name === "SplinePointData" &&
+    Array.isArray(property.values);
+  if (!exactArray) return { state: "malformed", points: [], malformed_point_count: 0 };
+
+  const points = [];
+  let malformedPointCount = 0;
+  for (const value of property.values) {
+    const point = railSplinePoint(value);
+    if (!point) malformedPointCount += 1;
+    else points.push(point);
+  }
+  return {
+    state: malformedPointCount > 0 ? "malformed_points" : "valid",
+    points,
+    declared_point_count: property.values.length,
+    malformed_point_count: malformedPointCount,
+  };
+}
+
+function railLocalBounds(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const minimum = { ...points[0].location_cm };
+  const maximum = { ...points[0].location_cm };
+  for (const point of points.slice(1)) {
+    for (const axis of ["x", "y", "z"]) {
+      minimum[axis] = Math.min(minimum[axis], point.location_cm[axis]);
+      maximum[axis] = Math.max(maximum[axis], point.location_cm[axis]);
+    }
+  }
+  return {
+    minimum_cm: minimum,
+    maximum_cm: maximum,
+    span_cm: {
+      x: maximum.x - minimum.x,
+      y: maximum.y - minimum.y,
+      z: maximum.z - minimum.z,
+    },
+    caveat: "Bounds are saved local spline-point positions, not rail collision or visual extents.",
+  };
+}
+
+function railChordLength(points) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1].location_cm;
+    const current = points[index].location_cm;
+    length += Math.hypot(
+      current.x - previous.x,
+      current.y - previous.y,
+      current.z - previous.z,
+    );
+  }
+  return length;
+}
+
+function railMaximum(value, fallback, maximum) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(maximum, Math.max(1, Math.trunc(numeric)));
+}
+
+/**
+ * Decode saved native railroad tracks without pretending that a Blueprint's
+ * graph ID or spline endpoints prove that two placed segments will join. The
+ * track header and point/tangent data are authoritative observations of this
+ * file; terrain, clearance, graph remapping, and destination hookups remain
+ * game-side questions.
+ */
+export function decodeBlueprintRailTopology(
+  objects,
+  {
+    maximumRailTracks = DEFAULT_MAXIMUM_RAIL_TRACKS,
+    maximumRailSplinePoints = DEFAULT_MAXIMUM_RAIL_SPLINE_POINTS,
+  } = {},
+) {
+  const allObjects = Array.isArray(objects) ? objects : [];
+  const railTracks = allObjects.filter(isNativeRailTrack);
+  const entities = allObjects.filter((object) => object?.type === "SaveEntity");
+  const entityIndexes = new Map(entities.map((entity, index) => [entity, index]));
+  const maximumTracks = railMaximum(maximumRailTracks, DEFAULT_MAXIMUM_RAIL_TRACKS, MAXIMUM_RAIL_TRACKS);
+  const maximumPoints = railMaximum(
+    maximumRailSplinePoints,
+    DEFAULT_MAXIMUM_RAIL_SPLINE_POINTS,
+    MAXIMUM_RAIL_SPLINE_POINTS,
+  );
+  const trackRecords = [];
+  const graphIds = new Set();
+  let malformedTrackEntityRecordCount = 0;
+  let missingGraphIdCount = 0;
+  let malformedGraphIdCount = 0;
+  let missingSplineDataCount = 0;
+  let malformedSplineDataCount = 0;
+  let malformedSplinePointCount = 0;
+  let finiteTransformCount = 0;
+  let totalSplinePointCount = 0;
+
+  for (const [entityIndex, entity] of allObjects.entries()) {
+    if (!isNativeRailTrack(entity)) continue;
+    const instanceName = validSavedInstanceName(entity.instanceName) ? entity.instanceName : null;
+    if (!instanceName) malformedTrackEntityRecordCount += 1;
+    const graphId = railTrackGraphId(entity);
+    if (graphId.state === "valid") graphIds.add(graphId.value);
+    else if (graphId.state === "missing") missingGraphIdCount += 1;
+    else malformedGraphIdCount += 1;
+    const spline = railSplineData(entity);
+    if (spline.state === "missing") missingSplineDataCount += 1;
+    else if (spline.state === "malformed") malformedSplineDataCount += 1;
+    malformedSplinePointCount += spline.malformed_point_count ?? 0;
+    const transform = readBuildableTransform(entity);
+    if (transform) finiteTransformCount += 1;
+    const points = spline.points;
+    totalSplinePointCount += spline.declared_point_count ?? points.length;
+    const returnedPoints = points.slice(0, maximumPoints);
+    const record = {
+      entity_index: entityIndexes.get(entity) ?? entityIndex,
+      track_instance_name: instanceName,
+      track_class_path: entity.typePath,
+      track_class_name: shortName(entity.typePath),
+      transform,
+      track_graph_id: graphId.value,
+      track_graph_id_state: graphId.state,
+      spline_data_state: spline.state,
+      spline_point_count: spline.declared_point_count ?? points.length,
+      malformed_spline_point_count: spline.malformed_point_count ?? 0,
+      spline_points: returnedPoints,
+      spline_points_returned: returnedPoints.length,
+      spline_points_truncated: Math.max(0, points.length - returnedPoints.length),
+      local_bounds_cm: railLocalBounds(points),
+      chord_length_cm: spline.state === "valid" ? railChordLength(points) : null,
+      built_with_recipe: builtWithRecipe(entity),
+    };
+    trackRecords.push(record);
+  }
+
+  const hasInconclusiveRecords =
+    malformedTrackEntityRecordCount > 0 ||
+    missingGraphIdCount > 0 ||
+    malformedGraphIdCount > 0 ||
+    missingSplineDataCount > 0 ||
+    malformedSplineDataCount > 0 ||
+    malformedSplinePointCount > 0;
+  const returnedTracks = trackRecords.slice(0, maximumTracks);
+  const returnedSplinePointCount = returnedTracks.reduce(
+    (total, record) => total + (record.spline_points_returned ?? 0),
+    0,
+  );
+  return {
+    status: "decoded",
+    scope: "saved_native_railroad_track_spline_records",
+    native_rail_track_entity_count: railTracks.length,
+    rail_track_records_returned: returnedTracks.length,
+    rail_track_records_truncated: Math.max(0, trackRecords.length - returnedTracks.length),
+    rail_tracks: returnedTracks,
+    total_spline_point_count: totalSplinePointCount,
+    returned_spline_point_count: returnedSplinePointCount,
+    spline_points_truncated: Math.max(0, totalSplinePointCount - returnedSplinePointCount),
+    track_graph_ids: [...graphIds].sort((left, right) => left - right),
+    finite_transform_count: finiteTransformCount,
+    malformed_rail_track_entity_record_count: malformedTrackEntityRecordCount,
+    missing_track_graph_id_count: missingGraphIdCount,
+    malformed_track_graph_id_count: malformedGraphIdCount,
+    missing_spline_data_count: missingSplineDataCount,
+    malformed_spline_data_count: malformedSplineDataCount,
+    malformed_spline_point_count: malformedSplinePointCount,
+    rail_connectivity: "not_proven_from_saved_spline_points_or_m_track_graph_id",
+    external_connections: "not_proven_by_the_saved_blueprint",
+    terrain_clearance_and_destination_fit: "not_proven_by_the_saved_blueprint",
+    caveat:
+      "Track transforms and mSplineData points/tangents are exact saved native observations. Chord length is the straight-line lower bound between saved points, not the curved spline length. mTrackGraphID is retained metadata; it does not prove cross-segment joins after placement, terrain excavation, collision clearance, signals, power, or external rail hookups.",
+    source: "decoded_from_saved_native_railroad_track_m_spline_data",
+    certainty: hasInconclusiveRecords
+      ? "authoritative_observation_with_inconclusive_rail_records"
+      : "authoritative_for_saved_native_rail_spline_records",
+  };
+}
+
 function uniqueObjectsByInstanceName(objects) {
   const byName = new Map();
   const duplicateNames = new Set();
@@ -889,6 +1122,8 @@ export function inspectBlueprintStructure(
     maximumBuildables = DEFAULT_MAXIMUM_BUILDABLES,
     maximumConnections = DEFAULT_MAXIMUM_CONNECTIONS,
     maximumPowerWires = DEFAULT_MAXIMUM_CONNECTIONS,
+    maximumRailTracks = DEFAULT_MAXIMUM_RAIL_TRACKS,
+    maximumRailSplinePoints = DEFAULT_MAXIMUM_RAIL_SPLINE_POINTS,
   } = {},
 ) {
   let header;
@@ -993,6 +1228,10 @@ export function inspectBlueprintStructure(
   ).length;
   const connectionTopology = decodeBlueprintConnectionTopology(objects, { maximumConnections });
   const powerWireTopology = decodeBlueprintPowerWireTopology(objects, { maximumPowerWires });
+  const railTopology = decodeBlueprintRailTopology(objects, {
+    maximumRailTracks,
+    maximumRailSplinePoints,
+  });
 
   return {
     available: true,
@@ -1038,6 +1277,7 @@ export function inspectBlueprintStructure(
       "Only native Build_* entities with finite saved transforms are listed. The blueprint file does not prove terrain clearance, hologram validity, or external connections at a destination.",
     connection_topology: connectionTopology,
     power_wire_topology: powerWireTopology,
+    rail_topology: railTopology,
     source: "decoded_from_saved_native_blueprint",
     certainty:
       rows.length < transformed.length
