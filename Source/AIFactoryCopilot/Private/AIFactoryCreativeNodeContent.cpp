@@ -17,7 +17,7 @@ FText UAIFactoryCreativeNodeDescriptor::GetItemDescriptionInternal() const
     return NSLOCTEXT(
         "AIFactoryCopilot",
         "CreativeResourceNodeDescription",
-        "A mod-owned infinite solid resource node. Choose its resource and purity before placing it with the normal Build Gun.");
+        "A mod-owned infinite resource node. Choose a solid, liquid, gas, or geothermal geyser descriptor and purity before placing it with the normal Build Gun.");
 }
 
 TSubclassOf<AFGHologram> UAIFactoryCreativeNodeDescriptor::GetHologramClassInternal() const

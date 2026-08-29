@@ -673,10 +673,10 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()
                 [
                     SAssignNew(CreativeNodeResourceBox, SEditableTextBox)
                     .HintText(FText::FromString(TEXT(
-                        "solid resource (for example: Copper Ore)")))
+                        "resource (for example: Copper Ore, Water, Nitrogen Gas)")))
                     .ToolTipText(FText::FromString(TEXT(
-                        "Enter a registered solid resource name. The server validates the exact choice, "
-                        "including modded resources, before it arms the Build Gun.")))
+                        "Enter a registered solid, liquid, gas, or geyser resource name. The server validates "
+                        "the exact choice, including modded resources, before it arms the Build Gun.")))
                     .SelectAllTextWhenFocused(true)
                     .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
                     {
@@ -757,7 +757,7 @@ void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(const FString& Purit
         if (RequestStatusText.IsValid())
         {
             RequestStatusText->SetText(FText::FromString(
-                TEXT("Type a solid resource name first; the server will validate it before arming.")));
+                TEXT("Type a resource name first; the server will validate its solid/liquid/gas/geyser form before arming.")));
         }
         if (CreativeNodeResourceBox.IsValid() && FSlateApplication::IsInitialized())
         {
@@ -905,7 +905,13 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
             Entry.DisplayName = DescriptorClass->GetName();
         }
 
-        switch (UFGItemDescriptor::GetForm(Resource))
+        const EResourceNodeType NodeType =
+            AAIFactoryCreativeResourceNode::NodeTypeForResource(Resource);
+        if (NodeType == EResourceNodeType::Geyser)
+        {
+            Entry.Kind = TEXT("Geyser");
+        }
+        else switch (UFGItemDescriptor::GetForm(Resource))
         {
         case EResourceForm::RF_SOLID:  Entry.Kind = TEXT("Solid");  break;
         case EResourceForm::RF_LIQUID: Entry.Kind = TEXT("Liquid"); break;
@@ -916,7 +922,7 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
         // The editor's own validator decides, so the list never advertises
         // something the server would then refuse.
         Entry.bSpawnable = AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            Resource, RP_Normal, Entry.Reason);
+            Resource, RP_Normal, NodeType, Entry.Reason);
         if (Entry.bSpawnable)
         {
             ++Spawnable;
@@ -937,9 +943,9 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
     if (NodeSpawnerStatusText.IsValid())
     {
         NodeSpawnerStatusText->SetText(FText::FromString(FString::Printf(
-            TEXT("%d registered resources, %d spawnable as a node. The rest are listed with ")
-            TEXT("the reason rather than hidden: liquids, gases and geysers are separate node ")
-            TEXT("types (FrackingCore, Geyser) that this editor does not construct yet."),
+            TEXT("%d registered resources, %d spawnable as a node. Solid, liquid, gas, and ")
+            TEXT("geothermal geyser entries use the native Build Gun hologram and remain ")
+            TEXT("separate from vanilla-node retargeting."),
             NodeCatalog.Num(), Spawnable)));
     }
     RebuildNodeSpawnerRows();

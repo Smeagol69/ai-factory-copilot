@@ -5031,3 +5031,29 @@ Implementation: the resolver now compares the terminal class name and accepts
 only `BP_BuildGun` or `FGBuildGun`; a live-spelling regression passes. The full
 companion suite passes **887/887**, and `install-companion.ps1` refreshed the
 clean `D:\Modding\Satisfactory\Companion` runtime with 40 verified hashes.
+
+### Codex — 2026-08-29 creative node forms and native extractor targeting
+
+Claim: extend the mod-owned Creative Node Spawner with exact liquid, gas, and
+geothermal geyser support, and repair spawned ordinary nodes that vanilla Miner
+holograms treated as deposits. The implementation keeps generic retargeting
+solid-only and leaves Blueprint Resource Anchor nodes on their dedicated path.
+
+Implementation: creative nodes now derive from the official
+`AFGResourceNodeGeyser` hierarchy while persisting an explicit
+`EResourceNodeType`; only ordinary Node and native Geyser are accepted, with
+geyser descriptors required for Geyser and solid/liquid/gas forms required for
+ordinary nodes. The actor uses the shipped `Resource` collision profile plus a
+Build Gun overlap response, returns its own transform as the canonical
+extractor snap point, and bases extractor eligibility on validated live state
+and occupancy. The picker, `/ai node place`, and snapshot resource records now
+distinguish all supported forms. Schema-1 saves remain ordinary nodes.
+
+Verification: companion tests pass **887/887**; SML/FactoryGame CL 502094 header
+validation passes; FactoryEditor Development and FactoryGameSteam Shipping
+module builds pass; guarded UAT package/deploy completed with matching game and
+Starter Project DLLs (SHA-256
+`6C9C4ED1C364B6D3056BDBFCC4A4AF1E2A8EEAB5FAEFF72FF0B6DBF2ACD9ED1D`) and
+archive `FEC86C7F801880D1904E3931477A5112191C2760A3B9FAC6BF1E76DBCE13F581`.
+Live placement of a creative Miner, fluid extractor, and geothermal generator
+still needs a packaged-game session; no live success is claimed yet.

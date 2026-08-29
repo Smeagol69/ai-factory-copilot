@@ -46,6 +46,14 @@ namespace AIFactoryNodeEdit
     TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownResources(UWorld* World);
 
     /**
+     * Every resource descriptor the creative node spawner can represent,
+     * including liquid, gas, and native geyser descriptors. This is separate
+     * from KnownResources so generic vanilla-node retargeting remains solid
+     * only and cannot accidentally turn a map node into a special source.
+     */
+    TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownCreativeResources(UWorld* World);
+
+    /**
      * The resource node the player is aiming at, or null.
      *
      * Reads the character's cached use state first -- the same source that

@@ -4,6 +4,7 @@
 #include "FGConstructDisqualifier.h"
 #include "Hologram/FGHologram.h"
 #include "Resources/FGResourceNode.h"
+#include "Resources/FGResourceNodeBase.h"
 #include "AIFactoryCreativeNodeHologram.generated.h"
 
 class UFGResourceDescriptor;
@@ -22,7 +23,7 @@ public:
         mDisqfualifyingText = NSLOCTEXT(
             "AIFactoryCopilot",
             "CreativeNodeInvalidConfiguration",
-            "Creative Resource Node needs a valid solid resource and purity.");
+            "Creative Resource Node needs a valid solid, liquid, gas, or geyser resource and purity.");
     }
 };
 
@@ -76,6 +77,12 @@ public:
         TSubclassOf<UFGResourceDescriptor> Resource,
         EResourcePurity Purity,
         FString& OutReason);
+    static bool SetPendingLocalConfiguration(
+        UWorld* World,
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        EResourceNodeType NodeType,
+        FString& OutReason);
     static void ClearPendingLocalConfiguration(UWorld* World);
 
 protected:
@@ -90,6 +97,7 @@ private:
     bool SetRequestedConfiguration(
         TSubclassOf<UFGResourceDescriptor> Resource,
         EResourcePurity Purity,
+        EResourceNodeType NodeType,
         FString& OutReason);
     bool HasOverlappingResourceNode() const;
     void UpdateRequestedVisual();
@@ -101,4 +109,8 @@ private:
     /** Serialized beside the resource so a server never infers purity. */
     UPROPERTY(Replicated, CustomSerialization)
     TEnumAsByte<EResourcePurity> mRequestedPurity = RP_Normal;
+
+    /** Serialized node kind; Geyser is the only special supported type. */
+    UPROPERTY(Replicated, CustomSerialization)
+    EResourceNodeType mRequestedNodeType = EResourceNodeType::Node;
 };

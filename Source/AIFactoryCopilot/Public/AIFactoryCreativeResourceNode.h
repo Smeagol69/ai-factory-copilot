@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "FGClearanceData.h"
 #include "Resources/FGResourceNode.h"
+#include "FGResourceNodeGeyser.h"
 #include "AIFactoryCreativeResourceNode.generated.h"
 
 class UFGResourceDescriptor;
@@ -25,15 +26,23 @@ struct FAIFactoryCreativeResourceNodeConfiguration
     // SaveGame must be on the leaves as well as the containing struct. Unreal
     // filters every reflected field independently while serialising a save.
     UPROPERTY(SaveGame)
-    int32 SchemaVersion = 1;
+    int32 SchemaVersion = 2;
 
-    /** Solid resource supplied by this infinite node. */
+    /** Resource supplied by this infinite node; its form comes from the descriptor. */
     UPROPERTY(SaveGame)
     TSubclassOf<UFGResourceDescriptor> ResourceClass = nullptr;
 
     /** Normal Satisfactory extractor multiplier, never a guessed rate. */
     UPROPERTY(SaveGame)
     TEnumAsByte<EResourcePurity> Purity = RP_Normal;
+
+    /**
+     * Ordinary nodes cover solid/liquid/gas descriptors. Geyser descriptors
+     * must use the native Geyser node type so GeoThermal's normal hologram can
+     * recognise the actor. Schema-1 saves default to Node for compatibility.
+     */
+    UPROPERTY(SaveGame)
+    EResourceNodeType NodeType = EResourceNodeType::Node;
 };
 
 /**
@@ -45,7 +54,7 @@ struct FAIFactoryCreativeResourceNodeConfiguration
  * save/load exactly as it does for every AFGResourceNode.
  */
 UCLASS(NotBlueprintable)
-class AIFACTORYCOPILOT_API AAIFactoryCreativeResourceNode final : public AFGResourceNode
+class AIFACTORYCOPILOT_API AAIFactoryCreativeResourceNode final : public AFGResourceNodeGeyser
 {
     GENERATED_BODY()
 
@@ -58,6 +67,8 @@ public:
     virtual void GetClearanceData_Implementation(
         TArray<FFGClearanceData>& OutData) const override;
     virtual bool CanPlaceResourceExtractor() const override;
+    virtual FVector GetPlacementLocation(const FVector& HitLocation) const override;
+    virtual FRotator GetPlacementRotation(const FVector& HitLocation) const override;
 
     /**
      * Configures a just-spawned or already placed creative node on the host.
@@ -67,6 +78,12 @@ public:
     bool ConfigureCreativeNode(
         TSubclassOf<UFGResourceDescriptor> Resource,
         EResourcePurity Purity,
+        FString& OutReason);
+
+    bool ConfigureCreativeNode(
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        EResourceNodeType NodeType,
         FString& OutReason);
 
     const FAIFactoryCreativeResourceNodeConfiguration& GetCreativeConfiguration() const
@@ -79,12 +96,27 @@ public:
         return mCreativeConfiguration.Purity;
     }
 
+    EResourceNodeType GetCreativeNodeType() const
+    {
+        return mCreativeConfiguration.NodeType;
+    }
+
+    /** Derives the only node type this descriptor may represent. */
+    static EResourceNodeType NodeTypeForResource(
+        TSubclassOf<UFGResourceDescriptor> Resource);
+
     bool HasValidCreativeConfiguration(FString& OutReason) const;
 
     /** Shared by the actor and its normal Build Gun hologram. */
     static bool ValidateCreativeConfiguration(
         TSubclassOf<UFGResourceDescriptor> Resource,
         EResourcePurity Purity,
+        FString& OutReason);
+
+    static bool ValidateCreativeConfiguration(
+        TSubclassOf<UFGResourceDescriptor> Resource,
+        EResourcePurity Purity,
+        EResourceNodeType NodeType,
         FString& OutReason);
 
     /**

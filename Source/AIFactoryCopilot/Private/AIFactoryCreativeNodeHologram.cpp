@@ -47,6 +47,7 @@ void AAIFactoryCreativeNodeHologram::GetLifetimeReplicatedProps(
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedResource);
     DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedPurity);
+    DOREPLIFETIME(AAIFactoryCreativeNodeHologram, mRequestedNodeType);
 }
 
 void AAIFactoryCreativeNodeHologram::BeginPlay()
@@ -62,7 +63,11 @@ void AAIFactoryCreativeNodeHologram::BeginPlay()
         if (AIFactoryCreativeNodeConsumePendingConfiguration(GetWorld(), Pending))
         {
             FString Reason;
-            if (!SetRequestedConfiguration(Pending.ResourceClass, Pending.Purity, Reason))
+            if (!SetRequestedConfiguration(
+                    Pending.ResourceClass,
+                    Pending.Purity,
+                    Pending.NodeType,
+                    Reason))
             {
                 UE_LOG(LogAIFactoryCopilot, Warning,
                     TEXT("Creative node Build Gun configuration was rejected locally: %s"),
@@ -96,7 +101,7 @@ AActor* AAIFactoryCreativeNodeHologram::Construct(
     FString Reason;
     if (GetWorld() == nullptr || GetWorld()->GetNetMode() == NM_Client ||
         !AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            mRequestedResource, mRequestedPurity, Reason) ||
+            mRequestedResource, mRequestedPurity, mRequestedNodeType, Reason) ||
         HasOverlappingResourceNode())
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
@@ -123,7 +128,11 @@ AActor* AAIFactoryCreativeNodeHologram::Construct(
         return nullptr;
     }
 
-    if (!Node->ConfigureCreativeNode(mRequestedResource, mRequestedPurity, Reason))
+    if (!Node->ConfigureCreativeNode(
+            mRequestedResource,
+            mRequestedPurity,
+            mRequestedNodeType,
+            Reason))
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
             TEXT("Creative node Build Gun construct rolled back before finish: %s"), *Reason);
@@ -155,22 +164,39 @@ bool AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration(
     const EResourcePurity Purity,
     FString& OutReason)
 {
+    return SetPendingLocalConfiguration(
+        World,
+        Resource,
+        Purity,
+        AAIFactoryCreativeResourceNode::NodeTypeForResource(Resource),
+        OutReason);
+}
+
+bool AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration(
+    UWorld* const World,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
+    FString& OutReason)
+{
     OutReason.Reset();
     if (!IsValid(World))
     {
         OutReason = TEXT("the local world is unavailable");
         return false;
     }
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(Resource, Purity, OutReason))
+    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, Purity, NodeType, OutReason))
     {
         return false;
     }
 
     FAIFactoryCreativeResourceNodeConfiguration& Pending =
         GPendingCreativeNodeConfigurations.FindOrAdd(TWeakObjectPtr<UWorld>(World));
-    Pending.SchemaVersion = 1;
+    Pending.SchemaVersion = 2;
     Pending.ResourceClass = Resource;
     Pending.Purity = Purity;
+    Pending.NodeType = NodeType;
     return true;
 }
 
@@ -188,7 +214,7 @@ void AAIFactoryCreativeNodeHologram::CheckValidPlacement()
 
     FString Reason;
     if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
-            mRequestedResource, mRequestedPurity, Reason))
+            mRequestedResource, mRequestedPurity, mRequestedNodeType, Reason))
     {
         AddConstructDisqualifier(
             UAIFactoryCreativeNodeInvalidConfigurationDisqualifier::StaticClass());
@@ -205,15 +231,18 @@ void AAIFactoryCreativeNodeHologram::CheckValidPlacement()
 bool AAIFactoryCreativeNodeHologram::SetRequestedConfiguration(
     const TSubclassOf<UFGResourceDescriptor> Resource,
     const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
     FString& OutReason)
 {
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(Resource, Purity, OutReason))
+    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, Purity, NodeType, OutReason))
     {
         return false;
     }
 
     mRequestedResource = Resource;
     mRequestedPurity = Purity;
+    mRequestedNodeType = NodeType;
     UpdateRequestedVisual();
     return true;
 }

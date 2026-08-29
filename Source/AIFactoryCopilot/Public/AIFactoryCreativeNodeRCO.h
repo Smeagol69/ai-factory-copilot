@@ -4,6 +4,7 @@
 #include "Equipment/FGBuildGun.h"
 #include "FGRemoteCallObject.h"
 #include "Resources/FGResourceNode.h"
+#include "Resources/FGResourceNodeBase.h"
 #include "AIFactoryCreativeNodeRCO.generated.h"
 
 class UFGResourceDescriptor;
@@ -28,7 +29,8 @@ public:
     UFUNCTION(Client, Reliable)
     void ClientArmCreativeResourceNode(
         TSubclassOf<UFGResourceDescriptor> Resource,
-        EResourcePurity Purity);
+        EResourcePurity Purity,
+        EResourceNodeType NodeType);
 
 private:
     /** Clears a staged configuration if the Build Gun leaves this recipe/state. */

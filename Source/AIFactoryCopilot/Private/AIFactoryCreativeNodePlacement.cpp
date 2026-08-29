@@ -19,6 +19,21 @@ bool ArmForPlayer(
     const EResourcePurity Purity,
     FString& OutReason)
 {
+    return ArmForPlayer(
+        PlayerController,
+        Resource,
+        Purity,
+        AAIFactoryCreativeResourceNode::NodeTypeForResource(Resource),
+        OutReason);
+}
+
+bool ArmForPlayer(
+    AFGPlayerController* const PlayerController,
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
+    FString& OutReason)
+{
     OutReason.Reset();
     if (!IsValid(PlayerController) || !IsValid(PlayerController->GetWorld()))
     {
@@ -33,7 +48,8 @@ bool ArmForPlayer(
 
     UWorld* const World = PlayerController->GetWorld();
 
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(Resource, Purity, OutReason))
+    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, Purity, NodeType, OutReason))
     {
         return false;
     }
@@ -80,7 +96,7 @@ bool ArmForPlayer(
     // The RCO is a client-only selection handoff. The player still sees and
     // confirms a normal hologram; its construction returns through the Build
     // Gun's own server-authoritative RPC.
-    RCO->ClientArmCreativeResourceNode(Resource, Purity);
+    RCO->ClientArmCreativeResourceNode(Resource, Purity, NodeType);
     return true;
 }
 }

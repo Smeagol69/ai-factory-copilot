@@ -5,6 +5,20 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Extended the Creative Node Spawner beyond solid ores. The registered resource
+  catalogue now includes liquid, gas, and geothermal geyser descriptors, while
+  the server validates each descriptor against its native node form and node
+  type before the Build Gun is armed. Geysers use the native
+  `AFGResourceNodeGeyser` hierarchy so geothermal-generator holograms can
+  recognise them; ordinary solid/liquid/gas nodes retain the ordinary
+  `EResourceNodeType::Node` identity. Creative nodes now expose the game's
+  `Resource` collision profile, Build Gun overlap response, canonical snap
+  transform, and runtime extractor checks, fixing generated nodes that looked
+  like deposits and refused Miner placement. Snapshots expose `resource_form`
+  so the companion can distinguish solids, liquids, gases, and geysers without
+  inference. Exact CL 502094 headers, Shipping/Editor builds, UAT packaging,
+  and **887/887** companion tests pass; a packaged live-game Miner/geothermal
+  placement test remains to be performed.
 - Fixed live native Build Gun recipe discovery for node-sourced Blueprint
   generation. FactoryGame CL 502094 reflects the producer as `FGBuildGun`,
   whereas Blueprint-authored recipes use `BP_BuildGun`; both exact terminal

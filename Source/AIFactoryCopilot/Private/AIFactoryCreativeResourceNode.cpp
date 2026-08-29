@@ -8,6 +8,8 @@
 #include "Net/UnrealNetwork.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceDescriptor.h"
+#include "Resources/FGResourceDescriptorGeyser.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -18,12 +20,36 @@ namespace
     {
         return Purity == RP_Inpure || Purity == RP_Normal || Purity == RP_Pure;
     }
+
+    UStaticMesh* CreativeFallbackMesh()
+    {
+        // Resource descriptors for fluids and geysers intentionally do not
+        // always carry an ore-deposit mesh. Keep the node visible and easy to
+        // aim without inventing a game asset: the engine's basic cylinder is
+        // always available in a packaged Unreal game.
+        static TWeakObjectPtr<UStaticMesh> Cached;
+        if (!Cached.IsValid())
+        {
+            Cached = LoadObject<UStaticMesh>(
+                nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+        }
+        return Cached.Get();
+    }
+
+    bool IsSupportedNodeType(const EResourceNodeType NodeType)
+    {
+        return NodeType == EResourceNodeType::Node ||
+            NodeType == EResourceNodeType::Geyser;
+    }
 }
 
 AAIFactoryCreativeResourceNode::AAIFactoryCreativeResourceNode()
 {
     // This actor is static once the Build Gun constructs it. It is not a
     // movable world-object editor handle and can never relocate vanilla data.
+    // AFGResourceNodeGeyser's constructor defaults this class to Geyser. The
+    // requested kind is persisted and ordinary liquid/gas/solid nodes must
+    // explicitly reset it until a valid configuration is applied.
     mResourceNodeType = EResourceNodeType::Node;
     // Never expose a usable extractor target before a saved/replicated
     // resource configuration survives the game's own readback. In particular,
@@ -65,13 +91,18 @@ AAIFactoryCreativeResourceNode::AAIFactoryCreativeResourceNode()
     // responses so this tracks the game's own definition across updates
     // instead of drifting from it.
     mBoxComponent->SetCollisionProfileName(TEXT("Resource"));
+    // Resource is intentionally ignored by Visibility in the vanilla profile;
+    // the Build Gun's extractor hologram also performs a BuildGun-channel
+    // query. Overlap that channel explicitly so a generated node is discoverable
+    // by both paths, while the normal resource object query remains intact.
+    mBoxComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel5, ECR_Overlap);
+    mBoxComponent->SetGenerateOverlapEvents(true);
     // One deliberate addition on top of the shipped profile. AIFactoryNodeEdit
     // keeps an ECC_Visibility line trace as its fallback for a node whose use
     // state has not been cached yet, and vanilla's Resource profile ignores
     // that channel. Blocking it here keeps `/ai node ...` able to resolve a
     // creative node by aim, and only ever makes the node easier to find.
     mBoxComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-    mBoxComponent->SetGenerateOverlapEvents(false);
 
     mCreativeVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CreativeNodeVisual"));
     mCreativeVisual->SetupAttachment(Root);
@@ -142,12 +173,45 @@ void AAIFactoryCreativeResourceNode::GetClearanceData_Implementation(
 bool AAIFactoryCreativeResourceNode::CanPlaceResourceExtractor() const
 {
     FString Reason;
-    return HasValidCreativeConfiguration(Reason) && Super::CanPlaceResourceExtractor();
+    // The base C++ implementation is backed by the Blueprint CDO field
+    // mCanPlaceResourceExtractor. This native class deliberately sets that
+    // field after its exact configuration readback; returning it directly
+    // avoids a CDO/default mismatch making a valid node look like a deposit.
+    return HasValidCreativeConfiguration(Reason) && HasAnyResources() && !IsOccupied();
+}
+
+FVector AAIFactoryCreativeResourceNode::GetPlacementLocation(
+    const FVector& HitLocation) const
+{
+    // Resource extractor holograms ask the node for its canonical snap point.
+    // The Build Gun already put this actor at the chosen ground location; do
+    // not return the visible deposit's top face (which made creative nodes
+    // behave like hand-mined deposits sitting above their real source).
+    return GetActorLocation();
+}
+
+FRotator AAIFactoryCreativeResourceNode::GetPlacementRotation(
+    const FVector& HitLocation) const
+{
+    return GetActorRotation();
 }
 
 bool AAIFactoryCreativeResourceNode::ConfigureCreativeNode(
     const TSubclassOf<UFGResourceDescriptor> Resource,
     const EResourcePurity Purity,
+    FString& OutReason)
+{
+    return ConfigureCreativeNode(
+        Resource,
+        Purity,
+        NodeTypeForResource(Resource),
+        OutReason);
+}
+
+bool AAIFactoryCreativeResourceNode::ConfigureCreativeNode(
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
     FString& OutReason)
 {
     OutReason.Reset();
@@ -157,15 +221,16 @@ bool AAIFactoryCreativeResourceNode::ConfigureCreativeNode(
         return false;
     }
 
-    if (!ValidateCreativeConfiguration(Resource, Purity, OutReason))
+    if (!ValidateCreativeConfiguration(Resource, Purity, NodeType, OutReason))
     {
         return false;
     }
 
     const FAIFactoryCreativeResourceNodeConfiguration Previous = mCreativeConfiguration;
-    mCreativeConfiguration.SchemaVersion = 1;
+    mCreativeConfiguration.SchemaVersion = 2;
     mCreativeConfiguration.ResourceClass = Resource;
     mCreativeConfiguration.Purity = Purity;
+    mCreativeConfiguration.NodeType = NodeType;
 
     if (!ApplyCreativeConfiguration(OutReason))
     {
@@ -185,22 +250,49 @@ bool AAIFactoryCreativeResourceNode::ConfigureCreativeNode(
 
 bool AAIFactoryCreativeResourceNode::HasValidCreativeConfiguration(FString& OutReason) const
 {
-    if (mCreativeConfiguration.SchemaVersion != 1)
+    if (mCreativeConfiguration.SchemaVersion != 1 &&
+        mCreativeConfiguration.SchemaVersion != 2)
     {
         OutReason = FString::Printf(
             TEXT("creative node configuration schema %d is unsupported"),
             mCreativeConfiguration.SchemaVersion);
         return false;
     }
+    const EResourceNodeType NodeType = mCreativeConfiguration.SchemaVersion == 1
+        ? EResourceNodeType::Node
+        : mCreativeConfiguration.NodeType;
     return ValidateCreativeConfiguration(
         mCreativeConfiguration.ResourceClass,
         mCreativeConfiguration.Purity,
+        NodeType,
+        OutReason);
+}
+
+EResourceNodeType AAIFactoryCreativeResourceNode::NodeTypeForResource(
+    const TSubclassOf<UFGResourceDescriptor> Resource)
+{
+    return IsValid(Resource) &&
+        Resource->IsChildOf(UFGResourceDescriptorGeyser::StaticClass())
+        ? EResourceNodeType::Geyser
+        : EResourceNodeType::Node;
+}
+
+bool AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+    const TSubclassOf<UFGResourceDescriptor> Resource,
+    const EResourcePurity Purity,
+    FString& OutReason)
+{
+    return ValidateCreativeConfiguration(
+        Resource,
+        Purity,
+        NodeTypeForResource(Resource),
         OutReason);
 }
 
 bool AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
     const TSubclassOf<UFGResourceDescriptor> Resource,
     const EResourcePurity Purity,
+    const EResourceNodeType NodeType,
     FString& OutReason)
 {
     OutReason.Reset();
@@ -209,12 +301,40 @@ bool AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
         OutReason = TEXT("a creative node needs a known resource descriptor");
         return false;
     }
-    if (UFGItemDescriptor::GetForm(Resource) != EResourceForm::RF_SOLID)
+    if (!IsSupportedNodeType(NodeType))
     {
-        OutReason = TEXT("creative nodes currently support solid resources only");
+        OutReason = TEXT("creative nodes support ordinary or geyser node types only");
         return false;
     }
-    if (!IsValid(UFGResourceDescriptor::GetDepositMesh(Resource)))
+
+    const bool bIsGeyserDescriptor =
+        Resource->IsChildOf(UFGResourceDescriptorGeyser::StaticClass());
+    if (NodeType == EResourceNodeType::Geyser && !bIsGeyserDescriptor)
+    {
+        OutReason = TEXT(
+            "a geyser node requires a registered UFGResourceDescriptorGeyser resource");
+        return false;
+    }
+    if (NodeType == EResourceNodeType::Node && bIsGeyserDescriptor)
+    {
+        OutReason = TEXT(
+            "a geyser descriptor must use the native Geyser node type");
+        return false;
+    }
+
+    const EResourceForm Form = UFGItemDescriptor::GetForm(Resource);
+    if (NodeType == EResourceNodeType::Node &&
+        Form != EResourceForm::RF_SOLID &&
+        Form != EResourceForm::RF_LIQUID &&
+        Form != EResourceForm::RF_GAS)
+    {
+        OutReason = TEXT(
+            "ordinary creative nodes require a solid, liquid, or gas resource descriptor");
+        return false;
+    }
+    if (NodeType == EResourceNodeType::Node &&
+        Form == EResourceForm::RF_SOLID &&
+        !IsValid(UFGResourceDescriptor::GetDepositMesh(Resource)))
     {
         OutReason = TEXT(
             "this resource has no deposit mesh, so the editor refuses to create an invisible node");
@@ -237,12 +357,25 @@ void AAIFactoryCreativeResourceNode::ApplyCreativeVisual(
         return;
     }
 
-    Visual->SetStaticMesh(IsValid(Resource)
+    UStaticMesh* const DescriptorMesh = IsValid(Resource)
         ? UFGResourceDescriptor::GetDepositMesh(Resource)
-        : nullptr);
+        : nullptr;
+    Visual->SetStaticMesh(IsValid(DescriptorMesh) ? DescriptorMesh : CreativeFallbackMesh());
     Visual->SetMaterial(0, IsValid(Resource)
         ? UFGResourceDescriptor::GetDepositMaterial(Resource)
         : nullptr);
+
+    // A deposit mesh is already authored at the correct scale. The fallback
+    // cylinder is intentionally smaller and flatter so a liquid/gas/geyser
+    // marker reads as a source point rather than a giant ore boulder.
+    const EResourceForm Form = IsValid(Resource)
+        ? UFGItemDescriptor::GetForm(Resource)
+        : EResourceForm::RF_INVALID;
+    Visual->SetRelativeScale3D(
+        IsValid(DescriptorMesh) ? FVector::OneVector
+        : Form == EResourceForm::RF_LIQUID ? FVector(0.70f, 0.70f, 0.25f)
+        : Form == EResourceForm::RF_GAS ? FVector(0.55f, 0.55f, 0.90f)
+        : FVector(0.80f, 0.80f, 0.45f));
 }
 
 void AAIFactoryCreativeResourceNode::OnRep_CreativeConfiguration()
@@ -273,7 +406,10 @@ bool AAIFactoryCreativeResourceNode::ApplyCreativeConfiguration(FString& OutReas
     const TSubclassOf<UFGResourceDescriptor> Resource = mCreativeConfiguration.ResourceClass;
     const EResourcePurity Purity = mCreativeConfiguration.Purity;
 
-    mResourceNodeType = EResourceNodeType::Node;
+    const EResourceNodeType NodeType = mCreativeConfiguration.SchemaVersion == 1
+        ? EResourceNodeType::Node
+        : mCreativeConfiguration.NodeType;
+    mResourceNodeType = NodeType;
     InitResource(Resource, RA_Infinite, Purity);
     SetResourceClassOverride(Resource);
     SetResourcePurityOverride(Purity);
@@ -292,7 +428,8 @@ bool AAIFactoryCreativeResourceNode::ApplyCreativeConfiguration(FString& OutReas
     }
 
     mCanPlaceResourceExtractor = true;
-    mCanPlacePortableMiner = true;
+    mCanPlacePortableMiner = NodeType == EResourceNodeType::Node &&
+        UFGItemDescriptor::GetForm(Resource) == EResourceForm::RF_SOLID;
     UpdateCanPlacePortableMiner();
 
     // NOTE: AFGResourceNodeBase::UpdateMeshFromDescriptor(bool, UMaterial*) looks

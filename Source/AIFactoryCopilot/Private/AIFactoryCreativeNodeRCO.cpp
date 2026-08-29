@@ -34,10 +34,12 @@ void UAIFactoryCreativeNodeRCO::GetLifetimeReplicatedProps(
 
 void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
     const TSubclassOf<UFGResourceDescriptor> Resource,
-    const EResourcePurity Purity)
+    const EResourcePurity Purity,
+    const EResourceNodeType NodeType)
 {
     FString Reason;
-    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(Resource, Purity, Reason))
+    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, Purity, NodeType, Reason))
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
             TEXT("Creative node Build Gun handoff rejected its invalid configuration: %s"), *Reason);
@@ -87,7 +89,8 @@ void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
                 return;
             }
 
-            if (ExistingHologram->SetRequestedConfiguration(Resource, Purity, Reason))
+            if (ExistingHologram->SetRequestedConfiguration(
+                    Resource, Purity, NodeType, Reason))
             {
                 UE_LOG(LogAIFactoryCopilot, Display,
                     TEXT("Creative node Build Gun preview reconfigured locally (resource=%s purity=%s)"),
@@ -111,7 +114,7 @@ void UAIFactoryCreativeNodeRCO::ClientArmCreativeResourceNode_Implementation(
     // deferred to the next client tick, the entry remains world-scoped until
     // that particular Creative Node preview consumes it.
     if (!AAIFactoryCreativeNodeHologram::SetPendingLocalConfiguration(
-            GetWorld(), Resource, Purity, Reason))
+            GetWorld(), Resource, Purity, NodeType, Reason))
     {
         UE_LOG(LogAIFactoryCopilot, Warning,
             TEXT("Creative node Build Gun handoff could not stage its configuration: %s"), *Reason);

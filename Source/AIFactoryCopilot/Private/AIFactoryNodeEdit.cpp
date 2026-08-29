@@ -164,6 +164,100 @@ TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownResources(UWorld* World)
     return Result;
 }
 
+TMap<FString, TSubclassOf<UFGResourceDescriptor>> KnownCreativeResources(UWorld* World)
+{
+    TMap<FString, TSubclassOf<UFGResourceDescriptor>> Result;
+    if (!IsValid(World))
+    {
+        return Result;
+    }
+
+    // The creative spawner has a wider contract than generic node retargeting:
+    // it may construct ordinary solid/liquid/gas nodes and native geysers.
+    // Keep this catalogue separate so `/ai node <resource>` can never broaden
+    // a vanilla node edit into a special extractor mode.
+    TMap<FString, TArray<TSubclassOf<UFGResourceDescriptor>>> Candidates;
+    const auto AddCreativeResource = [&Candidates](
+        const TSubclassOf<UFGResourceDescriptor> Resource)
+    {
+        if (!IsValid(Resource))
+        {
+            return;
+        }
+
+        FString ValidationReason;
+        if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+                Resource,
+                RP_Normal,
+                AAIFactoryCreativeResourceNode::NodeTypeForResource(Resource),
+                ValidationReason))
+        {
+            return;
+        }
+
+        const FString Name = UFGItemDescriptor::GetItemName(Resource).ToString().TrimStartAndEnd();
+        if (Name.IsEmpty())
+        {
+            return;
+        }
+
+        TArray<TSubclassOf<UFGResourceDescriptor>>& ByName =
+            Candidates.FindOrAdd(Name.ToLower());
+        if (!ByName.Contains(Resource))
+        {
+            ByName.Add(Resource);
+        }
+    };
+
+    if (AFGRecipeManager* const Recipes = AFGRecipeManager::Get(World))
+    {
+        for (const TSubclassOf<UFGItemDescriptor> Descriptor : Recipes->GetAllItemDescriptors())
+        {
+            UClass* const DescriptorClass = Descriptor.Get();
+            if (IsValid(DescriptorClass) &&
+                DescriptorClass->IsChildOf(UFGResourceDescriptor::StaticClass()))
+            {
+                AddCreativeResource(TSubclassOf<UFGResourceDescriptor>(DescriptorClass));
+            }
+        }
+    }
+
+    // Keep the early-load fallback useful for saves whose recipe catalogue has
+    // not replicated yet. A live node is still authoritative evidence of a
+    // descriptor the game can represent.
+    for (TActorIterator<AFGResourceNodeBase> It(World); It; ++It)
+    {
+        AFGResourceNodeBase* const Node = *It;
+        if (IsValid(Node))
+        {
+            AddCreativeResource(Node->GetResourceClassOriginal());
+        }
+    }
+
+    for (const TPair<FString, TArray<TSubclassOf<UFGResourceDescriptor>>>& Entry : Candidates)
+    {
+        if (Entry.Value.Num() == 1)
+        {
+            Result.Add(Entry.Key, Entry.Value[0]);
+            continue;
+        }
+
+        // Two mods may localise different descriptors to the same display name.
+        // Preserve deliberate selection with the same qualified alias used by
+        // the solid-only editor rather than choosing one by iteration order.
+        for (const TSubclassOf<UFGResourceDescriptor> Resource : Entry.Value)
+        {
+            Result.Add(
+                FString::Printf(
+                    TEXT("%s [%s]"),
+                    *UFGItemDescriptor::GetItemName(Resource).ToString(),
+                    *Resource->GetName()).ToLower(),
+                Resource);
+        }
+    }
+    return Result;
+}
+
 bool SetNodeResource(
     AFGPlayerController* const RequestingPlayer,
     UWorld* World,

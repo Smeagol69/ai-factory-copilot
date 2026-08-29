@@ -1194,6 +1194,8 @@ namespace
         Result->SetBoolField(TEXT("occupied"), Node->IsOccupied());
         Result->SetStringField(TEXT("resource_class"), ClassPath(Node->GetResourceClass().Get()));
         Result->SetStringField(TEXT("resource_name"), Node->GetResourceName().ToString());
+        Result->SetStringField(TEXT("resource_form"), StaticEnum<EResourceForm>()->GetNameStringByValue(
+            static_cast<int64>(Node->GetResourceForm())));
         Result->SetStringField(TEXT("node_type"), StaticEnum<EResourceNodeType>()->GetNameStringByValue(
             static_cast<int64>(Node->GetResourceNodeType())));
 

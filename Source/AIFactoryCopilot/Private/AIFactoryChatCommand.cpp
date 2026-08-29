@@ -112,18 +112,21 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
         // Listing costs nothing and is what someone types first.
         const TMap<FString, TSubclassOf<UFGResourceDescriptor>> Known =
             AIFactoryNodeEdit::KnownResources(NodeWorld);
+        const TMap<FString, TSubclassOf<UFGResourceDescriptor>> CreativeKnown =
+            AIFactoryNodeEdit::KnownCreativeResources(NodeWorld);
         if (!Arguments.IsValidIndex(1))
         {
             TArray<FString> Names;
-            for (const TPair<FString, TSubclassOf<UFGResourceDescriptor>>& Entry : Known)
+            for (const TPair<FString, TSubclassOf<UFGResourceDescriptor>>& Entry : CreativeKnown)
             {
                 Names.Add(Entry.Key);
             }
             Names.Sort();
             Sender->SendChatMessage(FString::Printf(
-                TEXT("Look at a node and run: /ai node <resource>. Registered solid resources: %s. ")
+                TEXT("Look at a node and run: /ai node <resource>. Registered resources: %s. ")
                 TEXT("Use 'original' to undo a vanilla-node override. To place a new mod-owned node anywhere, ")
-                TEXT("run /ai node place <resource> [impure|normal|pure]."),
+                TEXT("run /ai node place <resource> [impure|normal|pure]. The spawner also accepts liquid, gas, "
+                TEXT("and geyser descriptors.")),
                 *FString::Join(Names, TEXT(", "))));
             return EExecutionStatus::COMPLETED;
         }
@@ -134,7 +137,7 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             {
                 Sender->SendChatMessage(TEXT(
                     "Usage: /ai node place <resource> [impure|normal|pure]. "
-                    "The resource must be a registered solid resource descriptor."));
+                    "The resource must be a registered solid, liquid, gas, or geyser descriptor."));
                 return EExecutionStatus::BAD_ARGUMENTS;
             }
 
@@ -163,20 +166,23 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
                 ResourceWords.Add(Arguments[Index]);
             }
             const FString WantedResource = FString::Join(ResourceWords, TEXT(" ")).ToLower();
-            const TSubclassOf<UFGResourceDescriptor>* const Found = Known.Find(WantedResource);
+            const TSubclassOf<UFGResourceDescriptor>* const Found = CreativeKnown.Find(WantedResource);
             if (Found == nullptr)
             {
                 Sender->SendChatMessage(FString::Printf(
-                    TEXT("No registered solid resource is called '%s'. Run /ai node with no argument to list them."),
+                    TEXT("No registered creative resource is called '%s'. Run /ai node with no argument to list them."),
                     *FString::Join(ResourceWords, TEXT(" "))));
                 return EExecutionStatus::UNCOMPLETED;
             }
 
+            const EResourceNodeType NodeType =
+                AAIFactoryCreativeResourceNode::NodeTypeForResource(*Found);
             FString Reason;
             if (!AIFactoryCreativeNodePlacement::ArmForPlayer(
                     NodePlayer,
                     *Found,
                     Purity,
+                    NodeType,
                     Reason))
             {
                 Sender->SendChatMessage(FString::Printf(
@@ -185,12 +191,16 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             }
 
             Sender->SendChatMessage(FString::Printf(
-                TEXT("Creative %s (%s) node Build Gun arming was requested. ")
+                TEXT("Creative %s (%s) %s Build Gun arming was requested. ")
                 TEXT("Place the hologram where you want it; this creates a new mod-owned infinite node and does not alter a map node. ")
                 TEXT("Confirm the request by seeing the hologram; if it does not appear, equip the Build Gun and run the command again. ")
                 TEXT("If you have already clicked a placement, wait for that placement to finish before changing its resource."),
                 *UFGItemDescriptor::GetItemName(*Found).ToString(),
-                *StaticEnum<EResourcePurity>()->GetNameStringByValue(static_cast<int64>(Purity))));
+                *StaticEnum<EResourcePurity>()->GetNameStringByValue(static_cast<int64>(Purity)),
+                NodeType == EResourceNodeType::Geyser ? TEXT("geyser")
+                : UFGItemDescriptor::GetForm(*Found) == EResourceForm::RF_LIQUID ? TEXT("liquid")
+                : UFGItemDescriptor::GetForm(*Found) == EResourceForm::RF_GAS ? TEXT("gas")
+                : TEXT("solid")));
             return EExecutionStatus::COMPLETED;
         }
 
