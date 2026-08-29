@@ -5207,9 +5207,16 @@ export function answerLocally(question, graph, services) {
                     `${counts.roof ?? 0} roof pieces. The machines sit on the deck inside.` +
                     (generatedSource
                       ? generatedSource.fan_out
-                        ? ` The front input aperture carries the exact Miner belt into one measured ` +
-                          `${generatedSource.fan_out.splitter_name}; ${generatedSource.fan_out.outputs_used} ` +
-                          `distinct native output ports feed the identical first-stage machines inside.`
+                        ? generatedSource.fan_out.topology === "balanced_two_stage_linear"
+                          ? ` The front input aperture carries the exact Miner belt into a measured ` +
+                            `${generatedSource.fan_out.splitter_name} network: ` +
+                            `${generatedSource.fan_out.splitters} native splitter(s) feed ` +
+                            `${generatedSource.fan_out.raw_consumers} first-stage and ` +
+                            `${generatedSource.fan_out.final_consumers} second-stage machines ` +
+                            `through unique captured ports.`
+                          : ` The front input aperture carries the exact Miner belt into one measured ` +
+                            `${generatedSource.fan_out.splitter_name}; ${generatedSource.fan_out.outputs_used} ` +
+                            `distinct native output ports feed the identical first-stage machines inside.`
                         : ` The front input aperture carries one exact straight belt from the ` +
                           `${aimedBlueprintSource.miner_name} outside the floor collision to the machine inside.`
                       : "") +
@@ -5252,10 +5259,17 @@ export function answerLocally(question, graph, services) {
                       ? `This v4 file also includes one exact ${aimedBlueprintSource.purity} ${aimedBlueprintSource.resource_name} Resource Anchor, ` +
                         `${aimedBlueprintSource.miner_name}, and ` +
                         (generatedSource.fan_out
-                          ? `one measured regular Splitter feeding ${generatedSource.fan_out.consumers} identical first-stage machines through distinct native ports. `
+                          ? generatedSource.fan_out.topology === "balanced_two_stage_linear"
+                            ? `a fully connected balanced two-stage network with ` +
+                              `${generatedSource.fan_out.splitters} measured regular Splitter(s), ` +
+                              `${generatedSource.fan_out.raw_consumers} first-stage machine(s), and ` +
+                              `${generatedSource.fan_out.final_consumers} second-stage machine(s). `
+                            : `one measured regular Splitter feeding ${generatedSource.fan_out.consumers} identical first-stage machines through distinct native ports. `
                           : "their Miner-to-machine input belt. ") +
                         "It carries no live node actor id; destination alignment remains the vanilla Build Gun's decision. " +
-                        "Multi-stage material routing, pipes, and conveyor lifts remain explicit follow-up work; no missing topology is silently claimed."
+                        (generatedSource.fan_out?.topology === "balanced_two_stage_linear"
+                          ? "Longer chains, mergers, pipes, and conveyor lifts remain explicit follow-up work; no missing topology is silently claimed."
+                          : "Multi-stage material routing, pipes, and conveyor lifts remain explicit follow-up work; no missing topology is silently claimed.")
                       : "Pipes, miners/resource anchors, and conveyor lifts/poles remain explicit follow-up work; no missing topology is silently claimed.")
                   : design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +

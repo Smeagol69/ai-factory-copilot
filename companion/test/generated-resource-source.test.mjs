@@ -5,8 +5,8 @@ import test from "node:test";
 
 import { buildGraph } from "../lib/graph.mjs";
 import { validateAction } from "../lib/actions.mjs";
-import { planEnclosedFactory } from "../lib/base-build.mjs";
-import { planStructure, planTower } from "../lib/architecture.mjs";
+import { enclosedFactoryActions, planEnclosedFactory } from "../lib/base-build.mjs";
+import { planStructure, planTower, structureActions } from "../lib/architecture.mjs";
 import { measureBuilding } from "../lib/designer.mjs";
 import {
   attachAimedGeneratedBlueprintSource,
@@ -26,6 +26,8 @@ import {
 const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
 const MINER_CLASS = "/Game/FactoryGame/Buildable/Factory/MinerMk1.Build_MinerMk1_C";
 const SMELTER_CLASS = "/Game/FactoryGame/Buildable/Factory/SmelterMk1.Build_SmelterMk1_C";
+const CONSTRUCTOR_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/ConstructorMk1.Build_ConstructorMk1_C";
 const BELT_CLASS = "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk1.Build_ConveyorBeltMk1_C";
 const SPLITTER_CLASS =
   "/Game/FactoryGame/Buildable/Factory/Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C";
@@ -305,6 +307,104 @@ function sourceGraph() {
     connections: [],
     inventories: [],
   });
+  return buildGraph(snapshot);
+}
+
+function wireGraph() {
+  const snapshot = structuredClone(sourceGraph().snapshot);
+  const node = snapshot.actors.find((actor) => actor.actor_id === ORE_NODE);
+  node.resource_class = "Desc_OreCopper";
+  node.resource_name = "Copper Ore";
+  node.purity = "RP_Pure";
+  const constructor = snapshot.actors.find((actor) => actor.class_path === CONSTRUCTOR_CLASS);
+  constructor.bounds = {
+    origin: { x: constructor.location.x, y: constructor.location.y, z: 200 },
+    extent: { x: 500, y: 500, z: 200 },
+  };
+  snapshot.content.items.push(
+    {
+      class_path: "Desc_OreCopper",
+      name: "Copper Ore",
+      owner_mod: "FactoryGame",
+      available: true,
+      form: "RF_SOLID",
+    },
+    {
+      class_path: "Desc_CopperIngot",
+      name: "Copper Ingot",
+      owner_mod: "FactoryGame",
+      available: true,
+      form: "RF_SOLID",
+    },
+    {
+      class_path: "Desc_Wire",
+      name: "Wire",
+      owner_mod: "FactoryGame",
+      available: true,
+      form: "RF_SOLID",
+    },
+    {
+      class_path: "Desc_ConstructorMk1",
+      name: "Constructor",
+      owner_mod: "FactoryGame",
+      available: true,
+      form: "RF_SOLID",
+      building: {
+        class_path: CONSTRUCTOR_CLASS,
+        native_circuit_connections: [powerConnector(1)],
+        native_factory_connections: [
+          nativeFactoryPort(
+            "InputConnection0",
+            "FCD_INPUT",
+            { x: -500, y: 0, z: 100 },
+            { x: -1, y: 0, z: 0 },
+          ),
+          nativeFactoryPort(
+            "OutputConnection0",
+            "FCD_OUTPUT",
+            { x: 500, y: 0, z: 100 },
+            { x: 1, y: 0, z: 0 },
+          ),
+        ],
+      },
+    },
+  );
+  snapshot.content.recipes.push(
+    {
+      class_path: "Recipe_IngotCopper",
+      name: "Copper Ingot",
+      owner_mod: "FactoryGame",
+      available: true,
+      duration_seconds: 2,
+      ingredients: [{ item_class: "Desc_OreCopper", item_name: "Copper Ore", amount: 1 }],
+      products: [{ item_class: "Desc_CopperIngot", item_name: "Copper Ingot", amount: 1 }],
+      produced_in: [
+        "/Game/FactoryGame/Buildable/Factory/Build_SmelterMk1.Build_SmelterMk1_C",
+      ],
+    },
+    {
+      class_path: "Recipe_Wire",
+      name: "Wire",
+      owner_mod: "FactoryGame",
+      available: true,
+      duration_seconds: 4,
+      ingredients: [{ item_class: "Desc_CopperIngot", item_name: "Copper Ingot", amount: 1 }],
+      products: [{ item_class: "Desc_Wire", item_name: "Wire", amount: 2 }],
+      produced_in: [
+        "/Game/FactoryGame/Buildable/Factory/Build_ConstructorMk1.Build_ConstructorMk1_C",
+      ],
+    },
+    {
+      class_path: "Recipe_ConstructorMk1",
+      name: "Constructor",
+      owner_mod: "FactoryGame",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: "Desc_ConstructorMk1", item_name: "Constructor", amount: 1 }],
+      produced_in: [BUILD_GUN],
+    },
+  );
+  snapshot.content.available_recipe_count += 3;
   return buildGraph(snapshot);
 }
 
@@ -621,6 +721,131 @@ test("the local route emits a native regular-splitter fan-out for 60 Iron Ingots
     directionResult.reason,
     "generated_conveyor_endpoint_needs_one_exact_captured_connector",
   );
+});
+
+test("the local route compiles a balanced native Miner-Smelter-Constructor Wire network", () => {
+  const graph = wireGraph();
+  const aimed = graph.nodes.get(ORE_NODE).raw;
+  graph.snapshot.interaction_context.preferred_target = {
+    available: true,
+    selected_from: "aim_trace",
+    actor_id: ORE_NODE,
+    actor_name: aimed.name,
+    actor_snapshot: aimed,
+  };
+  const wireTarget = {
+    ...target,
+    resource_class: "Desc_OreCopper",
+    resource_name: "Copper Ore",
+    actor_snapshot: aimed,
+  };
+  const productionPlan = solveProductionPlan(graph, {
+    item_class: "Desc_Wire",
+    target_rate_per_minute: 120,
+    use_existing_surplus: false,
+    prefer_standard_recipes: true,
+    stop_at_item_classes: ["Desc_OreCopper"],
+  });
+  assert.equal(productionPlan.planned, true, JSON.stringify(productionPlan));
+  const enclosed = planEnclosedFactory(graph, {
+    production_plan: productionPlan,
+    measure_building: measureBuilding,
+    measure_connectors: measureConnectors,
+    plan_structure: planStructure,
+    plan_tower: planTower,
+  });
+  assert.equal(enclosed.planned, true, JSON.stringify(enclosed));
+  const source = resolveAimedGeneratedBlueprintSource(graph, { target: wireTarget });
+  const attached = attachAimedGeneratedBlueprintSource(
+    graph,
+    enclosedFactoryActions(enclosed, { commit: true, structure_actions: structureActions }),
+    source,
+    {
+      production_plan: productionPlan,
+      shell: enclosed.structure,
+      belt_recipe_class: enclosed.machines.belt.recipe_class,
+    },
+  );
+  assert.equal(attached.attached, true, JSON.stringify(attached));
+  const emitted = [];
+  const answer = answerLocally(
+    "create a blueprint that makes 120 wire per minute from this node using all Mk.1 parts",
+    graph,
+    { actions: { emit: (actions) => emitted.push(...actions) } },
+  );
+  assert.equal(answer?.local?.solver, "generate_native_blueprint", JSON.stringify(answer));
+  assert.equal(emitted.length, 1, JSON.stringify(emitted));
+  const action = emitted[0];
+  assert.equal(action.layout_schema, "aifactory.generated-blueprint/v4");
+  assert.equal(action.buildables.filter((part) => part.role === "resource_anchor").length, 1);
+  assert.equal(action.buildables.filter((part) => part.role === "miner").length, 1);
+  assert.equal(action.buildables.filter((part) => part.recipe_class ===
+    "Recipe_ConveyorAttachmentSplitter").length, 3);
+  assert.equal(action.buildables.filter((part) => part.production_recipe_class ===
+    "Recipe_IngotCopper").length, 2);
+  assert.equal(action.buildables.filter((part) => part.production_recipe_class ===
+    "Recipe_Wire").length, 4);
+  assert.equal(action.conveyors.length, 9);
+  assert.equal(JSON.stringify(action).includes(ORE_NODE), false);
+
+  const validated = validateAction(graph, action);
+  assert.equal(validated.valid, true, JSON.stringify(validated));
+  assert.equal(validated.checks.captured_factory_connector_checked_endpoints, 18);
+  const used = new Set();
+  for (const conveyor of validated.action.conveyors) {
+    for (const side of ["from", "to"]) {
+      const key = `${conveyor[`${side}_part_id`]}|${conveyor[`${side}_connector_name`]}`;
+      assert.equal(used.has(key), false, `duplicate native conveyor endpoint ${key}`);
+      used.add(key);
+    }
+  }
+  assert.match(answer.reply, /9 planned belt leg/i);
+  assert.match(answer.reply, /fully connected balanced two-stage network/i);
+  assert.match(answer.reply, /3 measured regular Splitter/i);
+  assert.equal(answer.reply.includes("undefined"), false);
+});
+
+test("two-stage source refuses merger-required and non-integral material graphs", () => {
+  const mergerGraph = wireGraph();
+  const mergerNode = mergerGraph.nodes.get(ORE_NODE).raw;
+  mergerGraph.snapshot.interaction_context.preferred_target = {
+    available: true,
+    selected_from: "aim_trace",
+    actor_id: ORE_NODE,
+    actor_name: mergerNode.name,
+    actor_snapshot: mergerNode,
+  };
+  // 15 ingots/min per Smelter feeding Constructors that each consume 30/min
+  // requires a two-to-one merge. This compiler only proves split fan-out.
+  mergerGraph.recipesByClass.get("Recipe_IngotCopper").duration_seconds = 4;
+  mergerGraph.recipesByClass.get("Recipe_Wire").duration_seconds = 2;
+  const mergerAnswer = answerLocally(
+    "create a blueprint that makes 120 wire per minute from this node using all Mk.1 parts",
+    mergerGraph,
+    { actions: { emit: () => assert.fail("a merger-required graph must not emit") } },
+  );
+  assert.equal(mergerAnswer?.local?.solver, "generate_blueprint_refused");
+  assert.match(mergerAnswer.reply, /integral balanced producer-to-consumer fan-out/i);
+
+  const nonIntegralGraph = wireGraph();
+  const nonIntegralNode = nonIntegralGraph.nodes.get(ORE_NODE).raw;
+  nonIntegralGraph.snapshot.interaction_context.preferred_target = {
+    available: true,
+    selected_from: "aim_trace",
+    actor_id: ORE_NODE,
+    actor_name: nonIntegralNode.name,
+    actor_snapshot: nonIntegralNode,
+  };
+  // Five full Constructors consume 12 ingots/min each. A 30/min Smelter would
+  // need to feed 2.5 consumers, so no exact per-producer split partition exists.
+  nonIntegralGraph.recipesByClass.get("Recipe_Wire").duration_seconds = 5;
+  const nonIntegralAnswer = answerLocally(
+    "create a blueprint that makes 120 wire per minute from this node using all Mk.1 parts",
+    nonIntegralGraph,
+    { actions: { emit: () => assert.fail("a fractional split partition must not emit") } },
+  );
+  assert.equal(nonIntegralAnswer?.local?.solver, "generate_blueprint_refused");
+  assert.match(nonIntegralAnswer.reply, /integral balanced producer-to-consumer fan-out/i);
 });
 
 test("the scanner captures native factory connector defaults from exact class CDOs", () => {

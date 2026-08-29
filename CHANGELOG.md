@@ -25,6 +25,17 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   cannot run. Exact CL 502094/SML validation and **884/884** companion tests
   pass. The game stayed open, so this source is not deployed or live-placement
   proven yet.
+- Extended aimed-node Blueprint sourcing to an exact balanced two-stage linear
+  chain. Standard Copper Ore → Copper Ingot → Wire now compiles as one native
+  v4 file with the measured Resource Anchor/Miner, one raw-input Splitter, one
+  per-Smelter intermediate Splitter, two Smelters, four Constructors, nine
+  named-port conveyors, and captured internal power. The compiler checks recipe
+  ratios, fully utilized machine counts, connector directions, collision
+  bounds, shell fit, and observed belt capacity; merger-required, fractional,
+  coproduct, mixed-input, and unsupported graphs refuse before emitting a file.
+  Reply text identifies the two-stage topology instead of claiming a single
+  splitter. Exact CL 502094/SML validation and **886/886** companion tests pass.
+  Deployment and live Build Gun placement remain the next verification gate.
 - Added generated native Blueprint schema v4: the API may now serialize an
   explicitly configured solid-resource Blueprint Resource Anchor paired
   one-to-one with a captured vanilla Miner Mk.1-Mk.3. Both bridge and game

@@ -245,6 +245,17 @@ function horizontalDistance(left, right) {
   return Math.hypot(left.x - right.x, left.y - right.y);
 }
 
+function horizontalUnit(from, to) {
+  const x = to.x - from.x;
+  const y = to.y - from.y;
+  const magnitude = Math.hypot(x, y);
+  return magnitude > EPSILON ? { x: x / magnitude, y: y / magnitude, z: 0 } : null;
+}
+
+function horizontalDot(left, right) {
+  return left.x * right.x + left.y * right.y;
+}
+
 function assignNearestPorts(ports, consumers) {
   const available = [...ports];
   const assignments = [];
@@ -280,6 +291,445 @@ function observedBeltCapacity(graph, beltRecipeClass) {
   return observed[0]
     ? { ...observed[0], recipe_class: metadata.recipe.class_path, building_class: buildableClass }
     : null;
+}
+
+function balancedTwoStageSource(graph, actions, source, {
+  production,
+  shell,
+  belt_recipe_class: beltRecipeClass,
+} = {}) {
+  const steps = production?.steps;
+  if (!Array.isArray(steps) || steps.length !== 2) {
+    return { attached: false, reason: "balanced_two_stage_source_requires_exactly_two_production_steps" };
+  }
+  if (!Array.isArray(actions) || actions.some((action) =>
+    action?.action !== "place_building" && action?.action !== "place_belt")) {
+    return { attached: false, reason: "two-stage generated source received an unsupported action kind" };
+  }
+
+  const stepRecipe = (step) => catalogEntryByClass(graph?.recipesByClass, step?.recipe_class);
+  const stepProduces = (step) => step?.produces?.item_class ?? null;
+  const inputFor = (step, itemClass) => (step?.inputs_required ?? []).find(
+    (input) => sameClass(input?.item_class, itemClass),
+  );
+  const rawStepCandidates = steps.filter((step) => inputFor(step, source.resource_class));
+  if (rawStepCandidates.length !== 1) {
+    return { attached: false, reason: "two-stage source needs one exact first-stage consumer of the aimed resource" };
+  }
+  const producerStep = rawStepCandidates[0];
+  const intermediateClass = stepProduces(producerStep);
+  const consumerStep = steps.find((step) => step !== producerStep && inputFor(step, intermediateClass));
+  if (!intermediateClass || !consumerStep) {
+    return { attached: false, reason: "the two production stages do not form one exact linear material edge" };
+  }
+  if ((producerStep.inputs_required ?? []).length !== 1 ||
+      (consumerStep.inputs_required ?? []).length !== 1) {
+    return {
+      attached: false,
+      reason: "two-stage generated sourcing currently supports one input per stage; coproduct or mixed-input routing needs an explicit graph compiler",
+    };
+  }
+  const producerRecipe = stepRecipe(producerStep);
+  const consumerRecipe = stepRecipe(consumerStep);
+  if (!producerRecipe || !consumerRecipe ||
+      (producerRecipe.products ?? []).length !== 1 ||
+      (consumerRecipe.products ?? []).length !== 1) {
+    return {
+      attached: false,
+      reason: "two-stage generated sourcing requires exact single-product recipe evidence for both stages",
+    };
+  }
+
+  const machineActions = actions.filter((action) =>
+    action?.action === "place_building" && action?.generated_role === "machine" &&
+      String(action?.production_recipe_class ?? "").trim());
+  const groupFor = (step) => machineActions.filter((action) =>
+    sameClass(action.production_recipe_class, step.recipe_class));
+  const producerActions = groupFor(producerStep);
+  const consumerActions = groupFor(consumerStep);
+  if (producerActions.length + consumerActions.length !== machineActions.length ||
+      producerActions.length !== Number(producerStep.machines_required) ||
+      consumerActions.length !== Number(consumerStep.machines_required)) {
+    return {
+      attached: false,
+      reason: "generated machine groups do not exactly match the two captured production steps",
+    };
+  }
+  for (const [step, group] of [[producerStep, producerActions], [consumerStep, consumerActions]]) {
+    const exact = finite(step?.machines_exact);
+    if (exact === null || Math.abs(exact - group.length) > EPSILON) {
+      return {
+        attached: false,
+        reason: "two-stage generated topology requires whole fully utilized machines; clock-speed actions are not implemented",
+      };
+    }
+    if (group.some((action) =>
+      !sameClass(action.recipe_class, group[0]?.recipe_class) ||
+      !sameClass(action.production_recipe_class, group[0]?.production_recipe_class))) {
+      return { attached: false, reason: "each two-stage machine group must use one exact build and production recipe" };
+    }
+  }
+
+  const rawInput = inputFor(producerStep, source.resource_class);
+  const intermediateInput = inputFor(consumerStep, intermediateClass);
+  const rawTotal = finite(rawInput?.display_units_per_minute);
+  const intermediateTotal = finite(intermediateInput?.display_units_per_minute);
+  const producerRate = finite(producerStep?.per_machine_display_units_per_minute);
+  if (rawTotal === null || intermediateTotal === null || producerRate === null || producerRate <= 0) {
+    return { attached: false, reason: "two-stage production rates are incomplete in the deterministic plan" };
+  }
+  const consumerRate = intermediateTotal / consumerActions.length;
+  const consumersPerProducer = producerRate / consumerRate;
+  const balancedFanOut = Math.round(consumersPerProducer);
+  if (!Number.isFinite(consumerRate) || consumerRate <= 0 ||
+      Math.abs(consumersPerProducer - balancedFanOut) > EPSILON ||
+      producerActions.length * balancedFanOut !== consumerActions.length) {
+    return {
+      attached: false,
+      reason: "the intermediate rates do not form an integral balanced producer-to-consumer fan-out",
+      producer_output_per_minute: producerRate,
+      consumer_input_per_minute: consumerRate,
+      exact_consumers_per_producer: consumersPerProducer,
+    };
+  }
+
+  const producerMetadata = buildRecipeMetadata(graph, producerActions[0].recipe_class);
+  const consumerMetadata = buildRecipeMetadata(graph, consumerActions[0].recipe_class);
+  const producerInput = nativeFactoryPort(producerMetadata?.building, "input");
+  const producerOutput = nativeFactoryPort(producerMetadata?.building, "output");
+  const consumerInput = nativeFactoryPort(consumerMetadata?.building, "input");
+  if (!producerMetadata || !consumerMetadata || !producerInput.resolved ||
+      !producerOutput.resolved || !consumerInput.resolved) {
+    return { attached: false, reason: "both two-stage machine classes need one exact native input and the producer needs one exact output" };
+  }
+  const producerRadius = measuredCollisionRadius(graph, producerMetadata.building.class_path);
+  const consumerRadius = measuredCollisionRadius(graph, consumerMetadata.building.class_path);
+  if (producerRadius === null || consumerRadius === null) {
+    return { attached: false, reason: "both two-stage machine collision footprints must be captured from live instances" };
+  }
+  const maximumSplitterOutputs = Math.max(producerActions.length, balancedFanOut);
+  const splitter = maximumSplitterOutputs > 1
+    ? regularSplitterMetadata(graph, maximumSplitterOutputs)
+    : null;
+  if (splitter && !splitter.resolved) {
+    return { attached: false, reason: `the two-stage regular Splitter topology cannot be proven: ${splitter.reason}` };
+  }
+  const belt = observedBeltCapacity(graph, beltRecipeClass);
+  if (!belt) {
+    return { attached: false, reason: "no captured selected conveyor proves two-stage belt capacity" };
+  }
+  if (rawTotal > belt.items_per_minute + EPSILON ||
+      producerRate > belt.items_per_minute + EPSILON ||
+      consumerRate > belt.items_per_minute + EPSILON) {
+    return {
+      attached: false,
+      reason: "one or more exact two-stage material legs exceed the observed selected conveyor capacity",
+      raw_input_per_minute: rawTotal,
+      producer_output_per_minute: producerRate,
+      consumer_input_per_minute: consumerRate,
+      belt_capacity_per_minute: belt.items_per_minute,
+    };
+  }
+
+  const footprint = shell?.footprint;
+  const grid = shell?.grid;
+  const origin = vector(footprint?.origin_cm);
+  const cell = finite(grid?.cell_size_cm);
+  const width = finite(footprint?.width_cm);
+  const depth = finite(footprint?.depth_cm);
+  if (!origin || cell === null || cell <= 0 || width === null || depth === null ||
+      width <= 0 || depth <= 0) {
+    return { attached: false, reason: "the two-stage housed layout lacks exact shell geometry" };
+  }
+  const allMachineActions = [...producerActions, ...consumerActions];
+  const machineLocations = new Map(allMachineActions.map((action) => [action, vector(action.location)]));
+  if ([...machineLocations.values()].some((location) => !location)) {
+    return { attached: false, reason: "a two-stage machine transform is not finite" };
+  }
+
+  const towardFront = { x: 0, y: -1, z: 0 };
+  const towardBack = { x: 0, y: 1, z: 0 };
+  const producerYaw = yawAlign(producerInput.normal, towardFront);
+  const consumerYaw = yawAlign(consumerInput.normal, towardFront);
+  const producerOutputNormal = rotate(producerOutput.normal, producerYaw);
+  if (producerOutputNormal.y <= EPSILON) {
+    return { attached: false, reason: "the rotated first-stage native output does not face the downstream row" };
+  }
+  const producerInputOffset = rotate(producerInput.location, producerYaw);
+  const producerOutputOffset = rotate(producerOutput.location, producerYaw);
+  const consumerInputOffset = rotate(consumerInput.location, consumerYaw);
+  const producers = producerActions.map((action) => ({
+    action,
+    location: machineLocations.get(action),
+    input_point: add(machineLocations.get(action), producerInputOffset),
+    output_point: add(machineLocations.get(action), producerOutputOffset),
+  })).sort((left, right) => left.output_point.x - right.output_point.x);
+  const consumers = consumerActions.map((action) => ({
+    action,
+    location: machineLocations.get(action),
+    input_point: add(machineLocations.get(action), consumerInputOffset),
+  })).sort((left, right) => left.input_point.x - right.input_point.x);
+
+  const left = origin.x - cell / 2;
+  const right = origin.x + width - cell / 2;
+  const front = origin.y - cell / 2;
+  const back = origin.y + depth - cell / 2;
+  const placedSplitters = [];
+  const splitterFits = (location) =>
+    location.x - splitter.collision_radius_cm >= left &&
+    location.x + splitter.collision_radius_cm <= right &&
+    location.y - splitter.collision_radius_cm >= front &&
+    location.y + splitter.collision_radius_cm <= back &&
+    [...producers, ...consumers].every((machine) =>
+      horizontalDistance(location, machine.location) >
+        splitter.collision_radius_cm +
+          (producers.includes(machine) ? producerRadius : consumerRadius) + 1) &&
+    placedSplitters.every((placed) =>
+      horizontalDistance(location, placed.location) > splitter.collision_radius_cm * 2 + 1);
+
+  const planSplitterBetween = (fromPoint, targets, label) => {
+    const centroid = {
+      x: targets.reduce((sum, target) => sum + target.input_point.x, 0) / targets.length,
+      y: targets.reduce((sum, target) => sum + target.input_point.y, 0) / targets.length,
+      z: targets.reduce((sum, target) => sum + target.input_point.z, 0) / targets.length,
+    };
+    const heading = horizontalUnit(fromPoint, centroid);
+    if (!heading) return { planned: false, reason: `${label} has no horizontal source-to-consumer span` };
+    const inputFacing = scale(heading, -1);
+    const yaw = yawAlign(splitter.input.normal, inputFacing);
+    const inputOffset = rotate(splitter.input.location, yaw);
+    const candidates = [0.35, 0.45, 0.55, 0.65].map((amount) => {
+      const desiredInput = {
+        x: fromPoint.x + (centroid.x - fromPoint.x) * amount,
+        y: fromPoint.y + (centroid.y - fromPoint.y) * amount,
+        z: fromPoint.z + (centroid.z - fromPoint.z) * amount,
+      };
+      return {
+        x: desiredInput.x - inputOffset.x,
+        y: desiredInput.y - inputOffset.y,
+        z: machineLocations.get(producerActions[0]).z,
+      };
+    });
+    const location = candidates.find(splitterFits);
+    if (!location) return { planned: false, reason: `${label} has no collision-clear measured Splitter transform inside the shell` };
+    const inputPoint = add(location, inputOffset);
+    const ports = splitter.outputs.map((port) => ({
+      ...port,
+      world_location: add(location, rotate(port.location, yaw)),
+      world_normal: rotate(port.normal, yaw),
+    }));
+    if (ports.some((port) => horizontalDot(port.world_normal, heading) <= EPSILON)) {
+      return { planned: false, reason: `${label} Splitter outputs do not face its consumers` };
+    }
+    const assignments = assignNearestPorts(ports, targets);
+    const planned = { label, location, yaw, input_point: inputPoint, assignments };
+    placedSplitters.push(planned);
+    return { planned: true, splitter: planned };
+  };
+
+  let rawSplitter = null;
+  if (producers.length > 1) {
+    const rawPlan = planSplitterBetween(
+      { x: producers.reduce((sum, entry) => sum + entry.input_point.x, 0) / producers.length,
+        y: front - cell,
+        z: producers[0].input_point.z },
+      producers,
+      "raw input fan-out",
+    );
+    if (!rawPlan.planned) return { attached: false, reason: rawPlan.reason };
+    rawSplitter = rawPlan.splitter;
+  }
+
+  const internalGroups = [];
+  for (const [producerIndex, producer] of producers.entries()) {
+    const assignedConsumers = consumers.slice(
+      producerIndex * balancedFanOut,
+      (producerIndex + 1) * balancedFanOut,
+    );
+    if (assignedConsumers.length !== balancedFanOut) {
+      return { attached: false, reason: "balanced downstream consumer assignment is incomplete" };
+    }
+    if (balancedFanOut === 1) {
+      internalGroups.push({ producer, consumers: assignedConsumers, splitter: null });
+      continue;
+    }
+    const internalPlan = planSplitterBetween(
+      producer.output_point,
+      assignedConsumers,
+      `intermediate fan-out ${producerIndex + 1}`,
+    );
+    if (!internalPlan.planned) return { attached: false, reason: internalPlan.reason };
+    internalGroups.push({ producer, consumers: assignedConsumers, splitter: internalPlan.splitter });
+  }
+
+  const rawDestination = rawSplitter?.input_point ?? producers[0].input_point;
+  const minerOutputDirection = towardBack;
+  const minerYaw = yawAlign(source.miner_output.normal, minerOutputDirection);
+  const minerOutputOffset = rotate(source.miner_output.location, minerYaw);
+  let gap = cell;
+  const minerForGap = (distance) => subtract(
+    add(rawDestination, scale(towardFront, distance)),
+    minerOutputOffset,
+  );
+  let minerLocation = minerForGap(gap);
+  const maximumMinerY = minerLocation.y + source.miner_collision_radius_cm;
+  if (maximumMinerY > front - 1) {
+    gap += maximumMinerY - (front - 1);
+    minerLocation = minerForGap(gap);
+  }
+  if (rawDestination.x < left || rawDestination.x > right) {
+    return { attached: false, reason: "the two-stage raw input belt does not cross the measured shell front" };
+  }
+
+  const frontWalls = actions
+    .map((action, index) => ({ action, index }))
+    .filter(({ action }) => action?.action === "place_building" && action?.generated_role === "wall" &&
+      vector(action.location) && Math.abs(action.location.y - front) <= 1)
+    .sort((a, b) => Math.abs(a.action.location.x - rawDestination.x) -
+      Math.abs(b.action.location.x - rawDestination.x));
+  const removedWall = frontWalls[0] && Math.abs(frontWalls[0].action.location.x - rawDestination.x) <= cell / 2
+    ? frontWalls[0].index
+    : null;
+  const buildingActions = actions.filter((action, index) =>
+    action?.action === "place_building" && index !== removedWall);
+  const adjusted = buildingActions.map((action) =>
+    producerActions.includes(action)
+      ? { ...action, yaw: producerYaw }
+      : consumerActions.includes(action)
+        ? { ...action, yaw: consumerYaw }
+        : { ...action });
+  const stepByAction = new Map(buildingActions.map((action, index) => [action, index + 1]));
+  if (allMachineActions.some((action) => !stepByAction.has(action))) {
+    return { attached: false, reason: "a two-stage machine step was lost while opening the input aperture" };
+  }
+
+  const addedBuildings = [];
+  const appendBuilding = (action) => {
+    addedBuildings.push(action);
+    return adjusted.length + addedBuildings.length;
+  };
+  const commit = actions.some((action) => action?.commit === true);
+  const anchorStep = appendBuilding({
+    action: "place_building",
+    recipe_class: source.anchor_recipe_class,
+    location: minerLocation,
+    exact_z: true,
+    yaw: minerYaw,
+    generated_role: "resource_anchor",
+    resource_class: source.resource_class,
+    resource_purity: source.native_purity,
+    commit,
+  });
+  const minerStep = appendBuilding({
+    action: "place_building",
+    recipe_class: source.miner_recipe_class,
+    location: minerLocation,
+    exact_z: true,
+    yaw: minerYaw,
+    generated_role: "miner",
+    target_step: anchorStep,
+    commit,
+  });
+  const splitterStep = new Map();
+  for (const planned of placedSplitters) {
+    splitterStep.set(planned, appendBuilding({
+      action: "place_building",
+      recipe_class: splitter.recipe_class,
+      location: planned.location,
+      exact_z: true,
+      yaw: planned.yaw,
+      generated_role: "standalone",
+      commit,
+    }));
+  }
+
+  const belts = [];
+  const connect = (fromStep, toStep, fromName, toName) => belts.push({
+    action: "place_belt",
+    recipe_class: belt.recipe_class,
+    from_step: fromStep,
+    to_step: toStep,
+    from_connector_name: fromName,
+    to_connector_name: toName,
+    commit,
+  });
+  if (rawSplitter) {
+    connect(minerStep, splitterStep.get(rawSplitter), source.miner_output.name, splitter.input.name);
+    for (const { consumer, output } of rawSplitter.assignments) {
+      connect(
+        splitterStep.get(rawSplitter),
+        stepByAction.get(consumer.action),
+        output.name,
+        producerInput.name,
+      );
+    }
+  } else {
+    connect(minerStep, stepByAction.get(producers[0].action), source.miner_output.name, producerInput.name);
+  }
+  for (const group of internalGroups) {
+    if (!group.splitter) {
+      connect(
+        stepByAction.get(group.producer.action),
+        stepByAction.get(group.consumers[0].action),
+        producerOutput.name,
+        consumerInput.name,
+      );
+      continue;
+    }
+    connect(
+      stepByAction.get(group.producer.action),
+      splitterStep.get(group.splitter),
+      producerOutput.name,
+      splitter.input.name,
+    );
+    for (const { consumer, output } of group.splitter.assignments) {
+      connect(
+        splitterStep.get(group.splitter),
+        stepByAction.get(consumer.action),
+        output.name,
+        consumerInput.name,
+      );
+    }
+  }
+
+  return {
+    attached: true,
+    actions: [...adjusted, ...addedBuildings, ...belts],
+    anchor_step: anchorStep,
+    miner_step: minerStep,
+    removed_front_wall: removedWall !== null,
+    input_aperture_x_cm: rawDestination.x,
+    straight_belt_length_cm: gap,
+    required_rate_per_minute: rawTotal,
+    available_rate_per_minute: source.available_rate_per_minute,
+    belt_capacity_per_minute: belt.items_per_minute,
+    fan_out: {
+      topology: "balanced_two_stage_linear",
+      splitter_name: splitter?.name ?? null,
+      raw_consumers: producers.length,
+      intermediate_producers: producers.length,
+      consumers_per_producer: balancedFanOut,
+      final_consumers: consumers.length,
+      splitters: placedSplitters.length,
+      outputs_used: belts.filter((entry) => entry.from_connector_name !== source.miner_output.name &&
+        entry.from_connector_name !== producerOutput.name).length,
+      raw_rate_per_minute: rawTotal,
+      intermediate_rate_per_minute: intermediateTotal,
+    },
+    connector_evidence: {
+      miner_output: source.miner_output.name,
+      producer_input: producerInput.name,
+      producer_output: producerOutput.name,
+      consumer_input: consumerInput.name,
+      splitter_input: splitter?.input?.name ?? null,
+      splitter_outputs: [...new Set(belts
+        .map((entry) => entry.from_connector_name)
+        .filter((name) => splitter?.outputs?.some((output) => output.name === name)))],
+    },
+    source:
+      "exact two-step production rates + captured native class ports + observed belt capacity and collision bounds",
+    certainty: "exact inputs to bridge/game native endpoint and isolated-world topology readback",
+  };
 }
 
 /** Resolve exact current node, resource, Anchor and vanilla Miner evidence. */
@@ -452,6 +902,13 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
       required_rate_per_minute: requiredRate,
       available_rate_per_minute: source.available_rate_per_minute,
     };
+  }
+  if (Array.isArray(production.steps) && production.steps.length === 2) {
+    return balancedTwoStageSource(graph, actions, source, {
+      production,
+      shell,
+      belt_recipe_class: beltRecipeClass,
+    });
   }
 
   const transportActions = actions.filter((action) => action?.action === "place_belt");

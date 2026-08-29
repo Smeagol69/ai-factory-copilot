@@ -4956,3 +4956,35 @@ placement matrix must follow after the game closes. The next topology milestone
 for Wire is an explicit production DAG compiler with regular Splitter and Merger
 nodes for every branching edge; do not extend this one-stage helper by emitting
 ambiguous row-to-row belts.
+
+### Codex — 2026-08-29 balanced two-stage generated Wire handoff
+
+Branch: `codex/generated-blueprint-two-stage-wire`; claim commit `b7a46ed`.
+This lane extends the source-fan-out contract without touching Claude's
+creative-node discovery or node-spawner UI. An explicit node-sourced Blueprint
+whose deterministic production plan is exactly two single-input,
+single-product stages can now compile a balanced linear material network. The
+current proven shape is Copper Ore → Copper Ingot → Wire: a raw Miner belt,
+one regular native Splitter for the Smelters, one regular native Splitter per
+Smelter for its Constructors, and named-port belts for every edge. Machine
+counts must be whole and fully utilized; the intermediate output/input ratio
+must be an integral one-to-many partition, so merger-required, fractional,
+coproduct, mixed-input, and longer DAGs refuse explicitly.
+
+The compiler uses captured class-default connector names/directions/transforms,
+measured live collision radii, shell geometry, current unlocks, and the
+observed selected-belt capacity. It removes only the exact front wall crossed
+by the Miner aperture, keeps the Anchor/Miner outside the floor collision, and
+replaces row-adjacency belts with reciprocal named endpoints. The router's
+reply now describes the two-stage network and does not read one-stage fan-out
+fields from it.
+
+Verification: `npm test` and `scripts/validate.ps1` pass **886/886** with
+merger-required and fractional-ratio refusal regressions. No deployment or
+live-game test was run in this turn. With the game now closed, the next step is
+to commit and fast-forward this branch into `master`, run the matched
+FactoryEditor/Shipping/UAT package, deploy the mod and companion together, and
+exercise the generated Wire Blueprint through isolated-world readback and the
+vanilla Build Gun. Preserve Claude's creative-node collision/profile and picker
+work; the remaining shared open problem is extractor hologram discovery for
+creative nodes, not the generated Anchor topology.
