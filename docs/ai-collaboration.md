@@ -5053,7 +5053,7 @@ Verification: companion tests pass **887/887**; SML/FactoryGame CL 502094 header
 validation passes; FactoryEditor Development and FactoryGameSteam Shipping
 module builds pass; guarded UAT package/deploy completed with matching game and
 Starter Project DLLs (SHA-256
-`6C9C4ED1C364B6D3056BDBFCC4A4AF1E2A8EEAB5FAEFF72FF0B6DBF2ACD9ED1D`) and
-archive `FEC86C7F801880D1904E3931477A5112191C2760A3B9FAC6BF1E76DBCE13F581`.
+`4F78131685B791C167421E99CFB5E748DB8601C75F8D76405D02CEC6514064EB`) and
+archive `63550727081D80C6FC4D9A56C1C9FDEB1A534B9F7CB1D447BD1F4947EB9643C0`.
 Live placement of a creative Miner, fluid extractor, and geothermal generator
 still needs a packaged-game session; no live success is claimed yet.
