@@ -745,6 +745,13 @@ test("Blueprint Designer miner support keeps the native node and extractor contr
     ),
     "utf8",
   );
+  const placement = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintResourceAnchorPlacement.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   const worldModule = fs.readFileSync(
     new URL(
       "../../Source/AIFactoryCopilot/Private/AIFactoryGameWorldModule.cpp",
@@ -811,6 +818,11 @@ test("Blueprint Designer miner support keeps the native node and extractor contr
   assert.match(rco, /SetTimerForNextTick/);
   assert.match(rco, /BlueprintAnchorRecipeReplicationRetryFrames/);
   assert.doesNotMatch(rco, /SpawnActor|Construct\(/);
+  assert.match(placement, /bool EnsureRecipeAvailable\(UWorld\* const World\)/);
+  assert.match(placement, /Recipes->AddAvailableRecipe\(Recipe\)/);
+  assert.match(placement, /return Recipes->IsRecipeAvailable\(Recipe\)/);
+  assert.match(placement, /if \(!EnsureRecipeAvailable\(World\)\)/);
+  assert.match(worldModule, /EnsureRecipeAvailable\(GetWorld\(\)\)/);
   assert.match(worldModule, /EnableVanillaMinersInBlueprintDesigner\(GetWorld\(\)\)/);
   assert.doesNotMatch(anchor, /SUBSCRIBE_METHOD|UNSUBSCRIBE_METHOD|NativeHookManager/);
 });

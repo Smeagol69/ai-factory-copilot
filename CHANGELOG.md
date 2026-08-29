@@ -5,6 +5,12 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed node-sourced native Blueprint generation being blocked on a fresh save:
+  the mod-owned Blueprint Resource Anchor recipe is now made available
+  idempotently during world initialization, and `/ai anchor` reuses the same
+  readiness check. The bridge still requires exact live recipe availability;
+  no vanilla progression recipe is unlocked. Shipping and Editor module builds
+  pass; packaging/deployment waits for the running game to close.
 - Added deterministic **aimed-node sourcing** for planner-generated native
   Blueprints. A request such as `create a blueprint that makes 30 iron ingot
   per minute from this node using Miner Mk.1` now resolves the exact aimed

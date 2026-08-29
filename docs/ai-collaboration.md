@@ -5000,3 +5000,14 @@ reusing that same helper from `/ai anchor`), with a truthful warning when the
 official recipe manager is not ready. Preserve Claude's creative-node work and
 the generated Blueprint topology; do not relax the companion's fail-closed
 unlock check or unlock player progression recipes.
+
+Implementation: `EnsureRecipeAvailable(UWorld*)` now uses the official
+`AFGRecipeManager::AddAvailableRecipe` / `IsRecipeAvailable` pair, is called at
+world `POST_INITIALIZATION`, and is reused by the explicit anchor arming route.
+This keeps the bridge's exact-unlock check intact while making the private
+mod-owned recipe visible before the first snapshot. The companion suite and
+`scripts/validate.ps1` pass **886/886**; FactoryGameSteam Shipping and
+FactoryEditor Development both compile. The game is currently running, so the
+new DLL has not been copied into the installed game yet. After it closes, run
+the matched UAT package/deploy, capture a fresh snapshot, confirm the Anchor
+recipe has `available: true`, and retry node-sourced Blueprint generation.

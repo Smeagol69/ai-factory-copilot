@@ -11,6 +11,27 @@
 
 namespace AIFactoryBlueprintResourceAnchorPlacement
 {
+bool EnsureRecipeAvailable(UWorld* const World)
+{
+    if (!IsValid(World))
+    {
+        return false;
+    }
+
+    AFGRecipeManager* const Recipes = AFGRecipeManager::Get(World);
+    if (!IsValid(Recipes))
+    {
+        return false;
+    }
+
+    const TSubclassOf<UFGRecipe> Recipe = UAIFactoryBlueprintResourceAnchorRecipe::StaticClass();
+    if (!Recipes->IsRecipeAvailable(Recipe))
+    {
+        Recipes->AddAvailableRecipe(Recipe);
+    }
+    return Recipes->IsRecipeAvailable(Recipe);
+}
+
 bool ArmForPlayer(
     AFGPlayerController* const PlayerController,
     const TSubclassOf<UFGResourceDescriptor> Resource,
@@ -46,11 +67,7 @@ bool ArmForPlayer(
             Player,
             ESchematicUnlockFlags::Force | ESchematicUnlockFlags::SuppressNarrativeMessages);
     }
-    if (!Recipes->IsRecipeAvailable(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass()))
-    {
-        Recipes->AddAvailableRecipe(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass());
-    }
-    if (!Recipes->IsRecipeAvailable(UAIFactoryBlueprintResourceAnchorRecipe::StaticClass()))
+    if (!EnsureRecipeAvailable(World))
     {
         OutReason = TEXT("the Blueprint Resource Anchor recipe did not become available");
         return false;
