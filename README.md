@@ -165,7 +165,9 @@ Writes are **off by default**. Turn them on in the mod config:
 
 The native Creative Resource Node editor uses the same write switch. Once it
 is enabled, `/ai node place copper ore pure` arms the normal Build Gun
-hologram rather than directly spawning an actor. In multiplayer, a
+hologram rather than directly spawning an actor. The spawner catalog also
+supports registered liquid, gas, and geothermal geyser descriptors, while
+leaving water-volume and fracking actors to their native extractor systems. In multiplayer, a
 Satisfactory server admin must arm it; the resulting recipe availability is a
 persistent world-level unlock, not a player permission. See
 [`docs/CREATIVE_WORLD_EDITOR.md`](docs/CREATIVE_WORLD_EDITOR.md) for the

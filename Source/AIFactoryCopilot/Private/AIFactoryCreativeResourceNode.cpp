@@ -58,23 +58,19 @@ AAIFactoryCreativeResourceNode::AAIFactoryCreativeResourceNode()
     mCanPlaceResourceExtractor = false;
     mCanPlacePortableMiner = false;
 
-    // Vanilla map nodes receive their optional collision component from their
-    // Blueprint asset. A concrete native child has none, so it must own a root
-    // explicitly; attaching a visible mesh to a null root produces an actor
-    // that the Build Gun cannot trace or place reliably.
-    // Keep the actor/root transform identical to the Build Gun hologram. The
-    // collision volume itself is raised around the visible deposit, but it is
-    // a child rather than an offset root so deferred spawning never applies
-    // that height twice and snapshots report the precise chosen XYZ.
-    USceneComponent* const Root = CreateDefaultSubobject<USceneComponent>(TEXT("CreativeNodeRoot"));
-    SetRootComponent(Root);
+    // Vanilla BP_ResourceNode exposes its BoxComponent as the actor root. The
+    // resource extractor hologram can use that exact root/component contract
+    // when it resolves a hit; a scene root with a resource box below it is a
+    // visually plausible actor but is not equivalent to a native node. Keep
+    // the root transform at the Build Gun's chosen actor transform so the
+    // saved XYZ is the node origin, not the top of its visual mesh.
     mBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CreativeNodeCollision"));
-    mBoxComponent->SetupAttachment(Root);
+    SetRootComponent(mBoxComponent);
     mBoxComponent->SetBoxExtent(FVector(
         CreativeNodeClearanceRadiusCm,
         CreativeNodeClearanceRadiusCm,
         CreativeNodeClearanceHeightCm * 0.5f));
-    mBoxComponent->SetRelativeLocation(FVector(0.0f, 0.0f, CreativeNodeClearanceHeightCm * 0.5f));
+    mBoxComponent->SetRelativeLocation(FVector::ZeroVector);
     // Vanilla resource nodes carry FactoryGame's own shipped "Resource"
     // collision profile: object type Resource (ECC_GameTraceChannel3) with the
     // Hologram channel set to overlap. AFGResourceExtractorHologram finds its
@@ -105,7 +101,7 @@ AAIFactoryCreativeResourceNode::AAIFactoryCreativeResourceNode()
     mBoxComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
     mCreativeVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CreativeNodeVisual"));
-    mCreativeVisual->SetupAttachment(Root);
+    mCreativeVisual->SetupAttachment(mBoxComponent);
     mCreativeVisual->ComponentTags.Add(TEXT("AIFactoryCreativeNodeVisual"));
     // The box stays the resource-query surface. The deposit mesh is what the
     // player physically meets, and a real ore deposit is solid rock you can

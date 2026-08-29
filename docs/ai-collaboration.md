@@ -5057,3 +5057,27 @@ Starter Project DLLs (SHA-256
 archive `63550727081D80C6FC4D9A56C1C9FDEB1A534B9F7CB1D447BD1F4947EB9643C0`.
 Live placement of a creative Miner, fluid extractor, and geothermal generator
 still needs a packaged-game session; no live success is claimed yet.
+
+### Codex — 2026-08-29 native resource-node root compatibility repair
+
+Claim: repair the spawned Creative Resource Node's component contract after a
+live Miner hologram treated it as a deposit. The prior actor used a separate
+scene root with the resource collision box offset beneath it. The shipped
+`BP_ResourceNode` snapshot proves that its `BoxComponent` is the actor's
+`RootComponent`; the creative actor now follows that same shape, with its
+resource collision box at the actor origin and its visual attached to the box.
+This preserves the `Resource` profile, BuildGun overlap, extractor eligibility,
+and ordinary liquid/gas/geyser validation while making the native extractor
+hologram see the same root/component relationship as a real node.
+
+Documentation now calls out the supported ordinary forms and the separate
+native water-volume/fracking extractor rules. The updated companion suite
+passes **887/887**; header validation, FactoryEditor Development, and
+FactoryGameSteam Shipping builds pass. Guarded UAT package/deploy completed
+with matching Starter Project and Steam DLLs (SHA-256
+`F704D642D647D31C642A0CD164D0EEA05DE7C6BC3DDF7DE8FE4FCD2B09C9C870`) and
+archive `19,649,966` bytes (SHA-256
+`B24A7002A05BEC56FB916B26C9B445354A2E3BFBEDFEB2385C02881E075B52C3`).
+The packaged Miner snap, fluid extractor, and geothermal generator still need
+an in-game test after launching the deployed build; no live success is claimed
+until those holograms and the post-placement snapshot are observed.

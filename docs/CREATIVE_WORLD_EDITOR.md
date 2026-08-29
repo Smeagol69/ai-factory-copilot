@@ -1,10 +1,11 @@
 # Creative Resource Nodes — native world-editor foundation
 
 This is the first deliberate world-editor capability in AI Factory Copilot. It
-lets a player create a **new, mod-owned infinite solid resource node** anywhere
-the normal Satisfactory Build Gun accepts its hologram. It is not a shortcut
-that spawns an invisible actor, and it never moves, replaces, registers, or
-deletes a vanilla map node.
+lets a player create a **new, mod-owned infinite resource source** anywhere the
+normal Satisfactory Build Gun accepts its hologram. Ordinary sources may be
+solid, liquid, or gas; a registered geothermal resource uses the native
+`AFGResourceNodeGeyser` type. It is not a shortcut that spawns an invisible
+actor, and it never moves, replaces, registers, or deletes a vanilla map node.
 
 ## Player workflow
 
@@ -31,14 +32,15 @@ claim that placement succeeded; Satisfactory's native chat reports the server's
 actual arming result.
 
 For this particular command, the panel also has a **Creative Resource Node**
-strip: type the exact registered solid resource name and click **Arm impure**,
-**Arm normal**, or **Arm pure**. Pressing Enter in the field means normal. The
-strip builds the same `/ai node place <resource> <purity>` command and nothing
-else; the server remains the authority for the resource lookup, modded-resource
-support, write/admin gate, recipe availability, RCO staging, hologram, and final
-construction. It refuses multi-line text locally so the transcript cannot hide a
-second command. It is a text field for now, not a client-side guessed resource
-list—use `/ai node` to see exact available names.
+strip: type the exact registered resource name (solid, liquid, gas, or geyser)
+and click **Arm impure**, **Arm normal**, or **Arm pure**. Pressing Enter in the
+field means normal. The strip builds the same `/ai node place <resource>
+<purity>` command and nothing else; the server remains the authority for the
+resource lookup, modded-resource support, write/admin gate, recipe availability,
+RCO staging, hologram, and final construction. It refuses multi-line text
+locally so the transcript cannot hide a second command. It is a text field for
+now, not a client-side guessed resource list—use `/ai node` to see exact
+available names and their supported kind.
 
 The existing `/ai node <resource>` command uses the same world-editor
 write/admin gate before it changes either a previously created Creative
@@ -47,11 +49,12 @@ refuses deposits, geysers, fracking nodes, and transient Blueprint Resource
 Anchor runtime nodes: those actors have their own game or saved-Anchor
 configuration and must never be retargeted through the generic override path.
 
-`/ai node` lists registered solid resources. The list comes from the live
+`/ai node` lists registered creative resources. The list comes from the live
 Recipe Manager's complete descriptor catalogue, so it includes installed mods
-and does not depend on a matching map node being nearby. If two descriptors
-have the same display name, their unqualified alias is deliberately withheld;
-the list supplies a class-qualified choice instead of choosing one by iteration
+and does not depend on a matching map node being nearby. Each entry is
+classified as solid, liquid, gas, or geothermal geyser. If two descriptors have
+the same display name, their unqualified alias is deliberately withheld; the
+list supplies a class-qualified choice instead of choosing one by iteration
 order.
 
 For an unoccupied Creative Resource Node already in the world, aim at it and
@@ -83,18 +86,22 @@ than silently producing a resource.
 The editor accepts only resource descriptors that are:
 
 - registered by the running game;
-- `UFGResourceDescriptor` subclasses with solid form; and
-- supplied with a real deposit mesh.
+- `UFGResourceDescriptor` subclasses with solid, liquid, or gas form, or a
+  native `UFGResourceDescriptorGeyser` subclass; and
+- for ordinary solid nodes, supplied with a real deposit mesh. Liquid, gas, and
+  geyser descriptors use a visible fallback source marker when the descriptor
+  intentionally has no ore-deposit mesh.
 
-That last check is intentional: a modded descriptor with no deposit mesh is
-refused rather than creating an invisible mineable box. Hologram clearance and
-an additional resource-node separation check reject invalid/overlapping sites
-before server construction. Re-arming the same universal recipe updates the
-current local hologram rather than reusing its previous resource choice. If
-the player has already clicked a placement and its normal construction message
-is pending, the editor deliberately leaves that clicked placement alone: wait
-for it to complete, then re-arm the Build Gun. A new command must never mutate
-a placement already in flight.
+That solid-mesh check is intentional: a modded solid descriptor with no deposit
+mesh is refused rather than creating an invisible mineable box. Liquid, gas,
+and geyser descriptors are allowed to use the explicit fallback marker above.
+Hologram clearance and an additional resource-node separation check reject
+invalid/overlapping sites before server construction. Re-arming the same
+universal recipe updates the current local hologram rather than reusing its
+previous resource choice. If the player has already clicked a placement and
+its normal construction message is pending, the editor deliberately leaves
+that clicked placement alone: wait for it to complete, then re-arm the Build
+Gun. A new command must never mutate a placement already in flight.
 
 Every successful creative node is already present in the ordinary authoritative
 snapshot as `kind: resource_node`, with its exact actor id, class/owner mod,
@@ -105,9 +112,14 @@ see it as a normal miner-hostable node without special guesswork.
 
 - Nodes are static after placement, just like Satisfactory's resource-node
   contract. They are not draggable world-editor handles.
-- This layer supports solid extractor nodes only. Water, oil, gas, fracking,
-  map/scanner registration, and map representations have distinct engine
-  systems and are not claimed here.
+- Ordinary creative nodes support the three resource forms that
+  `AFGResourceNode` exposes: solid, liquid, and gas. A geyser descriptor is
+  represented by the native `AFGResourceNodeGeyser` subclass so geothermal
+  generators can use their normal resource interface. This does not turn every
+  extractor into a universal pump: `AFGWaterPumpHologram` still requires the
+  game's own water-volume rules, and fracking/resource-well extractors still
+  require their native satellite/core actors. The spawner does not claim water
+  volumes, fracking actors, map/scanner registration, or map representations.
 - Generic `/ai node <resource>` retargeting is limited to ordinary,
   unoccupied vanilla `Node` actors. It does not alter deposits, geysers,
   fracking actors, or Blueprint Resource Anchor runtime nodes. A creative node
@@ -136,7 +148,8 @@ the game is closed, build and package the branch, then prove in a disposable
 save:
 
 1. Place a Copper Ore normal node on clear terrain; verify exact snapshot XYZ,
-   class/owner, resource, purity, infinite amount and a Miner Mk.1 snap.
+   class/owner, resource, purity, infinite amount and a Miner Mk.1 snap. The
+   Miner hologram must identify the source as a resource node, not as a deposit.
 2. Re-run the command with a different resource/purity while its hologram is
    active; prove it changes the existing preview rather than placing the old
    selection.
@@ -152,7 +165,12 @@ save:
    works only after the Build Gun is idle. Also cancel a freshly armed preview,
    switch recipes, and unequip the Build Gun before placement; then arm it
    again and prove no stale local choice survives.
-7. Retarget an unoccupied creative node and verify `original` refuses; retarget
+7. Place one ordinary liquid or gas descriptor and verify its form in the
+   snapshot. Test the matching native extractor (and record any native
+   water-volume or resource-well restriction instead of treating it as a
+   successful node snap). Place a registered geyser descriptor and verify the
+   geothermal generator hologram discovers the `AFGResourceNodeGeyser` source.
+   Retarget an unoccupied creative node and verify `original` refuses; retarget
    an ordinary vanilla node and restore it. Attempt the generic command on a
    Blueprint Anchor runtime node, deposit, geyser, and fracking node; each must
    refuse without changing its saved/resource configuration.

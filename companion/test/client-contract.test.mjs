@@ -137,9 +137,9 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(node, /DOREPLIFETIME\(AAIFactoryCreativeResourceNode, mCreativeConfiguration\)/);
   assert.match(node, /if \(!HasAuthority\(\)\)/);
   assert.match(node, /mCanPlaceResourceExtractor = false;\s*mCanPlacePortableMiner = false;/);
-  assert.match(node, /CreateDefaultSubobject<USceneComponent>\(TEXT\("CreativeNodeRoot"\)\)/);
   assert.match(node, /CreateDefaultSubobject<UBoxComponent>\(TEXT\("CreativeNodeCollision"\)\)/);
-  assert.match(node, /SetRootComponent\(Root\)/);
+  assert.match(node, /SetRootComponent\(mBoxComponent\)/);
+  assert.match(node, /mBoxComponent->SetRelativeLocation\(FVector::ZeroVector\)/);
   assert.match(node, /SetCollisionResponseToChannel\(ECC_Visibility, ECR_Block\)/);
   assert.match(node, /SetCollisionResponseToChannel\(ECC_GameTraceChannel5, ECR_Overlap\)/);
   assert.match(node, /UFGItemDescriptor::GetForm\(Resource\)/);
