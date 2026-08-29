@@ -483,6 +483,16 @@ test("resolves exact aimed solid resource, native purity, unlocked Anchor and lo
   assert.equal(source.miner_output.name, "OutputConnection0");
 });
 
+test("resolves a native script Build Gun producer spelling from the live catalog", () => {
+  const snapshot = sourceGraph().snapshot;
+  snapshot.content.recipes.find(
+    (recipe) => recipe.class_path === "Recipe_AIFactoryBlueprintResourceAnchor",
+  ).produced_in = ["/Script/FactoryGame.FGBuildGun"];
+  const source = resolveAimedGeneratedBlueprintSource(buildGraph(snapshot), { target });
+  assert.equal(source.resolved, true, JSON.stringify(source));
+  assert.equal(source.anchor_recipe_class, "Recipe_AIFactoryBlueprintResourceAnchor");
+});
+
 test("adds one collision-clear Anchor/Miner pair and one exact straight input belt", () => {
   const graph = sourceGraph();
   const source = resolveAimedGeneratedBlueprintSource(graph, { target });

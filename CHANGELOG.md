@@ -5,6 +5,12 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed live native Build Gun recipe discovery for node-sourced Blueprint
+  generation. FactoryGame CL 502094 reflects the producer as `FGBuildGun`,
+  whereas Blueprint-authored recipes use `BP_BuildGun`; both exact terminal
+  class names are now accepted, with no broad substring guessing. The
+  companion regression suite passes **887/887** and the clean install was
+  refreshed.
 - Fixed node-sourced native Blueprint generation being blocked on a fresh save:
   the mod-owned Blueprint Resource Anchor recipe is now made available
   idempotently during world initialization, and `/ai anchor` reuses the same

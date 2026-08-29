@@ -66,12 +66,22 @@ function buildRecipeMetadata(graph, recipeClass) {
     : null;
 }
 
+function isBuildGunProducer(producer) {
+  // The game has two authoritative spellings for the same native producer:
+  // Blueprint-authored recipes use BP_BuildGun.BP_BuildGun_C while reflected
+  // native/mod-owned recipes in CL 502094 use /Script/FactoryGame.FGBuildGun.
+  // Compare the terminal class name, not a broad substring, so another
+  // producer cannot accidentally enter the generated Blueprint lane.
+  const className = shortClass(producer);
+  return className === "BP_BuildGun" || className === "FGBuildGun";
+}
+
 function availableBuildGunMetadata(graph) {
   if (graph?.snapshot?.content?.availability_known !== true) return [];
   return [...(graph?.recipesByClass?.values?.() ?? [])]
     .filter(
       (recipe) => recipe?.available === true &&
-        (recipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun")),
+        (recipe.produced_in ?? []).some(isBuildGunProducer),
     )
     .map((recipe) => buildRecipeMetadata(graph, recipe.class_path))
     .filter(Boolean);

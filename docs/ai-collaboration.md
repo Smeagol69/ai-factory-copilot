@@ -5025,3 +5025,8 @@ while `generated-resource-source.mjs` previously matched only `BP_BuildGun`.
 This made a now-unlocked Anchor invisible to the resolver. Accept the exact
 native `FGBuildGun` spelling alongside the existing Blueprint class spelling,
 with a regression fixture; preserve all unlock and action validation gates.
+
+Implementation: the resolver now compares the terminal class name and accepts
+only `BP_BuildGun` or `FGBuildGun`; a live-spelling regression passes. The full
+companion suite passes **887/887**, and `install-companion.ps1` refreshed the
+clean `D:\Modding\Satisfactory\Companion` runtime with 40 verified hashes.
