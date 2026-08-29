@@ -5010,8 +5010,8 @@ mod-owned recipe visible before the first snapshot. The companion suite and
 FactoryEditor Development both compile. The game then closed cleanly and the
 matched UAT package/deploy completed. The installed Shipping DLL matches the
 Starter Project byte-for-byte (`06419AB8C2F9DD0394689161C4A109F4EFB5CF71167B9E30C5019E45B5AD2510`),
-and the archive is `36,475,918` bytes with SHA-256
-`2AEA225F6628603ED69F38C5B5397C334306DE1A000B3DA7F799DCFC31BFF58F`.
+and the final guarded package archive is `19,625,501` bytes with SHA-256
+`9065DA6237819A5801094DE62E2B435FA51A314457C04478011D83BBADB734B8`.
 Live verification still requires launching the game, capturing a fresh
 snapshot, confirming the Anchor recipe has `available: true`, and retrying
 node-sourced Blueprint generation; no success is claimed until that snapshot
