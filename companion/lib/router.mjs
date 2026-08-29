@@ -4951,7 +4951,10 @@ export function answerLocally(question, graph, services) {
         // existing surplus elsewhere in the save cannot make its machines
         // disappear. Prefer the ordinary product-named recipe recursively and
         // stop at exact extracted resources, which are external belt/pipe
-        // inputs until miner and fluid topology are supported.
+        // inputs in this general local generator. A caller that explicitly
+        // asks for a raw-resource Miner may instead supply a proven v4
+        // Anchor/Miner pair; we do not infer that relationship here from a
+        // product-only sentence.
         use_existing_surplus: !design.as_blueprint,
         prefer_standard_recipes: design.as_blueprint === true,
         stop_at_extracted_resources: design.as_blueprint === true,

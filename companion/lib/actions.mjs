@@ -683,6 +683,7 @@ export function validateAction(graph, proposal) {
       "aifactory.generated-blueprint/v1",
       "aifactory.generated-blueprint/v2",
       "aifactory.generated-blueprint/v3",
+      "aifactory.generated-blueprint/v4",
     ]);
     if (!generatedSchemas.has(proposal.layout_schema)) {
       return reject(kind, "unsupported_generated_blueprint_schema", {
@@ -704,6 +705,8 @@ export function validateAction(graph, proposal) {
     const nativePowerByPartId = new Map();
     const nativePipeByPartId = new Map();
     const generatedTransformByPartId = new Map();
+    const resourceAnchorPartIds = new Set();
+    const minerAnchorReferences = new Map();
     let configuredManufacturers = 0;
     for (const [index, proposedPart] of proposal.buildables.entries()) {
       if (!proposedPart || typeof proposedPart !== "object") {
@@ -718,7 +721,7 @@ export function validateAction(graph, proposal) {
       ids.add(partId);
 
       const role = String(proposedPart.role ?? "standalone").trim().toLowerCase();
-      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone"].includes(role)) {
+      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner"].includes(role)) {
         return reject(kind, "generated_blueprint_part_role_is_unsupported", {
           part: index + 1,
           part_id: partId,
@@ -765,6 +768,93 @@ export function validateAction(graph, proposal) {
         ? findItemInCatalog(graph, String(buildProduct.item_class))
         : null;
       const nativeBuilding = buildItem?.building;
+      const requestedResourceClass = String(proposedPart.resource_class ?? "").trim();
+      const requestedResourcePurity = String(proposedPart.resource_purity ?? "").trim();
+      const requestedAnchorPartId = String(proposedPart.resource_anchor_part_id ?? "").trim();
+      let resolvedResourceClass = "";
+      if (role === "resource_anchor") {
+        if (!proposal.layout_schema.endsWith("/v4")) {
+          return reject(kind, "generated_resource_anchor_requires_v4", {
+            part: index + 1,
+            part_id: partId,
+          });
+        }
+        if (nativeBuilding?.native_topology_kind !== "blueprint_resource_anchor" ||
+            nativeBuilding?.supports_generated_solid_resource_configuration !== true) {
+          return reject(kind, "generated_resource_anchor_recipe_lacks_captured_native_capability", {
+            part: index + 1,
+            part_id: partId,
+            recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+          });
+        }
+        const resourceItem = requestedResourceClass
+          ? findItemInCatalog(graph, requestedResourceClass)
+          : null;
+        if (!resourceItem) {
+          return reject(kind, "generated_resource_anchor_resource_not_in_catalog", {
+            part: index + 1,
+            part_id: partId,
+            resource_class: requestedResourceClass,
+          });
+        }
+        if (String(resourceItem.form ?? "").toUpperCase() !== "RF_SOLID") {
+          return reject(kind, "generated_resource_anchor_resource_must_be_solid", {
+            part: index + 1,
+            part_id: partId,
+            resource_class: resourceItem.class_path ?? requestedResourceClass,
+            captured_form: resourceItem.form ?? null,
+          });
+        }
+        if (!["RP_Inpure", "RP_Normal", "RP_Pure"].includes(requestedResourcePurity)) {
+          return reject(kind, "generated_resource_anchor_purity_is_invalid", {
+            part: index + 1,
+            part_id: partId,
+            resource_purity: requestedResourcePurity,
+          });
+        }
+        if (requestedAnchorPartId) {
+          return reject(kind, "generated_resource_anchor_cannot_reference_another_anchor", {
+            part: index + 1,
+            part_id: partId,
+          });
+        }
+        resolvedResourceClass = resourceItem.class_path ?? requestedResourceClass;
+        resourceAnchorPartIds.add(partId);
+      } else if (role === "miner") {
+        if (!proposal.layout_schema.endsWith("/v4")) {
+          return reject(kind, "generated_miner_requires_v4", {
+            part: index + 1,
+            part_id: partId,
+          });
+        }
+        if (nativeBuilding?.native_topology_kind !== "resource_extractor" ||
+            nativeBuilding?.supports_generated_blueprint_resource_anchor !== true) {
+          return reject(kind, "generated_miner_recipe_lacks_captured_native_capability", {
+            part: index + 1,
+            part_id: partId,
+            recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+          });
+        }
+        if (!requestedAnchorPartId) {
+          return reject(kind, "generated_miner_requires_resource_anchor_part_id", {
+            part: index + 1,
+            part_id: partId,
+          });
+        }
+        if (requestedResourceClass || requestedResourcePurity) {
+          return reject(kind, "generated_miner_resource_configuration_belongs_on_anchor", {
+            part: index + 1,
+            part_id: partId,
+          });
+        }
+        minerAnchorReferences.set(partId, requestedAnchorPartId);
+      } else if (requestedResourceClass || requestedResourcePurity || requestedAnchorPartId) {
+        return reject(kind, "generated_resource_fields_require_anchor_or_miner_role", {
+          part: index + 1,
+          part_id: partId,
+          role,
+        });
+      }
       if (nativeBuilding && Array.isArray(nativeBuilding.native_circuit_connections)) {
         const visible = nativeBuilding.native_circuit_connections.filter(
           (connection) => connection?.hidden !== true,
@@ -793,6 +883,13 @@ export function validateAction(graph, proposal) {
       const requestedProductionRecipe = String(proposedPart.production_recipe_class ?? "").trim();
       let productionRecipe = null;
       if (requestedProductionRecipe) {
+        if (role === "resource_anchor" || role === "miner") {
+          return reject(kind, "generated_resource_anchor_and_miner_cannot_have_production_recipe", {
+            part: index + 1,
+            part_id: partId,
+            role,
+          });
+        }
         productionRecipe = catalog.get(requestedProductionRecipe) ??
           findRecipeByShortName(catalog, requestedProductionRecipe);
         if (!productionRecipe) {
@@ -820,8 +917,42 @@ export function validateAction(graph, proposal) {
         ...(productionRecipe
           ? { production_recipe_class: productionRecipe.class_path ?? requestedProductionRecipe }
           : {}),
+        ...(role === "resource_anchor"
+          ? {
+              resource_class: resolvedResourceClass,
+              resource_purity: requestedResourcePurity,
+            }
+          : {}),
+        ...(role === "miner"
+          ? { resource_anchor_part_id: requestedAnchorPartId }
+          : {}),
         relative_location: location,
         yaw,
+      });
+    }
+
+    const usedAnchorPartIds = new Set();
+    for (const [minerPartId, anchorPartId] of minerAnchorReferences) {
+      if (!resourceAnchorPartIds.has(anchorPartId)) {
+        return reject(kind, "generated_miner_resource_anchor_reference_is_invalid", {
+          miner_part_id: minerPartId,
+          resource_anchor_part_id: anchorPartId,
+        });
+      }
+      if (usedAnchorPartIds.has(anchorPartId)) {
+        return reject(kind, "generated_resource_anchor_may_bind_exactly_one_miner", {
+          miner_part_id: minerPartId,
+          resource_anchor_part_id: anchorPartId,
+        });
+      }
+      usedAnchorPartIds.add(anchorPartId);
+    }
+    if (usedAnchorPartIds.size !== resourceAnchorPartIds.size ||
+        minerAnchorReferences.size !== resourceAnchorPartIds.size) {
+      return reject(kind, "generated_resource_anchors_require_one_to_one_miner_bindings", {
+        resource_anchors: resourceAnchorPartIds.size,
+        miners: minerAnchorReferences.size,
+        bound_resource_anchors: usedAnchorPartIds.size,
       });
     }
 
@@ -1089,8 +1220,10 @@ export function validateAction(graph, proposal) {
 
     warnings.push(
       "No world building is being placed yet. The game stages transient native actors, validates their exact resolved bounds, writes one native .sbp through a real Blueprint Designer, destroys the staging actors, and reads the archive back before reporting success.",
-      proposal.layout_schema.endsWith("/v3")
-        ? "Generated Blueprint v3 stages explicit straight conveyor links, physical circuit wires, and straight native pipelines with exact captured endpoints, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pumps, head lift, junction manifolds, miners/resource anchors, lifts, routed supports, and host-dependent attachments remain fail-closed."
+      proposal.layout_schema.endsWith("/v4")
+        ? "Generated Blueprint v4 adds an explicitly configured solid-resource Anchor paired one-to-one with a captured vanilla Miner Mk.1-Mk.3. The game saves and reloads the native archive, then requires the exact resource, purity, Anchor-to-Miner mapping, conveyor links, power wires, and pipelines to survive. It does not claim the Blueprint has been aligned to a matching destination node or terrain; fluids, oil/gas/fracking extractors, portable/modded miners, pumps, head lift, junction manifolds, lifts, and host-dependent attachments remain fail-closed."
+        : proposal.layout_schema.endsWith("/v3")
+          ? "Generated Blueprint v3 stages explicit straight conveyor links, physical circuit wires, and straight native pipelines with exact captured endpoints, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pumps, head lift, junction manifolds, miners/resource anchors, lifts, routed supports, and host-dependent attachments remain fail-closed."
         : proposal.layout_schema.endsWith("/v2")
           ? "Generated Blueprint v2 stages explicit straight conveyor links and physical circuit wires with native components, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pipes, miners/resource anchors, lifts, routed belt poles, and host-dependent attachments remain fail-closed."
         : "Generated Blueprint v1 refuses belts, pipes, wires, miners/resource anchors, and host-dependent attachments.",
@@ -1106,6 +1239,9 @@ export function validateAction(graph, proposal) {
         conveyors: conveyors.length,
         power_wires: powerWires.length,
         pipelines: pipelines.length,
+        resource_anchors: resourceAnchorPartIds.size,
+        miners: minerAnchorReferences.size,
+        exact_anchor_miner_bindings: usedAnchorPartIds.size,
         captured_power_capacity_checked_endpoints: capacityCheckedEndpoints,
         captured_pipe_connector_checked_endpoints: capturedPipeEndpoints,
         captured_pipe_length_checked_links: capturedPipeLengthsChecked,
@@ -1126,7 +1262,8 @@ export function validateAction(graph, proposal) {
           ? {
               conveyors,
               power_wires: powerWires,
-              ...(proposal.layout_schema.endsWith("/v3") ? { pipelines } : {}),
+              ...((proposal.layout_schema.endsWith("/v3") ||
+                   proposal.layout_schema.endsWith("/v4")) ? { pipelines } : {}),
             }
           : {}),
         commit: proposal.commit === true,

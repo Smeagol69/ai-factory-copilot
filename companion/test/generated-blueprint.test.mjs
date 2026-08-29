@@ -132,6 +132,165 @@ test("v3 compiles an explicit straight native pipeline without weakening v2", ()
   assert.deepEqual(generatedBlueprintAction(compiled).pipelines, compiled.pipelines);
 });
 
+function generatedResourceAnchorFixture() {
+  const snapshot = buildFactorySnapshot();
+  const buildGun = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C";
+  snapshot.content.items.push(
+    {
+      class_path: "Desc_AIFactoryBlueprintResourceAnchor",
+      name: "Blueprint Resource Anchor",
+      owner_mod: "AIFactoryCopilot",
+      available: true,
+      form: "RF_SOLID",
+      stack_size: 1,
+      building: {
+        class_path: "/AIFactoryCopilot/Buildables/Build_AIFactoryBlueprintResourceAnchor.Build_AIFactoryBlueprintResourceAnchor_C",
+        native_topology_kind: "blueprint_resource_anchor",
+        supports_generated_solid_resource_configuration: true,
+      },
+    },
+    {
+      class_path: "Desc_MinerMk1",
+      name: "Miner Mk.1",
+      owner_mod: "FactoryGame",
+      available: true,
+      form: "RF_SOLID",
+      stack_size: 1,
+      building: {
+        class_path: "/Game/FactoryGame/Buildable/Factory/MinerMk1.Build_MinerMk1_C",
+        native_topology_kind: "resource_extractor",
+        supports_generated_blueprint_resource_anchor: true,
+      },
+    },
+  );
+  snapshot.content.recipes.push(
+    {
+      class_path: "Recipe_AIFactoryBlueprintResourceAnchor",
+      name: "Blueprint Resource Anchor",
+      owner_mod: "AIFactoryCopilot",
+      available: true,
+      ingredients: [],
+      products: [{
+        item_class: "Desc_AIFactoryBlueprintResourceAnchor",
+        item_name: "Blueprint Resource Anchor",
+        amount: 1,
+      }],
+      produced_in: [buildGun],
+    },
+    {
+      class_path: "Recipe_MinerMk1",
+      name: "Miner Mk.1",
+      owner_mod: "FactoryGame",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: "Desc_MinerMk1", item_name: "Miner Mk.1", amount: 1 }],
+      produced_in: [buildGun],
+    },
+  );
+  snapshot.content.available_item_count = (snapshot.content.available_item_count ?? 0) + 2;
+  snapshot.content.available_recipe_count += 2;
+  return snapshot;
+}
+
+function compiledResourceAnchorBlueprint() {
+  return compileGeneratedBlueprint({
+    blueprint_name: "AI Anchored Iron Miner",
+    schema: "aifactory.generated-blueprint/v4",
+    actions: [
+      {
+        action: "place_building",
+        recipe_class: "Recipe_AIFactoryBlueprintResourceAnchor",
+        location: { x: 40_000, y: -12_000, z: 1_000 },
+        yaw: 0,
+        generated_role: "resource_anchor",
+        resource_class: "Desc_OreIron",
+        resource_purity: "RP_Normal",
+      },
+      {
+        action: "place_building",
+        recipe_class: "Recipe_MinerMk1",
+        location: { x: 40_000, y: -12_000, z: 1_000 },
+        yaw: 0,
+        generated_role: "miner",
+        target_step: 1,
+      },
+    ],
+  });
+}
+
+test("v4 compiles and validates one exact solid-resource Anchor to vanilla Miner binding", () => {
+  const compiled = compiledResourceAnchorBlueprint();
+  assert.equal(compiled.compiled, true, JSON.stringify(compiled));
+  assert.equal(compiled.counts.resource_anchors, 1);
+  assert.equal(compiled.counts.miners, 1);
+  assert.equal(compiled.buildables[0].resource_class, "Desc_OreIron");
+  assert.equal(compiled.buildables[0].resource_purity, "RP_Normal");
+  assert.equal(compiled.buildables[1].resource_anchor_part_id, "part-0001");
+  assert.equal(compiled.topology.miners_and_resource_anchors, "1_explicit_one_to_one_native_bindings");
+
+  const result = validateAction(
+    buildGraph(generatedResourceAnchorFixture()),
+    generatedBlueprintAction(compiled, { commit: true }),
+  );
+  assert.equal(result.valid, true, JSON.stringify(result));
+  assert.equal(result.action.layout_schema, "aifactory.generated-blueprint/v4");
+  assert.equal(result.action.buildables[0].resource_class, "Desc_OreIron");
+  assert.equal(result.action.buildables[1].resource_anchor_part_id, "part-0001");
+  assert.equal(result.checks.resource_anchors, 1);
+  assert.equal(result.checks.miners, 1);
+  assert.equal(result.checks.exact_anchor_miner_bindings, 1);
+});
+
+test("v4 refuses orphan, duplicate, fluid, and uncaptured extractor relationships", () => {
+  const orphan = compileGeneratedBlueprint({
+    blueprint_name: "Orphan Anchor",
+    schema: "aifactory.generated-blueprint/v4",
+    actions: [{
+      action: "place_building",
+      recipe_class: "Recipe_AIFactoryBlueprintResourceAnchor",
+      location: { x: 0, y: 0, z: 0 },
+      generated_role: "resource_anchor",
+      resource_class: "Desc_OreIron",
+      resource_purity: "RP_Pure",
+    }],
+  });
+  assert.equal(orphan.compiled, false);
+  assert.equal(orphan.reason, "generated_resource_anchors_require_one_to_one_miner_bindings");
+
+  const duplicate = compileGeneratedBlueprint({
+    blueprint_name: "Duplicate Miner Binding",
+    schema: "aifactory.generated-blueprint/v4",
+    actions: [
+      {
+        action: "place_building",
+        recipe_class: "Recipe_AIFactoryBlueprintResourceAnchor",
+        location: { x: 0, y: 0, z: 0 },
+        generated_role: "resource_anchor",
+        resource_class: "Desc_OreIron",
+        resource_purity: "RP_Normal",
+      },
+      { action: "place_building", recipe_class: "Recipe_MinerMk1", location: { x: 0, y: 0, z: 0 }, generated_role: "miner", target_step: 1 },
+      { action: "place_building", recipe_class: "Recipe_MinerMk1", location: { x: 0, y: 0, z: 0 }, generated_role: "miner", target_step: 1 },
+    ],
+  });
+  assert.equal(duplicate.compiled, false);
+  assert.equal(duplicate.reason, "generated_resource_anchor_can_bind_only_one_miner");
+
+  const proposal = generatedBlueprintAction(compiledResourceAnchorBlueprint(), { commit: true });
+  const fluid = structuredClone(proposal);
+  fluid.buildables[0].resource_class = "Desc_LiquidOil";
+  const fluidResult = validateAction(buildGraph(generatedResourceAnchorFixture()), fluid);
+  assert.equal(fluidResult.valid, false);
+  assert.equal(fluidResult.reason, "generated_resource_anchor_resource_must_be_solid");
+
+  const uncaptured = generatedResourceAnchorFixture();
+  uncaptured.content.items.find((item) => item.class_path === "Desc_MinerMk1")
+    .building.supports_generated_blueprint_resource_anchor = false;
+  const uncapturedResult = validateAction(buildGraph(uncaptured), proposal);
+  assert.equal(uncapturedResult.valid, false);
+  assert.equal(uncapturedResult.reason, "generated_miner_recipe_lacks_captured_native_capability");
+});
+
 test("generated native Blueprint validation requires captured unlock truth for every recipe", () => {
   const graph = buildGraph(buildFactorySnapshot());
   const proposal = generatedBlueprintAction(compiledFactory(), { commit: true });
@@ -398,6 +557,12 @@ test("the model action schema exposes generated relative buildables", () => {
     "aifactory.generated-blueprint/v1",
     "aifactory.generated-blueprint/v2",
     "aifactory.generated-blueprint/v3",
+    "aifactory.generated-blueprint/v4",
+  ]);
+  assert.ok(item.properties.buildables.items.properties.role.enum.includes("resource_anchor"));
+  assert.ok(item.properties.buildables.items.properties.role.enum.includes("miner"));
+  assert.deepEqual(item.properties.buildables.items.properties.resource_purity.enum, [
+    "RP_Inpure", "RP_Normal", "RP_Pure",
   ]);
   assert.deepEqual(
     item.properties.buildables.items.required,
@@ -428,7 +593,7 @@ test("the game-side generator keeps staging transient, construction-time, bounde
     "utf8",
   );
   const staging = source.indexOf("class FScopedGeneratedBuildables");
-  const setDesigner = source.indexOf("SetInsideBlueprintDesigner(Designer)", staging);
+  const setDesigner = source.indexOf("SetInsideBlueprintDesigner(StagingDesigner)", staging);
   const finishSpawning = source.indexOf("FinishSpawning(WorldTransform)", staging);
   const destroy = source.indexOf("Buildable->Destroy()", staging);
   const save = source.indexOf("Designer->SaveBlueprint(Record, Controller)", staging);
@@ -451,7 +616,13 @@ test("the game-side generator keeps staging transient, construction-time, bounde
   assert.ok(source.includes("AFGPipelineHologram::MINIMUM_HOLOGRAM_LENGTH"));
   assert.ok(source.includes("mMaxSplineLength"));
   assert.ok(source.includes("native_blueprint_pipeline_topology_readback_mismatch"));
+  assert.ok(source.includes("BindGeneratedMiner"));
+  assert.ok(source.includes("HasRecordedBoundExtractor"));
+  assert.ok(source.includes("native_blueprint_resource_anchor_topology_readback_mismatch"));
+  assert.ok(source.includes("native_loaded_exact_anchor_configurations"));
   assert.ok(snapshot.includes("native_pipe_connections"));
+  assert.ok(snapshot.includes("supports_generated_blueprint_resource_anchor"));
+  assert.ok(snapshot.includes("supports_generated_solid_resource_configuration"));
   assert.ok(snapshot.includes("GetPipeConnectionType()"));
   assert.ok(snapshot.includes("pipeline_flow_limit_m3_s"));
   assert.ok(snapshot.includes("native_pipeline_hologram_cdo_property"));

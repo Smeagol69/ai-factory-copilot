@@ -135,6 +135,21 @@ public:
     /** Called per world after the Blueprint subsystem is initialized. */
     static void EnableVanillaMinersInBlueprintDesigner(UWorld* World);
 
+    /** Exact class gate shared by Designer opt-in and generated v4 archives. */
+    static bool IsSupportedVanillaMinerClass(const UClass* BuildableClass);
+
+    /**
+     * Bind one already-staged vanilla Miner to this Anchor's exact transient
+     * node and persist that identity for native Blueprint serialization.
+     */
+    bool BindGeneratedMiner(
+        AFGBuildableResourceExtractorBase* Extractor,
+        FString& OutReason);
+
+    /** Read-only proof that the native saved mapping names this exact Miner. */
+    bool HasRecordedBoundExtractor(
+        const AFGBuildableResourceExtractorBase* Extractor) const;
+
 private:
     bool EnsureRuntimeNode(FString& OutReason);
     void DestroyRuntimeNode();

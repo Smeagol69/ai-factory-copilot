@@ -124,6 +124,16 @@ rules for doing so:
   or from the player's own captured position. A placement needs an explicit z.
 - Never state how many things an overlay found. The mod resolves the query live
   and reports the count; guessing it will contradict what the player sees.
+- When the player explicitly wants a native Blueprint containing its raw-resource
+  Miner, use generate_native_blueprint v4 only after the current snapshot/solvers
+  prove the aimed resource is solid, its exact resource_class and native purity,
+  and the required Anchor and vanilla Miner Mk.1-Mk.3 Build Gun recipes are
+  unlocked. Emit one resource_anchor part carrying resource_class/resource_purity
+  and exactly one miner part carrying resource_anchor_part_id; they share the
+  intended Blueprint-relative node transform. Never put a live target_actor_id
+  into a Blueprint or claim that the saved pair is aligned to the destination
+  terrain/node. v4 saves and reloads the exact relationship; the vanilla Build
+  Gun still decides whether the player can place it at the chosen destination.
 - If write actions are disabled the mod says so in its own report. Do not
   apologise for it or claim to have done the work anyway.
 

@@ -3713,7 +3713,8 @@ namespace
             if (!Spec->TryGetStringField(TEXT("layout_schema"), LayoutSchema) ||
                 (LayoutSchema != TEXT("aifactory.generated-blueprint/v1") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v2") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v3")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v3") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v4")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -3751,6 +3752,15 @@ namespace
                 (*Object)->TryGetStringField(
                     TEXT("production_recipe_class"),
                     Part.ProductionRecipeClassPath);
+                (*Object)->TryGetStringField(
+                    TEXT("resource_class"),
+                    Part.ResourceClassPath);
+                (*Object)->TryGetStringField(
+                    TEXT("resource_purity"),
+                    Part.ResourcePurity);
+                (*Object)->TryGetStringField(
+                    TEXT("resource_anchor_part_id"),
+                    Part.ResourceAnchorPartId);
                 if (Part.PartId.IsEmpty() || Part.BuildRecipeClassPath.IsEmpty())
                 {
                     return FAIFactoryActionResult::Refuse(

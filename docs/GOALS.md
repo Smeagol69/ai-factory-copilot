@@ -326,6 +326,15 @@ extractors.
   `Build_MinerMk3_C`. It does not enable portable miners, pumps, oil extractors,
   fracking, or modded extractor classes.
 
+Generated native Blueprint schema v4 now drives that same narrow primitive
+without simulating Build Gun clicks: the API supplies one exact configured
+Anchor and one exact vanilla Miner relationship, the game stages them through
+the real Designer, and isolated-world readback must recover the resource,
+purity, and saved object identity before the `.sbp` is accepted. This closes
+the writer-side gap between deterministic factory design and a placeable raw
+resource entry point. It still does not solve destination terrain/node
+alignment; the player's vanilla Build Gun hologram remains authoritative.
+
 A package cook exposed one engine/SML incompatibility before it reached the
 game: some generated `SetExtractableResource` implementations are too short
 for SML's native trampoline. The anchor deliberately does **not** hook that
