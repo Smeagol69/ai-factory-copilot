@@ -4676,3 +4676,30 @@ grounding, unavailable/truncated behavior, and real supplied pair inspection
 were exercised. No C++ compile/package or live world write was needed; the
 companion must be reinstalled from this branch before a running bridge sees the
 new tool.
+
+### Codex — 2026-08-28 attached Blueprint reference study
+
+The owner's supplied `Reinforced Iron Plate 13.5min MK.2` `.sbp`/`.sbpcfg` was
+decoded read-only with the pinned native parser (4.1.2). It is an older native
+file: Blueprint header 2, save custom version 36, authored on game CL 211839,
+with a 12x12x6 Designer envelope. The serialized file contains 435 objects,
+107 entities/buildables, and 328 components; all 107 buildables have finite
+saved transforms. Its pivot span is approximately 37.84 m x 52.80 m x 6.87 m
+(saved pivots, not collision or visual extents).
+
+Exact class counts are 33 ConveyorBeltMk1, 19 ConveyorLiftMk1, 14 PowerLine,
+11 splitters, 8 mergers, 7 ConstructorMk1, 4 ConveyorBeltMk2, 4 SmelterMk1,
+3 AssemblerMk1, 2 ConveyorLiftMk2, 1 ConveyorPole, and 1 PowerPoleWall. The
+file records 102 reciprocal conveyor connection pairs with both endpoint owners
+resolved, plus 14 reciprocal native physical power-wire edges. Its description
+claims 120 Iron Ore/min input and 13.5 Reinforced Iron Plate/min output, but
+those rates are author text, not a live throughput proof; direction, capacity,
+power load, terrain/collision clearance, and destination Build Gun validity are
+not inferred. The native file's CL 211839 also differs from the installed
+FactoryGame/Starter Project CL 502094 and should be treated as reference data
+until loaded and verified by the current game.
+
+The files remain in `C:\\Users\\roesl\\Downloads` and were not copied into the
+game Blueprint library or placed in a world. Claude can see this handoff in git;
+to query the actual files through `inspect_blueprint_layout`, copy them into the
+configured local Blueprint library first.
