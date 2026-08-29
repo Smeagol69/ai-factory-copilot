@@ -981,6 +981,56 @@ test("native-blueprint inspection reports saved rail spline evidence without cla
   assert.match(answer.reply, /clear mountain terrain/i);
 });
 
+test("native-blueprint inspection reports hypertube links and splines without claiming a destination join", () => {
+  const answer = answerLocally("inspect blueprint Enclosed underground level", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Enclosed underground level",
+      decoded: { buildable_count: 248, component_count: 172 },
+      buildable_classes: [{ class_name: "PipeHyper", count: 2 }],
+      pivot_bounds_cm: { span_cm: { x: 3200, y: 3200, z: 3150 } },
+      buildables_returned: 80,
+      buildables_truncated: 168,
+      header: { build_cost: [] },
+      connection_topology: { status: "decoded", supported_connection_reference_record_count: 0, reciprocal_connection_pair_count: 0 },
+      power_wire_topology: { status: "decoded", native_power_connection_component_count: 30, saved_power_wire_reference_count: 50, verified_power_wire_count: 25 },
+      rail_topology: { status: "decoded", native_rail_track_entity_count: 0, total_spline_point_count: 0 },
+      hypertube_topology: {
+        status: "decoded",
+        native_hypertube_connection_component_count: 10,
+        supported_connection_reference_record_count: 8,
+        reciprocal_connection_pair_count: 4,
+        connections_returned: 4,
+        connections_truncated: 0,
+        hypertube_pipe_entity_count: 2,
+        total_spline_point_count: 11,
+        pipe_records_returned: 2,
+        pipe_records_truncated: 0,
+        malformed_component_reference_count: 0,
+        unresolved_component_reference_count: 0,
+        ambiguous_component_reference_count: 0,
+        nonreciprocal_component_reference_count: 0,
+        unsupported_target_component_reference_count: 0,
+        self_component_reference_count: 0,
+        malformed_pipe_entity_record_count: 0,
+        missing_spline_data_count: 0,
+        malformed_spline_data_count: 0,
+        malformed_spline_point_count: 0,
+        malformed_passthrough_property_count: 0,
+        malformed_passthrough_reference_count: 0,
+      },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /4.*reciprocal internal native hypertube connection pairs/i);
+  assert.match(answer.reply, /11.*spline points/i);
+  assert.match(answer.reply, /all.*8.*supported Hyper connection reference records resolved reciprocally/i);
+  assert.match(answer.reply, /does not prove traversal direction, speed, throughput/i);
+  assert.match(answer.reply, /cross-blueprint joins/i);
+});
+
 test("a listed blueprint reference disambiguates safely, but never accepts traversal", () => {
   assert.deepEqual(
     parseBlueprintLayoutRequest("inspect blueprint ai 2.0/Coal power plant 2700MW v1.1.sbp"),

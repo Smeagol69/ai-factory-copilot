@@ -635,6 +635,56 @@ function formatBlueprintLayout(result) {
     }
     railText += " Saved local spline points, tangents, and graph IDs do not prove that segments will join after placement, clear mountain terrain, satisfy collision/Build Gun checks, carry signals or power, or connect to external rail.";
   }
+  const hypertubeTopology = result.hypertube_topology;
+  let hypertubeText = " Native hypertube topology was not decoded.";
+  if (hypertubeTopology?.status === "decoded") {
+    const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
+    const nativeComponents = count(hypertubeTopology.native_hypertube_connection_component_count) ?? 0;
+    const supportedRecords = count(hypertubeTopology.supported_connection_reference_record_count) ?? 0;
+    const pairs = count(hypertubeTopology.reciprocal_connection_pair_count) ?? 0;
+    const pipeCount = count(hypertubeTopology.hypertube_pipe_entity_count) ?? 0;
+    const pointCount = count(hypertubeTopology.total_spline_point_count) ?? 0;
+    const incomplete = [
+      hypertubeTopology.malformed_component_reference_count,
+      hypertubeTopology.unresolved_component_reference_count,
+      hypertubeTopology.ambiguous_component_reference_count,
+      hypertubeTopology.nonreciprocal_component_reference_count,
+      hypertubeTopology.unsupported_target_component_reference_count,
+      hypertubeTopology.self_component_reference_count,
+      hypertubeTopology.malformed_pipe_entity_record_count,
+      hypertubeTopology.missing_spline_data_count,
+      hypertubeTopology.malformed_spline_data_count,
+      hypertubeTopology.malformed_spline_point_count,
+      hypertubeTopology.malformed_passthrough_property_count,
+      hypertubeTopology.malformed_passthrough_reference_count,
+    ].reduce((total, value) => total + (count(value) ?? 0), 0);
+    const returnedConnections = count(hypertubeTopology.connections_returned) ?? 0;
+    const truncatedConnections = count(hypertubeTopology.connections_truncated) ?? 0;
+    const returnedPipes = count(hypertubeTopology.pipe_records_returned) ?? 0;
+    const truncatedPipes = count(hypertubeTopology.pipe_records_truncated) ?? 0;
+    if (pairs > 0) {
+      hypertubeText = ` It records **${pairs}** reciprocal internal native hypertube connection pair${pairs === 1 ? "" : "s"}.`;
+    } else if (nativeComponents > 0 || pipeCount > 0) {
+      hypertubeText = " It has native hypertube records but no verified reciprocal internal connection pair.";
+    } else {
+      hypertubeText = " It has no saved native hypertube connection components or PipeHyper spline entities.";
+    }
+    if (pipeCount > 0) {
+      hypertubeText += ` The saved PipeHyper records contain **${pointCount}** spline point${pointCount === 1 ? "" : "s"}.`;
+    }
+    if (incomplete > 0) {
+      hypertubeText += ` **${incomplete}** hypertube observation${incomplete === 1 ? " is" : "s are"} malformed, unresolved, ambiguous, one-way, self-referential, or missing required spline data, so this is not a complete internal-travel proof.`;
+    } else if (supportedRecords > 0) {
+      hypertubeText += ` All **${supportedRecords}** supported Hyper connection reference record${supportedRecords === 1 ? "" : "s"} resolved reciprocally.`;
+    }
+    if (truncatedConnections > 0) {
+      hypertubeText += ` I returned ${returnedConnections} individual hypertube connection pair${returnedConnections === 1 ? "" : "s"} and left ${truncatedConnections} out of this compact reply.`;
+    }
+    if (truncatedPipes > 0) {
+      hypertubeText += ` I returned ${returnedPipes} PipeHyper spline record${returnedPipes === 1 ? "" : "s"} and left ${truncatedPipes} out of this compact reply.`;
+    }
+    hypertubeText += " Saved spline order does not prove traversal direction, speed, throughput, junction behavior, underground excavation, collision/Build Gun clearance, cross-blueprint joins, or external hookups.";
+  }
   return `**${result.blueprint_name}** decodes to **${decoded.buildable_count ?? 0} Build_* entities** ` +
     `(${decoded.component_count ?? 0} components).${span}` +
     (classes ? ` Most common classes: ${classes}.` : "") +
@@ -643,6 +693,7 @@ function formatBlueprintLayout(result) {
     topologyText +
     powerWireText +
     railText +
+    hypertubeText +
     " These are native saved transforms and saved component references, not proof that the blueprint will clear terrain or fit at a new location.";
 }
 

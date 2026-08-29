@@ -236,7 +236,7 @@ export const SOLVER_TOOLS = [
   {
     name: "inspect_blueprint_layout",
     description:
-      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, costs priced against current player inventories, bounded exact reciprocal conveyor/pipe component links, bounded exact physical native power-wire endpoint pairs, and bounded native railroad-track spline records (saved points, tangents, local bounds, Blueprint-relative transformed endpoints, chord-length lower bounds, and mTrackGraphID metadata) saved inside the Blueprint. Saved mHiddenConnections logical circuit relationships are deliberately excluded. It names the naming-convention caveat for nonstandard modded classes and names unresolved, one-way, malformed, or unsupported records instead of assuming a route. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, checking internal belt/pipe/power/rail reference topology, or comparing it to a proposed factory. It does not infer item/fluid direction or rate, rail joins, electricity direction/load/capacity, terrain excavation or clearance, Build Gun hologram validity, signals, or external hookups at a new location.",
+      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, costs priced against current player inventories, bounded exact reciprocal conveyor/pipe component links, bounded exact physical native power-wire endpoint pairs, bounded native railroad-track spline records (saved points, tangents, local bounds, Blueprint-relative transformed endpoints, chord-length lower bounds, and mTrackGraphID metadata), and bounded native hypertube records (exact FGPipeConnectionComponentHyper links, PipeHyper spline points/tangents, transformed endpoints, and saved passthrough-reference observations) inside the Blueprint. Saved mHiddenConnections logical circuit relationships are deliberately excluded. It names the naming-convention caveat for nonstandard modded classes and names unresolved, one-way, malformed, or unsupported records instead of assuming a route. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, checking internal belt/pipe/power/rail/hypertube reference topology, or comparing it to a proposed factory. It does not infer item/fluid direction or rate, hypertube traversal direction/speed, rail joins, electricity direction/load/capacity, terrain excavation or clearance, underground fit, Build Gun hologram validity, signals, cross-blueprint joins, or external hookups at a new location.",
     parameters: {
       type: "object",
       properties: {
@@ -263,6 +263,18 @@ export const SOLVER_TOOLS = [
         maximum_rail_spline_points: {
           type: "number",
           description: "Maximum saved spline points returned per native railroad track, from 1 through 1000. Defaults to 200; aggregate point counts still cover every decoded point.",
+        },
+        maximum_hypertube_connections: {
+          type: "number",
+          description: "Maximum individual reciprocal native hypertube connection pairs to return, from 1 through 200. Defaults to 80; aggregate reference counts still cover every exact Hyper connection component.",
+        },
+        maximum_hypertube_pipes: {
+          type: "number",
+          description: "Maximum native PipeHyper spline records to return, from 1 through 80. Defaults to 40; aggregate pipe counts still cover every exact PipeHyper entity.",
+        },
+        maximum_hypertube_spline_points: {
+          type: "number",
+          description: "Maximum saved spline points returned per native PipeHyper, from 1 through 1000. Defaults to 200; aggregate point counts still cover every decoded point.",
         },
       },
       required: ["blueprint_name"],

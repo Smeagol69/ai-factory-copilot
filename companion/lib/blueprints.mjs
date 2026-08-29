@@ -29,6 +29,28 @@ const DEFAULT_MAXIMUM_CONNECTIONS = 80;
 const MAXIMUM_CONNECTIONS = 200;
 const PARSER_VERSION = "4.1.2";
 const NATIVE_POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
+// Hypertubes use the generic pipe-connection base with a distinct native
+// component class. Keep this exact path separate from ordinary fluid pipes:
+// the saved links prove a hypertube connection, not a fluid network.
+const NATIVE_HYPERTUBE_CONNECTION_COMPONENT =
+  "/Script/FactoryGame.FGPipeConnectionComponentHyper";
+const NATIVE_HYPERTUBE_PIPE_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/PipeHyper/Build_PipeHyper.Build_PipeHyper_C";
+const NATIVE_HYPERTUBE_START_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/PipeHyperStart/Build_PipeHyperStart.Build_PipeHyperStart_C";
+const NATIVE_HYPERTUBE_PASSTHROUGH_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Hypertube.Build_FoundationPassthrough_Hypertube_C";
+const NATIVE_HYPERTUBE_WALL_HOLE_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/HyperTubeWallSupport/Build_HyperTubeWallHole.Build_HyperTubeWallHole_C";
+const NATIVE_HYPERTUBE_SUPPORT_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/PipeHyperSupport/Build_PipeHyperSupport.Build_PipeHyperSupport_C";
+const NATIVE_HYPERTUBE_BUILDABLE_CLASSES = new Map([
+  [NATIVE_HYPERTUBE_PIPE_CLASS, "pipe"],
+  [NATIVE_HYPERTUBE_START_CLASS, "entrance"],
+  [NATIVE_HYPERTUBE_PASSTHROUGH_CLASS, "passthrough"],
+  [NATIVE_HYPERTUBE_WALL_HOLE_CLASS, "wall_hole"],
+  [NATIVE_HYPERTUBE_SUPPORT_CLASS, "support"],
+]);
 // Railroad tracks are spline buildables, but their saved `mSplineData` is not
 // a factory connection component. Keep this class path exact: a property named
 // mSplineData on an arbitrary modded Build_* object is not enough to call it a
@@ -40,6 +62,10 @@ const DEFAULT_MAXIMUM_RAIL_TRACKS = 40;
 const MAXIMUM_RAIL_TRACKS = 80;
 const DEFAULT_MAXIMUM_RAIL_SPLINE_POINTS = 200;
 const MAXIMUM_RAIL_SPLINE_POINTS = 1000;
+const DEFAULT_MAXIMUM_HYPERTUBE_PIPES = 40;
+const MAXIMUM_HYPERTUBE_PIPES = 80;
+const DEFAULT_MAXIMUM_HYPERTUBE_SPLINE_POINTS = 200;
+const MAXIMUM_HYPERTUBE_SPLINE_POINTS = 1000;
 const NATIVE_POWER_LINE_CLASSES = new Set([
   "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
   "/Game/FactoryGame/Events/Christmas/Buildings/PowerLineLights/Build_XmassLightsLine.Build_XmassLightsLine_C",
@@ -468,6 +494,10 @@ function canonicalComponentPair(left, right) {
 
 function isNativePowerConnectionComponent(component) {
   return component?.type === "SaveComponent" && component.typePath === NATIVE_POWER_CONNECTION_COMPONENT;
+}
+
+function isNativeHypertubeConnectionComponent(component) {
+  return component?.type === "SaveComponent" && component.typePath === NATIVE_HYPERTUBE_CONNECTION_COMPONENT;
 }
 
 function isNativePowerLine(entity) {
@@ -1149,6 +1179,434 @@ export function decodeBlueprintConnectionTopology(
   };
 }
 
+function hypertubeSplinePoint(point) {
+  if (point?.type !== "SplinePointData" || !point.properties) return null;
+  const vectorProperty = (property, name) =>
+    property?.type === "StructProperty" && property.name === name
+      ? finiteVector(property.value, ["x", "y", "z"])
+      : null;
+  const location = vectorProperty(point.properties.Location, "Location");
+  const arriveTangent = vectorProperty(point.properties.ArriveTangent, "ArriveTangent");
+  const leaveTangent = vectorProperty(point.properties.LeaveTangent, "LeaveTangent");
+  if (!location || !arriveTangent || !leaveTangent) return null;
+  return {
+    location_cm: location,
+    arrive_tangent_cm: arriveTangent,
+    leave_tangent_cm: leaveTangent,
+  };
+}
+
+function hypertubeSplineData(entity) {
+  const property = entity?.properties?.mSplineData;
+  if (!property) return { state: "missing", points: [], malformed_point_count: 0 };
+  const exactArray =
+    property.type === "ArrayProperty" &&
+    property.name === "mSplineData" &&
+    property.propertyTagType?.name === "ArrayProperty" &&
+    Array.isArray(property.propertyTagType.children) &&
+    property.propertyTagType.children.length === 1 &&
+    property.propertyTagType.children[0]?.name === "StructProperty" &&
+    property.propertyTagType.children[0]?.children?.[0]?.name === "SplinePointData" &&
+    Array.isArray(property.values);
+  if (!exactArray) return { state: "malformed", points: [], malformed_point_count: 0 };
+
+  const points = [];
+  let malformedPointCount = 0;
+  for (const value of property.values) {
+    const point = hypertubeSplinePoint(value);
+    if (!point) malformedPointCount += 1;
+    else points.push(point);
+  }
+  return {
+    state: malformedPointCount > 0 ? "malformed_points" : "valid",
+    points,
+    declared_point_count: property.values.length,
+    malformed_point_count: malformedPointCount,
+  };
+}
+
+function hypertubeLocalBounds(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const minimum = { ...points[0].location_cm };
+  const maximum = { ...points[0].location_cm };
+  for (const point of points.slice(1)) {
+    for (const axis of ["x", "y", "z"]) {
+      minimum[axis] = Math.min(minimum[axis], point.location_cm[axis]);
+      maximum[axis] = Math.max(maximum[axis], point.location_cm[axis]);
+    }
+  }
+  return {
+    minimum_cm: minimum,
+    maximum_cm: maximum,
+    span_cm: {
+      x: maximum.x - minimum.x,
+      y: maximum.y - minimum.y,
+      z: maximum.z - minimum.z,
+    },
+    caveat: "Bounds are saved local spline-point positions, not hypertube collision or visual extents.",
+  };
+}
+
+function hypertubeChordLength(points) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1].location_cm;
+    const current = points[index].location_cm;
+    length += Math.hypot(
+      current.x - previous.x,
+      current.y - previous.y,
+      current.z - previous.z,
+    );
+  }
+  return length;
+}
+
+function hypertubeTransformPoint(transform, point) {
+  const translation = transform?.translation_cm;
+  const rotation = transform?.rotation_quat;
+  const scale = transform?.scale3d;
+  const local = point?.location_cm;
+  if (!translation || !rotation || !scale || !local) return null;
+  const scaled = {
+    x: local.x * scale.x,
+    y: local.y * scale.y,
+    z: local.z * scale.z,
+  };
+  const q = rotation;
+  const qCross = {
+    x: q.y * scaled.z - q.z * scaled.y,
+    y: q.z * scaled.x - q.x * scaled.z,
+    z: q.x * scaled.y - q.y * scaled.x,
+  };
+  const qCrossTwice = {
+    x: q.y * qCross.z - q.z * qCross.y,
+    y: q.z * qCross.x - q.x * qCross.z,
+    z: q.x * qCross.y - q.y * qCross.x,
+  };
+  return {
+    x: scaled.x + q.w * qCross.x * 2 + qCrossTwice.x * 2 + translation.x,
+    y: scaled.y + q.w * qCross.y * 2 + qCrossTwice.y * 2 + translation.y,
+    z: scaled.z + q.w * qCross.z * 2 + qCrossTwice.z * 2 + translation.z,
+  };
+}
+
+function hypertubeRelativeEndpoints(transform, points) {
+  if (!transform || !Array.isArray(points) || points.length === 0) return null;
+  const first = hypertubeTransformPoint(transform, points[0]);
+  const last = hypertubeTransformPoint(transform, points[points.length - 1]);
+  return first && last ? { start_cm: first, end_cm: last } : null;
+}
+
+function hypertubeSnappedPassthroughs(entity) {
+  const property = entity?.properties?.mSnappedPassthroughs;
+  if (!property) {
+    return {
+      state: "missing",
+      declared_count: null,
+      nonempty_reference_count: 0,
+      blank_reference_count: 0,
+      malformed_reference_count: 0,
+      references: [],
+    };
+  }
+  if (
+    property.type !== "ArrayProperty" ||
+    property.name !== "mSnappedPassthroughs" ||
+    !Array.isArray(property.values)
+  ) {
+    return {
+      state: "malformed",
+      declared_count: null,
+      nonempty_reference_count: 0,
+      blank_reference_count: 0,
+      malformed_reference_count: 0,
+      references: [],
+    };
+  }
+  const references = [];
+  let blankReferenceCount = 0;
+  let malformedReferenceCount = 0;
+  for (const value of property.values) {
+    const levelName = value?.levelName;
+    const pathName = value?.pathName;
+    if (typeof levelName !== "string" || typeof pathName !== "string") {
+      malformedReferenceCount += 1;
+    } else if (!pathName.trim()) {
+      // Empty references are how an open end is represented in the sample
+      // blueprints. Preserve them as an explicit observation, not a join.
+      blankReferenceCount += 1;
+    } else if (!validSavedInstanceName(pathName)) {
+      malformedReferenceCount += 1;
+    } else {
+      references.push({ level_name: levelName, path_name: pathName });
+    }
+  }
+  return {
+    state: malformedReferenceCount > 0 ? "malformed_references" : "decoded",
+    declared_count: property.values.length,
+    nonempty_reference_count: references.length,
+    blank_reference_count: blankReferenceCount,
+    malformed_reference_count: malformedReferenceCount,
+    references,
+  };
+}
+
+function boundedHypertubeMaximum(value, fallback, maximum) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(maximum, Math.max(1, Math.trunc(numeric)));
+}
+
+/**
+ * Decode exact native hypertube component links and PipeHyper spline records.
+ * The native CL 502094 headers define UFGPipeConnectionComponentHyper as a
+ * UFGPipeConnectionComponentBase and AFGBuildablePipeHyper as a spline
+ * buildable. Saved reciprocal references are therefore useful evidence, but
+ * they do not prove traversal direction, speed, underground clearance, or a
+ * join between separately placed blueprints.
+ */
+export function decodeBlueprintHypertubeTopology(
+  objects,
+  {
+    maximumConnections = DEFAULT_MAXIMUM_CONNECTIONS,
+    maximumPipes = DEFAULT_MAXIMUM_HYPERTUBE_PIPES,
+    maximumSplinePoints = DEFAULT_MAXIMUM_HYPERTUBE_SPLINE_POINTS,
+  } = {},
+) {
+  const allObjects = Array.isArray(objects) ? objects : [];
+  const entities = allObjects.filter((object) => object?.type === "SaveEntity");
+  const entitiesByName = new Map();
+  for (const entity of entities) {
+    if (typeof entity.instanceName !== "string" || !entity.instanceName) continue;
+    if (entitiesByName.has(entity.instanceName)) entitiesByName.set(entity.instanceName, null);
+    else entitiesByName.set(entity.instanceName, entity);
+  }
+  const savedComponents = allObjects.filter((object) => object?.type === "SaveComponent");
+  const componentsByName = new Map();
+  const duplicateComponentNames = new Set();
+  for (const component of savedComponents) {
+    if (typeof component.instanceName !== "string" || !component.instanceName) continue;
+    if (componentsByName.has(component.instanceName)) {
+      duplicateComponentNames.add(component.instanceName);
+      continue;
+    }
+    componentsByName.set(component.instanceName, component);
+  }
+
+  const connectionComponents = savedComponents.filter(isNativeHypertubeConnectionComponent);
+  const linkedComponentRecords = savedComponents.filter(
+    (component) => Object.hasOwn(component?.properties ?? {}, "mConnectedComponent"),
+  );
+  const supportedLinkedComponents = linkedComponentRecords.filter(isNativeHypertubeConnectionComponent);
+  const unsupportedLinkedComponentRecordCount = linkedComponentRecords.length - supportedLinkedComponents.length;
+  const pairs = new Map();
+  const ownerResolution = { both: 0, one: 0, neither: 0 };
+  let malformedReferenceCount = 0;
+  let unresolvedReferenceCount = 0;
+  let ambiguousReferenceCount = 0;
+  let nonreciprocalReferenceCount = 0;
+  let unsupportedTargetReferenceCount = 0;
+  let selfReferenceCount = 0;
+  let reciprocalReferenceCount = 0;
+
+  for (const component of supportedLinkedComponents) {
+    const componentName = component.instanceName;
+    const targetName = objectPropertyPathName(component.properties?.mConnectedComponent);
+    if (!componentName || !targetName) {
+      malformedReferenceCount += 1;
+      continue;
+    }
+    if (duplicateComponentNames.has(componentName)) {
+      ambiguousReferenceCount += 1;
+      continue;
+    }
+    if (componentName === targetName) {
+      selfReferenceCount += 1;
+      continue;
+    }
+    if (duplicateComponentNames.has(targetName)) {
+      ambiguousReferenceCount += 1;
+      continue;
+    }
+    const target = componentsByName.get(targetName) ?? null;
+    if (!target) {
+      unresolvedReferenceCount += 1;
+      continue;
+    }
+    if (!isNativeHypertubeConnectionComponent(target)) {
+      unsupportedTargetReferenceCount += 1;
+      continue;
+    }
+    const targetBackReference = objectPropertyPathName(target.properties?.mConnectedComponent);
+    if (targetBackReference !== componentName) {
+      nonreciprocalReferenceCount += 1;
+      continue;
+    }
+    reciprocalReferenceCount += 1;
+    const [first, second] = canonicalComponentPair(component, target);
+    const key = `${first.instanceName}\u0000${second.instanceName}`;
+    if (pairs.has(key)) continue;
+    const firstEndpoint = componentEndpoint(first, entitiesByName);
+    const secondEndpoint = componentEndpoint(second, entitiesByName);
+    const resolvedOwners = Number(firstEndpoint.owner_entity_resolved) + Number(secondEndpoint.owner_entity_resolved);
+    if (resolvedOwners === 2) ownerResolution.both += 1;
+    else if (resolvedOwners === 1) ownerResolution.one += 1;
+    else ownerResolution.neither += 1;
+    pairs.set(key, {
+      connection_kind: "hypertube",
+      endpoint_a: firstEndpoint,
+      endpoint_b: secondEndpoint,
+    });
+  }
+
+  const allPairs = [...pairs.values()].sort((left, right) => {
+    const leftKey = `${left.endpoint_a.component_instance_name}\u0000${left.endpoint_b.component_instance_name}`;
+    const rightKey = `${right.endpoint_a.component_instance_name}\u0000${right.endpoint_b.component_instance_name}`;
+    return leftKey.localeCompare(rightKey);
+  });
+  const maximumConnectionCount = boundedHypertubeMaximum(
+    maximumConnections,
+    DEFAULT_MAXIMUM_CONNECTIONS,
+    MAXIMUM_CONNECTIONS,
+  );
+  const hypertubeEntities = entities.filter((entity) => NATIVE_HYPERTUBE_BUILDABLE_CLASSES.has(entity.typePath));
+  const classCounts = new Map();
+  for (const entity of hypertubeEntities) {
+    const classPath = entity.typePath;
+    classCounts.set(classPath, (classCounts.get(classPath) ?? 0) + 1);
+  }
+  const classRecords = [...classCounts.entries()]
+    .map(([classPath, count]) => ({ class_path: classPath, class_name: shortName(classPath), count }))
+    .sort((left, right) => right.count - left.count || left.class_path.localeCompare(right.class_path));
+  const maximumPipeCount = boundedHypertubeMaximum(
+    maximumPipes,
+    DEFAULT_MAXIMUM_HYPERTUBE_PIPES,
+    MAXIMUM_HYPERTUBE_PIPES,
+  );
+  const maximumPointCount = boundedHypertubeMaximum(
+    maximumSplinePoints,
+    DEFAULT_MAXIMUM_HYPERTUBE_SPLINE_POINTS,
+    MAXIMUM_HYPERTUBE_SPLINE_POINTS,
+  );
+  const pipeRecords = [];
+  let totalSplinePointCount = 0;
+  let finiteTransformCount = 0;
+  let malformedPipeEntityRecordCount = 0;
+  let missingSplineDataCount = 0;
+  let malformedSplineDataCount = 0;
+  let malformedSplinePointCount = 0;
+  let missingPassthroughPropertyCount = 0;
+  let malformedPassthroughPropertyCount = 0;
+  let blankPassthroughReferenceCount = 0;
+  let malformedPassthroughReferenceCount = 0;
+  for (const [entityIndex, entity] of allObjects.entries()) {
+    if (entity?.typePath !== NATIVE_HYPERTUBE_PIPE_CLASS) continue;
+    const instanceName = validSavedInstanceName(entity.instanceName) ? entity.instanceName : null;
+    if (!instanceName) malformedPipeEntityRecordCount += 1;
+    const transform = readBuildableTransform(entity);
+    if (transform) finiteTransformCount += 1;
+    const spline = hypertubeSplineData(entity);
+    if (spline.state === "missing") missingSplineDataCount += 1;
+    else if (spline.state === "malformed") malformedSplineDataCount += 1;
+    malformedSplinePointCount += spline.malformed_point_count ?? 0;
+    totalSplinePointCount += spline.declared_point_count ?? spline.points.length;
+    const passthroughs = hypertubeSnappedPassthroughs(entity);
+    if (passthroughs.state === "missing") missingPassthroughPropertyCount += 1;
+    else if (passthroughs.state === "malformed") malformedPassthroughPropertyCount += 1;
+    blankPassthroughReferenceCount += passthroughs.blank_reference_count;
+    malformedPassthroughReferenceCount += passthroughs.malformed_reference_count;
+    const points = spline.points;
+    const returnedPoints = points.slice(0, maximumPointCount);
+    pipeRecords.push({
+      entity_index: entityIndex,
+      pipe_instance_name: instanceName,
+      pipe_class_path: entity.typePath,
+      pipe_class_name: shortName(entity.typePath),
+      transform,
+      spline_data_state: spline.state,
+      spline_point_count: spline.declared_point_count ?? points.length,
+      malformed_spline_point_count: spline.malformed_point_count ?? 0,
+      spline_points: returnedPoints,
+      spline_points_returned: returnedPoints.length,
+      spline_points_truncated: Math.max(0, points.length - returnedPoints.length),
+      local_bounds_cm: hypertubeLocalBounds(points),
+      chord_length_cm: spline.state === "valid" ? hypertubeChordLength(points) : null,
+      blueprint_relative_endpoints_cm: hypertubeRelativeEndpoints(transform, points),
+      snapped_passthroughs: passthroughs,
+      built_with_recipe: builtWithRecipe(entity),
+    });
+  }
+  const returnedPipes = pipeRecords.slice(0, maximumPipeCount);
+  const returnedSplinePointCount = returnedPipes.reduce(
+    (total, record) => total + (record.spline_points_returned ?? 0),
+    0,
+  );
+  const hasInconclusiveReference =
+    malformedReferenceCount > 0 ||
+    unresolvedReferenceCount > 0 ||
+    ambiguousReferenceCount > 0 ||
+    nonreciprocalReferenceCount > 0 ||
+    unsupportedTargetReferenceCount > 0 ||
+    selfReferenceCount > 0;
+  const hasInconclusiveSpline =
+    malformedPipeEntityRecordCount > 0 ||
+    missingSplineDataCount > 0 ||
+    malformedSplineDataCount > 0 ||
+    malformedSplinePointCount > 0 ||
+    malformedPassthroughPropertyCount > 0 ||
+    malformedPassthroughReferenceCount > 0;
+  return {
+    status: "decoded",
+    scope: "reciprocal_native_hypertube_component_references_and_saved_pipe_hyper_splines",
+    native_hypertube_connection_component_count: connectionComponents.length,
+    m_connected_component_record_count: linkedComponentRecords.length,
+    supported_connection_reference_record_count: supportedLinkedComponents.length,
+    unsupported_linked_component_record_count: unsupportedLinkedComponentRecordCount,
+    reciprocal_connection_reference_count: reciprocalReferenceCount,
+    reciprocal_connection_pair_count: allPairs.length,
+    endpoint_owner_resolution: ownerResolution,
+    malformed_component_reference_count: malformedReferenceCount,
+    unresolved_component_reference_count: unresolvedReferenceCount,
+    ambiguous_component_reference_count: ambiguousReferenceCount,
+    nonreciprocal_component_reference_count: nonreciprocalReferenceCount,
+    unsupported_target_component_reference_count: unsupportedTargetReferenceCount,
+    self_component_reference_count: selfReferenceCount,
+    connections: allPairs.slice(0, maximumConnectionCount),
+    connections_returned: Math.min(maximumConnectionCount, allPairs.length),
+    connections_truncated: Math.max(0, allPairs.length - maximumConnectionCount),
+    native_hypertube_entity_count: hypertubeEntities.length,
+    hypertube_buildable_classes: classRecords,
+    hypertube_pipe_entity_count: pipeRecords.length,
+    pipe_records_returned: returnedPipes.length,
+    pipe_records_truncated: Math.max(0, pipeRecords.length - returnedPipes.length),
+    pipe_hyper_records: returnedPipes,
+    total_spline_point_count: totalSplinePointCount,
+    returned_spline_point_count: returnedSplinePointCount,
+    spline_points_truncated: Math.max(0, totalSplinePointCount - returnedSplinePointCount),
+    missing_spline_data_count: missingSplineDataCount,
+    malformed_spline_data_count: malformedSplineDataCount,
+    malformed_spline_point_count: malformedSplinePointCount,
+    finite_pipe_transform_count: finiteTransformCount,
+    missing_passthrough_property_count: missingPassthroughPropertyCount,
+    malformed_passthrough_property_count: malformedPassthroughPropertyCount,
+    blank_passthrough_reference_count: blankPassthroughReferenceCount,
+    malformed_passthrough_reference_count: malformedPassthroughReferenceCount,
+    traversal_direction: "not_inferred_from_component_references_or_spline_order",
+    speed_and_throughput: "not_inferred_from_saved_hypertube_records",
+    cross_blueprint_joins: "not_proven_from_saved_component_references",
+    external_connections: "not_proven_by_the_saved_blueprint",
+    terrain_clearance_and_destination_fit: "not_proven_by_the_saved_blueprint",
+    caveat:
+      "Only exact reciprocal mConnectedComponent links on native FGPipeConnectionComponentHyper records and exact Build_PipeHyper mSplineData are decoded. This does not prove travel direction, speed, throughput, junction behavior, underground excavation, collision clearance, Build Gun validity, cross-blueprint joins, or hookups outside the Blueprint.",
+    source: "decoded_from_saved_native_hypertube_component_and_pipe_hyper_records",
+    certainty:
+      hasInconclusiveReference || hasInconclusiveSpline
+        ? "authoritative_observation_with_inconclusive_hypertube_records"
+        : "authoritative_for_verified_native_hypertube_records",
+  };
+}
+
 /**
  * Reads the compressed object stream through a pinned parser without mutating the
  * file or game. The returned individual entity list is deliberately bounded;
@@ -1164,6 +1622,9 @@ export function inspectBlueprintStructure(
     maximumPowerWires = DEFAULT_MAXIMUM_CONNECTIONS,
     maximumRailTracks = DEFAULT_MAXIMUM_RAIL_TRACKS,
     maximumRailSplinePoints = DEFAULT_MAXIMUM_RAIL_SPLINE_POINTS,
+    maximumHypertubeConnections = DEFAULT_MAXIMUM_CONNECTIONS,
+    maximumHypertubePipes = DEFAULT_MAXIMUM_HYPERTUBE_PIPES,
+    maximumHypertubeSplinePoints = DEFAULT_MAXIMUM_HYPERTUBE_SPLINE_POINTS,
   } = {},
 ) {
   let header;
@@ -1272,6 +1733,11 @@ export function inspectBlueprintStructure(
     maximumRailTracks,
     maximumRailSplinePoints,
   });
+  const hypertubeTopology = decodeBlueprintHypertubeTopology(objects, {
+    maximumConnections: maximumHypertubeConnections,
+    maximumPipes: maximumHypertubePipes,
+    maximumSplinePoints: maximumHypertubeSplinePoints,
+  });
 
   return {
     available: true,
@@ -1318,6 +1784,7 @@ export function inspectBlueprintStructure(
     connection_topology: connectionTopology,
     power_wire_topology: powerWireTopology,
     rail_topology: railTopology,
+    hypertube_topology: hypertubeTopology,
     source: "decoded_from_saved_native_blueprint",
     certainty:
       rows.length < transformed.length

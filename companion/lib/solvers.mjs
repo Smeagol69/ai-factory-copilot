@@ -1742,6 +1742,9 @@ export function solveBlueprintLayout(
     maximum_power_wires = 80,
     maximum_rail_tracks = 40,
     maximum_rail_spline_points = 200,
+    maximum_hypertube_connections = 80,
+    maximum_hypertube_pipes = 40,
+    maximum_hypertube_spline_points = 200,
   } = {},
   { inspectBlueprint = null } = {},
 ) {
@@ -1774,6 +1777,9 @@ export function solveBlueprintLayout(
     maximumPowerWires: maximum_power_wires,
     maximumRailTracks: maximum_rail_tracks,
     maximumRailSplinePoints: maximum_rail_spline_points,
+    maximumHypertubeConnections: maximum_hypertube_connections,
+    maximumHypertubePipes: maximum_hypertube_pipes,
+    maximumHypertubeSplinePoints: maximum_hypertube_spline_points,
   });
   if (!structure?.available) {
     return {

@@ -5,6 +5,16 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added read-only native **hypertube reference inspection** to the Blueprint
+  structural reader. Exact `FGPipeConnectionComponentHyper` reciprocal links,
+  `Build_PipeHyper` spline locations/tangents, Blueprint-relative endpoints,
+  saved spline bounds/chord lower bounds, native entrance/passthrough/support
+  class counts, and explicit blank passthrough references are now exposed with
+  bounded output. This lets the assistant study enclosed multi-level samples
+  without confusing a saved link with proof of traversal direction, speed,
+  throughput, underground excavation, collision clearance, cross-blueprint
+  joins, or destination Build Gun validity. No writer or world mutation was
+  added; existing conveyor/pipe/power/rail topology contracts remain intact.
 - Added read-only native **rail/tunnel reference inspection** to the Blueprint
   structural reader. The companion now decodes exact saved
   `Build_RailroadTrack` `mSplineData` locations/tangents, local spline bounds,

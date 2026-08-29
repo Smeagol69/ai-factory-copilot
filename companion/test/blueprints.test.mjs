@@ -8,6 +8,7 @@ import { buildGraph } from "../lib/graph.mjs";
 import {
   costAgainstInventory,
   decodeBlueprintConnectionTopology,
+  decodeBlueprintHypertubeTopology,
   decodeBlueprintPowerWireTopology,
   decodeBlueprintRailTopology,
   inspectBlueprintStructure,
@@ -24,6 +25,8 @@ const CABLE = "/Game/FactoryGame/Resource/Parts/Cable/Desc_Cable.Desc_Cable_C";
 const SMELTER_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_SmelterMk1.Recipe_SmelterMk1_C";
 const POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
 const POWER_LINE_CLASS = "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C";
+const HYPERTUBE_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPipeConnectionComponentHyper";
+const HYPERTUBE_PIPE_CLASS = "/Game/FactoryGame/Buildable/Factory/PipeHyper/Build_PipeHyper.Build_PipeHyper_C";
 const RAIL_TRACK_CLASS = "/Game/FactoryGame/Buildable/Factory/Train/Track/Build_RailroadTrack.Build_RailroadTrack_C";
 
 function int32(value) {
@@ -191,6 +194,43 @@ function savedRailTrack(instanceName, points, graphId = 1, overrides = {}) {
   };
 }
 
+function savedHypertubePipe(instanceName, points, overrides = {}) {
+  return {
+    type: "SaveEntity",
+    typePath: HYPERTUBE_PIPE_CLASS,
+    instanceName,
+    transform: {
+      translation: { x: 100, y: 200, z: 300 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      scale3d: { x: 1, y: 1, z: 1 },
+    },
+    properties: {
+      mSplineData: {
+        type: "ArrayProperty",
+        name: "mSplineData",
+        propertyTagType: {
+          name: "ArrayProperty",
+          children: [{ name: "StructProperty", children: [{ name: "SplinePointData", children: [] }] }],
+        },
+        values: points.map(({ x, y, z, tangent = { x: 0, y: 0, z: 0 } }) => ({
+          type: "SplinePointData",
+          properties: {
+            Location: { type: "StructProperty", name: "Location", value: { x, y, z } },
+            ArriveTangent: { type: "StructProperty", name: "ArriveTangent", value: tangent },
+            LeaveTangent: { type: "StructProperty", name: "LeaveTangent", value: tangent },
+          },
+        })),
+      },
+      mSnappedPassthroughs: {
+        type: "ArrayProperty",
+        name: "mSnappedPassthroughs",
+        values: [{ levelName: "", pathName: "" }, { levelName: "", pathName: "" }],
+      },
+    },
+    ...overrides,
+  };
+}
+
 /** Creates a real compressed .sbp through the same pinned parser we read with. */
 function makeNativeBlueprint({ connected = false } = {}) {
   const constructor = nativeEntity(
@@ -349,6 +389,8 @@ test("reads exact native buildable transforms through the pinned read-only parse
   assert.equal(result.power_wire_topology.verified_power_wire_count, 0);
   assert.equal(result.rail_topology.status, "decoded");
   assert.equal(result.rail_topology.native_rail_track_entity_count, 0);
+  assert.equal(result.hypertube_topology.status, "decoded");
+  assert.equal(result.hypertube_topology.native_hypertube_connection_component_count, 0);
   assert.match(result.transform_coverage_caveat, /hologram validity/i);
 });
 
@@ -435,6 +477,83 @@ test("connection topology caps returned pairs while preserving every aggregate c
   assert.equal(topology.reciprocal_connection_pairs_by_kind.pipe, 3);
   assert.equal(topology.connections_returned, 1);
   assert.equal(topology.connections_truncated, 2);
+});
+
+test("decodes exact native hypertube links and bounded PipeHyper spline records", () => {
+  const start = "Persistent_Level:PipeHyperStart";
+  const pipe = "Persistent_Level:PipeHyper";
+  const passthrough = "Persistent_Level:HypertubePassthrough";
+  const startConnection = `${start}.PipeHyperStartConnection`;
+  const pipeConnection0 = `${pipe}.PipeHyperConnection0`;
+  const pipeConnection1 = `${pipe}.PipeHyperConnection1`;
+  const passthroughConnection = `${passthrough}.Connection0`;
+  const topology = decodeBlueprintHypertubeTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_Start.Build_Start_C", instanceName: start },
+    savedHypertubePipe(pipe, [
+      { x: 0, y: 0, z: 0, tangent: { x: 100, y: 0, z: 0 } },
+      { x: 300, y: 400, z: 0, tangent: { x: 0, y: 100, z: 0 } },
+    ]),
+    { type: "SaveEntity", typePath: "/Game/Test/Build_Passthrough.Build_Passthrough_C", instanceName: passthrough },
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, startConnection, start, pipeConnection0),
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, pipeConnection0, pipe, startConnection),
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, pipeConnection1, pipe, passthroughConnection),
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, passthroughConnection, passthrough, pipeConnection1),
+  ], { maximumConnections: 1, maximumPipes: 1, maximumSplinePoints: 1 });
+
+  assert.equal(topology.status, "decoded");
+  assert.equal(topology.native_hypertube_connection_component_count, 4);
+  assert.equal(topology.supported_connection_reference_record_count, 4);
+  assert.equal(topology.reciprocal_connection_reference_count, 4);
+  assert.equal(topology.reciprocal_connection_pair_count, 2);
+  assert.deepEqual(topology.endpoint_owner_resolution, { both: 2, one: 0, neither: 0 });
+  assert.equal(topology.connections_returned, 1);
+  assert.equal(topology.connections_truncated, 1);
+  assert.equal(topology.hypertube_pipe_entity_count, 1);
+  assert.equal(topology.pipe_records_returned, 1);
+  assert.equal(topology.total_spline_point_count, 2);
+  assert.equal(topology.pipe_hyper_records[0].spline_points_returned, 1);
+  assert.equal(topology.pipe_hyper_records[0].spline_points_truncated, 1);
+  assert.deepEqual(topology.pipe_hyper_records[0].blueprint_relative_endpoints_cm, {
+    start_cm: { x: 100, y: 200, z: 300 },
+    end_cm: { x: 400, y: 600, z: 300 },
+  });
+  assert.equal(topology.pipe_hyper_records[0].chord_length_cm, 500);
+  assert.equal(topology.pipe_hyper_records[0].snapped_passthroughs.blank_reference_count, 2);
+  assert.equal(topology.traversal_direction, "not_inferred_from_component_references_or_spline_order");
+  assert.equal(topology.cross_blueprint_joins, "not_proven_from_saved_component_references");
+  assert.equal(topology.certainty, "authoritative_for_verified_native_hypertube_records");
+});
+
+test("hypertube topology keeps malformed and nonreciprocal records explicit", () => {
+  const topology = decodeBlueprintHypertubeTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_A.Build_A_C", instanceName: "A" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_B.Build_B_C", instanceName: "B" },
+    {
+      type: "SaveComponent",
+      typePath: HYPERTUBE_CONNECTION_COMPONENT,
+      instanceName: "A.Port",
+      parentEntityName: "A",
+      properties: { mConnectedComponent: { value: { pathName: "B.Port" } } },
+    },
+    {
+      type: "SaveComponent",
+      typePath: HYPERTUBE_CONNECTION_COMPONENT,
+      instanceName: "B.Port",
+      parentEntityName: "B",
+      properties: {},
+    },
+    {
+      type: "SaveComponent",
+      typePath: HYPERTUBE_CONNECTION_COMPONENT,
+      instanceName: "Self.Port",
+      parentEntityName: "A",
+      properties: { mConnectedComponent: { value: { pathName: "Self.Port" } } },
+    },
+  ]);
+  assert.equal(topology.reciprocal_connection_pair_count, 0);
+  assert.equal(topology.nonreciprocal_component_reference_count, 1);
+  assert.equal(topology.self_component_reference_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_hypertube_records");
 });
 
 test("power-wire topology inverts exact native mWires membership into bounded physical edges", () => {
@@ -633,6 +752,9 @@ test("the structural solver prices a bounded native layout against the live inve
   assert.equal(receivedOptions.maximumPowerWires, 3);
   assert.equal(receivedOptions.maximumRailTracks, 40);
   assert.equal(receivedOptions.maximumRailSplinePoints, 200);
+  assert.equal(receivedOptions.maximumHypertubeConnections, 80);
+  assert.equal(receivedOptions.maximumHypertubePipes, 40);
+  assert.equal(receivedOptions.maximumHypertubeSplinePoints, 200);
 });
 
 test("the configured reader stays inside its library and resolves one exact native blueprint", () => {
