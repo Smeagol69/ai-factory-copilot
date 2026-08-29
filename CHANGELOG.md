@@ -10,7 +10,7 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   idempotently during world initialization, and `/ai anchor` reuses the same
   readiness check. The bridge still requires exact live recipe availability;
   no vanilla progression recipe is unlocked. Shipping and Editor module builds
-  pass; packaging/deployment waits for the running game to close.
+  pass; the matched UAT package/deploy completed after the game closed.
 - Added deterministic **aimed-node sourcing** for planner-generated native
   Blueprints. A request such as `create a blueprint that makes 30 iron ingot
   per minute from this node using Miner Mk.1` now resolves the exact aimed
