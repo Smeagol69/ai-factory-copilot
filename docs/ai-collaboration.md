@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-29 | Codex | `codex/generated-blueprint-source-fanout` | Extend the newly merged aimed-node generated Blueprint source lane with one explicit native regular-splitter fan-out stage. Select only an exact unlocked splitter Build Gun recipe whose building CDO exposes one native input and enough distinct native outputs; derive splitter transform and every belt endpoint from captured class-default connection geometry; capacity-check the source belt and every branch; and preserve unique-port use through the existing generated v4 conveyor compiler/readback. Initial scope is one aimed solid resource feeding multiple identical first-stage consumers. Multi-stage production routing, mergers, Smart/Programmable rules, lifts/poles, fluids, automatic destination siting, Claude's creative-node discovery/UI lane, deployment, and any simulated direct multi-use output remain out of scope. Expected crossings: the aimed-node helper/router, focused tests, and append-only docs; scanner CDO port capture from `ac2d5cc` is reused unchanged. | claimed; inspecting the existing deterministic splitter and generated-conveyor contracts before implementation |
+| 2026-08-29 | Codex | `codex/generated-blueprint-source-fanout` | Extend the newly merged aimed-node generated Blueprint source lane with one explicit native regular-splitter fan-out stage. Select only an exact unlocked splitter Build Gun recipe whose building CDO exposes one native input and enough distinct native outputs; derive splitter transform and every belt endpoint from captured class-default connection geometry; capacity-check the source belt and every branch; and preserve unique-port use through the existing generated v4 conveyor compiler/readback. Initial scope is one aimed solid resource feeding multiple identical first-stage consumers. Multi-stage production routing, mergers, Smart/Programmable rules, lifts/poles, fluids, automatic destination siting, Claude's creative-node discovery/UI lane, deployment, and any simulated direct multi-use output remain out of scope. Expected crossings: the aimed-node helper/router, focused tests, bridge-side generated-conveyor endpoint validation, and append-only docs; scanner CDO port capture from `ac2d5cc` is reused unchanged. | implementation complete and source-verified: 60 Iron Ingots/min emits one v4 Anchor, Miner Mk.1, regular Splitter, two configured Smelters, three distinct named-port conveyor links, and captured-capacity power topology. Bridge validation checks all six conveyor endpoints and refuses reused or direction-wrong ports. **884/884** tests and exact CL 502094/SML validation pass. Companion/game deployment and native `.sbp`/isolated-world/Build Gun proof remain pending while Satisfactory PID 40336 stays open. |
 | 2026-08-29 | Codex | `codex/generated-blueprint-node-source` | Deterministic automatic source lane for planner-generated native Blueprints: when a Blueprint request explicitly says `from/on/using this node`, resolve only the exact aimed ordinary solid resource node, its captured descriptor and native purity, current Build Gun unlocks, and exact captured vanilla Miner capability; compile the proven Anchor+Miner pair into v4 and connect it to the first compatible generated production stage only when the existing connector/topology evidence proves the link. Fail closed on absent/stale/non-node aim, unknown resource/purity, unavailable Anchor/Miner recipe, unsupported extractor, ambiguous consumers/connectors, or unsafe geometry. Preserve the generic product-only generator and every v1–v4, belt/power/pipe, export/preview, Node Editor, Node Spawner, collision-profile, UI, and world-write feature. Expected crossings: a focused companion planner/helper, the generated Blueprint local route and tests, source-only building-CDO factory-port capture required by the discovered evidence boundary, plus append-only docs; no creative-node discovery changes, game deployment, or claim that Build Gun placement is destination-aligned while Satisfactory is running. | implementation complete and source-verified: exact native factory-port defaults are captured from registered building CDOs; the free local route emits one v4 Anchor+Miner+Smelter+belt+power proposal for 30 Iron Ingots/min with no live node actor id. **882/882** tests, exact CL 502094/SML validation, and Shipping/Editor module builds pass. Satisfactory PID 40336 stayed open, so no package, game DLL, companion install, generated `.sbp`, isolated-world readback, or Build Gun placement is claimed. Multi-machine fan-out and multi-stage sourcing remain explicit refusals. |
 | 2026-08-29 | Codex | `codex/generated-blueprint-resource-anchors` | Extend the already deployed generated native Blueprint v3 contract with a fail-closed v4 Resource Anchor/miner primitive. A v4 layout may carry an explicitly configured solid-resource `AAIFactoryBlueprintResourceAnchor` and exactly one explicitly related vanilla Miner Mk.1–Mk.3; the bridge rechecks the captured resource descriptor, purity, Build Gun recipes, roles, and one-to-one relationship, while the game configures the real Anchor node, binds the exact staged Miner, serializes through the real Designer, and requires the persisted Anchor↔Miner mapping on isolated-world readback. Preserve v1–v3, generated belts/power/pipelines, selection export, Build Gun preview, Claude's routing/UI/Node Editor, and every world-write gate. No fluids/oil/gas/fracking, portable or modded extractors, raw resource spawning, automatic terrain placement, or claim that a destination node exists. Expected crossings: generated Blueprint companion/action/tool contracts, `AIFactoryBlueprintExport`, the existing Anchor's narrow public binding/readback helpers, focused tests, and append-only docs. | implementation complete and source-verified: 875/875 companion tests, exact headers, Shipping and Editor module builds, full FactoryEditor target, and no-deploy UAT cook/archive pass. Exact multi-Anchor readback also fingerprints resource/purity/Miner-class pairings. Archive SHA-256 `2562E5C98E69C4AB74F3318366F152E25E74711CCD4D4E716A154DF8DFF4F9B1`. Game PID 40336 is still running, so deployment, companion install, native v4 file generation, isolated-world result observation in the packaged game, and vanilla Build Gun placement remain deliberately pending. |
 | 2026-08-28 | Codex | `codex/generated-blueprint-pipeline-topology` | Add the next topology primitive on top of deployed `a1f11f4`: explicit native pipeline links inside planner-generated Blueprints. Ground every API in CL 502094; capture exact pipe-connector type/direction metadata and native pipeline spline/length capability from unlocked Build Gun recipes; extend the generated schema, transient Designer staging, and isolated Blueprint-world readback so a straight pipe is accepted only when both exact endpoints are compatible and reciprocal after save/load. Add focused companion/source tests, then compile/package/deploy with the game closed. This does not claim pumps, head lift, fluid rate, junction manifolds, miner/resource anchoring, or automatic coal-power layout yet. Existing conveyors, power topology, vision, selection export, Node Editor, direct builds, and v1/v2 compatibility remain preserved. | complete, packaged, deployed, and companion-installed from `4fd5237`: v3 captures exact native pipe-port type/transform/clearance plus pipeline flow and hologram length limits, stages a narrow straight spline, and requires reciprocal isolated-world readback. Exact headers, 861/861 tests, Editor/Shipping, and UAT pass. Fresh live snapshot and Build Gun placement remain unverified. |
@@ -4893,3 +4893,65 @@ Miner Mk.1`, require the isolated-world v4 mapping/topology readback, preview it
 place it against a compatible node with the vanilla Build Gun, save/reload, and
 audit the placed Blueprint. The next safe planner extension is explicit native
 splitter fan-out; do not weaken this one-machine proof to simulate it.
+
+### Codex — 2026-08-29 generated source fan-out handoff
+
+Branch: `codex/generated-blueprint-source-fanout`; claim commit `75172b9`.
+This is the first explicit native material fan-out in the automatic aimed-node
+Blueprint lane. It does not call the older world-actor splitter solver and does
+not copy its placement constants: generated files need Blueprint-relative
+parts that do not exist in the live world yet, so this path uses the registered
+building CDO port capture introduced by `ac2d5cc` plus measured collision bounds
+from the player's current world.
+
+The supported topology remains deliberately bounded to one raw input and one
+production stage. One consumer keeps the direct Miner-to-machine link. Two or
+three identical consumers may use one regular vanilla Conveyor Splitter only
+when all machines are fully utilized, use the same exact build and production
+recipes, and the exact one-stage production plan count matches the generated
+actions. The splitter selection requires the unlocked FactoryGame
+`Desc_ConveyorAttachmentSplitter` / `Build_ConveyorAttachmentSplitter` pair,
+exactly one native input, enough captured native outputs, and a live captured
+instance proving its collision half-diagonal. Smart/Programmable splitters are
+not silently treated as regular splitters.
+
+Every consumer is rotated so its captured native input faces the shell front.
+The splitter is placed just inside the measured front floor edge, centered on
+the consumer input centroid, and refused when its conservative measured radius
+does not fit the shell or clears no consumer. Its input faces the one wall
+aperture; its captured output normals must face inward. Distinct outputs are
+assigned deterministically to the nearest consumer inputs. The Miner remains
+outside the floor collision, feeding the splitter through the aperture. Total
+raw rate and the source belt are checked; each branch inherits a bounded share
+only because partial/underclocked machines are refused in this version.
+
+Generated-conveyor validation in `actions.mjs` now independently resolves
+captured class-default factory ports for every generated endpoint. If metadata
+is present, an output side must name one exact `FCD_OUTPUT`, an input side one
+exact `FCD_INPUT`, both need finite captured transform/normal evidence, and one
+part/component pair may be used only once. Older snapshots without the new CDO
+field retain their existing game-authoritative behavior; current snapshots get
+the extra bridge gate before the unchanged game-side named-component staging
+and isolated-world reciprocal readback.
+
+The end-to-end regression request is:
+`create a blueprint that makes 60 iron ingot per minute from this node using
+Miner Mk.1`. Its validated proposal contains one configured v4 Resource Anchor,
+one paired Miner, one regular Splitter, two Smelters running the standard Iron
+Ingot recipe, three conveyors, and internal power wiring. All six conveyor
+endpoints resolve against captured directions and names, two distinct Splitter
+outputs are used, and no live resource-node actor id enters the native file.
+Target 45/min is refused because generated underclock settings do not exist;
+multi-stage products such as Wire still refuse rather than reusing a machine
+output or pretending that mergers and another fan-out stage were designed.
+
+Verification: `npm test` and `scripts/validate.ps1` pass **884/884**, including
+duplicate-output and wrong-direction negative tests. This branch changes only
+the companion and docs on top of the already compiled `ac2d5cc` CDO capture; no
+new C++ compile was required. Satisfactory stayed open as PID 40336, so neither
+the companion nor mod was deployed and no generated file was written. The
+matched mod/companion deployment and native 60/min file/readback/Build Gun
+placement matrix must follow after the game closes. The next topology milestone
+for Wire is an explicit production DAG compiler with regular Splitter and Merger
+nodes for every branching edge; do not extend this one-stage helper by emitting
+ambiguous row-to-row belts.

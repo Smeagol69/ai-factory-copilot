@@ -5206,8 +5206,12 @@ export function answerLocally(question, graph, services) {
                     ` — ${counts.floor ?? 0} floor, ${displayedWalls} wall and ` +
                     `${counts.roof ?? 0} roof pieces. The machines sit on the deck inside.` +
                     (generatedSource
-                      ? ` The front input aperture carries one exact straight belt from the ` +
-                        `${aimedBlueprintSource.miner_name} outside the floor collision to the machine inside.`
+                      ? generatedSource.fan_out
+                        ? ` The front input aperture carries the exact Miner belt into one measured ` +
+                          `${generatedSource.fan_out.splitter_name}; ${generatedSource.fan_out.outputs_used} ` +
+                          `distinct native output ports feed the identical first-stage machines inside.`
+                        : ` The front input aperture carries one exact straight belt from the ` +
+                          `${aimedBlueprintSource.miner_name} outside the floor collision to the machine inside.`
                       : "") +
                     // The ground check, when it changed anything. Asked for
                     // directly, and the sort of thing that silently ruins a
@@ -5246,8 +5250,12 @@ export function answerLocally(question, graph, services) {
                     "and place it with the vanilla Build Gun. Straight planned belts are included; any reported internal power topology is included too. " +
                     (generatedSource
                       ? `This v4 file also includes one exact ${aimedBlueprintSource.purity} ${aimedBlueprintSource.resource_name} Resource Anchor, ` +
-                        `${aimedBlueprintSource.miner_name}, and their Miner-to-machine input belt. It carries no live node actor id; destination alignment remains the vanilla Build Gun's decision. ` +
-                        "Multi-machine source fan-out, pipes, and conveyor lifts remain explicit follow-up work; no missing topology is silently claimed."
+                        `${aimedBlueprintSource.miner_name}, and ` +
+                        (generatedSource.fan_out
+                          ? `one measured regular Splitter feeding ${generatedSource.fan_out.consumers} identical first-stage machines through distinct native ports. `
+                          : "their Miner-to-machine input belt. ") +
+                        "It carries no live node actor id; destination alignment remains the vanilla Build Gun's decision. " +
+                        "Multi-stage material routing, pipes, and conveyor lifts remain explicit follow-up work; no missing topology is silently claimed."
                       : "Pipes, miners/resource anchors, and conveyor lifts/poles remain explicit follow-up work; no missing topology is silently claimed.")
                   : design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +

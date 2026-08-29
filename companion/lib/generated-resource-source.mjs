@@ -5,10 +5,11 @@
  * This module does not infer a resource from the requested product. The aimed
  * node supplies the exact descriptor and purity, the live catalog supplies
  * the unlocked Anchor/Miner/connector classes, and the production solver
- * supplies the exact raw-input rate. The first implementation deliberately
- * accepts one raw input and one first-stage machine only. Splitter fan-out is
- * a separate native topology primitive; pretending one Miner output can feed
- * several machine inputs would produce a Blueprint that cannot run.
+ * supplies the exact raw-input rate. The bounded implementation accepts one
+ * raw input and one production stage. One consumer receives a direct belt;
+ * several identical, fully utilized consumers require one captured vanilla
+ * regular Splitter with distinct native output ports. Multi-stage material
+ * graphs remain separate topology work.
  */
 
 import { normalizeResourcePurity } from "./solvers.mjs";
@@ -89,7 +90,7 @@ function directionMatches(value, wanted) {
   return normalized === "FCD_OUTPUT" || normalized === "OUTPUT";
 }
 
-function nativeFactoryPort(building, wanted) {
+function nativeFactoryPorts(building, wanted) {
   const captured = Array.isArray(building?.native_factory_connections)
     ? building.native_factory_connections
     : null;
@@ -108,29 +109,91 @@ function nativeFactoryPort(building, wanted) {
       clearance_cm: finite(entry?.connector_clearance_cm),
     }))
     .filter((entry) => entry.name && entry.location && entry.normal);
-  if (matches.length !== 1) {
+  const invalidNormal = matches.find((entry) => Math.hypot(entry.normal.x, entry.normal.y) <= EPSILON);
+  if (invalidNormal) {
     return {
       resolved: false,
-      reason: `expected exactly one captured native ${wanted} factory port, found ${matches.length}`,
-      captured_port_count: captured.length,
-      matching_port_count: matches.length,
-    };
-  }
-  const horizontalLength = Math.hypot(matches[0].normal.x, matches[0].normal.y);
-  if (horizontalLength <= EPSILON) {
-    return {
-      resolved: false,
-      reason: `the captured native ${wanted} factory port has no horizontal facing direction`,
+      reason: `captured native ${wanted} factory port ${invalidNormal.name} has no horizontal facing direction`,
     };
   }
   return {
     resolved: true,
-    ...matches[0],
-    normal: {
-      x: matches[0].normal.x / horizontalLength,
-      y: matches[0].normal.y / horizontalLength,
-      z: 0,
-    },
+    ports: matches.map((entry) => {
+      const horizontalLength = Math.hypot(entry.normal.x, entry.normal.y);
+      return {
+        ...entry,
+        normal: {
+          x: entry.normal.x / horizontalLength,
+          y: entry.normal.y / horizontalLength,
+          z: 0,
+        },
+      };
+    }),
+    captured_port_count: captured.length,
+  };
+}
+
+function nativeFactoryPort(building, wanted) {
+  const result = nativeFactoryPorts(building, wanted);
+  if (!result.resolved) return result;
+  if (result.ports.length !== 1) {
+    return {
+      resolved: false,
+      reason: `expected exactly one captured native ${wanted} factory port, found ${result.ports.length}`,
+      captured_port_count: result.captured_port_count,
+      matching_port_count: result.ports.length,
+    };
+  }
+  return {
+    resolved: true,
+    ...result.ports[0],
+  };
+}
+
+function regularSplitterMetadata(graph, minimumOutputs) {
+  const candidates = availableBuildGunMetadata(graph)
+    .filter((entry) => {
+      const className = shortClass(entry?.building?.class_path);
+      const itemName = shortClass(entry?.item?.class_path);
+      return entry?.item?.owner_mod === "FactoryGame" &&
+        className === "Build_ConveyorAttachmentSplitter" &&
+        itemName === "Desc_ConveyorAttachmentSplitter";
+    })
+    .map((entry) => {
+      const input = nativeFactoryPort(entry.building, "input");
+      const outputs = nativeFactoryPorts(entry.building, "output");
+      return { ...entry, input, outputs };
+    })
+    .filter((entry) => entry.input.resolved && entry.outputs.resolved &&
+      entry.outputs.ports.length >= minimumOutputs)
+    .sort((left, right) =>
+      left.outputs.ports.length - right.outputs.ports.length ||
+      String(left.recipe.class_path).localeCompare(String(right.recipe.class_path)),
+    );
+  if (candidates.length !== 1) {
+    return {
+      resolved: false,
+      reason:
+        `expected exactly one unlocked vanilla regular Conveyor Splitter with at least ${minimumOutputs} ` +
+        `captured native outputs, found ${candidates.length}`,
+    };
+  }
+  const selected = candidates[0];
+  const collisionRadius = measuredCollisionRadius(graph, selected.building.class_path);
+  if (collisionRadius === null) {
+    return {
+      resolved: false,
+      reason: "no captured regular Conveyor Splitter proves its collision footprint",
+    };
+  }
+  return {
+    resolved: true,
+    recipe_class: selected.recipe.class_path,
+    building_class: selected.building.class_path,
+    name: selected.item.name ?? selected.recipe.name,
+    input: selected.input,
+    outputs: selected.outputs.ports,
+    collision_radius_cm: collisionRadius,
   };
 }
 
@@ -176,6 +239,30 @@ function subtract(left, right) {
 
 function scale(value, amount) {
   return { x: value.x * amount, y: value.y * amount, z: value.z * amount };
+}
+
+function horizontalDistance(left, right) {
+  return Math.hypot(left.x - right.x, left.y - right.y);
+}
+
+function assignNearestPorts(ports, consumers) {
+  const available = [...ports];
+  const assignments = [];
+  for (const consumer of [...consumers].sort((left, right) =>
+    left.input_point.x - right.input_point.x ||
+      left.input_point.y - right.input_point.y ||
+      left.action_index - right.action_index,
+  )) {
+    let nearest = 0;
+    for (let index = 1; index < available.length; index += 1) {
+      if (horizontalDistance(available[index].world_location, consumer.input_point) <
+          horizontalDistance(available[nearest].world_location, consumer.input_point)) {
+        nearest = index;
+      }
+    }
+    assignments.push({ consumer, output: available.splice(nearest, 1)[0] });
+  }
+  return assignments;
 }
 
 function observedBeltCapacity(graph, beltRecipeClass) {
@@ -373,16 +460,46 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
       action?.generated_role === "machine" &&
       String(action?.production_recipe_class ?? "").trim(),
   );
-  if (machineActions.length !== 1 || transportActions.length !== 0) {
+  if (machineActions.length < 1 || transportActions.length !== 0 ||
+      !Array.isArray(production.steps) || production.steps.length !== 1) {
     return {
       attached: false,
       reason:
-        "automatic node sourcing currently requires exactly one production machine and no pre-existing material link; splitter or multi-stage topology is not inferred",
+        "automatic node sourcing currently requires one production stage and no pre-existing material link; multi-stage topology is not inferred",
       production_machines: machineActions.length,
+      production_stages: Array.isArray(production.steps) ? production.steps.length : null,
       existing_material_links: transportActions.length,
     };
   }
+  const productionStep = production.steps[0];
+  if (machineActions.length !== Number(productionStep?.machines_required)) {
+    return {
+      attached: false,
+      reason: "the generated machine count does not match the exact one-stage production plan",
+      generated_machines: machineActions.length,
+      production_machines: productionStep?.machines_required ?? null,
+    };
+  }
+  if (machineActions.length > 1 &&
+      Math.abs(Number(productionStep?.machines_exact) - machineActions.length) > EPSILON) {
+    return {
+      attached: false,
+      reason:
+        "splitter fan-out currently requires whole fully utilized identical machines; generated clock-speed settings are not implemented",
+      machines_exact: productionStep?.machines_exact ?? null,
+      machines_placed: machineActions.length,
+    };
+  }
   const machineAction = machineActions[0];
+  if (machineActions.some((action) =>
+    !sameClass(action.recipe_class, machineAction.recipe_class) ||
+    !sameClass(action.production_recipe_class, machineAction.production_recipe_class),
+  )) {
+    return {
+      attached: false,
+      reason: "the first source fan-out requires identical build and production recipes on every consumer",
+    };
+  }
   const productionRecipe = catalogEntryByClass(
     graph?.recipesByClass,
     machineAction.production_recipe_class,
@@ -402,6 +519,21 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
       attached: false,
       reason: `the generated machine cannot be aligned: ${machineInput.reason ?? "build recipe metadata is absent"}`,
     };
+  }
+  const consumerCollisionRadius = machineActions.length > 1
+    ? measuredCollisionRadius(graph, machineMetadata.building.class_path)
+    : null;
+  if (machineActions.length > 1 && consumerCollisionRadius === null) {
+    return {
+      attached: false,
+      reason: "no captured instance of the generated consumer proves its collision footprint",
+    };
+  }
+  const splitter = machineActions.length > 1
+    ? regularSplitterMetadata(graph, machineActions.length)
+    : null;
+  if (splitter && !splitter.resolved) {
+    return { attached: false, reason: `the raw-input fan-out cannot be laid out: ${splitter.reason}` };
   }
   if (!beltRecipeClass) {
     return { attached: false, reason: "no unlocked conveyor recipe was selected for the resource input" };
@@ -426,26 +558,93 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
   const grid = shell?.grid;
   const origin = vector(footprint?.origin_cm);
   const cell = finite(grid?.cell_size_cm);
-  const machineLocation = vector(machineAction.location);
-  if (!origin || cell === null || cell <= 0 || !machineLocation) {
+  const width = finite(footprint?.width_cm);
+  const depth = finite(footprint?.depth_cm);
+  const machineLocations = machineActions.map((action) => vector(action.location));
+  if (!origin || cell === null || cell <= 0 || width === null || depth === null ||
+      width <= 0 || depth <= 0 || machineLocations.some((location) => !location)) {
     return {
       attached: false,
-      reason: "the housed layout lacks an exact shell origin, grid size, or machine transform",
+      reason: "the housed layout lacks an exact shell origin, footprint, grid size, or machine transform",
     };
   }
 
-  // The architecture planner's front edge is -Y. Rotate the sole machine so
-  // its exact native input faces that edge; there are no downstream links to
-  // invalidate in this deliberately narrow first topology.
+  // The architecture planner's front edge is -Y. Rotate every identical
+  // first-stage consumer so its exact native input faces that edge. There are
+  // no downstream links in this deliberately bounded one-stage topology.
   const towardSource = { x: 0, y: -1, z: 0 };
   const consumerYaw = yawAlign(machineInput.normal, towardSource);
   const consumerInputOffset = rotate(machineInput.location, consumerYaw);
-  const inputPoint = add(machineLocation, consumerInputOffset);
+  const consumers = machineActions.map((action, actionIndex) => ({
+    action,
+    action_index: actionIndex,
+    location: machineLocations[actionIndex],
+    input_point: add(machineLocations[actionIndex], consumerInputOffset),
+    input_name: machineInput.name,
+  }));
+
+  const frontFloorEdgeY = origin.y - cell / 2;
+  const left = origin.x - cell / 2;
+  const right = origin.x + width - cell / 2;
+  const back = origin.y + depth - cell / 2;
+  let splitterLocation = null;
+  let splitterYaw = null;
+  let splitterInputName = null;
+  let branchAssignments = [];
+  let inputPoint = consumers[0].input_point;
+  if (splitter?.resolved) {
+    splitterYaw = yawAlign(splitter.input.normal, towardSource);
+    const splitterInputOffset = rotate(splitter.input.location, splitterYaw);
+    const consumerCentroidX = consumers.reduce(
+      (sum, consumer) => sum + consumer.input_point.x,
+      0,
+    ) / consumers.length;
+    splitterLocation = {
+      x: consumerCentroidX - splitterInputOffset.x,
+      y: frontFloorEdgeY + splitter.collision_radius_cm + 1,
+      z: machineLocations[0].z,
+    };
+    if (splitterLocation.x - splitter.collision_radius_cm < left ||
+        splitterLocation.x + splitter.collision_radius_cm > right ||
+        splitterLocation.y + splitter.collision_radius_cm > back) {
+      return {
+        attached: false,
+        reason: "the measured regular Conveyor Splitter footprint does not fit inside the generated shell",
+      };
+    }
+    const collision = consumers.find((consumer) =>
+      horizontalDistance(splitterLocation, consumer.location) <=
+        splitter.collision_radius_cm + consumerCollisionRadius + 1,
+    );
+    if (collision) {
+      return {
+        attached: false,
+        reason: "the measured regular Conveyor Splitter would overlap a generated consumer",
+        consumer_index: collision.action_index + 1,
+      };
+    }
+    const splitterOutputs = splitter.outputs.map((port) => {
+      const normal = rotate(port.normal, splitterYaw);
+      return {
+        ...port,
+        world_location: add(splitterLocation, rotate(port.location, splitterYaw)),
+        world_normal: normal,
+      };
+    });
+    if (splitterOutputs.some((port) => port.world_normal.y <= EPSILON)) {
+      return {
+        attached: false,
+        reason: "the captured regular Conveyor Splitter outputs do not all face the generated consumers",
+      };
+    }
+    branchAssignments = assignNearestPorts(splitterOutputs, consumers);
+    inputPoint = add(splitterLocation, splitterInputOffset);
+    splitterInputName = splitter.input.name;
+  }
 
   const minerOutputDirection = scale(towardSource, -1);
   const minerYaw = yawAlign(source.miner_output.normal, minerOutputDirection);
   const minerOutputOffset = rotate(source.miner_output.location, minerYaw);
-  const frontFloorEdgeY = origin.y - cell / 2;
   let gap = cell;
   const minerCenterForGap = (distance) => subtract(
     add(inputPoint, scale(towardSource, distance)),
@@ -458,9 +657,7 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
     minerLocation = minerCenterForGap(gap);
   }
 
-  const left = origin.x - cell / 2;
-  const right = origin.x + finite(footprint.width_cm) - cell / 2;
-  if (!Number.isFinite(left) || !Number.isFinite(right) || inputPoint.x < left || inputPoint.x > right) {
+  if (inputPoint.x < left || inputPoint.x > right) {
     return {
       attached: false,
       reason: "the aligned input belt does not cross the measured front edge of the shell",
@@ -486,23 +683,27 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
     removedWall = frontWalls[0].index;
   }
   const withoutWall = actions.filter((_action, index) => index !== removedWall);
-  const originalMachine = machineAction;
-  const adjustedMachineIndex = withoutWall.indexOf(originalMachine);
-  if (adjustedMachineIndex < 0) {
-    return { attached: false, reason: "the adjusted generated machine step could not be resolved" };
+  const machineSet = new Set(machineActions);
+  const adjustedMachineIndexes = machineActions.map((action) => withoutWall.indexOf(action));
+  if (adjustedMachineIndexes.some((index) => index < 0)) {
+    return { attached: false, reason: "an adjusted generated consumer step could not be resolved" };
   }
   const adjusted = withoutWall.map((action) =>
-    action === originalMachine ? { ...action, yaw: consumerYaw } : { ...action },
+    machineSet.has(action) ? { ...action, yaw: consumerYaw } : { ...action },
   );
   const firstTransport = adjusted.findIndex((action) => action?.action !== "place_building");
   const buildingCount = firstTransport < 0 ? adjusted.length : firstTransport;
   if (adjusted.slice(buildingCount).some((action) => action?.action !== "place_belt")) {
     return { attached: false, reason: "generated source attachment requires buildings before transport actions" };
   }
-  const consumerStep = adjustedMachineIndex + 1;
+  const consumerSteps = adjustedMachineIndexes.map((index) => index + 1);
+  const consumerStepByAction = new Map(
+    machineActions.map((action, index) => [action, consumerSteps[index]]),
+  );
 
   const anchorStep = buildingCount + 1;
   const minerStep = buildingCount + 2;
+  const splitterStep = splitter?.resolved ? buildingCount + 3 : null;
   const commit = actions.some((action) => action?.commit === true);
   const anchorAction = {
     action: "place_building",
@@ -525,21 +726,45 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
     target_step: anchorStep,
     commit,
   };
+  const splitterAction = splitter?.resolved
+    ? {
+        action: "place_building",
+        recipe_class: splitter.recipe_class,
+        location: splitterLocation,
+        exact_z: true,
+        yaw: splitterYaw,
+        // v1-v4 intentionally keep ordinary attachments under the generic
+        // standalone role; only Anchor/Miner need role-specific semantics.
+        generated_role: "standalone",
+        commit,
+      }
+    : null;
   const inputBelt = {
     action: "place_belt",
     recipe_class: beltCapacity.recipe_class,
     from_step: minerStep,
-    to_step: consumerStep,
+    to_step: splitterStep ?? consumerSteps[0],
     from_connector_name: source.miner_output.name,
-    to_connector_name: machineInput.name,
+    to_connector_name: splitterInputName ?? machineInput.name,
     commit,
   };
+  const branchBelts = branchAssignments.map(({ consumer, output }) => ({
+    action: "place_belt",
+    recipe_class: beltCapacity.recipe_class,
+    from_step: splitterStep,
+    to_step: consumerStepByAction.get(consumer.action),
+    from_connector_name: output.name,
+    to_connector_name: consumer.input_name,
+    commit,
+  }));
   const resultActions = [
     ...adjusted.slice(0, buildingCount),
     anchorAction,
     minerAction,
+    ...(splitterAction ? [splitterAction] : []),
     ...adjusted.slice(buildingCount),
     inputBelt,
+    ...branchBelts,
   ];
 
   return {
@@ -547,16 +772,29 @@ export function attachAimedGeneratedBlueprintSource(graph, actions, source, {
     actions: resultActions,
     anchor_step: anchorStep,
     miner_step: minerStep,
-    consumer_step: consumerStep,
+    ...(splitterStep ? { splitter_step: splitterStep } : {}),
+    consumer_steps: consumerSteps,
     removed_front_wall: removedWall !== null,
     input_aperture_x_cm: inputPoint.x,
     straight_belt_length_cm: gap,
     required_rate_per_minute: requiredRate,
     available_rate_per_minute: source.available_rate_per_minute,
     belt_capacity_per_minute: beltCapacity.items_per_minute,
+    fan_out: splitterStep
+      ? {
+          splitter_name: splitter.name,
+          splitter_recipe_class: splitter.recipe_class,
+          consumers: consumerSteps.length,
+          outputs_used: branchBelts.length,
+          outputs_available: splitter.outputs.length,
+          branch_rate_per_minute: requiredRate / consumerSteps.length,
+        }
+      : null,
     connector_evidence: {
       miner_output: source.miner_output.name,
-      consumer_input: machineInput.name,
+      source_destination_input: splitterInputName ?? machineInput.name,
+      consumer_inputs: branchBelts.map((belt) => belt.to_connector_name),
+      splitter_outputs: branchBelts.map((belt) => belt.from_connector_name),
       from_alignment: 1,
       to_alignment: -1,
     },

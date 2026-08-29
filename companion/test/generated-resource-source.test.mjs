@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { buildGraph } from "../lib/graph.mjs";
+import { validateAction } from "../lib/actions.mjs";
 import { planEnclosedFactory } from "../lib/base-build.mjs";
 import { planStructure, planTower } from "../lib/architecture.mjs";
 import { measureBuilding } from "../lib/designer.mjs";
@@ -26,6 +27,8 @@ const BUILD_GUN = "/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_
 const MINER_CLASS = "/Game/FactoryGame/Buildable/Factory/MinerMk1.Build_MinerMk1_C";
 const SMELTER_CLASS = "/Game/FactoryGame/Buildable/Factory/SmelterMk1.Build_SmelterMk1_C";
 const BELT_CLASS = "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk1.Build_ConveyorBeltMk1_C";
+const SPLITTER_CLASS =
+  "/Game/FactoryGame/Buildable/Factory/Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C";
 const POWER_CIRCUIT = "/Script/FactoryGame.FGPowerCircuit";
 
 function powerConnector(maxLinks) {
@@ -54,6 +57,10 @@ function sourceGraph() {
   const snapshot = buildFactorySnapshot();
   snapshot.actors.find((actor) => actor.actor_id === MINER).bounds = {
     origin: { x: 0, y: 0, z: 200 },
+    extent: { x: 500, y: 500, z: 200 },
+  };
+  snapshot.actors.find((actor) => actor.class_path === SMELTER_CLASS).bounds = {
+    origin: { x: 800, y: 0, z: 200 },
     extent: { x: 500, y: 500, z: 200 },
   };
   snapshot.content.items.push(
@@ -125,6 +132,42 @@ function sourceGraph() {
       building: { class_path: BELT_CLASS },
     },
     {
+      class_path: "Desc_ConveyorAttachmentSplitter",
+      name: "Conveyor Splitter",
+      owner_mod: "FactoryGame",
+      available: true,
+      form: "RF_SOLID",
+      building: {
+        class_path: SPLITTER_CLASS,
+        native_factory_connections: [
+          nativeFactoryPort(
+            "Input0",
+            "FCD_INPUT",
+            { x: -100, y: 0, z: 100 },
+            { x: -1, y: 0, z: 0 },
+          ),
+          nativeFactoryPort(
+            "Output0",
+            "FCD_OUTPUT",
+            { x: 100, y: -100, z: 100 },
+            { x: 1, y: 0, z: 0 },
+          ),
+          nativeFactoryPort(
+            "Output1",
+            "FCD_OUTPUT",
+            { x: 100, y: 0, z: 100 },
+            { x: 1, y: 0, z: 0 },
+          ),
+          nativeFactoryPort(
+            "Output2",
+            "FCD_OUTPUT",
+            { x: 100, y: 100, z: 100 },
+            { x: 1, y: 0, z: 0 },
+          ),
+        ],
+      },
+    },
+    {
       class_path: "Desc_PowerLine",
       name: "Power Line",
       owner_mod: "FactoryGame",
@@ -178,6 +221,15 @@ function sourceGraph() {
       available: true,
       ingredients: [],
       products: [{ item_class: "Desc_ConveyorBeltMk1", amount: 1 }],
+      produced_in: [BUILD_GUN],
+    },
+    {
+      class_path: "Recipe_ConveyorAttachmentSplitter",
+      name: "Conveyor Splitter",
+      owner_mod: "FactoryGame",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: "Desc_ConveyorAttachmentSplitter", amount: 1 }],
       produced_in: [BUILD_GUN],
     },
     {
@@ -238,6 +290,21 @@ function sourceGraph() {
     beltActor.class_path = BELT_CLASS;
     beltActor.transport.reported_speed = 120;
   }
+  snapshot.actors.push({
+    actor_id: "Build_ConveyorAttachmentSplitter_C_1",
+    name: "Build_ConveyorAttachmentSplitter_C_1",
+    class_path: SPLITTER_CLASS,
+    owner_mod: "FactoryGame",
+    kind: "buildable",
+    location: { x: 10_000, y: 10_000, z: 0 },
+    rotation: { pitch: 0, yaw: 0, roll: 0 },
+    bounds: {
+      origin: { x: 10_000, y: 10_000, z: 100 },
+      extent: { x: 150, y: 150, z: 100 },
+    },
+    connections: [],
+    inventories: [],
+  });
   return buildGraph(snapshot);
 }
 
@@ -288,6 +355,11 @@ const production = {
     item_name: "Iron Ore",
     display_units_per_minute: 30,
   }],
+  steps: [{
+    recipe_class: "Recipe_IngotIron",
+    machines_required: 1,
+    machines_exact: 1,
+  }],
 };
 
 const shell = {
@@ -335,12 +407,14 @@ test("adds one collision-clear Anchor/Miner pair and one exact straight input be
   assert.deepEqual(miner.location, anchor.location);
   assert.ok(miner.location.y + source.miner_collision_radius_cm < -400);
   assert.equal(belt.from_step, attached.miner_step);
-  assert.equal(belt.to_step, attached.consumer_step);
+  assert.equal(belt.to_step, attached.consumer_steps[0]);
   assert.equal(belt.from_connector_name, "OutputConnection0");
   assert.equal(belt.to_connector_name, "InputConnection0");
   assert.deepEqual(attached.connector_evidence, {
     miner_output: "OutputConnection0",
-    consumer_input: "InputConnection0",
+    source_destination_input: "InputConnection0",
+    consumer_inputs: [],
+    splitter_outputs: [],
     from_alignment: 1,
     to_alignment: -1,
   });
@@ -356,7 +430,7 @@ test("adds one collision-clear Anchor/Miner pair and one exact straight input be
   assert.equal(compiled.counts.conveyors, 1);
 });
 
-test("refuses multi-machine source fan-out and source-rate or belt-rate overclaims", () => {
+test("uses one measured regular splitter and unique native outputs for identical consumers", () => {
   const graph = sourceGraph();
   const source = resolveAimedGeneratedBlueprintSource(graph, { target });
   const twoMachines = [
@@ -366,24 +440,79 @@ test("refuses multi-machine source fan-out and source-rate or belt-rate overclai
       location: { x: 1_600, y: 800, z: 100 },
     },
   ];
+  const production60 = {
+    planned: true,
+    raw_inputs_required: [{
+      item_class: "Desc_OreIron",
+      item_name: "Iron Ore",
+      display_units_per_minute: 60,
+    }],
+    steps: [{
+      recipe_class: "Recipe_IngotIron",
+      machines_required: 2,
+      machines_exact: 2,
+    }],
+  };
   const fanOut = attachAimedGeneratedBlueprintSource(graph, twoMachines, source, {
-    production_plan: production,
+    production_plan: production60,
     shell,
     belt_recipe_class: "Recipe_ConveyorBeltMk1",
   });
-  assert.equal(fanOut.attached, false);
-  assert.match(fanOut.reason, /exactly one production machine/);
+  assert.equal(fanOut.attached, true, JSON.stringify(fanOut));
+  assert.equal(fanOut.fan_out.consumers, 2);
+  assert.equal(fanOut.fan_out.outputs_available, 3);
+  assert.equal(fanOut.actions.filter((action) => action.recipe_class ===
+    "Recipe_ConveyorAttachmentSplitter").length, 1);
+  const belts = fanOut.actions.filter((action) => action.action === "place_belt");
+  assert.equal(belts.length, 3);
+  assert.equal(belts[0].from_step, fanOut.miner_step);
+  assert.equal(belts[0].to_step, fanOut.splitter_step);
+  assert.equal(belts[0].to_connector_name, "Input0");
+  assert.equal(new Set(belts.slice(1).map((belt) => belt.from_connector_name)).size, 2);
+  assert.deepEqual(
+    new Set(belts.slice(1).map((belt) => belt.to_step)),
+    new Set(fanOut.consumer_steps),
+  );
 
+  const compiled = compileGeneratedBlueprint({
+    blueprint_name: "AI Pure Iron Ingot 60pm",
+    schema: "aifactory.generated-blueprint/v4",
+    actions: fanOut.actions,
+  });
+  assert.equal(compiled.compiled, true, JSON.stringify(compiled));
+  assert.equal(compiled.counts.conveyors, 3);
+});
+
+test("refuses source-rate and partial-machine fan-out overclaims", () => {
+  const graph = sourceGraph();
+  const source = resolveAimedGeneratedBlueprintSource(graph, { target });
   const tooFast = attachAimedGeneratedBlueprintSource(graph, oneMachineActions(), source, {
     production_plan: {
       planned: true,
       raw_inputs_required: [{ item_class: "Desc_OreIron", display_units_per_minute: 121 }],
+      steps: [{ recipe_class: "Recipe_IngotIron", machines_required: 1, machines_exact: 1 }],
     },
     shell,
     belt_recipe_class: "Recipe_ConveyorBeltMk1",
   });
   assert.equal(tooFast.attached, false);
   assert.match(tooFast.reason, /cannot supply/);
+
+  const twoMachines = [
+    ...oneMachineActions(),
+    { ...oneMachineActions().at(-1), location: { x: 1_600, y: 800, z: 100 } },
+  ];
+  const partial = attachAimedGeneratedBlueprintSource(graph, twoMachines, source, {
+    production_plan: {
+      planned: true,
+      raw_inputs_required: [{ item_class: "Desc_OreIron", display_units_per_minute: 45 }],
+      steps: [{ recipe_class: "Recipe_IngotIron", machines_required: 2, machines_exact: 1.5 }],
+    },
+    shell,
+    belt_recipe_class: "Recipe_ConveyorBeltMk1",
+  });
+  assert.equal(partial.attached, false);
+  assert.match(partial.reason, /fully utilized identical machines/);
 });
 
 test("node-sourced Blueprint wording is explicit in the parsed request", () => {
@@ -440,6 +569,58 @@ test("the local route emits one complete v4 file proposal with no live node acto
   assert.equal(JSON.stringify(action).includes(ORE_NODE), false);
   assert.match(answer.reply, /Resource Anchor/);
   assert.match(answer.reply, /destination alignment remains the vanilla Build Gun's decision/i);
+});
+
+test("the local route emits a native regular-splitter fan-out for 60 Iron Ingots per minute", () => {
+  const graph = sourceGraph();
+  const aimed = graph.nodes.get(ORE_NODE).raw;
+  graph.snapshot.interaction_context.preferred_target = {
+    available: true,
+    selected_from: "aim_trace",
+    actor_id: ORE_NODE,
+    actor_name: aimed.name,
+    actor_snapshot: aimed,
+  };
+  const emitted = [];
+  const answer = answerLocally(
+    "create a blueprint that makes 60 iron ingot per minute from this node using Miner Mk.1",
+    graph,
+    { actions: { emit: (actions) => emitted.push(...actions) } },
+  );
+  assert.equal(answer?.local?.solver, "generate_native_blueprint", JSON.stringify(answer));
+  assert.equal(emitted.length, 1, JSON.stringify(emitted));
+  const action = emitted[0];
+  assert.equal(action.layout_schema, "aifactory.generated-blueprint/v4");
+  assert.equal(action.buildables.filter((part) => part.role === "resource_anchor").length, 1);
+  assert.equal(action.buildables.filter((part) => part.role === "miner").length, 1);
+  assert.equal(action.buildables.filter((part) => part.recipe_class ===
+    "Recipe_ConveyorAttachmentSplitter").length, 1);
+  assert.equal(action.buildables.filter((part) => part.production_recipe_class ===
+    "Recipe_IngotIron").length, 2);
+  assert.equal(action.conveyors.length, 3);
+  assert.equal(new Set(action.conveyors.slice(1).map((belt) => belt.from_connector_name)).size, 2);
+  assert.equal(JSON.stringify(action).includes(ORE_NODE), false);
+  assert.match(answer.reply, /3 planned belt leg/i);
+
+  const revalidated = validateAction(graph, action);
+  assert.equal(revalidated.valid, true, JSON.stringify(revalidated));
+  assert.equal(revalidated.checks.captured_factory_connector_checked_endpoints, 6);
+
+  const duplicateOutput = structuredClone(action);
+  duplicateOutput.conveyors[2].from_connector_name =
+    duplicateOutput.conveyors[1].from_connector_name;
+  const duplicateResult = validateAction(graph, duplicateOutput);
+  assert.equal(duplicateResult.valid, false);
+  assert.equal(duplicateResult.reason, "generated_conveyor_connector_is_used_more_than_once");
+
+  const wrongDirection = structuredClone(action);
+  wrongDirection.conveyors[0].to_connector_name = "Output0";
+  const directionResult = validateAction(graph, wrongDirection);
+  assert.equal(directionResult.valid, false);
+  assert.equal(
+    directionResult.reason,
+    "generated_conveyor_endpoint_needs_one_exact_captured_connector",
+  );
 });
 
 test("the scanner captures native factory connector defaults from exact class CDOs", () => {

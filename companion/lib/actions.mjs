@@ -703,6 +703,7 @@ export function validateAction(graph, proposal) {
     const ids = new Set();
     const buildables = [];
     const nativePowerByPartId = new Map();
+    const nativeFactoryByPartId = new Map();
     const nativePipeByPartId = new Map();
     const generatedTransformByPartId = new Map();
     const resourceAnchorPartIds = new Set();
@@ -867,6 +868,16 @@ export function validateAction(graph, proposal) {
             0,
           ),
         });
+      }
+      if (nativeBuilding && Array.isArray(nativeBuilding.native_factory_connections)) {
+        nativeFactoryByPartId.set(partId, nativeBuilding.native_factory_connections.map(
+          (connection) => ({
+            name: String(connection?.component_name ?? "").trim(),
+            direction: String(connection?.direction ?? "").trim().toUpperCase(),
+            location: explicitVector(connection?.native_default_location_cm),
+            normal: explicitVector(connection?.native_default_normal),
+          }),
+        ));
       }
       if (nativeBuilding && Array.isArray(nativeBuilding.native_pipe_connections)) {
         nativePipeByPartId.set(partId, nativeBuilding.native_pipe_connections.map(
@@ -1097,6 +1108,47 @@ export function validateAction(graph, proposal) {
     const conveyors = conveyorValidation.links;
     const powerWires = powerValidation.links;
     const pipelines = pipelineValidation.links;
+    const usedFactoryConnectors = new Set();
+    let capturedFactoryEndpoints = 0;
+    for (const [index, conveyor] of conveyors.entries()) {
+      for (const side of ["from", "to"]) {
+        const partId = conveyor[`${side}_part_id`];
+        if (!nativeFactoryByPartId.has(partId)) continue;
+        const captured = nativeFactoryByPartId.get(partId);
+        const requestedName = String(conveyor[`${side}_connector_name`] ?? "").trim();
+        const wanted = side === "from" ? "FCD_OUTPUT" : "FCD_INPUT";
+        const directionMatches = (connection) => connection.direction === wanted ||
+          connection.direction === wanted.replace("FCD_", "");
+        const matches = requestedName
+          ? captured.filter((connection) =>
+              connection.name === requestedName && directionMatches(connection))
+          : captured.filter(directionMatches);
+        if (matches.length !== 1 || !matches[0].name ||
+            !matches[0].location || !matches[0].normal) {
+          return reject(kind, "generated_conveyor_endpoint_needs_one_exact_captured_connector", {
+            conveyor: index + 1,
+            side,
+            part_id: partId,
+            requested_connector_name: requestedName || null,
+            captured_connector_count: captured.length,
+            matching_connector_count: matches.length,
+            expected_direction: wanted,
+          });
+        }
+        const connectorKey = `${partId}|${matches[0].name}`;
+        if (usedFactoryConnectors.has(connectorKey)) {
+          return reject(kind, "generated_conveyor_connector_is_used_more_than_once", {
+            conveyor: index + 1,
+            side,
+            part_id: partId,
+            connector_name: matches[0].name,
+          });
+        }
+        usedFactoryConnectors.add(connectorKey);
+        conveyor[`${side}_connector_name`] = matches[0].name;
+        capturedFactoryEndpoints += 1;
+      }
+    }
     const capturedPowerDegrees = new Map();
     for (const wire of powerWires) {
       capturedPowerDegrees.set(
@@ -1243,6 +1295,7 @@ export function validateAction(graph, proposal) {
         miners: minerAnchorReferences.size,
         exact_anchor_miner_bindings: usedAnchorPartIds.size,
         captured_power_capacity_checked_endpoints: capacityCheckedEndpoints,
+        captured_factory_connector_checked_endpoints: capturedFactoryEndpoints,
         captured_pipe_connector_checked_endpoints: capturedPipeEndpoints,
         captured_pipe_length_checked_links: capturedPipeLengthsChecked,
         authoritative_unlock_capture: true,

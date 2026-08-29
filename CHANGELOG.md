@@ -12,15 +12,19 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   Build Gun unlocks, selected vanilla Miner capability/rate, measured Miner
   collision radius, and the machine/Miner class-default conveyor ports. The
   generated v4 file contains one configured Resource Anchor, its exact paired
-  Miner, a straight named-port input belt through one measured wall aperture,
-  the production machine, shell, and captured-capacity power topology. It never
-  serializes the live node actor id and leaves final node alignment to the
-  vanilla Build Gun. The first source lane deliberately supports one raw input
-  and one production machine; multi-machine fan-out, multi-stage source routing,
-  fluids, and automatic destination siting refuse explicitly rather than
-  producing a Blueprint that cannot run. Exact CL 502094/SML validation,
-  **882/882** companion tests, and Shipping/Editor module builds pass. The game
-  stayed open, so this source is not deployed or live-placement proven yet.
+  Miner, a named-port input belt through one measured wall aperture, the
+  production stage, shell, and captured-capacity power topology. One consumer
+  is connected directly. Multiple identical fully utilized consumers use one
+  unlocked vanilla regular Conveyor Splitter only when its class-default input
+  and distinct output ports plus a live-instance collision footprint are all
+  captured; the bridge now independently rejects reused or direction-wrong
+  generated conveyor endpoints before game staging. It never serializes the
+  live node actor id and leaves final node alignment to the vanilla Build Gun.
+  Multi-stage source routing, partial-machine clocking, fluids, and automatic
+  destination siting refuse explicitly rather than producing a Blueprint that
+  cannot run. Exact CL 502094/SML validation and **884/884** companion tests
+  pass. The game stayed open, so this source is not deployed or live-placement
+  proven yet.
 - Added generated native Blueprint schema v4: the API may now serialize an
   explicitly configured solid-resource Blueprint Resource Anchor paired
   one-to-one with a captured vanilla Miner Mk.1-Mk.3. Both bridge and game
