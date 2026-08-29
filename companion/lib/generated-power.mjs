@@ -136,24 +136,34 @@ function machineCapabilities(graph, actions) {
   const machines = [];
   const unavailable = [];
   for (const [index, action] of actions.entries()) {
-    if (action?.action !== "place_building" || action?.generated_role !== "machine" ||
-        !String(action?.production_recipe_class ?? "").trim()) {
+    const role = String(action?.generated_role ?? "").trim();
+    const manufacturer = role === "machine" &&
+      Boolean(String(action?.production_recipe_class ?? "").trim());
+    const miner = role === "miner";
+    if (action?.action !== "place_building" || (!manufacturer && !miner)) {
       continue;
     }
     const location = vector(action.location);
     const metadata = buildRecipeMetadata(graph, action.recipe_class);
     const connectors = visibleConnectors(metadata?.building);
-    if (!location || !metadata || connectors.length !== 1 ||
+    const minerCapability = !miner || (
+      metadata?.building?.native_topology_kind === "resource_extractor" &&
+      metadata?.building?.supports_generated_blueprint_resource_anchor === true
+    );
+    if (!location || !metadata || !minerCapability || connectors.length !== 1 ||
         connectors[0].max_links === null || connectors[0].max_links < 1 ||
         !connectors[0].circuit_type_class_path) {
       unavailable.push({
         step: index + 1,
         recipe_class: action.recipe_class ?? null,
+        role,
         reason: !metadata
           ? "native_building_connector_metadata_not_captured"
+          : !minerCapability
+            ? "generated_miner_lacks_captured_resource_anchor_capability"
           : connectors.length !== 1
-            ? "generated_machine_needs_exactly_one_visible_native_circuit_connector"
-            : "generated_machine_connector_capacity_or_circuit_type_is_unknown",
+            ? "generated_powered_buildable_needs_exactly_one_visible_native_circuit_connector"
+            : "generated_powered_buildable_connector_capacity_or_circuit_type_is_unknown",
       });
       continue;
     }
@@ -330,7 +340,7 @@ export function planGeneratedBlueprintPower(graph, actions, options = {}) {
     };
   }
   if (machines.length === 0) {
-    return { planned: false, reason: "generated_blueprint_has_no_powered_manufacturer" };
+    return { planned: false, reason: "generated_blueprint_has_no_powered_machine_or_miner" };
   }
   const circuitTypes = new Set(machines.map((machine) => machine.circuit_type_class_path));
   if (circuitTypes.size !== 1) {

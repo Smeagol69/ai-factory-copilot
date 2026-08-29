@@ -1583,6 +1583,51 @@ namespace
 
                     AFGBuildable* DefaultBuildable =
                         BuildableClass->GetDefaultObject<AFGBuildable>();
+                    TArray<TSharedPtr<FJsonValue>> FactoryConnections;
+                    if (IsValid(DefaultBuildable))
+                    {
+                        TInlineComponentArray<UFGFactoryConnectionComponent*>
+                            NativeFactoryConnections;
+                        DefaultBuildable->GetComponents(NativeFactoryConnections);
+                        for (UFGFactoryConnectionComponent* Connection :
+                             NativeFactoryConnections)
+                        {
+                            if (!IsValid(Connection))
+                            {
+                                continue;
+                            }
+                            const TSharedRef<FJsonObject> ConnectionEntry =
+                                MakeShared<FJsonObject>();
+                            ConnectionEntry->SetStringField(
+                                TEXT("component_name"),
+                                Connection->GetName());
+                            ConnectionEntry->SetStringField(
+                                TEXT("component_class_path"),
+                                Connection->GetClass()->GetPathName());
+                            ConnectionEntry->SetStringField(
+                                TEXT("direction"),
+                                StaticEnum<EFactoryConnectionDirection>()->GetNameStringByValue(
+                                    static_cast<int64>(Connection->GetDirection())));
+                            ConnectionEntry->SetNumberField(
+                                TEXT("connector_clearance_cm"),
+                                Connection->GetConnectorClearance());
+                            ConnectionEntry->SetObjectField(
+                                TEXT("native_default_location_cm"),
+                                VectorJson(Connection->GetComponentLocation()));
+                            ConnectionEntry->SetObjectField(
+                                TEXT("native_default_normal"),
+                                VectorJson(Connection->GetConnectorNormal()));
+                            FactoryConnections.Add(
+                                MakeShared<FJsonValueObject>(ConnectionEntry));
+                        }
+                    }
+                    Building->SetArrayField(
+                        TEXT("native_factory_connections"),
+                        FactoryConnections);
+                    Building->SetNumberField(
+                        TEXT("native_factory_connection_count"),
+                        FactoryConnections.Num());
+
                     TArray<TSharedPtr<FJsonValue>> PowerConnections;
                     int32 VisiblePowerConnections = 0;
                     int32 VisiblePowerLinkCapacity = 0;

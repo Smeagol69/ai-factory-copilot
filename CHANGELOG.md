@@ -5,6 +5,22 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added deterministic **aimed-node sourcing** for planner-generated native
+  Blueprints. A request such as `create a blueprint that makes 30 iron ingot
+  per minute from this node using Miner Mk.1` now resolves the exact aimed
+  ordinary solid node, captured resource descriptor and native purity, current
+  Build Gun unlocks, selected vanilla Miner capability/rate, measured Miner
+  collision radius, and the machine/Miner class-default conveyor ports. The
+  generated v4 file contains one configured Resource Anchor, its exact paired
+  Miner, a straight named-port input belt through one measured wall aperture,
+  the production machine, shell, and captured-capacity power topology. It never
+  serializes the live node actor id and leaves final node alignment to the
+  vanilla Build Gun. The first source lane deliberately supports one raw input
+  and one production machine; multi-machine fan-out, multi-stage source routing,
+  fluids, and automatic destination siting refuse explicitly rather than
+  producing a Blueprint that cannot run. Exact CL 502094/SML validation,
+  **882/882** companion tests, and Shipping/Editor module builds pass. The game
+  stayed open, so this source is not deployed or live-placement proven yet.
 - Added generated native Blueprint schema v4: the API may now serialize an
   explicitly configured solid-resource Blueprint Resource Anchor paired
   one-to-one with a captured vanilla Miner Mk.1-Mk.3. Both bridge and game

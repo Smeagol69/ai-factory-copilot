@@ -62,6 +62,10 @@ import {
 import { planCoalPower } from "./power.mjs";
 import { compileGeneratedBlueprint, generatedBlueprintAction } from "./generated-blueprints.mjs";
 import { planGeneratedBlueprintPower } from "./generated-power.mjs";
+import {
+  attachAimedGeneratedBlueprintSource,
+  resolveAimedGeneratedBlueprintSource,
+} from "./generated-resource-source.mjs";
 import { modularShellActions, planModularShell } from "./modular.mjs";
 import { describeCloneSource, planClone } from "./clone.mjs";
 import {
@@ -1389,6 +1393,9 @@ export function parseBaseDesignRequest(question) {
   // instead of sprawling sideways.
   const levelsMatch = text.match(/(\d+)[- ]?(?:storey|story|storeys|stories|floor|floors|level|levels|tier|tiers)\b/i);
   const levels = levelsMatch ? Number(levelsMatch[1]) : 1;
+  const aimedNode =
+    /\b(?:from|on|using|off(?:\s+of)?)\s+(?:this|that|the)\s+(?:resource\s+)?node\b/i.test(text);
+  const minerTierMatch = text.match(/\b(?:miner\s+)?(?:mk\.?\s*|mark\s*)([123])\b/i);
 
   return {
     item,
@@ -1398,6 +1405,8 @@ export function parseBaseDesignRequest(question) {
     levels: Number.isInteger(levels) && levels >= 1 && levels <= 12 ? levels : 1,
     at_best_site: atBestSite,
     ...(/\bblue\s?print\b/i.test(text) ? { as_blueprint: true } : {}),
+    ...(aimedNode ? { from_aimed_node: true } : {}),
+    ...(minerTierMatch ? { miner_tier: Number(minerTierMatch[1]) } : {}),
     raw_text: text,
   };
 }
@@ -4944,6 +4953,30 @@ export function answerLocally(question, graph, services) {
     const started = Date.now();
     const item = resolveDesignItem(graph, design);
     if (item) {
+      let aimedBlueprintSource = null;
+      if (design.as_blueprint && design.from_aimed_node) {
+        if (design.bare) {
+          return localAnswer(
+            "I can't generate that node-sourced Blueprint without its shell yet: the first proven input lane uses a measured wall aperture to keep the native Miner outside all foundation collision. Remove ‘machines only’ or ‘without the building’ and ask again.",
+            "generate_blueprint_refused",
+            started,
+            "No file or world action was emitted.",
+          );
+        }
+        const target = solvePlacementTarget(graph, { kind: "aim" });
+        aimedBlueprintSource = resolveAimedGeneratedBlueprintSource(graph, {
+          target,
+          requested_miner_tier: design.miner_tier ?? null,
+        });
+        if (!aimedBlueprintSource.resolved) {
+          return localAnswer(
+            `I can't generate a node-sourced native Blueprint: ${aimedBlueprintSource.reason}.`,
+            "generate_blueprint_refused",
+            started,
+            "The exact aimed-node, unlock, Miner, and native connector evidence was checked before planning.",
+          );
+        }
+      }
       const production = solveProductionPlan(graph, {
         item_class: item.class_path,
         target_rate_per_minute: design.per_minute,
@@ -4957,7 +4990,10 @@ export function answerLocally(question, graph, services) {
         // product-only sentence.
         use_existing_surplus: !design.as_blueprint,
         prefer_standard_recipes: design.as_blueprint === true,
-        stop_at_extracted_resources: design.as_blueprint === true,
+        stop_at_extracted_resources: design.as_blueprint === true && !aimedBlueprintSource,
+        ...(aimedBlueprintSource
+          ? { stop_at_item_classes: [aimedBlueprintSource.resource_class] }
+          : {}),
       });
       if (production?.planned) {
         // Housed by default. The owner's goal is a factory that looks like a
@@ -5032,20 +5068,65 @@ export function answerLocally(question, graph, services) {
             : baseBuildActions(plan, { commit: design.commit });
           let generated = null;
           let generatedPower = null;
+          let generatedSource = null;
           let emitted = true;
           if (design.as_blueprint) {
             const revision = String(graph.world_revision ?? "draft").replace(/[^A-Za-z0-9_-]+/g, "-");
             const rate = String(design.per_minute).replace(/[^0-9]+/g, "-");
             const blueprintName = `AI ${item.name} ${rate}pm r${revision}`.slice(0, 240);
-            generatedPower = planGeneratedBlueprintPower(graph, actions, {
+            let blueprintActions = actions;
+            let sourceAttachment = null;
+            if (aimedBlueprintSource) {
+              sourceAttachment = attachAimedGeneratedBlueprintSource(
+                graph,
+                blueprintActions,
+                aimedBlueprintSource,
+                {
+                  production_plan: production,
+                  shell: enclosed?.structure ?? null,
+                  belt_recipe_class: plan.belt?.recipe_class ?? null,
+                },
+              );
+              if (!sourceAttachment.attached) {
+                return localAnswer(
+                  `I can't compile the aimed node into a functional native Blueprint yet: ${sourceAttachment.reason}.`,
+                  "generate_blueprint_refused",
+                  started,
+                  "No file or world action was emitted; unsupported fan-out or geometry stayed explicit.",
+                );
+              }
+              generatedSource = sourceAttachment;
+              blueprintActions = sourceAttachment.actions;
+            }
+            generatedPower = planGeneratedBlueprintPower(graph, blueprintActions, {
               shell_footprint: enclosed?.structure?.footprint ?? null,
+              ...(aimedBlueprintSource && enclosed?.structure?.footprint && enclosed?.structure?.grid
+                ? {
+                    // Keep the power trunk behind the shell; the exact Miner
+                    // and its straight input lane occupy the front aperture.
+                    pole_corridor_offset_cm:
+                      -(enclosed.structure.footprint.depth_cm +
+                        enclosed.structure.grid.cell_size_cm),
+                  }
+                : {}),
             });
+            if (aimedBlueprintSource && !generatedPower.planned) {
+              return localAnswer(
+                `I can't compile a functional node-sourced native Blueprint: internal power could not be proven (${generatedPower.reason}).`,
+                "generate_blueprint_refused",
+                started,
+                "The Resource Anchor, Miner, and belt plan were not emitted without a complete captured-capacity power path.",
+              );
+            }
             const generatedActions = generatedPower.planned
               ? generatedPower.actions
-              : actions;
+              : blueprintActions;
             generated = compileGeneratedBlueprint({
               blueprint_name: blueprintName,
               actions: generatedActions,
+              ...(aimedBlueprintSource
+                ? { schema: "aifactory.generated-blueprint/v4" }
+                : {}),
               power_connections: generatedPower.planned
                 ? generatedPower.power_connections
                 : [],
@@ -5054,7 +5135,11 @@ export function answerLocally(question, graph, services) {
                 `${graph.world_revision ?? "unknown"}. Native shell, configured machines, and ` +
                 `${generatedActions.filter((action) => action.action === "place_belt").length} ` +
                 `explicit conveyor link(s), ${generatedPower.planned ? generatedPower.wires : 0} ` +
-                "captured-capacity physical power wire(s).",
+                "captured-capacity physical power wire(s)." +
+                (aimedBlueprintSource
+                  ? ` Exact ${aimedBlueprintSource.purity} ${aimedBlueprintSource.resource_name} ` +
+                    `Resource Anchor with ${aimedBlueprintSource.miner_name}; aimed actor ids are not serialized.`
+                  : ""),
             });
             if (!generated.compiled) {
               return localAnswer(
@@ -5108,14 +5193,22 @@ export function answerLocally(question, graph, services) {
               ? (() => {
                   const structure = enclosed.structure;
                   const counts = structure.piece_counts ?? {};
+                  const displayedWalls = Math.max(
+                    0,
+                    (counts.wall ?? 0) - (generatedSource?.removed_front_wall ? 1 : 0),
+                  );
                   return (
                     `\n\n**Housed in a ${structure.footprint.width_cm / 100} × ` +
                     `${structure.footprint.depth_cm / 100} m building**` +
                     (structure.raised_cm > 0
                       ? `, raised ${structure.raised_cm / 100} m on ${structure.pillars} pillars`
                       : "") +
-                    ` — ${counts.floor ?? 0} floor, ${counts.wall ?? 0} wall and ` +
+                    ` — ${counts.floor ?? 0} floor, ${displayedWalls} wall and ` +
                     `${counts.roof ?? 0} roof pieces. The machines sit on the deck inside.` +
+                    (generatedSource
+                      ? ` The front input aperture carries one exact straight belt from the ` +
+                        `${aimedBlueprintSource.miner_name} outside the floor collision to the machine inside.`
+                      : "") +
                     // The ground check, when it changed anything. Asked for
                     // directly, and the sort of thing that silently ruins a
                     // build if it is done and not mentioned.
@@ -5142,7 +5235,7 @@ export function answerLocally(question, graph, services) {
             return localAnswer(
               blueprintIntro +
                 `— ${plan.machines_total} machine(s) across ${plan.rows} row(s), ` +
-                `${plan.belts_planned} planned belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
+                `${generated ? generated.counts.conveyors : plan.belts_planned} planned belt leg(s).\n\n${rows}${shell}${skipped}${power}\n\n` +
                 (generated && design.commit
                   ? `The game is now resolving ${generated.counts.buildables} exact native parts, ` +
                     `${generated.counts.conveyors} conveyor link(s), and ` +
@@ -5151,7 +5244,11 @@ export function answerLocally(question, graph, services) {
                     "serialising them through the real Designer, loading the saved .sbp into Satisfactory's isolated Blueprint world, and requiring reciprocal native endpoint readback. " +
                     `If that result commits, say **"preview blueprint ${generated.blueprint_name}"** ` +
                     "and place it with the vanilla Build Gun. Straight planned belts are included; any reported internal power topology is included too. " +
-                    "Pipes, miners/resource anchors, and conveyor lifts/poles remain explicit follow-up work; no missing topology is silently claimed."
+                    (generatedSource
+                      ? `This v4 file also includes one exact ${aimedBlueprintSource.purity} ${aimedBlueprintSource.resource_name} Resource Anchor, ` +
+                        `${aimedBlueprintSource.miner_name}, and their Miner-to-machine input belt. It carries no live node actor id; destination alignment remains the vanilla Build Gun's decision. ` +
+                        "Multi-machine source fan-out, pipes, and conveyor lifts remain explicit follow-up work; no missing topology is silently claimed."
+                      : "Pipes, miners/resource anchors, and conveyor lifts/poles remain explicit follow-up work; no missing topology is silently claimed.")
                   : design.commit
                   ? "Placing now. Each machine is validated by the game as it goes, and " +
                     'the whole transaction rolls back if one fails. Say "undo" to reverse it.'

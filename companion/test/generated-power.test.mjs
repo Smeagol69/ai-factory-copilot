@@ -100,6 +100,44 @@ function machine(step, { x = step * 1_000, y = 0, z = 800, commit = true } = {})
   };
 }
 
+function miner({ x = 0, y = -1_000, z = 800, commit = true } = {}) {
+  return {
+    action: "place_building",
+    recipe_class: "Recipe_MinerMk1",
+    location: { x, y, z },
+    exact_z: true,
+    yaw: 0,
+    generated_role: "miner",
+    target_step: 99,
+    commit,
+  };
+}
+
+function addMinerPowerCatalog(snapshot, { capacity = 1 } = {}) {
+  snapshot.content.items.push({
+    class_path: "Desc_MinerMk1",
+    name: "Miner Mk.1",
+    available: true,
+    building: {
+      class_path: "Build_MinerMk1_C",
+      native_topology_kind: "resource_extractor",
+      supports_generated_blueprint_resource_anchor: true,
+      native_circuit_connections: [connector("PowerConnection", capacity)],
+    },
+  });
+  snapshot.content.recipes.push({
+    class_path: "Recipe_MinerMk1",
+    name: "Miner Mk.1",
+    owner_mod: "FactoryGame",
+    available: true,
+    products: [{ item_class: "Desc_MinerMk1", item_name: "Miner Mk.1", amount: 1 }],
+    ingredients: [],
+    produced_in: [BUILD_GUN],
+  });
+  snapshot.content.available_recipe_count += 1;
+  return snapshot;
+}
+
 test("one generated machine reserves its native connector without inventing an internal wire", () => {
   const graph = buildGraph(addPowerCatalog(buildFactorySnapshot(), { machineCapacity: 1 }));
   const result = planGeneratedBlueprintPower(graph, [machine(1)]);
@@ -127,6 +165,23 @@ test("captured daisy-chain capacity produces exact physical machine wire edges",
     to_connector_name: "PowerConnection",
   }]);
   assert.equal(result.external_connection.step, 1);
+});
+
+test("a generated v4 Miner is included in captured-capacity power distribution", () => {
+  const snapshot = addMinerPowerCatalog(
+    addPowerCatalog(buildFactorySnapshot(), { machineCapacity: 1, poleCapacity: 4 }),
+  );
+  const result = planGeneratedBlueprintPower(buildGraph(snapshot), [machine(1), miner()]);
+  assert.equal(result.planned, true, JSON.stringify(result));
+  assert.equal(result.mode, "captured_capacity_power_pole_trunk");
+  assert.equal(result.machines, 2);
+  assert.equal(result.poles, 1);
+  assert.equal(result.wires, 2);
+  assert.equal(result.external_connection.step, 3);
+  assert.deepEqual(
+    result.power_connections.map((edge) => [edge.from_step, edge.to_step]),
+    [[3, 2], [3, 1]],
+  );
 });
 
 test("single-link machines receive a minimal capacity-safe pole trunk with one external link reserved", () => {

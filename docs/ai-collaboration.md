@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-29 | Codex | `codex/generated-blueprint-node-source` | Deterministic automatic source lane for planner-generated native Blueprints: when a Blueprint request explicitly says `from/on/using this node`, resolve only the exact aimed ordinary solid resource node, its captured descriptor and native purity, current Build Gun unlocks, and exact captured vanilla Miner capability; compile the proven Anchor+Miner pair into v4 and connect it to the first compatible generated production stage only when the existing connector/topology evidence proves the link. Fail closed on absent/stale/non-node aim, unknown resource/purity, unavailable Anchor/Miner recipe, unsupported extractor, ambiguous consumers/connectors, or unsafe geometry. Preserve the generic product-only generator and every v1–v4, belt/power/pipe, export/preview, Node Editor, Node Spawner, collision-profile, UI, and world-write feature. Expected crossings: a focused companion planner/helper, the generated Blueprint local route and tests, plus append-only docs; no C++, creative-node discovery changes, game deployment, or claim that Build Gun placement is destination-aligned while Satisfactory is running. | claimed; inspecting authoritative existing planner/connector contracts before implementation |
+| 2026-08-29 | Codex | `codex/generated-blueprint-node-source` | Deterministic automatic source lane for planner-generated native Blueprints: when a Blueprint request explicitly says `from/on/using this node`, resolve only the exact aimed ordinary solid resource node, its captured descriptor and native purity, current Build Gun unlocks, and exact captured vanilla Miner capability; compile the proven Anchor+Miner pair into v4 and connect it to the first compatible generated production stage only when the existing connector/topology evidence proves the link. Fail closed on absent/stale/non-node aim, unknown resource/purity, unavailable Anchor/Miner recipe, unsupported extractor, ambiguous consumers/connectors, or unsafe geometry. Preserve the generic product-only generator and every v1–v4, belt/power/pipe, export/preview, Node Editor, Node Spawner, collision-profile, UI, and world-write feature. Expected crossings: a focused companion planner/helper, the generated Blueprint local route and tests, source-only building-CDO factory-port capture required by the discovered evidence boundary, plus append-only docs; no creative-node discovery changes, game deployment, or claim that Build Gun placement is destination-aligned while Satisfactory is running. | implementation complete and source-verified: exact native factory-port defaults are captured from registered building CDOs; the free local route emits one v4 Anchor+Miner+Smelter+belt+power proposal for 30 Iron Ingots/min with no live node actor id. **882/882** tests, exact CL 502094/SML validation, and Shipping/Editor module builds pass. Satisfactory PID 40336 stayed open, so no package, game DLL, companion install, generated `.sbp`, isolated-world readback, or Build Gun placement is claimed. Multi-machine fan-out and multi-stage sourcing remain explicit refusals. |
 | 2026-08-29 | Codex | `codex/generated-blueprint-resource-anchors` | Extend the already deployed generated native Blueprint v3 contract with a fail-closed v4 Resource Anchor/miner primitive. A v4 layout may carry an explicitly configured solid-resource `AAIFactoryBlueprintResourceAnchor` and exactly one explicitly related vanilla Miner Mk.1–Mk.3; the bridge rechecks the captured resource descriptor, purity, Build Gun recipes, roles, and one-to-one relationship, while the game configures the real Anchor node, binds the exact staged Miner, serializes through the real Designer, and requires the persisted Anchor↔Miner mapping on isolated-world readback. Preserve v1–v3, generated belts/power/pipelines, selection export, Build Gun preview, Claude's routing/UI/Node Editor, and every world-write gate. No fluids/oil/gas/fracking, portable or modded extractors, raw resource spawning, automatic terrain placement, or claim that a destination node exists. Expected crossings: generated Blueprint companion/action/tool contracts, `AIFactoryBlueprintExport`, the existing Anchor's narrow public binding/readback helpers, focused tests, and append-only docs. | implementation complete and source-verified: 875/875 companion tests, exact headers, Shipping and Editor module builds, full FactoryEditor target, and no-deploy UAT cook/archive pass. Exact multi-Anchor readback also fingerprints resource/purity/Miner-class pairings. Archive SHA-256 `2562E5C98E69C4AB74F3318366F152E25E74711CCD4D4E716A154DF8DFF4F9B1`. Game PID 40336 is still running, so deployment, companion install, native v4 file generation, isolated-world result observation in the packaged game, and vanilla Build Gun placement remain deliberately pending. |
 | 2026-08-28 | Codex | `codex/generated-blueprint-pipeline-topology` | Add the next topology primitive on top of deployed `a1f11f4`: explicit native pipeline links inside planner-generated Blueprints. Ground every API in CL 502094; capture exact pipe-connector type/direction metadata and native pipeline spline/length capability from unlocked Build Gun recipes; extend the generated schema, transient Designer staging, and isolated Blueprint-world readback so a straight pipe is accepted only when both exact endpoints are compatible and reciprocal after save/load. Add focused companion/source tests, then compile/package/deploy with the game closed. This does not claim pumps, head lift, fluid rate, junction manifolds, miner/resource anchoring, or automatic coal-power layout yet. Existing conveyors, power topology, vision, selection export, Node Editor, direct builds, and v1/v2 compatibility remain preserved. | complete, packaged, deployed, and companion-installed from `4fd5237`: v3 captures exact native pipe-port type/transform/clearance plus pipeline flow and hologram length limits, stages a narrow straight spline, and requires reciprocal isolated-world readback. Exact headers, 861/861 tests, Editor/Shipping, and UAT pass. Fresh live snapshot and Build Gun placement remain unverified. |
 | 2026-08-28 | Codex | `codex/blueprint-rail-tunnel-reference` | Read-only native rail/tunnel reference inspection for the owner-supplied Entrance, Mid, and Facade `.sbp`/`.sbpcfg` set. Decode exact saved railroad-track `mSplineData` and `mTrackGraphID` records through the pinned serializer, expose bounded local spline points, Blueprint-relative endpoints, and chord-length/bounds evidence, and present style/topology facts to the assistant without inferring rail joins, terrain excavation, clearance, or destination Build Gun validity. Scope is companion parser/formatting/tool/provider contracts plus tests and append-only docs; no writer or world mutation. | complete and fast-forwarded to `master` at `86ad850`; 864/864 companion tests, `scripts/validate.ps1`, real tunnel-file inspection, and clean companion install pass; no C++ or world write |
@@ -4830,3 +4830,65 @@ Also unresolved and unowned: `RP_Normal` leaks as a raw enum name into the
 player-facing "Press E to start mining Coal RP_Normal" prompt. The enum carries
 `UMETA(DisplayName = "Normal")`, and the mod uses `GetNameStringByValue()` (raw
 name) in six places instead of the display name.
+
+### Codex — 2026-08-29 automatic aimed-node generated Blueprint handoff
+
+Branch: `codex/generated-blueprint-node-source`; claim commit `f6cb7ef`. This
+builds on the merged v4 Resource Anchor/Miner contract and Claude's latest
+creative-node collision/UI/Node Spawner work without changing the latter's
+node-discovery lane.
+
+The free local Blueprint route now recognizes only explicit phrases such as
+`from this node`, `on that resource node`, or `using the node`. It resolves the
+authoritative aimed actor through the existing placement solver and proceeds
+only when that actor is an ordinary solid resource node with an exact descriptor
+and native purity. It then requires current `AFGRecipeManager` availability,
+exactly one unlocked generated Resource Anchor recipe, and an unlocked captured
+vanilla Miner Mk.1-Mk.3. An explicit Miner tier is honored; otherwise the lowest
+captured unlocked supported tier is selected. The chosen Miner's normal-purity
+rate is multiplied only by the exact native purity, and both the raw-input rate
+and the observed selected-belt capacity must cover the production plan.
+
+The scanner now records every registered building CDO's exact native
+`UFGFactoryConnectionComponent` name, direction, connector clearance, default
+location, and connector normal. This C++ addition was required after inspection
+showed that live-instance connector measurements alone cannot lay out a machine
+class the player has unlocked but never built. The implementation uses public
+CL 502094 APIs (`GetDirection`, `GetConnectorClearance`,
+`GetComponentLocation`, and `GetConnectorNormal`) and compiles in both game
+targets.
+
+For the deliberately narrow first topology, the production solver stops at the
+aimed resource and must produce exactly one raw input and one production
+machine. The machine is rotated so its exact native input faces the shell's
+front edge. One exact wall cell is omitted as an input aperture. A Resource
+Anchor and paired Miner are placed outside the measured floor collision using
+the largest observed Miner half-diagonal; the Miner's native output is rotated
+toward the machine and one named-port straight belt is emitted. The generated
+power planner now includes the v4 Miner as a powered endpoint only when its
+captured resource-extractor/Anchor capability and exact native circuit connector
+are present. The power trunk is moved behind the shell so it does not occupy the
+Miner corridor.
+
+The resulting standalone action uses `aifactory.generated-blueprint/v4` and
+contains shell, machine, Resource Anchor, paired Miner, one conveyor, and
+captured-capacity power wires. It contains no live resource-node actor id;
+placement alignment remains the vanilla Build Gun and destination world's
+authority. Bare/machines-only node-source requests, multi-machine source fan-out,
+multi-stage source graphs, alternate raw inputs, unavailable/over-capacity
+belts, absent class-default ports, and unmeasured Miner collision all refuse
+before any file or world action is emitted. Generic product-only generated
+Blueprints remain unchanged.
+
+Verification: `scripts/validate.ps1` passes exact SML 3.12.0 / FactoryGame CL
+502094 checks and **882/882** companion tests. FactoryGameSteam Win64 Shipping
+and FactoryEditor Win64 Development module builds both succeed from the synced
+Starter Project. Satisfactory remained running as PID 40336 throughout, so the
+new source was not packaged or deployed and the companion was not installed
+ahead of the mod. After the game closes, package/deploy the matched mod and
+companion, capture a fresh snapshot containing `native_factory_connections`,
+run `create a blueprint that makes 30 iron ingot per minute from this node using
+Miner Mk.1`, require the isolated-world v4 mapping/topology readback, preview it,
+place it against a compatible node with the vanilla Build Gun, save/reload, and
+audit the placed Blueprint. The next safe planner extension is explicit native
+splitter fan-out; do not weaken this one-machine proof to simulate it.
