@@ -575,6 +575,45 @@ function railChordLength(points) {
   return length;
 }
 
+function transformRailPoint(transform, point) {
+  const translation = transform?.translation_cm;
+  const rotation = transform?.rotation_quat;
+  const scale = transform?.scale3d;
+  const local = point?.location_cm;
+  if (!translation || !rotation || !scale || !local) return null;
+  const scaled = {
+    x: local.x * scale.x,
+    y: local.y * scale.y,
+    z: local.z * scale.z,
+  };
+  // Unreal's FTransform applies scale, then quaternion rotation, then
+  // translation. Keep this derived value explicitly Blueprint-relative: it is
+  // not a destination world coordinate until the Build Gun chooses an origin.
+  const q = rotation;
+  const qCross = {
+    x: q.y * scaled.z - q.z * scaled.y,
+    y: q.z * scaled.x - q.x * scaled.z,
+    z: q.x * scaled.y - q.y * scaled.x,
+  };
+  const qCrossTwice = {
+    x: q.y * qCross.z - q.z * qCross.y,
+    y: q.z * qCross.x - q.x * qCross.z,
+    z: q.x * qCross.y - q.y * qCross.x,
+  };
+  return {
+    x: scaled.x + q.w * qCross.x * 2 + qCrossTwice.x * 2 + translation.x,
+    y: scaled.y + q.w * qCross.y * 2 + qCrossTwice.y * 2 + translation.y,
+    z: scaled.z + q.w * qCross.z * 2 + qCrossTwice.z * 2 + translation.z,
+  };
+}
+
+function railRelativeEndpoints(transform, points) {
+  if (!transform || !Array.isArray(points) || points.length === 0) return null;
+  const first = transformRailPoint(transform, points[0]);
+  const last = transformRailPoint(transform, points[points.length - 1]);
+  return first && last ? { start_cm: first, end_cm: last } : null;
+}
+
 function railMaximum(value, fallback, maximum) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -649,6 +688,7 @@ export function decodeBlueprintRailTopology(
       spline_points_truncated: Math.max(0, points.length - returnedPoints.length),
       local_bounds_cm: railLocalBounds(points),
       chord_length_cm: spline.state === "valid" ? railChordLength(points) : null,
+      blueprint_relative_endpoints_cm: railRelativeEndpoints(transform, points),
       built_with_recipe: builtWithRecipe(entity),
     };
     trackRecords.push(record);

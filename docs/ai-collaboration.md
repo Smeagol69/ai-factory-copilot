@@ -4566,7 +4566,8 @@ Branch: `codex/blueprint-rail-tunnel-reference`; claim commit `db39e67`.
 This lane is companion-only and read-only. It extends the pinned native
 Blueprint structural parser with exact `Build_RailroadTrack` records: saved
 actor transforms, `mTrackGraphID`, `mSplineData` locations and arrive/leave
-tangents, local point bounds, and a straight-line chord-length lower bound.
+tangents, local point bounds, Blueprint-relative transformed endpoints, and a
+straight-line chord-length lower bound.
 Returned tracks and points are bounded, and malformed or missing fields remain
 explicitly inconclusive. No rail writer, raw actor spawn, terrain edit, or world
 mutation is involved; v1/v2 Blueprint behavior is preserved.

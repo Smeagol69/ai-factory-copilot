@@ -8,7 +8,8 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 - Added read-only native **rail/tunnel reference inspection** to the Blueprint
   structural reader. The companion now decodes exact saved
   `Build_RailroadTrack` `mSplineData` locations/tangents, local spline bounds,
-  chord-length lower bounds, transforms, and `mTrackGraphID` metadata with
+  Blueprint-relative transformed endpoints, chord-length lower bounds,
+  transforms, and `mTrackGraphID` metadata with
   bounded output. This lets the assistant study modular tunnel references such
   as entrance, middle, and facade segments without mistaking a saved track for
   proof of cross-segment joins, terrain excavation, collision clearance,

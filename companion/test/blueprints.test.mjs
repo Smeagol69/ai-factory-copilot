@@ -557,6 +557,10 @@ test("rail topology decodes exact saved spline points and bounded track metadata
   assert.equal(topology.rail_tracks[0].spline_points_truncated, 1);
   assert.deepEqual(topology.rail_tracks[0].spline_points[0].location_cm, { x: 0, y: 0, z: 0 });
   assert.deepEqual(topology.rail_tracks[0].local_bounds_cm.span_cm, { x: 300, y: 400, z: 0 });
+  assert.deepEqual(topology.rail_tracks[0].blueprint_relative_endpoints_cm, {
+    start_cm: { x: 100, y: 200, z: 300 },
+    end_cm: { x: 400, y: 600, z: 300 },
+  });
   assert.equal(topology.rail_tracks[0].chord_length_cm, 500);
   assert.equal(topology.rail_connectivity, "not_proven_from_saved_spline_points_or_m_track_graph_id");
   assert.equal(topology.certainty, "authoritative_for_saved_native_rail_spline_records");
