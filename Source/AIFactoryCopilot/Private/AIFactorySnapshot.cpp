@@ -3,6 +3,7 @@
 
 #include "AIFactoryCopilotModule.h"
 #include "AIFactoryBlueprintAudit.h"
+#include "AIFactoryBlueprintResourceAnchor.h"
 #include "AIFactoryDataProvider.h"
 #include "AIFactorySettings.h"
 #include "AIFactoryTerrain.h"
@@ -18,6 +19,7 @@
 #include "Buildables/FGBuildableGenerator.h"
 #include "Buildables/FGBuildableGeneratorFuel.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
+#include "Buildables/FGBuildableResourceExtractorBase.h"
 #include "Buildables/FGBuildableWire.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/PanelWidget.h"
@@ -1682,7 +1684,28 @@ namespace
                         TEXT("native_pipe_connection_count"),
                         PipeConnections.Num());
 
-                    if (const AFGBuildablePowerPole* PowerPole =
+                    if (BuildableClass->IsChildOf(
+                            AAIFactoryBlueprintResourceAnchor::StaticClass()))
+                    {
+                        Building->SetStringField(
+                            TEXT("native_topology_kind"),
+                            TEXT("blueprint_resource_anchor"));
+                        Building->SetBoolField(
+                            TEXT("supports_generated_solid_resource_configuration"),
+                            true);
+                    }
+                    else if (BuildableClass->IsChildOf(
+                                 AFGBuildableResourceExtractorBase::StaticClass()))
+                    {
+                        Building->SetStringField(
+                            TEXT("native_topology_kind"),
+                            TEXT("resource_extractor"));
+                        Building->SetBoolField(
+                            TEXT("supports_generated_blueprint_resource_anchor"),
+                            AAIFactoryBlueprintResourceAnchor::IsSupportedVanillaMinerClass(
+                                BuildableClass));
+                    }
+                    else if (const AFGBuildablePowerPole* PowerPole =
                             Cast<AFGBuildablePowerPole>(DefaultBuildable))
                     {
                         Building->SetStringField(

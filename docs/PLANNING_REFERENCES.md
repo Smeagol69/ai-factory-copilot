@@ -205,6 +205,79 @@ This reference adds four requirements to the design target:
    must name those objectives and tradeoffs rather than mean shortest belts at
    the expense of maintainability or appearance.
 
+## Reference blueprint pair: enclosed underground and surface levels
+
+The owner supplied `Underground Level (Enclosed)[Mk.1]` and `Main Level
+(Building Shell)[Mk.1]` as a visual and functional reference on 2026-08-28.
+The binary files are not redistributed in this repository. Their local hashes
+are recorded so a later inspection can distinguish these exact inputs:
+
+- lower `.sbp` SHA-256
+  `0A9AA627D9B7D50E4BBE3A6A1B1501280AB14B61884F54D832B73143B0C66EA9`;
+  `.sbpcfg` SHA-256
+  `EF3808BD06AAAB029CC787734E074F5768A4683CEE27A46AD88DE0CAFB2CC31D`;
+- main `.sbp` SHA-256
+  `BBC55FEBBDF202F55DB6378C6C0B2327BF9980B1D77FC2C6D1A896792D731343`;
+  `.sbpcfg` SHA-256
+  `7287C2B960A9E19B861B24C8C43B2BB0FF7AB3C827D93ABAE02119B7E0439323`.
+
+Facts decoded by the pinned read-only serializer (parser 4.1.2):
+
+- both files are save version 58, authored at game changelist 481836, with a
+  4 × 4 × 4 Designer envelope; the current installed CL 502094 and native
+  Build Gun remain the authority at placement;
+- the lower file contains 420 decoded objects (248 Build_* entities and 172
+  components), including 4 `SmelterMk1`, 1 automated biomass generator, 9
+  `ConveyorBeltMk2`, 13 `ConveyorLiftMk2`, 2 `PipeHyper`, 2 `PipeHyperStart`,
+  one `FoundationPassthrough_Hypertube`, one `HyperTubeWallHole`, and one
+  `PipeHyperSupport`;
+- its exact native `/Script/FactoryGame.FGPipeConnectionComponentHyper`
+  records number 10; 8 saved `mConnectedComponent` references form 4
+  reciprocal internal pairs. The two `PipeHyper` entities contain 5 and 6
+  saved spline points (11 total), with transformed Blueprint-relative
+  endpoints. Each pipe's two saved `mSnappedPassthroughs` entries is blank,
+  so no cross-blueprint or external passthrough join is proven;
+- the lower file also contains 25 verified physical native power-wire edges;
+  that is evidence of saved power topology, not proof of live power, load,
+  capacity, or an external grid connection;
+- the main file contains 145 decoded objects (137 Build_* entities and 8
+  components): 16 foundations, 47 solid walls, 48 window walls, 1 door, 16
+  roof pieces, 2 ceiling lights, 1 lights panel, 2 wall poles, and 4 native
+  power-wire edges. It contains **no** saved Hyper connection components or
+  `PipeHyper` entities, despite the descriptive claim of an elevator exit;
+- saved Build_* pivot locations span 32 × 32 × 31.5 m (lower) and 32 × 32 ×
+  28 m (main). These are pivot spans, not collision/visual extents or proof
+  that the two files will snap together.
+
+These samples establish a two-level style target—enclosed shell, repeated
+structural grid, separated utility/power layer, and a native hypertube corridor
+where the file actually contains one. They do **not** prove that the lower level
+is excavated, that the main level has a hypertube exit, that the pair snaps at a
+new destination, or that it runs after placement. Future generated layouts
+should use the captured current unlocks and native hologram checks, preserve
+the exact Hyper component/spline evidence when they choose to include a
+hypertube, and report missing cross-level links instead of inventing them.
+
+### Comparison contract for reference-led design
+
+The companion's `compare_blueprint_layouts` solver accepts two exact names (or
+the `blueprint_reference` returned by `list_blueprints`) and compares only
+serialized native evidence. Claude can therefore see version and Designer
+dimensions, decoded object/entity/component/buildable totals, saved pivot
+spans, buildable-class counts, recipe references, build cost, and aggregate
+conveyor/pipe, physical power-wire, railroad, and hypertube topology deltas in
+one bounded result. The comparison is complete only when both class lists and
+the relevant arrays are intact; truncated, missing, malformed, or unsupported
+fields remain explicitly unknown.
+
+This tool is a design-corpus aid, not a style classifier. It never treats a
+description, filename, shared class, or similar dimensions as proof of an
+aesthetic theme, native snap compatibility, terrain or collision clearance,
+cross-blueprint joins, external hookups, item/fluid/power flow, or destination
+Build Gun validity. A later design compiler must still use current unlocks,
+native hologram checks, and game-side readback before placement or Blueprint
+export.
+
 ## Implementation targets
 
 - `companion/lib/solvers.mjs`: deterministic quantities and provenance.

@@ -5,6 +5,45 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added generated native Blueprint schema v4: the API may now serialize an
+  explicitly configured solid-resource Blueprint Resource Anchor paired
+  one-to-one with a captured vanilla Miner Mk.1-Mk.3. Both bridge and game
+  revalidate exact unlocks, resource form/purity, roles, identity mapping, and
+  the per-Anchor Miner class pairing;
+  the game refuses success unless the saved `.sbp` reload preserves the exact
+  Anchor configuration and Miner relationship. Destination terrain/node
+  alignment, fluid extractors, portable/modded miners, and automatic siting
+  remain explicitly unclaimed.
+
+- Added read-only native **Blueprint comparison**. Claude can now compare two
+  exact saved `.sbp`/`.sbpcfg` library entries side by side using serialized
+  header/version, designer dimensions, decoded totals, pivot spans, complete
+  buildable-class counts when available, recipe references, build cost, and
+  aggregate conveyor/pipe, physical power-wire, railroad, and hypertube
+  topology deltas. Missing, malformed, and truncated records stay unknown;
+  filenames/descriptions are never treated as visual-style evidence, and no
+  snap, terrain, collision, cross-blueprint join, flow, or Build Gun claim is
+  made. No writer or world mutation was added.
+- Added read-only native **hypertube reference inspection** to the Blueprint
+  structural reader. Exact `FGPipeConnectionComponentHyper` reciprocal links,
+  `Build_PipeHyper` spline locations/tangents, Blueprint-relative endpoints,
+  saved spline bounds/chord lower bounds, native entrance/passthrough/support
+  class counts, and explicit blank passthrough references are now exposed with
+  bounded output. This lets the assistant study enclosed multi-level samples
+  without confusing a saved link with proof of traversal direction, speed,
+  throughput, underground excavation, collision clearance, cross-blueprint
+  joins, or destination Build Gun validity. No writer or world mutation was
+  added; existing conveyor/pipe/power/rail topology contracts remain intact.
+- Added read-only native **rail/tunnel reference inspection** to the Blueprint
+  structural reader. The companion now decodes exact saved
+  `Build_RailroadTrack` `mSplineData` locations/tangents, local spline bounds,
+  Blueprint-relative transformed endpoints, chord-length lower bounds,
+  transforms, and `mTrackGraphID` metadata with
+  bounded output. This lets the assistant study modular tunnel references such
+  as entrance, middle, and facade segments without mistaking a saved track for
+  proof of cross-segment joins, terrain excavation, collision clearance,
+  signals, power, or destination Build Gun validity. No writer or world mutation
+  was added; v1/v2 Blueprint behavior is unchanged.
 - Added the first exact native **pipeline topology** primitive to
   planner-generated Blueprints through `aifactory.generated-blueprint/v3`.
   Registered building descriptors now expose their real pipe-connection names,

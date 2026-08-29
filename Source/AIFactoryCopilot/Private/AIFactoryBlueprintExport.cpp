@@ -1,6 +1,7 @@
 #include "AIFactoryBlueprintExport.h"
 
 #include "AIFactoryActions.h"
+#include "AIFactoryBlueprintResourceAnchor.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableBlueprintDesigner.h"
 #include "FGBlueprintSubsystem.h"
@@ -28,6 +29,7 @@
 #include "Hologram/FGPipelineHologram.h"
 #include "Resources/FGBuildDescriptor.h"
 #include "Resources/FGBuildingDescriptor.h"
+#include "Resources/FGResourceDescriptor.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
@@ -357,7 +359,31 @@ namespace
         TSubclassOf<UFGRecipe> BuildRecipe;
         TSubclassOf<UFGRecipe> ProductionRecipe;
         TSubclassOf<AFGBuildable> BuildableClass;
+        TSubclassOf<UFGResourceDescriptor> ResourceClass;
+        EResourcePurity ResourcePurity = RP_Normal;
     };
+
+    bool ParseGeneratedResourcePurity(
+        const FString& Value,
+        EResourcePurity& OutPurity)
+    {
+        if (Value == TEXT("RP_Inpure"))
+        {
+            OutPurity = RP_Inpure;
+            return true;
+        }
+        if (Value == TEXT("RP_Normal"))
+        {
+            OutPurity = RP_Normal;
+            return true;
+        }
+        if (Value == TEXT("RP_Pure"))
+        {
+            OutPurity = RP_Pure;
+            return true;
+        }
+        return false;
+    }
 
     bool ResolveGeneratedPart(
         const FAIFactoryGeneratedBlueprintPart& Part,
@@ -373,7 +399,8 @@ namespace
         if (Part.Role != TEXT("floor") && Part.Role != TEXT("pillar") &&
             Part.Role != TEXT("wall") && Part.Role != TEXT("roof") &&
             Part.Role != TEXT("ramp") && Part.Role != TEXT("machine") &&
-            Part.Role != TEXT("standalone"))
+            Part.Role != TEXT("standalone") &&
+            Part.Role != TEXT("resource_anchor") && Part.Role != TEXT("miner"))
         {
             OutReason = TEXT("generated_part_role_is_unsupported:") + Part.PartId;
             return false;
@@ -414,6 +441,9 @@ namespace
             return false;
         }
 
+        const bool bResourceAnchorRole = Part.Role == TEXT("resource_anchor");
+        const bool bMinerRole = Part.Role == TEXT("miner");
+
         // These classes need topology or a native placement target, not just a
         // transform. Serialising an unconnected spline, wire, attachment, or
         // extractor would create a file that looks populated but cannot work.
@@ -422,10 +452,40 @@ namespace
             BuildableClass->IsChildOf(AFGBuildablePipeBase::StaticClass()) ||
             BuildableClass->IsChildOf(AFGBuildablePipelineAttachment::StaticClass()) ||
             BuildableClass->IsChildOf(AFGBuildableWire::StaticClass()) ||
-            BuildableClass->IsChildOf(AFGBuildableResourceExtractorBase::StaticClass()))
+            (BuildableClass->IsChildOf(AFGBuildableResourceExtractorBase::StaticClass()) &&
+             !bMinerRole))
         {
             OutReason = TEXT("generated_buildable_needs_an_unimplemented_native_topology:") +
                 BuildableClass->GetPathName();
+            return false;
+        }
+
+        if (bResourceAnchorRole &&
+            !BuildableClass->IsChildOf(AAIFactoryBlueprintResourceAnchor::StaticClass()))
+        {
+            OutReason = TEXT("generated_resource_anchor_recipe_has_wrong_buildable_type:") +
+                Part.PartId;
+            return false;
+        }
+        if (!bResourceAnchorRole &&
+            BuildableClass->IsChildOf(AAIFactoryBlueprintResourceAnchor::StaticClass()))
+        {
+            OutReason = TEXT("generated_resource_anchor_requires_resource_anchor_role:") +
+                Part.PartId;
+            return false;
+        }
+        if (bMinerRole &&
+            !AAIFactoryBlueprintResourceAnchor::IsSupportedVanillaMinerClass(
+                BuildableClass))
+        {
+            OutReason = TEXT("generated_miner_is_not_supported_vanilla_mk1_to_mk3:") +
+                Part.PartId;
+            return false;
+        }
+        if (!bMinerRole &&
+            BuildableClass->IsChildOf(AFGBuildableResourceExtractorBase::StaticClass()))
+        {
+            OutReason = TEXT("generated_miner_requires_miner_role:") + Part.PartId;
             return false;
         }
 
@@ -473,10 +533,72 @@ namespace
             }
         }
 
+        TSubclassOf<UFGResourceDescriptor> ResourceClass = nullptr;
+        EResourcePurity ResourcePurity = RP_Normal;
+        if (bResourceAnchorRole)
+        {
+            if (!ProductionRecipe)
+            {
+                UClass* ResourceObject =
+                    FindGeneratedClassByPath(Part.ResourceClassPath);
+                if (!ResourceObject ||
+                    !ResourceObject->IsChildOf(UFGResourceDescriptor::StaticClass()))
+                {
+                    OutReason = TEXT("generated_resource_descriptor_not_found:") +
+                        Part.ResourceClassPath;
+                    return false;
+                }
+                ResourceClass = ResourceObject;
+            }
+            else
+            {
+                OutReason = TEXT("generated_resource_anchor_cannot_have_production_recipe:") +
+                    Part.PartId;
+                return false;
+            }
+            if (!ParseGeneratedResourcePurity(Part.ResourcePurity, ResourcePurity))
+            {
+                OutReason = TEXT("generated_resource_anchor_purity_is_invalid:") +
+                    Part.PartId;
+                return false;
+            }
+            FString ConfigurationFailure;
+            if (!AAIFactoryBlueprintAnchorNode::ValidateConfiguration(
+                    ResourceClass,
+                    ResourcePurity,
+                    ConfigurationFailure))
+            {
+                OutReason = TEXT("generated_resource_anchor_configuration_is_invalid:") +
+                    Part.PartId + TEXT(":") + ConfigurationFailure;
+                return false;
+            }
+        }
+        else if (!Part.ResourceClassPath.IsEmpty() ||
+                 !Part.ResourcePurity.IsEmpty())
+        {
+            OutReason = TEXT("generated_resource_configuration_requires_anchor_role:") +
+                Part.PartId;
+            return false;
+        }
+        if (bMinerRole && Part.ResourceAnchorPartId.IsEmpty())
+        {
+            OutReason = TEXT("generated_miner_requires_resource_anchor_part_id:") +
+                Part.PartId;
+            return false;
+        }
+        if (!bMinerRole && !Part.ResourceAnchorPartId.IsEmpty())
+        {
+            OutReason = TEXT("generated_resource_anchor_part_id_requires_miner_role:") +
+                Part.PartId;
+            return false;
+        }
+
         Out.Source = Part;
         Out.BuildRecipe = BuildRecipe;
         Out.ProductionRecipe = ProductionRecipe;
         Out.BuildableClass = BuildableClass;
+        Out.ResourceClass = ResourceClass;
+        Out.ResourcePurity = ResourcePurity;
         return true;
     }
 
@@ -815,10 +937,10 @@ namespace
                 return;
             }
 
-            for (const FResolvedGeneratedPart& Part : Parts)
+            const auto StagePart = [this](const FResolvedGeneratedPart& Part)
             {
                 const FTransform WorldTransform =
-                    Part.Source.RelativeTransform * Designer->GetActorTransform();
+                    Part.Source.RelativeTransform * StagingDesigner->GetActorTransform();
                 FActorSpawnParameters Params;
                 Params.SpawnCollisionHandlingOverride =
                     ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -826,11 +948,14 @@ namespace
                 Params.ObjectFlags |= RF_Transient;
 
                 AFGBuildable* Buildable =
-                    World->SpawnActor<AFGBuildable>(Part.BuildableClass, WorldTransform, Params);
+                    StagingWorld->SpawnActor<AFGBuildable>(
+                        Part.BuildableClass,
+                        WorldTransform,
+                        Params);
                 if (!IsValid(Buildable))
                 {
                     Failure = TEXT("generated_buildable_spawn_failed:") + Part.Source.PartId;
-                    return;
+                    return false;
                 }
                 SpawnedActors.Add(Buildable);
 
@@ -838,14 +963,50 @@ namespace
                 // window is used by lightweight materialisation in the proven
                 // selection exporter; calling it on an already-live actor
                 // asserts and previously crashed a real save.
-                Buildable->SetInsideBlueprintDesigner(Designer);
+                Buildable->SetInsideBlueprintDesigner(StagingDesigner);
                 Buildable->SetBuiltWithRecipe(Part.BuildRecipe);
                 Buildable->FinishSpawning(WorldTransform);
                 if (!IsValid(Buildable) || !Buildable->IsA(Part.BuildableClass))
                 {
                     Failure = TEXT("generated_buildable_finish_spawning_failed:") +
                         Part.Source.PartId;
-                    return;
+                    return false;
+                }
+
+                if (Part.Source.Role == TEXT("resource_anchor"))
+                {
+                    AAIFactoryBlueprintResourceAnchor* Anchor =
+                        Cast<AAIFactoryBlueprintResourceAnchor>(Buildable);
+                    FString AnchorFailure;
+                    if (!IsValid(Anchor) ||
+                        !Anchor->ConfigureAnchor(
+                            Part.ResourceClass,
+                            Part.ResourcePurity,
+                            AnchorFailure))
+                    {
+                        Failure = TEXT("generated_resource_anchor_configuration_failed:") +
+                            Part.Source.PartId + TEXT(":") + AnchorFailure;
+                        return false;
+                    }
+                }
+
+                if (Part.Source.Role == TEXT("miner"))
+                {
+                    AFGBuildableResourceExtractorBase* Miner =
+                        Cast<AFGBuildableResourceExtractorBase>(Buildable);
+                    AAIFactoryBlueprintResourceAnchor* Anchor =
+                        Cast<AAIFactoryBlueprintResourceAnchor>(
+                            BuildablesByPartId.FindRef(
+                                Part.Source.ResourceAnchorPartId));
+                    FString BindingFailure;
+                    if (!IsValid(Miner) || !IsValid(Anchor) ||
+                        !Anchor->BindGeneratedMiner(Miner, BindingFailure) ||
+                        !Anchor->HasRecordedBoundExtractor(Miner))
+                    {
+                        Failure = TEXT("generated_miner_anchor_binding_failed:") +
+                            Part.Source.PartId + TEXT(":") + BindingFailure;
+                        return false;
+                    }
                 }
 
                 if (Part.ProductionRecipe)
@@ -870,14 +1031,14 @@ namespace
                     {
                         Failure = TEXT("generated_manufacturer_recipe_could_not_be_applied:") +
                             Part.Source.PartId;
-                        return;
+                        return false;
                     }
                     Manufacturer->SetRecipe(Part.ProductionRecipe);
                     if (Manufacturer->GetCurrentRecipe() != Part.ProductionRecipe)
                     {
                         Failure = TEXT("generated_manufacturer_recipe_readback_failed:") +
                             Part.Source.PartId;
-                        return;
+                        return false;
                     }
                 }
 
@@ -891,9 +1052,28 @@ namespace
                 {
                     Failure = TEXT("generated_buildable_has_no_finite_native_clearance_or_component_bounds:") +
                         Part.Source.PartId;
-                    return;
+                    return false;
                 }
                 BuildablesByPartId.Add(Part.Source.PartId, Buildable);
+                return true;
+            };
+
+            // Anchors must own a configured real node before a Miner can bind.
+            // Preserve input order inside each phase; only the dependency edge
+            // changes staging order.
+            for (const FResolvedGeneratedPart& Part : Parts)
+            {
+                if (Part.Source.Role != TEXT("miner") && !StagePart(Part))
+                {
+                    return;
+                }
+            }
+            for (const FResolvedGeneratedPart& Part : Parts)
+            {
+                if (Part.Source.Role == TEXT("miner") && !StagePart(Part))
+                {
+                    return;
+                }
             }
 
             for (const FAIFactoryGeneratedBlueprintConveyor& Conveyor : Conveyors)
@@ -925,6 +1105,11 @@ namespace
             {
                 if (AFGBuildable* Buildable = SpawnedActors[Index]; IsValid(Buildable))
                 {
+                    if (AFGBuildableResourceExtractorBase* Extractor =
+                            Cast<AFGBuildableResourceExtractorBase>(Buildable))
+                    {
+                        Extractor->DisconnectExtractableResource();
+                    }
                     if (AFGBuildableWire* Wire = Cast<AFGBuildableWire>(Buildable))
                     {
                         Wire->Disconnect();
@@ -1464,6 +1649,27 @@ namespace
 
                 const FString& LeftRole = Left.Resolved.Source.Role;
                 const FString& RightRole = Right.Resolved.Source.Role;
+                const FStagedGeneratedPart* Anchor = nullptr;
+                const FStagedGeneratedPart* Miner = nullptr;
+                if (LeftRole == TEXT("resource_anchor") && RightRole == TEXT("miner"))
+                {
+                    Anchor = &Left;
+                    Miner = &Right;
+                }
+                else if (RightRole == TEXT("resource_anchor") && LeftRole == TEXT("miner"))
+                {
+                    Anchor = &Right;
+                    Miner = &Left;
+                }
+                if (Anchor && Miner &&
+                    Miner->Resolved.Source.ResourceAnchorPartId ==
+                        Anchor->Resolved.Source.PartId)
+                {
+                    // This overlap is the native relationship: a Miner sits on
+                    // the exact resource-node volume owned by its Anchor.
+                    ++OutStructuralContacts;
+                    continue;
+                }
                 if (IsGeneratedStructuralRole(LeftRole) &&
                     IsGeneratedStructuralRole(RightRole))
                 {
@@ -1505,6 +1711,7 @@ namespace
 
     bool ValidateGeneratedNativeTopologyReadback(
         const TArray<AFGBuildable*>& Loaded,
+        const TArray<FResolvedGeneratedPart>& ExpectedParts,
         const int32 ExpectedBuildables,
         const int32 ExpectedConfiguredManufacturers,
         const int32 ExpectedConveyors,
@@ -1521,6 +1728,8 @@ namespace
         int32 ExactPowerWireLinks = 0;
         int32 PipelineCount = 0;
         int32 ExactPipelineLinks = 0;
+        TArray<AAIFactoryBlueprintResourceAnchor*> LoadedResourceAnchors;
+        TArray<AFGBuildableResourceExtractorBase*> LoadedMiners;
 
         for (AFGBuildable* Buildable : Loaded)
         {
@@ -1597,7 +1806,140 @@ namespace
                     ++ExactPipelineLinks;
                 }
             }
+            if (AAIFactoryBlueprintResourceAnchor* Anchor =
+                    Cast<AAIFactoryBlueprintResourceAnchor>(Buildable))
+            {
+                LoadedResourceAnchors.Add(Anchor);
+            }
+            if (AFGBuildableResourceExtractorBase* Extractor =
+                    Cast<AFGBuildableResourceExtractorBase>(Buildable);
+                IsValid(Extractor) &&
+                AAIFactoryBlueprintResourceAnchor::IsSupportedVanillaMinerClass(
+                    Extractor->GetClass()))
+            {
+                LoadedMiners.Add(Extractor);
+            }
         }
+
+        int32 ExpectedResourceAnchors = 0;
+        int32 ExpectedMiners = 0;
+        TMap<FString, int32> ExpectedAnchorConfigurations;
+        TMap<FString, const FResolvedGeneratedPart*> ExpectedAnchorsByPartId;
+        for (const FResolvedGeneratedPart& Part : ExpectedParts)
+        {
+            if (Part.Source.Role == TEXT("resource_anchor"))
+            {
+                ++ExpectedResourceAnchors;
+                ExpectedAnchorsByPartId.Add(Part.Source.PartId, &Part);
+                const FString Fingerprint = FString::Printf(
+                    TEXT("%s|%d"),
+                    IsValid(Part.ResourceClass.Get())
+                        ? *Part.ResourceClass.Get()->GetPathName()
+                        : TEXT("none"),
+                    static_cast<int32>(Part.ResourcePurity));
+                ExpectedAnchorConfigurations.FindOrAdd(Fingerprint) += 1;
+            }
+            else if (Part.Source.Role == TEXT("miner"))
+            {
+                ++ExpectedMiners;
+            }
+        }
+
+        TMap<FString, int32> ExpectedAnchorMinerPairings;
+        for (const FResolvedGeneratedPart& Part : ExpectedParts)
+        {
+            if (Part.Source.Role != TEXT("miner"))
+            {
+                continue;
+            }
+            const FResolvedGeneratedPart* const* AnchorEntry =
+                ExpectedAnchorsByPartId.Find(Part.Source.ResourceAnchorPartId);
+            const FResolvedGeneratedPart* Anchor = AnchorEntry ? *AnchorEntry : nullptr;
+            const FString PairingFingerprint = FString::Printf(
+                TEXT("%s|%d|%s"),
+                Anchor && IsValid(Anchor->ResourceClass.Get())
+                    ? *Anchor->ResourceClass.Get()->GetPathName()
+                    : TEXT("none"),
+                Anchor ? static_cast<int32>(Anchor->ResourcePurity) : -1,
+                IsValid(Part.BuildableClass.Get())
+                    ? *Part.BuildableClass.Get()->GetPathName()
+                    : TEXT("none"));
+            ExpectedAnchorMinerPairings.FindOrAdd(PairingFingerprint) += 1;
+        }
+
+        TMap<FString, int32> LoadedAnchorConfigurations;
+        TMap<FString, int32> LoadedAnchorMinerPairings;
+        TSet<AFGBuildableResourceExtractorBase*> MappedMiners;
+        int32 ExactAnchorMinerMappings = 0;
+        int32 AnchorsWithExactlyOneMiner = 0;
+        for (AAIFactoryBlueprintResourceAnchor* Anchor : LoadedResourceAnchors)
+        {
+            if (!IsValid(Anchor))
+            {
+                continue;
+            }
+            const FAIFactoryBlueprintResourceAnchorConfiguration& Configuration =
+                Anchor->GetConfiguration();
+            const FString Fingerprint = FString::Printf(
+                TEXT("%s|%d"),
+                IsValid(Configuration.ResourceClass.Get())
+                    ? *Configuration.ResourceClass.Get()->GetPathName()
+                    : TEXT("none"),
+                static_cast<int32>(Configuration.Purity));
+            LoadedAnchorConfigurations.FindOrAdd(Fingerprint) += 1;
+
+            int32 MappedOnAnchor = 0;
+            for (AFGBuildableResourceExtractorBase* Miner : LoadedMiners)
+            {
+                if (Anchor->HasRecordedBoundExtractor(Miner))
+                {
+                    ++MappedOnAnchor;
+                    ++ExactAnchorMinerMappings;
+                    MappedMiners.Add(Miner);
+                    const FString PairingFingerprint = FString::Printf(
+                        TEXT("%s|%d|%s"),
+                        IsValid(Configuration.ResourceClass.Get())
+                            ? *Configuration.ResourceClass.Get()->GetPathName()
+                            : TEXT("none"),
+                        static_cast<int32>(Configuration.Purity),
+                        IsValid(Miner->GetClass())
+                            ? *Miner->GetClass()->GetPathName()
+                            : TEXT("none"));
+                    LoadedAnchorMinerPairings.FindOrAdd(PairingFingerprint) += 1;
+                }
+            }
+            if (MappedOnAnchor == 1)
+            {
+                ++AnchorsWithExactlyOneMiner;
+            }
+        }
+
+        const auto ConfigurationMapsMatch = [](
+            const TMap<FString, int32>& Expected,
+            const TMap<FString, int32>& Actual)
+        {
+            if (Expected.Num() != Actual.Num())
+            {
+                return false;
+            }
+            for (const TPair<FString, int32>& Entry : Expected)
+            {
+                const int32* Count = Actual.Find(Entry.Key);
+                if (!Count || *Count != Entry.Value)
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+        const bool bExactAnchorConfigurations =
+            ConfigurationMapsMatch(
+                ExpectedAnchorConfigurations,
+                LoadedAnchorConfigurations);
+        const bool bExactAnchorMinerPairings =
+            ConfigurationMapsMatch(
+                ExpectedAnchorMinerPairings,
+                LoadedAnchorMinerPairings);
 
         Observed->SetNumberField(TEXT("native_loaded_buildables"), ValidBuildables);
         Observed->SetNumberField(
@@ -1615,6 +1957,27 @@ namespace
         Observed->SetNumberField(
             TEXT("native_loaded_exact_reciprocal_pipeline_links"),
             ExactPipelineLinks);
+        Observed->SetNumberField(
+            TEXT("native_loaded_resource_anchors"),
+            LoadedResourceAnchors.Num());
+        Observed->SetNumberField(
+            TEXT("native_loaded_supported_vanilla_miners"),
+            LoadedMiners.Num());
+        Observed->SetNumberField(
+            TEXT("native_loaded_exact_anchor_miner_mappings"),
+            ExactAnchorMinerMappings);
+        Observed->SetNumberField(
+            TEXT("native_loaded_uniquely_mapped_miners"),
+            MappedMiners.Num());
+        Observed->SetNumberField(
+            TEXT("native_loaded_anchors_with_exactly_one_miner"),
+            AnchorsWithExactlyOneMiner);
+        Observed->SetBoolField(
+            TEXT("native_loaded_exact_anchor_configurations"),
+            bExactAnchorConfigurations);
+        Observed->SetBoolField(
+            TEXT("native_loaded_exact_anchor_miner_pairings"),
+            bExactAnchorMinerPairings);
 
         if (ValidBuildables != ExpectedBuildables)
         {
@@ -1659,6 +2022,27 @@ namespace
                 ExpectedPipelines,
                 PipelineCount,
                 ExactPipelineLinks);
+            return false;
+        }
+        if (LoadedResourceAnchors.Num() != ExpectedResourceAnchors ||
+            LoadedMiners.Num() != ExpectedMiners ||
+            ExactAnchorMinerMappings != ExpectedMiners ||
+            MappedMiners.Num() != ExpectedMiners ||
+            AnchorsWithExactlyOneMiner != ExpectedResourceAnchors ||
+            !bExactAnchorConfigurations ||
+            !bExactAnchorMinerPairings)
+        {
+            OutReason = FString::Printf(
+                TEXT("native_blueprint_resource_anchor_topology_readback_mismatch:expected_anchors=%d,actual_anchors=%d,expected_miners=%d,actual_miners=%d,exact_mappings=%d,unique_miners=%d,one_to_one_anchors=%d,exact_configurations=%s,exact_pairings=%s"),
+                ExpectedResourceAnchors,
+                LoadedResourceAnchors.Num(),
+                ExpectedMiners,
+                LoadedMiners.Num(),
+                ExactAnchorMinerMappings,
+                MappedMiners.Num(),
+                AnchorsWithExactlyOneMiner,
+                bExactAnchorConfigurations ? TEXT("true") : TEXT("false"),
+                bExactAnchorMinerPairings ? TEXT("true") : TEXT("false"));
             return false;
         }
         return true;
@@ -1880,7 +2264,8 @@ FAIFactoryActionResult GenerateLayout(
     const bool bSchemaV1 = LayoutSchema == TEXT("aifactory.generated-blueprint/v1");
     const bool bSchemaV2 = LayoutSchema == TEXT("aifactory.generated-blueprint/v2");
     const bool bSchemaV3 = LayoutSchema == TEXT("aifactory.generated-blueprint/v3");
-    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3)
+    const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4");
+    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4)
     {
         return FAIFactoryActionResult::Refuse(
             Action,
@@ -1930,6 +2315,8 @@ FAIFactoryActionResult GenerateLayout(
     TArray<FResolvedGeneratedPart> Resolved;
     Resolved.Reserve(Parts.Num());
     int32 ConfiguredManufacturers = 0;
+    int32 ResourceAnchors = 0;
+    int32 Miners = 0;
     for (const FAIFactoryGeneratedBlueprintPart& Part : Parts)
     {
         if (PartIds.Contains(Part.PartId))
@@ -1950,6 +2337,56 @@ FAIFactoryActionResult GenerateLayout(
         {
             ++ConfiguredManufacturers;
         }
+        if (Entry.Source.Role == TEXT("resource_anchor"))
+        {
+            ++ResourceAnchors;
+        }
+        else if (Entry.Source.Role == TEXT("miner"))
+        {
+            ++Miners;
+        }
+    }
+
+    if (!bSchemaV4 && (ResourceAnchors > 0 || Miners > 0))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("generated_resource_anchors_and_miners_require_v4"));
+    }
+    TSet<FString> UsedResourceAnchors;
+    for (const FResolvedGeneratedPart& Entry : Resolved)
+    {
+        if (Entry.Source.Role != TEXT("miner"))
+        {
+            continue;
+        }
+        const FResolvedGeneratedPart* Anchor = Resolved.FindByPredicate(
+            [&Entry](const FResolvedGeneratedPart& Candidate)
+            {
+                return Candidate.Source.PartId ==
+                    Entry.Source.ResourceAnchorPartId;
+            });
+        if (!Anchor || Anchor->Source.Role != TEXT("resource_anchor"))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_miner_target_is_not_a_resource_anchor:") +
+                    Entry.Source.PartId);
+        }
+        if (UsedResourceAnchors.Contains(Anchor->Source.PartId))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_resource_anchor_can_bind_only_one_miner:") +
+                    Anchor->Source.PartId);
+        }
+        UsedResourceAnchors.Add(Anchor->Source.PartId);
+    }
+    if (ResourceAnchors != Miners || UsedResourceAnchors.Num() != ResourceAnchors)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("generated_v4_requires_one_miner_for_every_resource_anchor"));
     }
 
     TSet<FString> TopologyIds;
@@ -2023,6 +2460,8 @@ FAIFactoryActionResult GenerateLayout(
     Predicted->SetNumberField(TEXT("requested_conveyors"), Conveyors.Num());
     Predicted->SetNumberField(TEXT("requested_power_wires"), PowerWires.Num());
     Predicted->SetNumberField(TEXT("requested_pipelines"), Pipelines.Num());
+    Predicted->SetNumberField(TEXT("requested_resource_anchors"), ResourceAnchors);
+    Predicted->SetNumberField(TEXT("requested_miners"), Miners);
     Predicted->SetStringField(TEXT("designer"), Designer->GetPathName());
     Predicted->SetBoolField(TEXT("designer_had_buildings"), Designer->HasBuildings());
     Predicted->SetStringField(
@@ -2142,6 +2581,8 @@ FAIFactoryActionResult GenerateLayout(
     Observed->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
     Observed->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
     Observed->SetNumberField(TEXT("staged_pipelines"), Staging.NumPipelines());
+    Observed->SetNumberField(TEXT("staged_resource_anchors"), ResourceAnchors);
+    Observed->SetNumberField(TEXT("staged_miners"), Miners);
 
     AFGBlueprintSubsystem* Subsystem =
         AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
@@ -2152,7 +2593,7 @@ FAIFactoryActionResult GenerateLayout(
     {
         Subsystem->RefreshBlueprintsAndDescriptors();
         bReadable = Subsystem->ReadBlueprintFromDisc(BlueprintName);
-        if (bReadable && (bSchemaV2 || bSchemaV3))
+        if (bReadable && (bSchemaV2 || bSchemaV3 || bSchemaV4))
         {
             UFGBlueprintDescriptor* Descriptor =
                 Subsystem->GetBlueprintDescriptorByNameString(BlueprintName);
@@ -2177,6 +2618,7 @@ FAIFactoryActionResult GenerateLayout(
                     Context.Player);
                 bExactNativeReadback = ValidateGeneratedNativeTopologyReadback(
                     NativeLoaded,
+                    Resolved,
                     Staging.NumAllBuildables(),
                     ConfiguredManufacturers,
                     Conveyors.Num(),

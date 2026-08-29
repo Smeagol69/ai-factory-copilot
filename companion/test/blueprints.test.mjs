@@ -7,14 +7,17 @@ import { Parser, SaveComponent, SaveEntity } from "@etothepii/satisfactory-file-
 import { buildGraph } from "../lib/graph.mjs";
 import {
   costAgainstInventory,
+  compareBlueprintStructures,
   decodeBlueprintConnectionTopology,
+  decodeBlueprintHypertubeTopology,
   decodeBlueprintPowerWireTopology,
+  decodeBlueprintRailTopology,
   inspectBlueprintStructure,
   parseBlueprintConfig,
   parseBlueprintHeader,
   readBlueprint,
 } from "../lib/blueprints.mjs";
-import { solveBlueprintLayout, solveBlueprintLibrary } from "../lib/solvers.mjs";
+import { solveBlueprintComparison, solveBlueprintLayout, solveBlueprintLibrary } from "../lib/solvers.mjs";
 import { makeBlueprintReader } from "../server.mjs";
 import { buildFactorySnapshot } from "./fixtures/factory.mjs";
 
@@ -23,6 +26,9 @@ const CABLE = "/Game/FactoryGame/Resource/Parts/Cable/Desc_Cable.Desc_Cable_C";
 const SMELTER_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_SmelterMk1.Recipe_SmelterMk1_C";
 const POWER_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPowerConnectionComponent";
 const POWER_LINE_CLASS = "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C";
+const HYPERTUBE_CONNECTION_COMPONENT = "/Script/FactoryGame.FGPipeConnectionComponentHyper";
+const HYPERTUBE_PIPE_CLASS = "/Game/FactoryGame/Buildable/Factory/PipeHyper/Build_PipeHyper.Build_PipeHyper_C";
+const RAIL_TRACK_CLASS = "/Game/FactoryGame/Buildable/Factory/Train/Track/Build_RailroadTrack.Build_RailroadTrack_C";
 
 function int32(value) {
   const bytes = Buffer.alloc(4);
@@ -148,6 +154,81 @@ function savedPowerConnection(instanceName, parentEntityName, wireNames, propert
         values: wireNames.map((pathName) => ({ levelName: "Persistent_Level", pathName })),
       },
     },
+  };
+}
+
+function savedRailTrack(instanceName, points, graphId = 1, overrides = {}) {
+  return {
+    type: "SaveEntity",
+    typePath: RAIL_TRACK_CLASS,
+    instanceName,
+    transform: {
+      translation: { x: 100, y: 200, z: 300 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      scale3d: { x: 1, y: 1, z: 1 },
+    },
+    properties: {
+      mTrackGraphID: {
+        type: "IntProperty",
+        name: "mTrackGraphID",
+        propertyTagType: { name: "IntProperty", children: [] },
+        value: graphId,
+      },
+      mSplineData: {
+        type: "ArrayProperty",
+        name: "mSplineData",
+        propertyTagType: {
+          name: "ArrayProperty",
+          children: [{ name: "StructProperty", children: [{ name: "SplinePointData", children: [] }] }],
+        },
+        values: points.map(({ x, y, z, tangent = { x: 0, y: 0, z: 0 } }) => ({
+          type: "SplinePointData",
+          properties: {
+            Location: { type: "StructProperty", name: "Location", value: { x, y, z } },
+            ArriveTangent: { type: "StructProperty", name: "ArriveTangent", value: tangent },
+            LeaveTangent: { type: "StructProperty", name: "LeaveTangent", value: tangent },
+          },
+        })),
+      },
+    },
+    ...overrides,
+  };
+}
+
+function savedHypertubePipe(instanceName, points, overrides = {}) {
+  return {
+    type: "SaveEntity",
+    typePath: HYPERTUBE_PIPE_CLASS,
+    instanceName,
+    transform: {
+      translation: { x: 100, y: 200, z: 300 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      scale3d: { x: 1, y: 1, z: 1 },
+    },
+    properties: {
+      mSplineData: {
+        type: "ArrayProperty",
+        name: "mSplineData",
+        propertyTagType: {
+          name: "ArrayProperty",
+          children: [{ name: "StructProperty", children: [{ name: "SplinePointData", children: [] }] }],
+        },
+        values: points.map(({ x, y, z, tangent = { x: 0, y: 0, z: 0 } }) => ({
+          type: "SplinePointData",
+          properties: {
+            Location: { type: "StructProperty", name: "Location", value: { x, y, z } },
+            ArriveTangent: { type: "StructProperty", name: "ArriveTangent", value: tangent },
+            LeaveTangent: { type: "StructProperty", name: "LeaveTangent", value: tangent },
+          },
+        })),
+      },
+      mSnappedPassthroughs: {
+        type: "ArrayProperty",
+        name: "mSnappedPassthroughs",
+        values: [{ levelName: "", pathName: "" }, { levelName: "", pathName: "" }],
+      },
+    },
+    ...overrides,
   };
 }
 
@@ -307,6 +388,10 @@ test("reads exact native buildable transforms through the pinned read-only parse
   assert.equal(result.connection_topology.reciprocal_connection_pair_count, 0);
   assert.equal(result.power_wire_topology.status, "decoded");
   assert.equal(result.power_wire_topology.verified_power_wire_count, 0);
+  assert.equal(result.rail_topology.status, "decoded");
+  assert.equal(result.rail_topology.native_rail_track_entity_count, 0);
+  assert.equal(result.hypertube_topology.status, "decoded");
+  assert.equal(result.hypertube_topology.native_hypertube_connection_component_count, 0);
   assert.match(result.transform_coverage_caveat, /hologram validity/i);
 });
 
@@ -393,6 +478,83 @@ test("connection topology caps returned pairs while preserving every aggregate c
   assert.equal(topology.reciprocal_connection_pairs_by_kind.pipe, 3);
   assert.equal(topology.connections_returned, 1);
   assert.equal(topology.connections_truncated, 2);
+});
+
+test("decodes exact native hypertube links and bounded PipeHyper spline records", () => {
+  const start = "Persistent_Level:PipeHyperStart";
+  const pipe = "Persistent_Level:PipeHyper";
+  const passthrough = "Persistent_Level:HypertubePassthrough";
+  const startConnection = `${start}.PipeHyperStartConnection`;
+  const pipeConnection0 = `${pipe}.PipeHyperConnection0`;
+  const pipeConnection1 = `${pipe}.PipeHyperConnection1`;
+  const passthroughConnection = `${passthrough}.Connection0`;
+  const topology = decodeBlueprintHypertubeTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_Start.Build_Start_C", instanceName: start },
+    savedHypertubePipe(pipe, [
+      { x: 0, y: 0, z: 0, tangent: { x: 100, y: 0, z: 0 } },
+      { x: 300, y: 400, z: 0, tangent: { x: 0, y: 100, z: 0 } },
+    ]),
+    { type: "SaveEntity", typePath: "/Game/Test/Build_Passthrough.Build_Passthrough_C", instanceName: passthrough },
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, startConnection, start, pipeConnection0),
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, pipeConnection0, pipe, startConnection),
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, pipeConnection1, pipe, passthroughConnection),
+    nativeConnectionComponent(HYPERTUBE_CONNECTION_COMPONENT, passthroughConnection, passthrough, pipeConnection1),
+  ], { maximumConnections: 1, maximumPipes: 1, maximumSplinePoints: 1 });
+
+  assert.equal(topology.status, "decoded");
+  assert.equal(topology.native_hypertube_connection_component_count, 4);
+  assert.equal(topology.supported_connection_reference_record_count, 4);
+  assert.equal(topology.reciprocal_connection_reference_count, 4);
+  assert.equal(topology.reciprocal_connection_pair_count, 2);
+  assert.deepEqual(topology.endpoint_owner_resolution, { both: 2, one: 0, neither: 0 });
+  assert.equal(topology.connections_returned, 1);
+  assert.equal(topology.connections_truncated, 1);
+  assert.equal(topology.hypertube_pipe_entity_count, 1);
+  assert.equal(topology.pipe_records_returned, 1);
+  assert.equal(topology.total_spline_point_count, 2);
+  assert.equal(topology.pipe_hyper_records[0].spline_points_returned, 1);
+  assert.equal(topology.pipe_hyper_records[0].spline_points_truncated, 1);
+  assert.deepEqual(topology.pipe_hyper_records[0].blueprint_relative_endpoints_cm, {
+    start_cm: { x: 100, y: 200, z: 300 },
+    end_cm: { x: 400, y: 600, z: 300 },
+  });
+  assert.equal(topology.pipe_hyper_records[0].chord_length_cm, 500);
+  assert.equal(topology.pipe_hyper_records[0].snapped_passthroughs.blank_reference_count, 2);
+  assert.equal(topology.traversal_direction, "not_inferred_from_component_references_or_spline_order");
+  assert.equal(topology.cross_blueprint_joins, "not_proven_from_saved_component_references");
+  assert.equal(topology.certainty, "authoritative_for_verified_native_hypertube_records");
+});
+
+test("hypertube topology keeps malformed and nonreciprocal records explicit", () => {
+  const topology = decodeBlueprintHypertubeTopology([
+    { type: "SaveEntity", typePath: "/Game/Test/Build_A.Build_A_C", instanceName: "A" },
+    { type: "SaveEntity", typePath: "/Game/Test/Build_B.Build_B_C", instanceName: "B" },
+    {
+      type: "SaveComponent",
+      typePath: HYPERTUBE_CONNECTION_COMPONENT,
+      instanceName: "A.Port",
+      parentEntityName: "A",
+      properties: { mConnectedComponent: { value: { pathName: "B.Port" } } },
+    },
+    {
+      type: "SaveComponent",
+      typePath: HYPERTUBE_CONNECTION_COMPONENT,
+      instanceName: "B.Port",
+      parentEntityName: "B",
+      properties: {},
+    },
+    {
+      type: "SaveComponent",
+      typePath: HYPERTUBE_CONNECTION_COMPONENT,
+      instanceName: "Self.Port",
+      parentEntityName: "A",
+      properties: { mConnectedComponent: { value: { pathName: "Self.Port" } } },
+    },
+  ]);
+  assert.equal(topology.reciprocal_connection_pair_count, 0);
+  assert.equal(topology.nonreciprocal_component_reference_count, 1);
+  assert.equal(topology.self_component_reference_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_hypertube_records");
 });
 
 test("power-wire topology inverts exact native mWires membership into bounded physical edges", () => {
@@ -492,6 +654,69 @@ test("power-wire topology downgrades malformed component identity and missing en
   assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_power_wire_references");
 });
 
+test("rail topology decodes exact saved spline points and bounded track metadata", () => {
+  const topology = decodeBlueprintRailTopology([
+    savedRailTrack("Persistent_Level:Rail_A", [
+      { x: 0, y: 0, z: 0, tangent: { x: 100, y: 0, z: 0 } },
+      { x: 300, y: 400, z: 0, tangent: { x: 0, y: 100, z: 0 } },
+    ], 7),
+    savedRailTrack("Persistent_Level:Rail_B", [
+      { x: -800, y: 0, z: 0 },
+      { x: -400, y: 0, z: 0 },
+    ], 7),
+  ], { maximumRailTracks: 1, maximumRailSplinePoints: 1 });
+
+  assert.equal(topology.status, "decoded");
+  assert.equal(topology.native_rail_track_entity_count, 2);
+  assert.equal(topology.rail_track_records_returned, 1);
+  assert.equal(topology.rail_track_records_truncated, 1);
+  assert.equal(topology.total_spline_point_count, 4);
+  assert.deepEqual(topology.track_graph_ids, [7]);
+  assert.equal(topology.rail_tracks[0].spline_point_count, 2);
+  assert.equal(topology.rail_tracks[0].spline_points_returned, 1);
+  assert.equal(topology.rail_tracks[0].spline_points_truncated, 1);
+  assert.deepEqual(topology.rail_tracks[0].spline_points[0].location_cm, { x: 0, y: 0, z: 0 });
+  assert.deepEqual(topology.rail_tracks[0].local_bounds_cm.span_cm, { x: 300, y: 400, z: 0 });
+  assert.deepEqual(topology.rail_tracks[0].blueprint_relative_endpoints_cm, {
+    start_cm: { x: 100, y: 200, z: 300 },
+    end_cm: { x: 400, y: 600, z: 300 },
+  });
+  assert.equal(topology.rail_tracks[0].chord_length_cm, 500);
+  assert.equal(topology.rail_connectivity, "not_proven_from_saved_spline_points_or_m_track_graph_id");
+  assert.equal(topology.certainty, "authoritative_for_saved_native_rail_spline_records");
+});
+
+test("rail topology keeps missing and malformed saved rail fields explicit", () => {
+  const topology = decodeBlueprintRailTopology([
+    savedRailTrack("Persistent_Level:Rail_Missing", [], 1, { properties: {} }),
+    savedRailTrack("Persistent_Level:Rail_BadPoint", [
+      { x: 0, y: 0, z: 0 },
+    ], 1, {
+      properties: {
+        mTrackGraphID: {
+          type: "IntProperty",
+          name: "mTrackGraphID",
+          propertyTagType: { name: "IntProperty", children: [] },
+          value: "not-an-id",
+        },
+        mSplineData: {
+          type: "ArrayProperty",
+          name: "mSplineData",
+          propertyTagType: { name: "ArrayProperty", children: [] },
+          values: [{}],
+        },
+      },
+    }),
+    { type: "SaveEntity", typePath: RAIL_TRACK_CLASS, instanceName: "" },
+  ]);
+  assert.equal(topology.native_rail_track_entity_count, 3);
+  assert.equal(topology.malformed_rail_track_entity_record_count, 1);
+  assert.equal(topology.missing_spline_data_count, 2);
+  assert.equal(topology.malformed_track_graph_id_count, 1);
+  assert.equal(topology.malformed_spline_data_count, 1);
+  assert.equal(topology.certainty, "authoritative_observation_with_inconclusive_rail_records");
+});
+
 test("structural inspection preserves an unreadable file as unknown", () => {
   const result = inspectBlueprintStructure("Broken", Buffer.alloc(8), Buffer.alloc(8));
   assert.equal(result.available, false);
@@ -526,6 +751,156 @@ test("the structural solver prices a bounded native layout against the live inve
   assert.equal(result.ingredients[0].item_name, "IronPlate");
   assert.equal(result.ingredients[0].shortfall, 0);
   assert.equal(receivedOptions.maximumPowerWires, 3);
+  assert.equal(receivedOptions.maximumRailTracks, 40);
+  assert.equal(receivedOptions.maximumRailSplinePoints, 200);
+  assert.equal(receivedOptions.maximumHypertubeConnections, 80);
+  assert.equal(receivedOptions.maximumHypertubePipes, 40);
+  assert.equal(receivedOptions.maximumHypertubeSplinePoints, 200);
+});
+
+function comparisonInspection(name, {
+  classes = [],
+  recipes = [],
+  costs = [],
+  truncated = 0,
+  topology = {},
+  gameChangelist = 502094,
+} = {}) {
+  return {
+    available: true,
+    blueprint_name: name,
+    blueprint_reference: `${name}.sbp`,
+    header: {
+      blueprint_header_version: 2,
+      factory_save_custom_version: 58,
+      game_changelist: gameChangelist,
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      recipe_references: recipes.map((recipe_class) => ({ recipe_class })),
+      build_cost: costs.map(([item_class, amount]) => ({ item_class, amount })),
+    },
+    decoded: {
+      object_count: 10,
+      entity_count: 8,
+      component_count: 2,
+      buildable_count: 8,
+      buildables_with_finite_transform: 8,
+    },
+    buildable_classes: classes.map(([class_path, count]) => ({ class_path, count })),
+    buildable_classes_truncated: truncated,
+    pivot_bounds_cm: { span_cm: { x: 3200, y: 3200, z: 1600 } },
+    connection_topology: {
+      status: "decoded",
+      reciprocal_connection_pair_count: topology.conveyor_pipe_pairs ?? 0,
+      reciprocal_connection_pairs_by_kind: {
+        conveyor: topology.conveyor_pairs ?? 0,
+        pipe: topology.pipe_pairs ?? 0,
+        mixed: topology.mixed_pairs ?? 0,
+      },
+    },
+    power_wire_topology: { status: "decoded", verified_power_wire_count: topology.power_wire_edges ?? 0 },
+    rail_topology: {
+      status: "decoded",
+      native_rail_track_entity_count: topology.rail_tracks ?? 0,
+      total_spline_point_count: topology.rail_spline_points ?? 0,
+    },
+    hypertube_topology: {
+      status: "decoded",
+      reciprocal_connection_pair_count: topology.hypertube_pairs ?? 0,
+      hypertube_pipe_entity_count: topology.hypertube_pipes ?? 0,
+      total_spline_point_count: topology.hypertube_spline_points ?? 0,
+    },
+    certainty: "authoritative_for_decoded_entities",
+    source: "decoded_from_saved_native_blueprint",
+  };
+}
+
+test("compares exact Blueprint structure evidence without inferring style or joins", () => {
+  const left = comparisonInspection("Lower", {
+    classes: [["/Game/Build/Foundation", 4], ["/Game/Build/Smelter", 2]],
+    recipes: ["/Game/Recipe/Foundation", "/Game/Recipe/Smelter"],
+    costs: [[IRON_PLATE, 5]],
+    topology: { conveyor_pipe_pairs: 2, conveyor_pairs: 2, power_wire_edges: 1, hypertube_pairs: 4 },
+  });
+  const right = comparisonInspection("Main", {
+    classes: [["/Game/Build/Foundation", 4], ["/Game/Build/Smelter", 3], ["/Game/Build/Wall", 8]],
+    recipes: ["/Game/Recipe/Foundation", "/Game/Recipe/Wall"],
+    costs: [[IRON_PLATE, 8], [CABLE, 2]],
+    topology: { conveyor_pipe_pairs: 1, conveyor_pairs: 1, power_wire_edges: 3, hypertube_pipes: 2 },
+  });
+  const result = compareBlueprintStructures(left, right);
+  assert.equal(result.available, true);
+  assert.equal(result.comparison.shared_buildable_class_count, 2);
+  assert.deepEqual(result.comparison.class_differences, [
+    { class_path: "/Game/Build/Wall", left: 0, right: 8, delta: 8 },
+    { class_path: "/Game/Build/Smelter", left: 2, right: 3, delta: 1 },
+  ]);
+  assert.deepEqual(result.comparison.recipe_differences, [
+    { recipe_class: "/Game/Recipe/Smelter", left: 1, right: 0, delta: -1 },
+    { recipe_class: "/Game/Recipe/Wall", left: 0, right: 1, delta: 1 },
+  ]);
+  assert.deepEqual(result.comparison.cost_differences, [
+    { item_class: IRON_PLATE, left: 5, right: 8, delta: 3 },
+    { item_class: CABLE, left: 0, right: 2, delta: 2 },
+  ]);
+  assert.equal(result.comparison.topology_delta.power_wire_edges.delta, 2);
+  assert.equal(result.comparison.topology_delta.hypertube_pairs.delta, -4);
+  assert.match(result.caveat, /serialized native Blueprint/i);
+  assert.ok(result.claims_not_made.some((claim) => /snap compatibility/i.test(claim)));
+});
+
+test("keeps Blueprint comparison unavailable when one exact inspection fails", () => {
+  const result = compareBlueprintStructures(
+    comparisonInspection("Good"),
+    { available: false, blueprint_name: "Missing", reason: "blueprint_not_found", certainty: "unknown" },
+  );
+  assert.equal(result.available, false);
+  assert.equal(result.reason, "one_or_both_blueprint_inspections_unavailable");
+  assert.equal(result.right.reason, "blueprint_not_found");
+});
+
+test("marks changed class evidence inconclusive when an inspection truncated its class list", () => {
+  const result = compareBlueprintStructures(
+    comparisonInspection("Left", { truncated: 1 }),
+    comparisonInspection("Right"),
+  );
+  assert.equal(result.available, true);
+  assert.equal(result.comparison.class_differences_complete, false);
+  assert.match(result.comparison.class_differences_reason, /truncated/i);
+  assert.equal(result.certainty, "authoritative_with_inconclusive_or_truncated_comparison_fields");
+});
+
+test("the comparison solver bounds both read-only inspections and preserves world revision", () => {
+  const graph = buildGraph(buildFactorySnapshot());
+  const calls = [];
+  const result = solveBlueprintComparison(
+    graph,
+    {
+      left_blueprint_name: "Left",
+      right_blueprint_name: "Right",
+      maximum_class_differences: 2,
+      maximum_recipe_differences: 3,
+      maximum_cost_differences: 4,
+    },
+    {
+      inspectBlueprint: (name, options) => {
+        calls.push({ name, options });
+        return comparisonInspection(name);
+      },
+    },
+  );
+  assert.equal(result.solver, "blueprint_comparison");
+  assert.equal(result.world_revision, graph.world_revision);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].options, {
+    maximumBuildables: 1,
+    maximumConnections: 1,
+    maximumPowerWires: 1,
+    maximumRailTracks: 1,
+    maximumRailSplinePoints: 1,
+    maximumHypertubeConnections: 1,
+    maximumHypertubePipes: 1,
+    maximumHypertubeSplinePoints: 1,
+  });
 });
 
 test("the configured reader stays inside its library and resolves one exact native blueprint", () => {

@@ -36,7 +36,8 @@ function cleanBlueprintName(value) {
  * @param {string=} args.description Native Blueprint description.
  * @param {string=} args.schema v1 preserves the standalone-only contract; v2
  * carries explicit native conveyor and physical power-wire topology; v3 adds
- * explicit straight native fluid pipelines.
+ * explicit straight native fluid pipelines; v4 adds one-to-one configured
+ * solid-resource Anchor to vanilla Miner relationships.
  * @param {Array<object>=} args.power_connections Explicit wire links expressed
  * with from_step/to_step references to place_building actions.
  * @param {Array<object>=} args.pipeline_connections Explicit directed fluid
@@ -59,7 +60,7 @@ export function compileGeneratedBlueprint({
     return { compiled: false, reason: "a_generated_blueprint_needs_at_least_one_building" };
   }
 
-  if (!["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3"].includes(schema)) {
+  if (!["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4"].includes(schema)) {
     return { compiled: false, reason: "unsupported_generated_blueprint_schema" };
   }
 
@@ -75,10 +76,10 @@ export function compileGeneratedBlueprint({
       compiled: false,
       reason: schema.endsWith("/v1")
         ? "generated_blueprint_v1_accepts_only_standalone_buildings"
-        : "generated_blueprint_v2_action_is_unsupported",
+        : "generated_blueprint_action_is_unsupported_for_schema",
       unsupported,
       unsupported_note:
-        "Belts, pipes, wires, miners/resource anchors and attachment-dependent pieces need native topology-specific generation before they may be included.",
+        "Belts, pipes, wires, miners/resource anchors and attachment-dependent pieces need their matching generated Blueprint schema before they may be included.",
     };
   }
 
@@ -102,29 +103,61 @@ export function compileGeneratedBlueprint({
   const buildables = [];
   const partIdByActionStep = new Map();
   for (const [index, action] of actions.entries()) {
+    if (action?.action === "place_building") {
+      partIdByActionStep.set(index + 1, `part-${String(index + 1).padStart(4, "0")}`);
+    }
+  }
+  for (const [index, action] of actions.entries()) {
     if (action?.action !== "place_building") continue;
     const recipeClass = String(action?.recipe_class ?? "").trim();
     const location = explicitVector(action?.location);
     const yaw = finite(action?.yaw ?? 0);
+    const role = String(action.generated_role ?? "standalone").trim().toLowerCase();
     if (!recipeClass) {
       return { compiled: false, reason: "generated_building_recipe_is_required", step: index + 1 };
     }
     if (!location || yaw === null) {
       return { compiled: false, reason: "generated_building_transform_must_be_finite", step: index + 1 };
     }
-    if (action.target_actor_id || action.target_step) {
+    if (action.target_actor_id || (action.target_step && !(schema.endsWith("/v4") && role === "miner"))) {
       return {
         compiled: false,
-        reason: "generated_blueprint_v1_does_not_support_snap_or_resource_targets",
+        reason: "generated_blueprint_does_not_support_this_snap_or_resource_target",
         step: index + 1,
       };
     }
 
-    const partId = `part-${String(index + 1).padStart(4, "0")}`;
-    partIdByActionStep.set(index + 1, partId);
+    const partId = partIdByActionStep.get(index + 1);
+    const resourceClass = String(action.resource_class ?? "").trim();
+    const resourcePurity = String(action.resource_purity ?? "").trim();
+    const resourceAnchorStep = Number(action.target_step);
+    if (role === "resource_anchor") {
+      if (!schema.endsWith("/v4")) {
+        return { compiled: false, reason: "generated_resource_anchor_requires_v4", step: index + 1 };
+      }
+      if (!resourceClass || !["RP_Inpure", "RP_Normal", "RP_Pure"].includes(resourcePurity)) {
+        return { compiled: false, reason: "generated_resource_anchor_configuration_is_required", step: index + 1 };
+      }
+      if (action.production_recipe_class || action.target_step) {
+        return { compiled: false, reason: "generated_resource_anchor_cannot_have_recipe_or_target", step: index + 1 };
+      }
+    } else if (role === "miner") {
+      if (!schema.endsWith("/v4")) {
+        return { compiled: false, reason: "generated_miner_requires_v4", step: index + 1 };
+      }
+      if (!Number.isInteger(resourceAnchorStep) || !partIdByActionStep.has(resourceAnchorStep)) {
+        return { compiled: false, reason: "generated_miner_requires_resource_anchor_step", step: index + 1 };
+      }
+      if (action.production_recipe_class || resourceClass || resourcePurity) {
+        return { compiled: false, reason: "generated_miner_configuration_belongs_to_its_anchor", step: index + 1 };
+      }
+    } else if (resourceClass || resourcePurity || action.target_step) {
+      return { compiled: false, reason: "generated_resource_fields_require_anchor_or_miner_role", step: index + 1 };
+    }
+
     buildables.push({
       part_id: partId,
-      role: String(action.generated_role ?? "standalone").trim().toLowerCase(),
+      role,
       recipe_class: recipeClass,
       ...(String(action.production_recipe_class ?? "").trim()
         ? { production_recipe_class: String(action.production_recipe_class).trim() }
@@ -135,7 +168,38 @@ export function compileGeneratedBlueprint({
         z: location.z - origin.z,
       },
       yaw,
+      ...(role === "resource_anchor"
+        ? { resource_class: resourceClass, resource_purity: resourcePurity }
+        : {}),
+      ...(role === "miner"
+        ? { resource_anchor_part_id: partIdByActionStep.get(resourceAnchorStep) }
+        : {}),
     });
+  }
+
+  const partsById = new Map(buildables.map((part) => [part.part_id, part]));
+  const usedAnchors = new Set();
+  for (const part of buildables) {
+    if (part.role !== "miner") continue;
+    const anchor = partsById.get(part.resource_anchor_part_id);
+    if (anchor?.role !== "resource_anchor") {
+      return { compiled: false, reason: "generated_miner_target_is_not_a_resource_anchor", part_id: part.part_id };
+    }
+    if (usedAnchors.has(anchor.part_id)) {
+      return { compiled: false, reason: "generated_resource_anchor_can_bind_only_one_miner", part_id: part.part_id };
+    }
+    usedAnchors.add(anchor.part_id);
+  }
+  const resourceAnchorCount = buildables.filter((part) => part.role === "resource_anchor").length;
+  const minerCount = buildables.filter((part) => part.role === "miner").length;
+  if (resourceAnchorCount !== minerCount || usedAnchors.size !== resourceAnchorCount) {
+    return {
+      compiled: false,
+      reason: "generated_resource_anchors_require_one_to_one_miner_bindings",
+      resource_anchors: resourceAnchorCount,
+      miners: minerCount,
+      bound_resource_anchors: usedAnchors.size,
+    };
   }
 
   const compileTopologyLinks = (links, kind) => {
@@ -230,20 +294,24 @@ export function compileGeneratedBlueprint({
       conveyors: compiledConveyors.links.length,
       power_wires: compiledPower.links.length,
       pipelines: compiledPipelines.links.length,
+      resource_anchors: resourceAnchorCount,
+      miners: minerCount,
     },
     topology: {
       belts: !schema.endsWith("/v1")
         ? `${compiledConveyors.links.length}_explicit_native_links`
         : "not_generated_in_v1",
-      pipes: schema.endsWith("/v3")
+      pipes: schema.endsWith("/v3") || schema.endsWith("/v4")
         ? `${compiledPipelines.links.length}_explicit_straight_native_links`
         : (schema.endsWith("/v2") ? "not_generated_in_v2" : "not_generated_in_v1"),
       power_wires: !schema.endsWith("/v1")
         ? `${compiledPower.links.length}_explicit_physical_links`
         : "not_generated_in_v1",
-      miners_and_resource_anchors: schema.endsWith("/v1")
-        ? "not_generated_in_v1"
-        : `not_generated_in_${schema.split("/").pop()}`,
+      miners_and_resource_anchors: schema.endsWith("/v4")
+        ? `${minerCount}_explicit_one_to_one_native_bindings`
+        : (schema.endsWith("/v1")
+            ? "not_generated_in_v1"
+            : `not_generated_in_${schema.split("/").pop()}`),
     },
     validation:
       "The companion validates captured unlock evidence and finite relative geometry. The game resolves every class again, measures staged native component bounds, rejects internal volumetric overlap, serializes through a real Blueprint Designer, destroys all staging actors, and reads the file back.",
@@ -253,7 +321,7 @@ export function compileGeneratedBlueprint({
 /** Turn a compiled layout into the single typed write the game understands. */
 export function generatedBlueprintAction(compiled, { commit = false } = {}) {
   if (!compiled?.compiled ||
-      !["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3"].includes(compiled.schema)) {
+      !["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4"].includes(compiled.schema)) {
     return null;
   }
   return {
@@ -266,7 +334,9 @@ export function generatedBlueprintAction(compiled, { commit = false } = {}) {
       ? {
           conveyors: compiled.conveyors ?? [],
           power_wires: compiled.power_wires ?? [],
-          ...(compiled.schema.endsWith("/v3") ? { pipelines: compiled.pipelines ?? [] } : {}),
+          ...((compiled.schema.endsWith("/v3") || compiled.schema.endsWith("/v4"))
+            ? { pipelines: compiled.pipelines ?? [] }
+            : {}),
         }
       : {}),
     commit: commit === true,

@@ -30,6 +30,7 @@ test("exposes the roadmap solver set to the model", () => {
   assert.deepEqual(names, [
     "audit_blueprint_placement",
     "clear_highlight",
+    "compare_blueprint_layouts",
     "design_base",
     "design_composition",
     "design_factory_layout",
@@ -63,11 +64,29 @@ test("the native Blueprint inspector exposes bounded exact transport and physica
   assert.ok(blueprintInspector);
   assert.equal(blueprintInspector.parameters.properties.maximum_connections.type, "number");
   assert.equal(blueprintInspector.parameters.properties.maximum_power_wires.type, "number");
+  assert.equal(blueprintInspector.parameters.properties.maximum_hypertube_connections.type, "number");
+  assert.equal(blueprintInspector.parameters.properties.maximum_hypertube_pipes.type, "number");
   assert.match(blueprintInspector.description, /reciprocal conveyor\/pipe component links/i);
   assert.match(blueprintInspector.description, /physical native power-wire endpoint pairs/i);
+  assert.match(blueprintInspector.description, /railroad-track spline records/i);
+  assert.match(blueprintInspector.description, /FGPipeConnectionComponentHyper/i);
+  assert.match(blueprintInspector.description, /PipeHyper spline points/i);
+  assert.match(blueprintInspector.description, /mTrackGraphID/i);
   assert.match(blueprintInspector.description, /mHiddenConnections logical circuit relationships are deliberately excluded/i);
   assert.match(blueprintInspector.description, /does not infer item\/fluid direction/i);
   assert.match(blueprintInspector.description, /electricity direction\/load\/capacity/i);
+});
+
+test("the native Blueprint comparison tool exposes bounded serialized evidence", () => {
+  const comparison = SOLVER_TOOLS.find((tool) => tool.name === "compare_blueprint_layouts");
+  assert.ok(comparison);
+  assert.deepEqual(comparison.parameters.required, ["left_blueprint_name", "right_blueprint_name"]);
+  assert.equal(comparison.parameters.properties.maximum_class_differences.type, "number");
+  assert.equal(comparison.parameters.properties.maximum_recipe_differences.type, "number");
+  assert.equal(comparison.parameters.properties.maximum_cost_differences.type, "number");
+  assert.match(comparison.description, /exact saved native blueprints/i);
+  assert.match(comparison.description, /never infers visual theme/i);
+  assert.match(comparison.description, /snap compatibility/i);
 });
 
 test("the runtime Blueprint audit describes Resource Anchor evidence and client uncertainty", () => {

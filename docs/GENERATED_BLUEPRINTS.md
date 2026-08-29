@@ -7,7 +7,7 @@ the world:
 live recipe/unlock snapshot
   -> deterministic production quantities
   -> measured/grid-aligned architecture and machine transforms
-  -> aifactory.generated-blueprint/v1 (standalone) or /v2 (explicit topology)
+  -> aifactory.generated-blueprint/v1..v4 (progressively explicit topology)
   -> transient native actors in an empty real Blueprint Designer
   -> native SaveBlueprint + ReadBlueprintFromDisc
   -> vanilla Blueprint library and Build Gun hologram
@@ -44,7 +44,10 @@ snapshot proves available. The game repeats the decision from live state:
   archive into Satisfactory's isolated Blueprint world and requires the same
   buildable count, configured manufacturer recipes, conveyor actors with exact
   reciprocal output-to-input component links, and physical power wires present
-  in both endpoint components.
+  in both endpoint components. v3 applies the same rule to native pipeline
+  endpoints. v4 additionally requires every saved Resource Anchor's exact
+  resource/purity configuration and one-to-one saved vanilla Miner identity to
+  survive that isolated-world reconstruction.
 
 No world factory is placed during generation. The durable effect is a native
 Blueprint file, so the action is a standalone committed write and is not placed
@@ -87,10 +90,31 @@ Version 2 adds:
   are ordinary generated buildables, so a planner can explicitly fan out while
   the native component enforces its real connection limit.
 
-Both are reconstructed from the saved file and read back before success. The
-remaining fail-closed boundary is:
+Version 3 adds directed straight native pipelines between exact captured pipe
+ports, including native length limits. It does not infer pumps, head lift,
+fluid rates, or junction manifolds.
 
-- pipes, pumps, junction topology, and fluids;
+Version 4 adds one narrow raw-resource primitive:
+
+- one `resource_anchor` part configured with an exact captured solid resource
+  descriptor and `RP_Inpure`, `RP_Normal`, or `RP_Pure`;
+- exactly one `miner` part using a captured vanilla Miner Mk.1, Mk.2, or Mk.3
+  Build Gun recipe and naming that Anchor's generated `part_id`;
+- the game builds the Anchor's real transient node, binds the exact staged
+  Miner, writes the native `.sbp`, reloads it in the isolated Blueprint world,
+  and refuses success unless configuration, object-identity mapping, and each
+  resource/purity/Miner-class pairing survive.
+
+This does not spawn a raw world node and it does not claim a destination node
+or terrain is aligned. Final placement remains the vanilla Build Gun hologram's
+decision. Fluid/oil/gas/fracking extractors, portable miners, and modded
+extractors remain refused.
+
+Every supported topology is reconstructed from the saved file and read back
+before success. The remaining fail-closed boundary is:
+
+- non-straight/branched pipe routing, pumps, head lift, junction topology,
+  and fluid-rate design;
 - conveyor lifts, poles, and non-collinear multi-leg routing;
-- miners and Blueprint Resource Anchors;
+- automatic resource-node discovery/alignment and non-vanilla extractors;
 - pieces whose validity depends on a separate snapped host.

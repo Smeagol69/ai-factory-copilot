@@ -7,7 +7,7 @@
  * and the field that was missing.
  */
 
-import { costAgainstInventory } from "./blueprints.mjs";
+import { compareBlueprintStructures, costAgainstInventory } from "./blueprints.mjs";
 import {
   getCurrentSessionBlueprintRegistry,
   resolveCurrentSessionBlueprint,
@@ -1740,6 +1740,11 @@ export function solveBlueprintLayout(
     maximum_buildables = 80,
     maximum_connections = 80,
     maximum_power_wires = 80,
+    maximum_rail_tracks = 40,
+    maximum_rail_spline_points = 200,
+    maximum_hypertube_connections = 80,
+    maximum_hypertube_pipes = 40,
+    maximum_hypertube_spline_points = 200,
   } = {},
   { inspectBlueprint = null } = {},
 ) {
@@ -1770,6 +1775,11 @@ export function solveBlueprintLayout(
     maximumBuildables: maximum_buildables,
     maximumConnections: maximum_connections,
     maximumPowerWires: maximum_power_wires,
+    maximumRailTracks: maximum_rail_tracks,
+    maximumRailSplinePoints: maximum_rail_spline_points,
+    maximumHypertubeConnections: maximum_hypertube_connections,
+    maximumHypertubePipes: maximum_hypertube_pipes,
+    maximumHypertubeSplinePoints: maximum_hypertube_spline_points,
   });
   if (!structure?.available) {
     return {
@@ -1792,6 +1802,88 @@ export function solveBlueprintLayout(
     ...costAgainstInventory(structure.header, totals),
     source: "decoded_from_saved_native_blueprint",
     certainty: structure.certainty,
+  };
+}
+
+/**
+ * Compares two exact saved Blueprint inspections without exposing their full
+ * entity streams to the model. Aggregate class, recipe, cost, transform-span,
+ * and native topology facts remain on the bridge; only the bounded comparison
+ * is returned. Missing or truncated evidence stays unknown.
+ */
+export function solveBlueprintComparison(
+  graph,
+  {
+    left_blueprint_name = null,
+    right_blueprint_name = null,
+    maximum_class_differences = 100,
+    maximum_recipe_differences = 100,
+    maximum_cost_differences = 100,
+  } = {},
+  { inspectBlueprint = null } = {},
+) {
+  const unavailable = (reason, extra = {}) => ({
+    solver: "blueprint_comparison",
+    world_revision: graph.world_revision,
+    available: false,
+    reason,
+    source: "none",
+    certainty: "unknown",
+    ...extra,
+  });
+  if (typeof inspectBlueprint !== "function") {
+    return unavailable(
+      "blueprint_directory_not_configured",
+      { note: "Set AIFACTORY_BLUEPRINT_DIR so the bridge can read the saved blueprint folder." },
+    );
+  }
+  if (typeof left_blueprint_name !== "string" || !left_blueprint_name.trim()) {
+    return unavailable("left_blueprint_name_required", {
+      note: "Use an exact blueprint name or blueprint_reference returned by list_blueprints.",
+    });
+  }
+  if (typeof right_blueprint_name !== "string" || !right_blueprint_name.trim()) {
+    return unavailable("right_blueprint_name_required", {
+      note: "Use an exact blueprint name or blueprint_reference returned by list_blueprints.",
+    });
+  }
+
+  const inspectionOptions = {
+    // The comparison uses exact aggregates. Individual entity and edge rows
+    // would only duplicate a later inspect_blueprint_layout call.
+    maximumBuildables: 1,
+    maximumConnections: 1,
+    maximumPowerWires: 1,
+    maximumRailTracks: 1,
+    maximumRailSplinePoints: 1,
+    maximumHypertubeConnections: 1,
+    maximumHypertubePipes: 1,
+    maximumHypertubeSplinePoints: 1,
+  };
+  const inspectOne = (name) => {
+    try {
+      return inspectBlueprint(name.trim(), inspectionOptions);
+    } catch (error) {
+      return {
+        available: false,
+        blueprint_name: name.trim(),
+        reason: "blueprint_inspection_failed",
+        diagnostic: error instanceof Error ? error.message : String(error),
+        source: "none",
+        certainty: "unknown",
+      };
+    }
+  };
+  const left = inspectOne(left_blueprint_name);
+  const right = inspectOne(right_blueprint_name);
+  return {
+    solver: "blueprint_comparison",
+    world_revision: graph.world_revision,
+    ...compareBlueprintStructures(left, right, {
+      maximumClassDifferences: maximum_class_differences,
+      maximumRecipeDifferences: maximum_recipe_differences,
+      maximumCostDifferences: maximum_cost_differences,
+    }),
   };
 }
 

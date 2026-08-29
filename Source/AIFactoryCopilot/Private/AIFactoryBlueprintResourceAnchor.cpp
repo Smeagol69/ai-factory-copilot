@@ -26,24 +26,10 @@ namespace
         return Purity == RP_Inpure || Purity == RP_Normal || Purity == RP_Pure;
     }
 
-    bool IsTargetedVanillaMinerClass(const UClass* BuildableClass)
-    {
-        if (!IsValid(BuildableClass) ||
-            !BuildableClass->IsChildOf(AFGBuildableResourceExtractorBase::StaticClass()))
-        {
-            return false;
-        }
-
-        const FName Name = BuildableClass->GetFName();
-        return Name == TEXT("Build_MinerMk1_C") ||
-            Name == TEXT("Build_MinerMk2_C") ||
-            Name == TEXT("Build_MinerMk3_C");
-    }
-
     bool EnableMinerHologramDesignerFlag(UClass* BuildableClass, FString& OutReason)
     {
         OutReason.Reset();
-        if (!IsTargetedVanillaMinerClass(BuildableClass))
+        if (!AAIFactoryBlueprintResourceAnchor::IsSupportedVanillaMinerClass(BuildableClass))
         {
             OutReason = TEXT("not_a_targeted_vanilla_miner");
             return false;
@@ -76,6 +62,21 @@ namespace
         CanPlaceInDesigner->SetPropertyValue_InContainer(HologramDefault, true);
         return true;
     }
+}
+
+bool AAIFactoryBlueprintResourceAnchor::IsSupportedVanillaMinerClass(
+    const UClass* const BuildableClass)
+{
+    if (!IsValid(BuildableClass) ||
+        !BuildableClass->IsChildOf(AFGBuildableResourceExtractorBase::StaticClass()))
+    {
+        return false;
+    }
+
+    const FName Name = BuildableClass->GetFName();
+    return Name == TEXT("Build_MinerMk1_C") ||
+        Name == TEXT("Build_MinerMk2_C") ||
+        Name == TEXT("Build_MinerMk3_C");
 }
 
 AAIFactoryBlueprintAnchorNode::AAIFactoryBlueprintAnchorNode()
@@ -549,7 +550,7 @@ void AAIFactoryBlueprintResourceAnchor::EnableVanillaMinersInBlueprintDesigner(U
     for (int32 Index = Blueprints->mBlacklistedDesignerBuildables.Num() - 1; Index >= 0; --Index)
     {
         UClass* const BuildableClass = Blueprints->mBlacklistedDesignerBuildables[Index].Get();
-        if (!IsTargetedVanillaMinerClass(BuildableClass))
+        if (!IsSupportedVanillaMinerClass(BuildableClass))
         {
             continue;
         }
@@ -573,6 +574,73 @@ void AAIFactoryBlueprintResourceAnchor::EnableVanillaMinersInBlueprintDesigner(U
         TEXT("Blueprint Resource Anchor Designer opt-in: enabled=%d failed=%d (only Miner Mk.1–Mk.3; normal node validation remains active)"),
         Enabled,
         Failed);
+}
+
+bool AAIFactoryBlueprintResourceAnchor::BindGeneratedMiner(
+    AFGBuildableResourceExtractorBase* const Extractor,
+    FString& OutReason)
+{
+    OutReason.Reset();
+    if (!HasAuthority())
+    {
+        OutReason = TEXT("only the host can bind a generated Blueprint Miner");
+        return false;
+    }
+    if (!IsValid(Extractor) || Extractor->GetWorld() != GetWorld() ||
+        !IsSupportedVanillaMinerClass(Extractor->GetClass()))
+    {
+        OutReason = TEXT("generated Blueprint Anchor accepts only a same-world vanilla Miner Mk.1-Mk.3");
+        return false;
+    }
+    if (!EnsureRuntimeNode(OutReason) || !IsValid(mRuntimeNode))
+    {
+        return false;
+    }
+    if (Extractor->GetExtractableResource().GetObject() != nullptr ||
+        Extractor->GetResourceNode() != nullptr ||
+        !mRuntimeNode->CanBecomeOccupied() || mRuntimeNode->IsOccupied())
+    {
+        OutReason = TEXT("generated Blueprint Miner or Anchor node is already occupied");
+        return false;
+    }
+
+    const TScriptInterface<IFGExtractableResourceInterface> Resource =
+        MakeExtractableInterface(mRuntimeNode);
+    if (!IsValid(Resource.GetObject()) || Resource.GetInterface() == nullptr)
+    {
+        OutReason = TEXT("generated Blueprint Anchor did not expose an extractable interface");
+        return false;
+    }
+
+    Extractor->SetExtractableResource(Resource);
+    if (Extractor->GetExtractableResource().GetObject() != mRuntimeNode)
+    {
+        OutReason = TEXT("generated Blueprint Miner binding readback failed");
+        return false;
+    }
+    mRuntimeNode->SetIsOccupied(true);
+    if (!mRuntimeNode->IsOccupied())
+    {
+        Extractor->DisconnectExtractableResource();
+        OutReason = TEXT("generated Blueprint Anchor occupancy readback failed");
+        return false;
+    }
+
+    mBoundExtractors.AddUnique(Extractor);
+    if (!mBoundExtractors.Contains(Extractor))
+    {
+        Extractor->DisconnectExtractableResource();
+        mRuntimeNode->SetIsOccupied(false);
+        OutReason = TEXT("generated Blueprint Anchor could not persist the Miner mapping");
+        return false;
+    }
+    return true;
+}
+
+bool AAIFactoryBlueprintResourceAnchor::HasRecordedBoundExtractor(
+    const AFGBuildableResourceExtractorBase* const Extractor) const
+{
+    return IsValid(Extractor) && mBoundExtractors.Contains(Extractor);
 }
 
 bool AAIFactoryBlueprintResourceAnchor::EnsureRuntimeNode(FString& OutReason)

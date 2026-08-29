@@ -11,6 +11,7 @@ import {
   parseExactBeltSolverRequest,
   parseAimedFactoryRequest,
   parseBlueprintPlacementAuditRequest,
+  parseBlueprintComparisonRequest,
   parseBlueprintLayoutRequest,
   parseBlueprintListRequest,
   parseBlueprintPreviewRequest,
@@ -942,6 +943,145 @@ test("native-blueprint inspection reports reciprocal belt and pipe evidence with
   assert.match(answer.reply, /hidden circuit connections are deliberately excluded/i);
   assert.match(answer.reply, /electricity direction, load, capacity.*not inferred/i);
   assert.doesNotMatch(answer.reply, /flow direction.*proved/i);
+});
+
+test("an explicit native-blueprint comparison stays local, exact, and read-only", () => {
+  assert.deepEqual(
+    parseBlueprintComparisonRequest(
+      'compare blueprint "Underground Level (Enclosed)[Mk.1]" with blueprint "Main Level (Building Shell)[Mk.1]"',
+    ),
+    {
+      left_blueprint_name: "Underground Level (Enclosed)[Mk.1]",
+      right_blueprint_name: "Main Level (Building Shell)[Mk.1]",
+    },
+  );
+  assert.equal(parseBlueprintComparisonRequest("compare mk2 and mk3 belts"), null);
+  assert.equal(parseBlueprintComparisonRequest("compare blueprint C:/unsafe with blueprint Other"), null);
+
+  const inspection = (name) => ({
+    available: true,
+    blueprint_name: name,
+    header: {
+      blueprint_header_version: 2,
+      factory_save_custom_version: 58,
+      game_changelist: 502094,
+      designer_dimensions: { x: 4, y: 4, z: 4 },
+      recipe_references: [],
+      build_cost: [],
+    },
+    decoded: {
+      object_count: 5,
+      entity_count: 4,
+      component_count: 1,
+      buildable_count: 4,
+      buildables_with_finite_transform: 4,
+    },
+    buildable_classes: [],
+    buildable_classes_truncated: 0,
+    pivot_bounds_cm: { span_cm: { x: 3200, y: 3200, z: 3200 } },
+    connection_topology: { status: "decoded", reciprocal_connection_pair_count: 0, reciprocal_connection_pairs_by_kind: {} },
+    power_wire_topology: { status: "decoded", verified_power_wire_count: 0 },
+    rail_topology: { status: "decoded", native_rail_track_entity_count: 0, total_spline_point_count: 0 },
+    hypertube_topology: { status: "decoded", reciprocal_connection_pair_count: 0, hypertube_pipe_entity_count: 0, total_spline_point_count: 0 },
+    source: "decoded_from_saved_native_blueprint",
+    certainty: "authoritative_for_decoded_entities",
+  });
+  const answer = answerLocally(
+    "compare blueprint Lower with blueprint Upper",
+    graphOf(),
+    { inspectBlueprint: (name) => inspection(name) },
+  );
+  assert.equal(answer?.local?.solver, "compare_blueprint_layouts");
+  assert.match(answer.reply, /Blueprint comparison/i);
+  assert.match(answer.reply, /serialized native evidence only/i);
+  assert.match(answer.reply, /Nothing was changed in the world/i);
+});
+
+test("native-blueprint inspection reports saved rail spline evidence without claiming tunnel joins", () => {
+  const answer = answerLocally("inspect blueprint Mountain tunnel mid", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Mountain tunnel mid",
+      decoded: { buildable_count: 92, component_count: 10 },
+      buildable_classes: [{ class_name: "RailroadTrack", count: 1 }],
+      pivot_bounds_cm: { span_cm: { x: 2000, y: 4400, z: 1300 } },
+      buildables_returned: 80,
+      buildables_truncated: 12,
+      header: { build_cost: [] },
+      connection_topology: { status: "decoded", supported_connection_reference_record_count: 0, reciprocal_connection_pair_count: 0 },
+      power_wire_topology: { status: "decoded", native_power_connection_component_count: 0, saved_power_wire_reference_count: 0, verified_power_wire_count: 0 },
+      rail_topology: {
+        status: "decoded",
+        native_rail_track_entity_count: 1,
+        total_spline_point_count: 2,
+        rail_track_records_returned: 1,
+        rail_track_records_truncated: 0,
+        malformed_rail_track_entity_record_count: 0,
+        missing_track_graph_id_count: 0,
+        malformed_track_graph_id_count: 0,
+        missing_spline_data_count: 0,
+        malformed_spline_data_count: 0,
+        malformed_spline_point_count: 0,
+      },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /1.*native railroad track segment/i);
+  assert.match(answer.reply, /2.*saved spline points/i);
+  assert.match(answer.reply, /do not prove that segments will join/i);
+  assert.match(answer.reply, /clear mountain terrain/i);
+});
+
+test("native-blueprint inspection reports hypertube links and splines without claiming a destination join", () => {
+  const answer = answerLocally("inspect blueprint Enclosed underground level", graphOf(), {
+    inspectBlueprint: () => ({
+      available: true,
+      blueprint_name: "Enclosed underground level",
+      decoded: { buildable_count: 248, component_count: 172 },
+      buildable_classes: [{ class_name: "PipeHyper", count: 2 }],
+      pivot_bounds_cm: { span_cm: { x: 3200, y: 3200, z: 3150 } },
+      buildables_returned: 80,
+      buildables_truncated: 168,
+      header: { build_cost: [] },
+      connection_topology: { status: "decoded", supported_connection_reference_record_count: 0, reciprocal_connection_pair_count: 0 },
+      power_wire_topology: { status: "decoded", native_power_connection_component_count: 30, saved_power_wire_reference_count: 50, verified_power_wire_count: 25 },
+      rail_topology: { status: "decoded", native_rail_track_entity_count: 0, total_spline_point_count: 0 },
+      hypertube_topology: {
+        status: "decoded",
+        native_hypertube_connection_component_count: 10,
+        supported_connection_reference_record_count: 8,
+        reciprocal_connection_pair_count: 4,
+        connections_returned: 4,
+        connections_truncated: 0,
+        hypertube_pipe_entity_count: 2,
+        total_spline_point_count: 11,
+        pipe_records_returned: 2,
+        pipe_records_truncated: 0,
+        malformed_component_reference_count: 0,
+        unresolved_component_reference_count: 0,
+        ambiguous_component_reference_count: 0,
+        nonreciprocal_component_reference_count: 0,
+        unsupported_target_component_reference_count: 0,
+        self_component_reference_count: 0,
+        malformed_pipe_entity_record_count: 0,
+        missing_spline_data_count: 0,
+        malformed_spline_data_count: 0,
+        malformed_spline_point_count: 0,
+        malformed_passthrough_property_count: 0,
+        malformed_passthrough_reference_count: 0,
+      },
+      source: "decoded_from_saved_native_blueprint",
+      certainty: "authoritative_for_decoded_entities",
+    }),
+  });
+  assert.equal(answer?.local?.solver, "inspect_blueprint_layout");
+  assert.match(answer.reply, /4.*reciprocal internal native hypertube connection pairs/i);
+  assert.match(answer.reply, /11.*spline points/i);
+  assert.match(answer.reply, /all.*8.*supported Hyper connection reference records resolved reciprocally/i);
+  assert.match(answer.reply, /does not prove traversal direction, speed, throughput/i);
+  assert.match(answer.reply, /cross-blueprint joins/i);
 });
 
 test("a listed blueprint reference disambiguates safely, but never accepts traversal", () => {

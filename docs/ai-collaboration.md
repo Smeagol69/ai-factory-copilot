@@ -46,7 +46,11 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
+| 2026-08-29 | Codex | `codex/generated-blueprint-resource-anchors` | Extend the already deployed generated native Blueprint v3 contract with a fail-closed v4 Resource Anchor/miner primitive. A v4 layout may carry an explicitly configured solid-resource `AAIFactoryBlueprintResourceAnchor` and exactly one explicitly related vanilla Miner Mk.1–Mk.3; the bridge rechecks the captured resource descriptor, purity, Build Gun recipes, roles, and one-to-one relationship, while the game configures the real Anchor node, binds the exact staged Miner, serializes through the real Designer, and requires the persisted Anchor↔Miner mapping on isolated-world readback. Preserve v1–v3, generated belts/power/pipelines, selection export, Build Gun preview, Claude's routing/UI/Node Editor, and every world-write gate. No fluids/oil/gas/fracking, portable or modded extractors, raw resource spawning, automatic terrain placement, or claim that a destination node exists. Expected crossings: generated Blueprint companion/action/tool contracts, `AIFactoryBlueprintExport`, the existing Anchor's narrow public binding/readback helpers, focused tests, and append-only docs. | implementation complete and source-verified: 875/875 companion tests, exact headers, Shipping and Editor module builds, full FactoryEditor target, and no-deploy UAT cook/archive pass. Exact multi-Anchor readback also fingerprints resource/purity/Miner-class pairings. Archive SHA-256 `2562E5C98E69C4AB74F3318366F152E25E74711CCD4D4E716A154DF8DFF4F9B1`. Game PID 40336 is still running, so deployment, companion install, native v4 file generation, isolated-world result observation in the packaged game, and vanilla Build Gun placement remain deliberately pending. |
 | 2026-08-28 | Codex | `codex/generated-blueprint-pipeline-topology` | Add the next topology primitive on top of deployed `a1f11f4`: explicit native pipeline links inside planner-generated Blueprints. Ground every API in CL 502094; capture exact pipe-connector type/direction metadata and native pipeline spline/length capability from unlocked Build Gun recipes; extend the generated schema, transient Designer staging, and isolated Blueprint-world readback so a straight pipe is accepted only when both exact endpoints are compatible and reciprocal after save/load. Add focused companion/source tests, then compile/package/deploy with the game closed. This does not claim pumps, head lift, fluid rate, junction manifolds, miner/resource anchoring, or automatic coal-power layout yet. Existing conveyors, power topology, vision, selection export, Node Editor, direct builds, and v1/v2 compatibility remain preserved. | complete, packaged, deployed, and companion-installed from `4fd5237`: v3 captures exact native pipe-port type/transform/clearance plus pipeline flow and hologram length limits, stages a narrow straight spline, and requires reciprocal isolated-world readback. Exact headers, 861/861 tests, Editor/Shipping, and UAT pass. Fresh live snapshot and Build Gun placement remain unverified. |
+| 2026-08-28 | Codex | `codex/blueprint-rail-tunnel-reference` | Read-only native rail/tunnel reference inspection for the owner-supplied Entrance, Mid, and Facade `.sbp`/`.sbpcfg` set. Decode exact saved railroad-track `mSplineData` and `mTrackGraphID` records through the pinned serializer, expose bounded local spline points, Blueprint-relative endpoints, and chord-length/bounds evidence, and present style/topology facts to the assistant without inferring rail joins, terrain excavation, clearance, or destination Build Gun validity. Scope is companion parser/formatting/tool/provider contracts plus tests and append-only docs; no writer or world mutation. | complete and fast-forwarded to `master` at `86ad850`; 864/864 companion tests, `scripts/validate.ps1`, real tunnel-file inspection, and clean companion install pass; no C++ or world write |
+| 2026-08-28 | Codex | `codex/blueprint-hypertube-reference` | Read-only native hypertube reference inspection for the owner-supplied enclosed lower/main pair. Decode only the exact `FGPipeConnectionComponentHyper` reciprocal links, native `PipeHyper` spline points, passthrough/entrance ownership, and bounded transform evidence from the pinned serializer and CL 502094 headers. Preserve existing conveyor/pipe/power/rail topology contracts; do not infer traversal direction, throughput, terrain excavation, underground clearance, cross-blueprint joins, or write/place anything. | complete in `codex/blueprint-hypertube-reference`: companion decoder, router/tool/provider contracts, tests, changelog, and design-corpus handoff are committed; 867/867 tests and `scripts/validate.ps1` pass; no C++ or world write |
+| 2026-08-28 | Codex | `codex/blueprint-comparison` | Add a bounded, read-only comparison tool for two exact saved native Blueprints so Claude can see serialized design evidence side by side: header/version, measured object/class/recipe/cost totals, pivot spans, and decoded conveyor/pipe/power/rail/hypertube topology deltas. Preserve unknowns and truncation explicitly; never infer theme, snap compatibility, terrain fit, collision clearance, cross-file joins, or live flow. Scope is companion solver/tool/provider contracts, focused tests, changelog, and this append-only handoff; no C++ or world mutation. | complete on this branch; implementation follows claim commit `b9c8ce5` |
 | 2026-08-28 | Codex | `codex/generated-blueprint-power-design` | Add deterministic internal power distribution to planner-generated native Blueprints without hard-coded vanilla capacities. Capture each registered building descriptor's exact native circuit-connector count/max links from its buildable CDO in `AIFactorySnapshot.cpp`; add a companion planner that selects only captured-unlocked ground pole and physical wire recipes (including modded tiers), lays out a capacity-safe pole trunk beside generated machines, and passes explicit pole buildables plus wire edges into the already-proven v2 staging/readback contract. Update router copy and focused snapshot/planner/action/source tests. Existing belts, selection export, Build Gun preview/placement, Node Editor, vision, direct world builds, and v1 behavior remain preserved. No pipe/miner/hidden-wall-connection topology is claimed. | complete, packaged, deployed, and companion-installed from `cb2fdf5`: exact native connector/circuit/pole/wire capability capture; capacity-safe daisy chains or a minimum compatible pole trunk with one external-grid link reserved; exact game-side endpoint-length and reciprocal native readback. Exact headers, 859/859 tests, Editor/Shipping, and UAT pass. Fresh live snapshot and Build Gun placement remain unverified. |
 | 2026-08-27 | Codex | `codex/generated-blueprint-topology-vision` | Extend planner-generated native Blueprints without weakening the existing v1 fail-closed path. Phase 1: add explicit generated conveyor and physical power-wire topology contracts, stage them through verified CL 502094 native classes/components inside the transient Designer, then parse the saved `.sbp` and require exact reciprocal endpoint/wire readback before success. Phase 2: connect Claude's existing bounded `Vision/` PNG+sidecar ring to the companion/provider request path with strict size/age/count limits and explicit multimodal capability fallback, so screenshots can score aesthetics while snapshots/solvers remain authoritative for recipes, rates, geometry and writes. Expected crossings: `AIFactoryBlueprintExport.{h,cpp}`, generated action contract/router/tests, `providers.mjs`/server configuration/tests, append-only docs. Existing selection export, Build Gun preview, live placement, node editor, and non-vision text behavior remain preserved. | claimed; implementation starting from `origin/master` (`2fd3d95`) |
 | 2026-08-27 | Codex | `codex/generated-blueprint-live-fix` | Live-proof repair for the first planner-generated native Blueprint. Revision 221 proved two fail-closed defects without mutating the save: `plan_production` recursively selected unlocked Converter resource-conversion recipes instead of treating Iron Ore as the external factory input, producing a nonsensical nine-row chain; generated Foundation part `part-0001` then staged with no finite colliding-component bounds. Scope: preserve every existing planner/export/preview lane; make deterministic Blueprint planning stop at honest external/raw inputs and choose the smallest standard unlocked production path for this request, correct native staged-component registration/bounds using only verified CL 502094 APIs, add exact regressions for both observed failures, compile and deploy after the game closes, then repeat the same live command. No belts/pipes/wires/miners/power are claimed in this repair. | complete, packaged, deployed, and bridge-installed from `4b0ef70`: the exact revision-221 snapshot now plans one Smelter/standard Iron Ingot recipe with 30 Iron Ore/min as an evidenced external input and no Converter step. `FFGClearanceData` is the primary staged bound, with registered colliding/all-primitive bounds as exact fallbacks and per-source result counts. Exact headers plus **846/846** tests, Editor/Shipping builds, UAT archive/game copy pass. Archive 19,252,578 bytes, SHA-256 `2CA1375743A45AFF03DE83939E5ECA542B5A0BFF3C74FCD6DBDB37A37D52B8F3`; deployed DLL 1,214,464 bytes, SHA-256 `EA54FD147957D74C8A9764BAE90DAE7F44CEE2635E094925723DFD67D9E4ED89`. Bridge `1.0.0-beta.2` is ready. Repeat live generated-file/readback/Build-Gun placement remains required. |
@@ -4558,3 +4562,194 @@ dynamically and its CDO is incomplete, do not add a hard-coded fallback: capture
 a transient probe or real instance. Pumps, head lift, fluid-rate sizing,
 junction/manifold routing, terrain-aware water extraction, miner/resource-node
 anchoring, and an automatic coal-power Blueprint are still open.
+
+### Codex — 2026-08-28 native rail/tunnel reference handoff
+
+Branch: `codex/blueprint-rail-tunnel-reference`; claim commit `db39e67`.
+This lane is companion-only and read-only. It extends the pinned native
+Blueprint structural parser with exact `Build_RailroadTrack` records: saved
+actor transforms, `mTrackGraphID`, `mSplineData` locations and arrive/leave
+tangents, local point bounds, Blueprint-relative transformed endpoints, and a
+straight-line chord-length lower bound.
+Returned tracks and points are bounded, and malformed or missing fields remain
+explicitly inconclusive. No rail writer, raw actor spawn, terrain edit, or world
+mutation is involved; v1/v2 Blueprint behavior is preserved.
+
+The owner-supplied tunnel reference set was decoded with the pinned parser:
+`Mtn. Tunnel Ent. Straight [Mk. 3]` is FactoryGame CL 488068 with 117
+Build_* entities, 13 components, one native railroad track, and two saved
+spline points; `Mtn. Tunnel Mid. Straight [Mk. 3]` has 92 entities, 10
+components, one track, and two points; `Mtn. Tunnel Facade [Mk.3]` has 21
+entities, no components, and no native track. Their saved buildable pivot spans
+are respectively 22×44×15.5 m, 20×44×13 m, and 22×4×15 m. The entrance and
+middle repeat the polished quarter-pipe shell (24 + 24 + 24 + 12 pieces), while
+the facade carries the exterior wall/roof/door finish. All three use designer
+dimensions 6×6×6. The entrance and middle store `mTrackGraphID = 1`; that is
+preserved metadata, not proof that separate Blueprint placements join.
+
+The assistant can now use these exact records when studying a modular mountain
+tunnel style or comparing a proposed rail segment. It must still tell the
+player to place entrance/exit pieces at both mouths, chain middle pieces with
+the vanilla Build Gun snap, add the facade outside each opening, and connect
+the external railway. The blueprints do not excavate mountains, guarantee
+collision/clearance, create signals or power, or establish a through-route;
+Satisfactory's hologram and live rail graph remain authoritative at placement.
+
+### Codex — 2026-08-28 enclosed lower/main hypertube reference handoff
+
+Branch: `codex/blueprint-hypertube-reference`; claim commit `c0e47d0`.
+This lane is companion-only and read-only. `companion/lib/blueprints.mjs` now
+decodes the exact native `/Script/FactoryGame.FGPipeConnectionComponentHyper`
+component class separately from ordinary fluid pipe and conveyor links. It
+requires reciprocal `mConnectedComponent` references, resolves both saved
+owners, bounds returned pairs, and leaves malformed, unresolved, ambiguous,
+one-way, self, and unsupported records explicit. It also decodes exact
+`Build_PipeHyper` `mSplineData`: locations, arrive/leave tangents, local
+point bounds, chord-length lower bounds, Blueprint-relative transformed
+endpoints, and the saved `mSnappedPassthroughs` entries. Blank passthrough
+references are preserved as blank observations rather than treated as joins.
+
+The inspector, solver options, tool schema, provider prompt, router formatting,
+tests, changelog, and planning references all expose this evidence while
+preserving conveyor/pipe/power/rail contracts. No writer, raw actor spawn,
+terrain edit, underground excavation, cross-blueprint join, or world mutation
+was added. The installed CL 502094 headers confirm `UFGPipeConnectionComponentHyper`
+inherits `UFGPipeConnectionComponentBase` and `AFGBuildablePipeHyper` stores
+the spline and two connections; the decoder does not infer traversal direction,
+speed, throughput, junction behavior, destination clearance, or external
+connections.
+
+Inspection of the owner files through the pinned parser 4.1.2:
+
+- `Underground Level (Enclosed)[Mk.1]`: CL 481836; 420 objects, 248 entities,
+  172 components; 10 Hyper components, 8 references, 4 reciprocal pairs;
+  2 PipeHyper entities with 11 spline points; 7 recognized hypertube
+  buildables; 25 verified native power-wire edges.
+- `Main Level (Building Shell)[Mk.1]`: CL 481836; 145 objects, 137 entities,
+  8 components; zero Hyper components or PipeHyper entities; 4 verified native
+  power-wire edges. The descriptive “hypertube elevator exit” is not serialized
+  in this file and is therefore not claimed.
+
+The paired files are authored on CL 481836 while the installed game/Starter
+Project is CL 502094. Their saved pivots and links are useful style/reference
+evidence, but native Build Gun registration, cross-file snapping, terrain
+excavation, collision clearance, and live travel remain unverified. `npm test`
+passes **867/867** and `scripts/validate.ps1` passes. The companion must still
+be reinstalled from this branch before another running game can see the new
+field; no C++ package or live save was changed.
+
+### Codex — 2026-08-28 native Blueprint comparison handoff
+
+Branch: `codex/blueprint-comparison`; claim commit `b9c8ce5`.
+Implementation is companion-only and read-only. `compare_blueprint_layouts`
+accepts two exact saved names or the safe `blueprint_reference` returned by
+`list_blueprints`. It performs two bounded `inspectBlueprint` reads and joins
+only serialized evidence: native header/version and game CL, Designer
+dimensions, decoded object/entity/component/buildable totals, saved pivot spans,
+complete buildable-class count differences when class lists are intact, recipe
+reference differences, build-cost deltas, and aggregate decoded conveyor/pipe,
+physical native power-wire, railroad, and hypertube topology deltas. Changed
+rows are deterministically bounded and every missing, malformed, unsupported,
+or truncated field carries an explicit unknown/incomplete state.
+
+There is also a conservative free local route for
+`compare blueprint <left> with blueprint <right>`. It never accepts filesystem
+paths, emits no action, and formats the same evidence with the same caveat.
+The provider system prompt and hybrid solver inventory now tell Claude to use
+this tool for two-blueprint comparisons; the grounding metadata recognizes its
+read-only result. No description, filename, shared class, or matching
+dimensions are interpreted as visual style or a cross-blueprint join. The
+result deliberately does not claim snap compatibility, terrain/collision
+clearance, underground excavation, external hookups, item/fluid/power flow,
+signals, or destination Build Gun validity.
+
+The supplied lower/main pair was inspected through the new solver as a real
+fixture: both are CL 481836/save version 58 with a 4×4×4 Designer envelope; the
+lower has 248 buildables, 37 reciprocal conveyor pairs, 25 verified physical
+power-wire edges, 4 reciprocal Hyper pairs across 2 PipeHyper entities and 11
+spline points, while the main has 137 buildables, no reciprocal conveyor or
+Hyper pairs, and 4 verified power-wire edges. Those are serialized facts only;
+the pair's placement and cross-level snapping remain unverified.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation and
+**873/873** companion tests pass. The comparison route, tool schema, provider
+grounding, unavailable/truncated behavior, and real supplied pair inspection
+were exercised. No C++ compile/package or live world write was needed; the
+companion must be reinstalled from this branch before a running bridge sees the
+new tool.
+
+### Codex — 2026-08-28 attached Blueprint reference study
+
+The owner's supplied `Reinforced Iron Plate 13.5min MK.2` `.sbp`/`.sbpcfg` was
+decoded read-only with the pinned native parser (4.1.2). It is an older native
+file: Blueprint header 2, save custom version 36, authored on game CL 211839,
+with a 12x12x6 Designer envelope. The serialized file contains 435 objects,
+107 entities/buildables, and 328 components; all 107 buildables have finite
+saved transforms. Its pivot span is approximately 37.84 m x 52.80 m x 6.87 m
+(saved pivots, not collision or visual extents).
+
+Exact class counts are 33 ConveyorBeltMk1, 19 ConveyorLiftMk1, 14 PowerLine,
+11 splitters, 8 mergers, 7 ConstructorMk1, 4 ConveyorBeltMk2, 4 SmelterMk1,
+3 AssemblerMk1, 2 ConveyorLiftMk2, 1 ConveyorPole, and 1 PowerPoleWall. The
+file records 102 reciprocal conveyor connection pairs with both endpoint owners
+resolved, plus 14 reciprocal native physical power-wire edges. Its description
+claims 120 Iron Ore/min input and 13.5 Reinforced Iron Plate/min output, but
+those rates are author text, not a live throughput proof; direction, capacity,
+power load, terrain/collision clearance, and destination Build Gun validity are
+not inferred. The native file's CL 211839 also differs from the installed
+FactoryGame/Starter Project CL 502094 and should be treated as reference data
+until loaded and verified by the current game.
+
+The files remain in `C:\\Users\\roesl\\Downloads` and were not copied into the
+game Blueprint library or placed in a world. Claude can see this handoff in git;
+to query the actual files through `inspect_blueprint_layout`, copy them into the
+configured local Blueprint library first.
+
+### Codex — 2026-08-29 generated Blueprint v4 Resource Anchor/Miner handoff
+
+Branch: `codex/generated-blueprint-resource-anchors`; claim commit `42e224a`.
+This extends generated native Blueprint v3 without changing any earlier schema.
+`aifactory.generated-blueprint/v4` accepts two new explicit part roles:
+
+- `resource_anchor`: its unlocked Build Gun recipe must resolve to the mod's
+  exact `AAIFactoryBlueprintResourceAnchor` capability captured from the live
+  building catalog. It carries an exact captured solid `resource_class` and
+  native `RP_Inpure`, `RP_Normal`, or `RP_Pure` value.
+- `miner`: its unlocked Build Gun recipe must resolve to one of the exact
+  vanilla Miner Mk.1–Mk.3 classes captured with v4 capability, and it names one
+  generated Anchor `part_id`. Every Anchor has exactly one Miner and no Anchor
+  may be reused.
+
+Both bridge and game enforce that relationship. Game staging creates/configures
+all Anchors first, creates Miners second, binds each exact Miner to the Anchor's
+real transient `AAIFactoryBlueprintAnchorNode`, and permits only that deliberate
+Anchor/Miner bounds overlap. The existing real Designer serializer writes the
+archive. The isolated Blueprint world must then reconstruct the exact Anchor
+and supported-Miner counts, every resource/purity configuration, every unique
+saved Anchor→Miner object relationship, every resource/purity/Miner-class
+pairing, plus the v2/v3 conveyor/power/pipeline topology. Any mismatch refuses
+success.
+
+The catalog now exposes authoritative capability flags from each buildable CDO,
+so the companion does not identify extractors by guessed names. The provider is
+instructed to use v4 only for a proven solid aimed resource and exact unlocked
+recipes; a live world actor id is never embedded in Blueprint-relative data.
+This does not spawn a world resource node or promise placement against terrain.
+Fluid/oil/gas/fracking extractors, portable miners, modded miners, automatic
+node alignment/siting, pumps, lifts, and attachment-dependent pieces remain
+fail-closed.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation and **875/875**
+companion tests pass. FactoryGameSteam Shipping and FactoryEditor Development
+module builds pass, as does the full FactoryEditor target. A no-deploy UAT
+build/cook/stage/archive pass produced
+`D:\\Modding\\Satisfactory\\StarterProject-502094\\Saved\\ArchivedPlugins\\AIFactoryCopilot\\AIFactoryCopilot-Windows.zip`,
+19,495,619 bytes, SHA-256
+`2562E5C98E69C4AB74F3318366F152E25E74711CCD4D4E716A154DF8DFF4F9B1`.
+Satisfactory remained running as PID 40336, so nothing was copied into the
+game and the companion was not upgraded ahead of the mod. After the game is
+closed: deploy this exact archive/source pair, install the companion, generate
+one minimal v4 Anchor+Miner `.sbp`, require the reported isolated-world exact
+mapping fields, preview it, place it with the vanilla Build Gun, save/reload,
+and run `audit_blueprint_placement`. Until that matrix passes, this is
+compiled/packaged—not live-game proven.

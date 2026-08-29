@@ -32,6 +32,7 @@ import {
   solveMachineRates,
   solvePowerCircuits,
   solveBlueprintPlacementAudit,
+  solveBlueprintComparison,
   solveBlueprintLayout,
   solveProductionPlan,
   solveBlueprintLibrary,
@@ -236,7 +237,7 @@ export const SOLVER_TOOLS = [
   {
     name: "inspect_blueprint_layout",
     description:
-      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, costs priced against current player inventories, bounded exact reciprocal conveyor/pipe component links, and bounded exact physical native power-wire endpoint pairs saved inside the Blueprint. Saved mHiddenConnections logical circuit relationships are deliberately excluded. It names the naming-convention caveat for nonstandard modded classes and names unresolved, one-way, malformed, or unsupported records instead of assuming a route. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, checking internal belt/pipe/power topology, or comparing it to a proposed factory. It does not infer item/fluid direction or rate, electricity direction/load/capacity, terrain clearance, Build Gun hologram validity, or external hookups at a new location.",
+      "Read one exact saved native blueprint through a pinned, read-only Satisfactory serializer. Returns decoded native Build_* entity counts and classes, bounded individual transforms in centimetres, pivot bounds, build recipe evidence, costs priced against current player inventories, bounded exact reciprocal conveyor/pipe component links, bounded exact physical native power-wire endpoint pairs, bounded native railroad-track spline records (saved points, tangents, local bounds, Blueprint-relative transformed endpoints, chord-length lower bounds, and mTrackGraphID metadata), and bounded native hypertube records (exact FGPipeConnectionComponentHyper links, PipeHyper spline points/tangents, transformed endpoints, and saved passthrough-reference observations) inside the Blueprint. Saved mHiddenConnections logical circuit relationships are deliberately excluded. It names the naming-convention caveat for nonstandard modded classes and names unresolved, one-way, malformed, or unsupported records instead of assuming a route. Use this before reasoning from a blueprint's visual style, extracting a reusable layout, checking internal belt/pipe/power/rail/hypertube reference topology, or comparing it to a proposed factory. It does not infer item/fluid direction or rate, hypertube traversal direction/speed, rail joins, electricity direction/load/capacity, terrain excavation or clearance, underground fit, Build Gun hologram validity, signals, cross-blueprint joins, or external hookups at a new location.",
     parameters: {
       type: "object",
       properties: {
@@ -256,11 +257,64 @@ export const SOLVER_TOOLS = [
           type: "number",
           description: "Maximum individual exact native power-wire endpoint pairs to return, from 1 through 200. Defaults to 80; aggregate saved mWires, verified, malformed, unresolved, and incomplete-edge counts still cover every decoded power record.",
         },
+        maximum_rail_tracks: {
+          type: "number",
+          description: "Maximum individual native railroad-track spline records to return, from 1 through 80. Defaults to 40; aggregate track counts still cover every exact saved rail entity.",
+        },
+        maximum_rail_spline_points: {
+          type: "number",
+          description: "Maximum saved spline points returned per native railroad track, from 1 through 1000. Defaults to 200; aggregate point counts still cover every decoded point.",
+        },
+        maximum_hypertube_connections: {
+          type: "number",
+          description: "Maximum individual reciprocal native hypertube connection pairs to return, from 1 through 200. Defaults to 80; aggregate reference counts still cover every exact Hyper connection component.",
+        },
+        maximum_hypertube_pipes: {
+          type: "number",
+          description: "Maximum native PipeHyper spline records to return, from 1 through 80. Defaults to 40; aggregate pipe counts still cover every exact PipeHyper entity.",
+        },
+        maximum_hypertube_spline_points: {
+          type: "number",
+          description: "Maximum saved spline points returned per native PipeHyper, from 1 through 1000. Defaults to 200; aggregate point counts still cover every decoded point.",
+        },
       },
       required: ["blueprint_name"],
       additionalProperties: false,
     },
     run: (graph, args, services) => solveBlueprintLayout(graph, args, services ?? {}),
+  },
+  {
+    name: "compare_blueprint_layouts",
+    description:
+      "Compare two exact saved native blueprints through the pinned read-only Satisfactory serializer. Returns side-by-side header/version and designer dimensions, decoded object/entity/component/buildable totals, saved pivot spans, exact buildable-class count differences, recipe-reference differences, build-cost differences, and aggregate decoded conveyor/pipe, physical power-wire, railroad, and hypertube topology deltas. Use this to study how supplied references differ from a proposed design before planning a new Blueprint. It preserves missing, malformed, and truncated evidence as unknown and never infers visual theme, snap compatibility, terrain or collision fit, cross-blueprint joins, item/fluid/power flow, or destination Build Gun validity.",
+    parameters: {
+      type: "object",
+      properties: {
+        left_blueprint_name: {
+          type: "string",
+          description: "Exact first blueprint name, or its blueprint_reference from list_blueprints.",
+        },
+        right_blueprint_name: {
+          type: "string",
+          description: "Exact second blueprint name, or its blueprint_reference from list_blueprints.",
+        },
+        maximum_class_differences: {
+          type: "number",
+          description: "Maximum changed buildable classes to return, from 1 through 200. Defaults to 100.",
+        },
+        maximum_recipe_differences: {
+          type: "number",
+          description: "Maximum changed recipe references to return, from 1 through 200. Defaults to 100.",
+        },
+        maximum_cost_differences: {
+          type: "number",
+          description: "Maximum changed cost items to return, from 1 through 200. Defaults to 100.",
+        },
+      },
+      required: ["left_blueprint_name", "right_blueprint_name"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => solveBlueprintComparison(graph, args, services ?? {}),
   },
   {
     name: "audit_blueprint_placement",
@@ -823,7 +877,7 @@ export const SOLVER_TOOLS = [
   {
     name: "perform_actions",
     description:
-      "Executes world-changing actions the player asked for: place_building, place_blueprint, generate_native_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). generate_native_blueprint writes a solver-computed Blueprint-relative layout through the game's real Designer and must be the only committed write. v1 preserves the fail-closed standalone-buildable contract. v2 additionally accepts explicit straight conveyor links and physical power wires; v3 adds explicit straight native pipelines. The game reconstructs the saved archive in its isolated Blueprint world and requires reciprocal native endpoint readback before success. Pumps, head lift, junction manifolds, miners/resource anchors, conveyor lifts/poles and host-dependent attachments remain unsupported. export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list. Never say an .sbp was written until the game reports readback. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
+      "Executes world-changing actions the player asked for: place_building, place_blueprint, generate_native_blueprint, export_native_blueprint, teleport_player, dismantle, undo_last, waypoint, clear_waypoints, give_item. Pass the whole sequence at once — it runs in order and stops at the first failure, so a half-built layout is never left behind. Set commit=true on each action the player actually asked to happen; leave it false to preview. Use place_blueprint to stamp one of their saved blueprints into the world (the game's own loader places its contents, wiring and all). generate_native_blueprint writes a solver-computed Blueprint-relative layout through the game's real Designer and must be the only committed write. v1 preserves the fail-closed standalone-buildable contract. v2 additionally accepts explicit straight conveyor links and physical power wires; v3 adds explicit straight native pipelines; v4 adds one-to-one explicitly configured solid-resource Anchors with captured vanilla Miner Mk.1-Mk.3 actors. The game reconstructs the saved archive in its isolated Blueprint world and requires exact native topology and Anchor/miner configuration readback before success. A v4 resource pair does not prove destination-node or terrain alignment. Fluids/oil/gas/fracking extractors, portable/modded miners, pumps, head lift, junction manifolds, conveyor lifts/poles and host-dependent attachments remain unsupported. export_native_blueprint only packages the exact actors currently marked in the game's dismantle tool; never fabricate a region or actor list. Never say an .sbp was written until the game reports readback. Use preview_blueprint to arm one saved blueprint in the requesting player's own Build Gun without placing it: client-only, no cost, and it must be the only action in the request. Use undo_last to reverse the previous action. Use waypoint to drop a marker on the player's MAP and COMPASS — it is the game's own marker system, so it appears on the navigation bar with a live distance readout, and it is NOT the highlight overlay. Use clear_waypoints to remove them.",
     parameters: {
       type: "object",
       properties: {
@@ -846,7 +900,7 @@ export const SOLVER_TOOLS = [
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {
                 type: "string",
-                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3"],
+                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4"],
                 description: "generate_native_blueprint: exact generated-layout contract version.",
               },
               buildables: {
@@ -856,9 +910,12 @@ export const SOLVER_TOOLS = [
                   type: "object",
                   properties: {
                     part_id: { type: "string" },
-                    role: { type: "string", enum: ["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone"] },
+                    role: { type: "string", enum: ["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner"] },
                     recipe_class: { type: "string", description: "Exact unlocked Build Gun recipe class." },
                     production_recipe_class: { type: "string", description: "Optional exact unlocked recipe to configure on a compatible manufacturer." },
+                    resource_class: { type: "string", description: "v4 resource_anchor only: exact captured solid-resource descriptor class." },
+                    resource_purity: { type: "string", enum: ["RP_Inpure", "RP_Normal", "RP_Pure"], description: "v4 resource_anchor only: exact native purity enum (including the engine's RP_Inpure spelling)." },
+                    resource_anchor_part_id: { type: "string", description: "v4 miner only: part_id of the one resource_anchor this exact Miner must remain bound to after native save/load." },
                     relative_location: {
                       type: "object",
                       properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
@@ -907,7 +964,7 @@ export const SOLVER_TOOLS = [
               },
               pipelines: {
                 type: "array",
-                description: "generate_native_blueprint v3: explicit directed straight native fluid pipelines between exact generated pipe ports. This does not infer pumps, head lift, fluid rate, or junction routing.",
+                description: "generate_native_blueprint v3/v4: explicit directed straight native fluid pipelines between exact generated pipe ports. This does not infer pumps, head lift, fluid rate, or junction routing.",
                 items: {
                   type: "object",
                   properties: {

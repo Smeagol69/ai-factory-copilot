@@ -15,6 +15,12 @@ struct FAIFactoryGeneratedBlueprintPart
     FString Role;
     FString BuildRecipeClassPath;
     FString ProductionRecipeClassPath;
+    /** v4 Anchor: exact solid UFGResourceDescriptor class path. */
+    FString ResourceClassPath;
+    /** v4 Anchor: RP_Inpure, RP_Normal, or RP_Pure. */
+    FString ResourcePurity;
+    /** v4 Miner: exact generated Anchor part id, never a world actor id. */
+    FString ResourceAnchorPartId;
     FTransform RelativeTransform = FTransform::Identity;
 };
 
@@ -103,10 +109,12 @@ namespace AIFactoryBlueprintExport
      *
      * v1 remains the ordinary-standalone-buildable contract. v2 additionally
      * carries explicit directed conveyor edges and physical circuit wires. v3
-     * adds explicit straight native fluid pipelines. Those links are built
-     * from native connection components, then the saved archive is loaded into
-     * FactoryGame's isolated Blueprint world and its reciprocal endpoints are
-     * read back before success is reported.
+     * adds explicit straight native fluid pipelines. v4 additionally permits
+     * one configured solid-resource Anchor to one vanilla Miner Mk.1-Mk.3 and
+     * requires that exact persisted identity mapping on isolated-world
+     * readback. Those links are built from native connection components, then
+     * the saved archive is loaded into FactoryGame's isolated Blueprint world
+     * before success is reported.
      */
     FAIFactoryActionResult GenerateLayout(
         const FAIFactoryActionContext& Context,
