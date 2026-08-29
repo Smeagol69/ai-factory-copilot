@@ -258,6 +258,26 @@ should use the captured current unlocks and native hologram checks, preserve
 the exact Hyper component/spline evidence when they choose to include a
 hypertube, and report missing cross-level links instead of inventing them.
 
+### Comparison contract for reference-led design
+
+The companion's `compare_blueprint_layouts` solver accepts two exact names (or
+the `blueprint_reference` returned by `list_blueprints`) and compares only
+serialized native evidence. Claude can therefore see version and Designer
+dimensions, decoded object/entity/component/buildable totals, saved pivot
+spans, buildable-class counts, recipe references, build cost, and aggregate
+conveyor/pipe, physical power-wire, railroad, and hypertube topology deltas in
+one bounded result. The comparison is complete only when both class lists and
+the relevant arrays are intact; truncated, missing, malformed, or unsupported
+fields remain explicitly unknown.
+
+This tool is a design-corpus aid, not a style classifier. It never treats a
+description, filename, shared class, or similar dimensions as proof of an
+aesthetic theme, native snap compatibility, terrain or collision clearance,
+cross-blueprint joins, external hookups, item/fluid/power flow, or destination
+Build Gun validity. A later design compiler must still use current unlocks,
+native hologram checks, and game-side readback before placement or Blueprint
+export.
+
 ## Implementation targets
 
 - `companion/lib/solvers.mjs`: deterministic quantities and provenance.

@@ -73,6 +73,7 @@ factory arithmetic yourself:
 - how to build N per minute of something, or any scale-up -> plan_production;
 - what blueprints the player has, or what one costs -> list_blueprints;
 - the actual saved arrangement, transformed native Build_* entities, class counts, saved reciprocal conveyor/pipe component links, exact physical native power-wire endpoint pairs, native railroad-track spline records (saved points/tangents, local bounds, Blueprint-relative transformed endpoints, chord-length lower bounds, and mTrackGraphID metadata), or native hypertube records (exact FGPipeConnectionComponentHyper links, PipeHyper spline points/tangents, transformed endpoints, and saved passthrough-reference observations) inside one native blueprint -> inspect_blueprint_layout; saved mHiddenConnections logical circuit relationships are excluded. It carries a caveat for nonstandard modded class names and does not infer item/fluid direction/rate, hypertube traversal direction/speed, rail joins, electricity direction/load/capacity, terrain excavation/clearance, underground fit, cross-blueprint joins, signals, external hookups, or destination placement validity. When list_blueprints reports duplicate names, pass its blueprint_reference rather than guessing;
+- the exact serialized differences between two saved native blueprints — header/version, designer dimensions, decoded totals, pivot spans, buildable-class counts, recipe references, build cost, and aggregate conveyor/pipe, physical power-wire, railroad, and hypertube topology -> compare_blueprint_layouts. This is a read-only evidence comparison: it does not infer visual theme, snap compatibility, terrain/collision fit, cross-blueprint joins, flow, or destination Build Gun validity. Pass exact names or blueprint_reference values from list_blueprints;
 - whether the placed native Blueprint instance the player is aiming at has finished proxy replication, how many runtime members it has, whether its resource extractors are bound, or whether an AI Factory Blueprint Resource Anchor has an exact saved resource/purity, transient-node, and miner-binding observation -> audit_blueprint_placement. This reads the live instance only, never a saved .sbp, and never changes the world. Treat replication_pending, partial observations, unknown bindings, and a client-null transient Anchor node as wait/unknown states — never as proof of zero miners, a lost node, or an unbound miner;
 - current objective, active milestone, game phase, exact recipe availability,
   tech tier, and purchased schematics -> get_unlock_status;
@@ -558,7 +559,7 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
-    tools: ["list_blueprints", "inspect_blueprint_layout", "design_factory_layout", "design_megabase_concept", "plan_production"],
+    tools: ["list_blueprints", "inspect_blueprint_layout", "compare_blueprint_layouts", "design_factory_layout", "design_megabase_concept", "plan_production"],
   },
   {
     pattern: /\b(platform|raised deck|building shell|structural shell|walls? and (?:a )?roof)\b/i,
@@ -652,6 +653,8 @@ function evidenceRows(tool, parsed) {
     case "list_blueprints":
       return Array.isArray(parsed.blueprints) ? parsed.blueprints : [];
     case "inspect_blueprint_layout":
+      return parsed.available === true && parsed.source && parsed.certainty ? [parsed] : [];
+    case "compare_blueprint_layouts":
       return parsed.available === true && parsed.source && parsed.certainty ? [parsed] : [];
     case "audit_blueprint_placement":
       // A pending proxy is still useful evidence: it grounds the truthful
@@ -864,7 +867,7 @@ export function solverEvidenceMetadata(context, tool, args, result) {
     parsed.routed === false ||
     parsed.planned === false ||
     parsed.designed === false ||
-    ((tool === "list_blueprints" || tool === "inspect_blueprint_layout" || tool === "audit_blueprint_placement") && parsed.available === false)
+    ((tool === "list_blueprints" || tool === "inspect_blueprint_layout" || tool === "compare_blueprint_layouts" || tool === "audit_blueprint_placement") && parsed.available === false)
   ) {
     metadata.reason = "unknown_result";
     return metadata;
@@ -1673,7 +1676,7 @@ ${narrated.text}` : "";
 const ESCALATE_PATTERNS = [
   /\bwhy\b/i,
   /\bshould i\b/i,
-  /\bcompare|versus|vs\.?\b/i,
+  /\bcompare\b|\bversus\b|\bvs\.?\b/i,
   /\bbest way\b|\bbetter\b|\bworth it\b/i,
   /\bexplain\b|\breason\b/i,
   /\bplan\b|\bdesign\b|\blayout\b|\bstrategy\b/i,
@@ -1844,6 +1847,7 @@ const SOLVER_TOOL_NAMES = [
   "get_unlock_status",
   "audit_blueprint_placement",
   "inspect_blueprint_layout",
+  "compare_blueprint_layouts",
   "list_blueprints",
   "locate",
   "plan_belt_route",

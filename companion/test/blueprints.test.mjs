@@ -7,6 +7,7 @@ import { Parser, SaveComponent, SaveEntity } from "@etothepii/satisfactory-file-
 import { buildGraph } from "../lib/graph.mjs";
 import {
   costAgainstInventory,
+  compareBlueprintStructures,
   decodeBlueprintConnectionTopology,
   decodeBlueprintHypertubeTopology,
   decodeBlueprintPowerWireTopology,
@@ -16,7 +17,7 @@ import {
   parseBlueprintHeader,
   readBlueprint,
 } from "../lib/blueprints.mjs";
-import { solveBlueprintLayout, solveBlueprintLibrary } from "../lib/solvers.mjs";
+import { solveBlueprintComparison, solveBlueprintLayout, solveBlueprintLibrary } from "../lib/solvers.mjs";
 import { makeBlueprintReader } from "../server.mjs";
 import { buildFactorySnapshot } from "./fixtures/factory.mjs";
 
@@ -755,6 +756,151 @@ test("the structural solver prices a bounded native layout against the live inve
   assert.equal(receivedOptions.maximumHypertubeConnections, 80);
   assert.equal(receivedOptions.maximumHypertubePipes, 40);
   assert.equal(receivedOptions.maximumHypertubeSplinePoints, 200);
+});
+
+function comparisonInspection(name, {
+  classes = [],
+  recipes = [],
+  costs = [],
+  truncated = 0,
+  topology = {},
+  gameChangelist = 502094,
+} = {}) {
+  return {
+    available: true,
+    blueprint_name: name,
+    blueprint_reference: `${name}.sbp`,
+    header: {
+      blueprint_header_version: 2,
+      factory_save_custom_version: 58,
+      game_changelist: gameChangelist,
+      designer_dimensions: { x: 4, y: 4, z: 2 },
+      recipe_references: recipes.map((recipe_class) => ({ recipe_class })),
+      build_cost: costs.map(([item_class, amount]) => ({ item_class, amount })),
+    },
+    decoded: {
+      object_count: 10,
+      entity_count: 8,
+      component_count: 2,
+      buildable_count: 8,
+      buildables_with_finite_transform: 8,
+    },
+    buildable_classes: classes.map(([class_path, count]) => ({ class_path, count })),
+    buildable_classes_truncated: truncated,
+    pivot_bounds_cm: { span_cm: { x: 3200, y: 3200, z: 1600 } },
+    connection_topology: {
+      status: "decoded",
+      reciprocal_connection_pair_count: topology.conveyor_pipe_pairs ?? 0,
+      reciprocal_connection_pairs_by_kind: {
+        conveyor: topology.conveyor_pairs ?? 0,
+        pipe: topology.pipe_pairs ?? 0,
+        mixed: topology.mixed_pairs ?? 0,
+      },
+    },
+    power_wire_topology: { status: "decoded", verified_power_wire_count: topology.power_wire_edges ?? 0 },
+    rail_topology: {
+      status: "decoded",
+      native_rail_track_entity_count: topology.rail_tracks ?? 0,
+      total_spline_point_count: topology.rail_spline_points ?? 0,
+    },
+    hypertube_topology: {
+      status: "decoded",
+      reciprocal_connection_pair_count: topology.hypertube_pairs ?? 0,
+      hypertube_pipe_entity_count: topology.hypertube_pipes ?? 0,
+      total_spline_point_count: topology.hypertube_spline_points ?? 0,
+    },
+    certainty: "authoritative_for_decoded_entities",
+    source: "decoded_from_saved_native_blueprint",
+  };
+}
+
+test("compares exact Blueprint structure evidence without inferring style or joins", () => {
+  const left = comparisonInspection("Lower", {
+    classes: [["/Game/Build/Foundation", 4], ["/Game/Build/Smelter", 2]],
+    recipes: ["/Game/Recipe/Foundation", "/Game/Recipe/Smelter"],
+    costs: [[IRON_PLATE, 5]],
+    topology: { conveyor_pipe_pairs: 2, conveyor_pairs: 2, power_wire_edges: 1, hypertube_pairs: 4 },
+  });
+  const right = comparisonInspection("Main", {
+    classes: [["/Game/Build/Foundation", 4], ["/Game/Build/Smelter", 3], ["/Game/Build/Wall", 8]],
+    recipes: ["/Game/Recipe/Foundation", "/Game/Recipe/Wall"],
+    costs: [[IRON_PLATE, 8], [CABLE, 2]],
+    topology: { conveyor_pipe_pairs: 1, conveyor_pairs: 1, power_wire_edges: 3, hypertube_pipes: 2 },
+  });
+  const result = compareBlueprintStructures(left, right);
+  assert.equal(result.available, true);
+  assert.equal(result.comparison.shared_buildable_class_count, 2);
+  assert.deepEqual(result.comparison.class_differences, [
+    { class_path: "/Game/Build/Wall", left: 0, right: 8, delta: 8 },
+    { class_path: "/Game/Build/Smelter", left: 2, right: 3, delta: 1 },
+  ]);
+  assert.deepEqual(result.comparison.recipe_differences, [
+    { recipe_class: "/Game/Recipe/Smelter", left: 1, right: 0, delta: -1 },
+    { recipe_class: "/Game/Recipe/Wall", left: 0, right: 1, delta: 1 },
+  ]);
+  assert.deepEqual(result.comparison.cost_differences, [
+    { item_class: IRON_PLATE, left: 5, right: 8, delta: 3 },
+    { item_class: CABLE, left: 0, right: 2, delta: 2 },
+  ]);
+  assert.equal(result.comparison.topology_delta.power_wire_edges.delta, 2);
+  assert.equal(result.comparison.topology_delta.hypertube_pairs.delta, -4);
+  assert.match(result.caveat, /serialized native Blueprint/i);
+  assert.ok(result.claims_not_made.some((claim) => /snap compatibility/i.test(claim)));
+});
+
+test("keeps Blueprint comparison unavailable when one exact inspection fails", () => {
+  const result = compareBlueprintStructures(
+    comparisonInspection("Good"),
+    { available: false, blueprint_name: "Missing", reason: "blueprint_not_found", certainty: "unknown" },
+  );
+  assert.equal(result.available, false);
+  assert.equal(result.reason, "one_or_both_blueprint_inspections_unavailable");
+  assert.equal(result.right.reason, "blueprint_not_found");
+});
+
+test("marks changed class evidence inconclusive when an inspection truncated its class list", () => {
+  const result = compareBlueprintStructures(
+    comparisonInspection("Left", { truncated: 1 }),
+    comparisonInspection("Right"),
+  );
+  assert.equal(result.available, true);
+  assert.equal(result.comparison.class_differences_complete, false);
+  assert.match(result.comparison.class_differences_reason, /truncated/i);
+  assert.equal(result.certainty, "authoritative_with_inconclusive_or_truncated_comparison_fields");
+});
+
+test("the comparison solver bounds both read-only inspections and preserves world revision", () => {
+  const graph = buildGraph(buildFactorySnapshot());
+  const calls = [];
+  const result = solveBlueprintComparison(
+    graph,
+    {
+      left_blueprint_name: "Left",
+      right_blueprint_name: "Right",
+      maximum_class_differences: 2,
+      maximum_recipe_differences: 3,
+      maximum_cost_differences: 4,
+    },
+    {
+      inspectBlueprint: (name, options) => {
+        calls.push({ name, options });
+        return comparisonInspection(name);
+      },
+    },
+  );
+  assert.equal(result.solver, "blueprint_comparison");
+  assert.equal(result.world_revision, graph.world_revision);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].options, {
+    maximumBuildables: 1,
+    maximumConnections: 1,
+    maximumPowerWires: 1,
+    maximumRailTracks: 1,
+    maximumRailSplinePoints: 1,
+    maximumHypertubeConnections: 1,
+    maximumHypertubePipes: 1,
+    maximumHypertubeSplinePoints: 1,
+  });
 });
 
 test("the configured reader stays inside its library and resolves one exact native blueprint", () => {

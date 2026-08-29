@@ -1793,6 +1793,278 @@ export function inspectBlueprintStructure(
   };
 }
 
+function comparisonCountMap(rows, key, valueKey) {
+  if (!Array.isArray(rows)) return { map: null, reason: "field_missing_or_not_an_array" };
+  const map = new Map();
+  for (const row of rows) {
+    const name = typeof row?.[key] === "string" && row[key] ? row[key] : null;
+    const value = Number(row?.[valueKey]);
+    if (!name || !Number.isFinite(value) || value < 0) {
+      return { map: null, reason: "malformed_entry" };
+    }
+    if (map.has(name)) return { map: null, reason: "duplicate_entry" };
+    map.set(name, value);
+  }
+  return { map, reason: null };
+}
+
+function comparisonMapRows(map, key, valueKey) {
+  return [...map.entries()]
+    .map(([name, value]) => ({ [key]: name, [valueKey]: value }))
+    .sort((left, right) => String(left[key]).localeCompare(String(right[key])));
+}
+
+function comparisonDiffRows(left, right, key, valueKey, maximum) {
+  const names = new Set([...left.keys(), ...right.keys()]);
+  const rows = [...names]
+    .map((name) => {
+      const leftValue = left.get(name) ?? 0;
+      const rightValue = right.get(name) ?? 0;
+      return {
+        [key]: name,
+        left: leftValue,
+        right: rightValue,
+        delta: rightValue - leftValue,
+      };
+    })
+    .filter((row) => row.left !== row.right)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || String(a[key]).localeCompare(String(b[key])));
+  return { rows: rows.slice(0, maximum), truncated: Math.max(0, rows.length - maximum) };
+}
+
+function comparisonScalar(left, right) {
+  const valid = (value) => typeof value === "number" && Number.isFinite(value);
+  if (!valid(left) || !valid(right)) {
+    return { left: null, right: null, delta: null, status: "unknown", reason: "one_or_both_values_missing_or_malformed" };
+  }
+  const leftValue = Number(left);
+  const rightValue = Number(right);
+  return {
+    left: leftValue,
+    right: rightValue,
+    delta: rightValue - leftValue,
+    status: "exact",
+  };
+}
+
+function comparisonEquality(left, right) {
+  if (left === null || right === null || left === undefined || right === undefined) return null;
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function comparisonTopology(inspection) {
+  const connection = inspection?.connection_topology;
+  const power = inspection?.power_wire_topology;
+  const rail = inspection?.rail_topology;
+  const hypertube = inspection?.hypertube_topology;
+  return {
+    conveyor_pipe_pairs: connection?.status === "decoded" ? connection.reciprocal_connection_pair_count : null,
+    conveyor_pairs: connection?.status === "decoded" ? connection.reciprocal_connection_pairs_by_kind?.conveyor : null,
+    pipe_pairs: connection?.status === "decoded" ? connection.reciprocal_connection_pairs_by_kind?.pipe : null,
+    mixed_pairs: connection?.status === "decoded" ? connection.reciprocal_connection_pairs_by_kind?.mixed : null,
+    power_wire_edges: power?.status === "decoded" ? power.verified_power_wire_count : null,
+    rail_tracks: rail?.status === "decoded" ? rail.native_rail_track_entity_count : null,
+    rail_spline_points: rail?.status === "decoded" ? rail.total_spline_point_count : null,
+    hypertube_pairs: hypertube?.status === "decoded" ? hypertube.reciprocal_connection_pair_count : null,
+    hypertube_pipes: hypertube?.status === "decoded" ? hypertube.hypertube_pipe_entity_count : null,
+    hypertube_spline_points: hypertube?.status === "decoded" ? hypertube.total_spline_point_count : null,
+  };
+}
+
+function comparisonSummary(inspection) {
+  return {
+    blueprint_name: inspection.blueprint_name ?? null,
+    blueprint_reference: inspection.blueprint_reference ?? null,
+    header: {
+      blueprint_header_version: inspection.header?.blueprint_header_version ?? null,
+      factory_save_custom_version: inspection.header?.factory_save_custom_version ?? null,
+      game_changelist: inspection.header?.game_changelist ?? null,
+      designer_dimensions: inspection.header?.designer_dimensions ?? null,
+    },
+    decoded: {
+      object_count: inspection.decoded?.object_count ?? null,
+      entity_count: inspection.decoded?.entity_count ?? null,
+      component_count: inspection.decoded?.component_count ?? null,
+      buildable_count: inspection.decoded?.buildable_count ?? null,
+      buildables_with_finite_transform: inspection.decoded?.buildables_with_finite_transform ?? null,
+    },
+    pivot_span_cm: inspection.pivot_bounds_cm?.span_cm ?? null,
+    buildable_class_count: Array.isArray(inspection.buildable_classes)
+      ? inspection.buildable_classes.length
+      : null,
+    buildable_classes_complete: inspection.buildable_classes_truncated === 0,
+    recipe_reference_count: Array.isArray(inspection.header?.recipe_references)
+      ? inspection.header.recipe_references.length
+      : null,
+    recipe_references_present: Array.isArray(inspection.header?.recipe_references),
+    build_cost_item_count: Array.isArray(inspection.header?.build_cost)
+      ? inspection.header.build_cost.length
+      : null,
+    build_cost_present: Array.isArray(inspection.header?.build_cost),
+    topology: comparisonTopology(inspection),
+  };
+}
+
+/**
+ * Compares two already-decoded native Blueprint inspections. This is an
+ * evidence join only: it deliberately does not compare descriptions or
+ * filenames as style, and it never turns a shared class or coordinate into a
+ * claim about snap compatibility, terrain, collision, or live flow.
+ */
+export function compareBlueprintStructures(
+  leftInspection,
+  rightInspection,
+  {
+    maximumClassDifferences = 100,
+    maximumRecipeDifferences = 100,
+    maximumCostDifferences = 100,
+  } = {},
+) {
+  if (!leftInspection?.available || !rightInspection?.available) {
+    return {
+      available: false,
+      reason: "one_or_both_blueprint_inspections_unavailable",
+      left: leftInspection?.available === false ? leftInspection : null,
+      right: rightInspection?.available === false ? rightInspection : null,
+      source: "none",
+      certainty: "unknown",
+    };
+  }
+
+  const left = comparisonSummary(leftInspection);
+  const right = comparisonSummary(rightInspection);
+  const boundedMaximum = (value) =>
+    Math.min(200, Math.max(1, Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : 100));
+  maximumClassDifferences = boundedMaximum(maximumClassDifferences);
+  maximumRecipeDifferences = boundedMaximum(maximumRecipeDifferences);
+  maximumCostDifferences = boundedMaximum(maximumCostDifferences);
+  const leftClasses = comparisonCountMap(leftInspection.buildable_classes, "class_path", "count");
+  const rightClasses = comparisonCountMap(rightInspection.buildable_classes, "class_path", "count");
+  const classDataComplete = Boolean(
+    left.buildable_classes_complete && right.buildable_classes_complete && leftClasses.map && rightClasses.map,
+  );
+  const leftRecipes = comparisonCountMap(
+    leftInspection.header?.recipe_references?.map((entry) => ({ recipe_class: entry?.recipe_class, count: 1 })),
+    "recipe_class",
+    "count",
+  );
+  const rightRecipes = comparisonCountMap(
+    rightInspection.header?.recipe_references?.map((entry) => ({ recipe_class: entry?.recipe_class, count: 1 })),
+    "recipe_class",
+    "count",
+  );
+  const recipeDataComplete = Boolean(leftRecipes.map && rightRecipes.map);
+  const leftCost = comparisonCountMap(leftInspection.header?.build_cost, "item_class", "amount");
+  const rightCost = comparisonCountMap(rightInspection.header?.build_cost, "item_class", "amount");
+  const costDataComplete = Boolean(leftCost.map && rightCost.map);
+
+  const classDiff = classDataComplete
+    ? comparisonDiffRows(leftClasses.map, rightClasses.map, "class_path", "count", maximumClassDifferences)
+    : { rows: [], truncated: 0 };
+  const recipeDiff = recipeDataComplete
+    ? comparisonDiffRows(leftRecipes.map, rightRecipes.map, "recipe_class", "count", maximumRecipeDifferences)
+    : { rows: [], truncated: 0 };
+  const costDiff = costDataComplete
+    ? comparisonDiffRows(leftCost.map, rightCost.map, "item_class", "amount", maximumCostDifferences)
+    : { rows: [], truncated: 0 };
+
+  const topologyDelta = {};
+  for (const key of Object.keys(left.topology)) {
+    topologyDelta[key] = comparisonScalar(left.topology[key], right.topology[key]);
+  }
+
+  const classDiffReason = classDataComplete
+    ? null
+    : left.buildable_classes_complete && right.buildable_classes_complete
+      ? leftClasses.reason || rightClasses.reason || "malformed_class_counts"
+      : "one_or_both_class_lists_are_truncated";
+  const recipeDiffReason = recipeDataComplete
+    ? null
+    : !left.recipe_references_present || !right.recipe_references_present
+      ? "one_or_both_recipe_reference_lists_are_missing"
+      : leftRecipes.reason || rightRecipes.reason || "malformed_recipe_references";
+  const costDiffReason = costDataComplete
+    ? null
+    : !left.build_cost_present || !right.build_cost_present
+      ? "one_or_both_build_cost_lists_are_missing"
+      : leftCost.reason || rightCost.reason || "malformed_build_costs";
+
+  return {
+    available: true,
+    left,
+    right,
+    comparison: {
+      same_blueprint_header_version:
+        left.header.blueprint_header_version !== null &&
+        left.header.blueprint_header_version === right.header.blueprint_header_version,
+      same_factory_save_custom_version:
+        left.header.factory_save_custom_version !== null &&
+        left.header.factory_save_custom_version === right.header.factory_save_custom_version,
+      game_changelist: comparisonScalar(left.header.game_changelist, right.header.game_changelist),
+      designer_dimensions: {
+        left: left.header.designer_dimensions,
+        right: right.header.designer_dimensions,
+        same: comparisonEquality(left.header.designer_dimensions, right.header.designer_dimensions),
+      },
+      decoded_totals: Object.fromEntries(
+        Object.keys(left.decoded).map((key) => [key, comparisonScalar(left.decoded[key], right.decoded[key])]),
+      ),
+      pivot_span_cm: {
+        left: left.pivot_span_cm,
+        right: right.pivot_span_cm,
+        same: comparisonEquality(left.pivot_span_cm, right.pivot_span_cm),
+      },
+      shared_buildable_class_count: classDataComplete
+        ? [...leftClasses.map.keys()].filter((name) => rightClasses.map.has(name)).length
+        : null,
+      shared_buildable_classes: classDataComplete
+        ? comparisonMapRows(
+            new Map(
+              [...leftClasses.map.keys()]
+                .filter((name) => rightClasses.map.has(name))
+                .map((name) => [name, { left: leftClasses.map.get(name), right: rightClasses.map.get(name) }]),
+            ),
+            "class_path",
+            "counts",
+          ).map((row) => ({ class_path: row.class_path, counts: row.counts }))
+        : [],
+      class_differences: classDiff.rows,
+      class_differences_returned: classDiff.rows.length,
+      class_differences_truncated: classDiff.truncated,
+      class_differences_complete: classDataComplete,
+      class_differences_reason: classDiffReason,
+      shared_recipe_class_count: recipeDataComplete
+        ? [...leftRecipes.map.keys()].filter((name) => rightRecipes.map.has(name)).length
+        : null,
+      recipe_differences: recipeDiff.rows,
+      recipe_differences_returned: recipeDiff.rows.length,
+      recipe_differences_truncated: recipeDiff.truncated,
+      recipe_differences_complete: recipeDataComplete,
+      recipe_differences_reason: recipeDiffReason,
+      cost_differences: costDiff.rows,
+      cost_differences_returned: costDiff.rows.length,
+      cost_differences_truncated: costDiff.truncated,
+      cost_differences_complete: costDataComplete,
+      cost_differences_reason: costDiffReason,
+      topology_delta: topologyDelta,
+    },
+    claims_not_made: [
+      "same_visual_theme_or_aesthetic_quality",
+      "cross-blueprint snap compatibility or join alignment",
+      "terrain fit, underground clearance, or collision clearance",
+      "live power or item/fluid flow direction, rate, or capacity",
+      "external connections, signals, or destination Build Gun validity",
+    ],
+    caveat:
+      "Only exact serialized native Blueprint header, class, recipe, cost, transform-summary, and decoded topology observations are compared. Descriptions, filenames, opaque properties, and omitted/truncated records are not treated as evidence.",
+    source: "compared_from_two_saved_native_blueprint_inspections",
+    certainty:
+      classDataComplete && recipeDataComplete && costDataComplete
+        ? "authoritative_for_compared_serialized_records"
+        : "authoritative_with_inconclusive_or_truncated_comparison_fields",
+  };
+}
+
 /**
  * Compares a blueprint's cost against what the player is carrying, using the same
  * captured inventories `get_build_cost` reads.

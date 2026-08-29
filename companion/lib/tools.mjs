@@ -32,6 +32,7 @@ import {
   solveMachineRates,
   solvePowerCircuits,
   solveBlueprintPlacementAudit,
+  solveBlueprintComparison,
   solveBlueprintLayout,
   solveProductionPlan,
   solveBlueprintLibrary,
@@ -281,6 +282,39 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args, services) => solveBlueprintLayout(graph, args, services ?? {}),
+  },
+  {
+    name: "compare_blueprint_layouts",
+    description:
+      "Compare two exact saved native blueprints through the pinned read-only Satisfactory serializer. Returns side-by-side header/version and designer dimensions, decoded object/entity/component/buildable totals, saved pivot spans, exact buildable-class count differences, recipe-reference differences, build-cost differences, and aggregate decoded conveyor/pipe, physical power-wire, railroad, and hypertube topology deltas. Use this to study how supplied references differ from a proposed design before planning a new Blueprint. It preserves missing, malformed, and truncated evidence as unknown and never infers visual theme, snap compatibility, terrain or collision fit, cross-blueprint joins, item/fluid/power flow, or destination Build Gun validity.",
+    parameters: {
+      type: "object",
+      properties: {
+        left_blueprint_name: {
+          type: "string",
+          description: "Exact first blueprint name, or its blueprint_reference from list_blueprints.",
+        },
+        right_blueprint_name: {
+          type: "string",
+          description: "Exact second blueprint name, or its blueprint_reference from list_blueprints.",
+        },
+        maximum_class_differences: {
+          type: "number",
+          description: "Maximum changed buildable classes to return, from 1 through 200. Defaults to 100.",
+        },
+        maximum_recipe_differences: {
+          type: "number",
+          description: "Maximum changed recipe references to return, from 1 through 200. Defaults to 100.",
+        },
+        maximum_cost_differences: {
+          type: "number",
+          description: "Maximum changed cost items to return, from 1 through 200. Defaults to 100.",
+        },
+      },
+      required: ["left_blueprint_name", "right_blueprint_name"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => solveBlueprintComparison(graph, args, services ?? {}),
   },
   {
     name: "audit_blueprint_placement",

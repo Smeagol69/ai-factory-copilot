@@ -5,6 +5,15 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added read-only native **Blueprint comparison**. Claude can now compare two
+  exact saved `.sbp`/`.sbpcfg` library entries side by side using serialized
+  header/version, designer dimensions, decoded totals, pivot spans, complete
+  buildable-class counts when available, recipe references, build cost, and
+  aggregate conveyor/pipe, physical power-wire, railroad, and hypertube
+  topology deltas. Missing, malformed, and truncated records stay unknown;
+  filenames/descriptions are never treated as visual-style evidence, and no
+  snap, terrain, collision, cross-blueprint join, flow, or Build Gun claim is
+  made. No writer or world mutation was added.
 - Added read-only native **hypertube reference inspection** to the Blueprint
   structural reader. Exact `FGPipeConnectionComponentHyper` reciprocal links,
   `Build_PipeHyper` spline locations/tangents, Blueprint-relative endpoints,

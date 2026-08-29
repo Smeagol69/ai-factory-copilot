@@ -41,6 +41,7 @@ import {
   solveTransportCapacity,
   solveUnlockStatus,
   solveBlueprintLayout,
+  solveBlueprintComparison,
   solveBlueprintLibrary,
 } from "./solvers.mjs";
 import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
@@ -695,6 +696,64 @@ function formatBlueprintLayout(result) {
     railText +
     hypertubeText +
     " These are native saved transforms and saved component references, not proof that the blueprint will clear terrain or fit at a new location.";
+}
+
+function comparisonDisplayName(value) {
+  return String(value ?? "unknown").split(/[\\/]/).pop()?.replace(/\.sbp$/i, "") || "unknown";
+}
+
+function formatBlueprintComparison(result) {
+  if (!result.available) {
+    const unavailable = [result.left, result.right]
+      .filter((side) => side && side.available === false)
+      .map((side) => `**${side.blueprint_name ?? "blueprint"}**: ${side.reason ?? "unknown"}`)
+      .join("; ");
+    return `I can't compare those saved blueprints: **${result.reason ?? "unknown"}**.` +
+      (unavailable ? ` ${unavailable}.` : "") +
+      " Nothing was changed in the world.";
+  }
+  const left = result.left ?? {};
+  const right = result.right ?? {};
+  const comparison = result.comparison ?? {};
+  const side = (value) => value === null || value === undefined ? "unknown" : String(value);
+  const dimensions = (value) => value && [value.x, value.y, value.z].every(Number.isFinite)
+    ? `${value.x}×${value.y}×${value.z}`
+    : "unknown";
+  const span = (value) => value && [value.x, value.y, value.z].every(Number.isFinite)
+    ? `${round(value.x / 100)}×${round(value.y / 100)}×${round(value.z / 100)} m`
+    : "unknown";
+  const changedClasses = (comparison.class_differences ?? []).slice(0, 8)
+    .map((entry) => `${comparisonDisplayName(entry.class_path)} ${entry.left}→${entry.right}`)
+    .join(", ");
+  const changedRecipes = (comparison.recipe_differences ?? []).slice(0, 8)
+    .map((entry) => comparisonDisplayName(entry.recipe_class))
+    .join(", ");
+  const changedCosts = (comparison.cost_differences ?? []).slice(0, 8)
+    .map((entry) => `${comparisonDisplayName(entry.item_class)} ${entry.left}→${entry.right}`)
+    .join(", ");
+  const topology = comparison.topology_delta ?? {};
+  const topologyLine = Object.entries(topology)
+    .map(([key, value]) => value?.status === "exact" && value.delta !== 0
+      ? `${key.replaceAll("_", " ")} ${value.left}→${value.right}`
+      : null)
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(", ");
+  const warnings = [];
+  if (comparison.class_differences_complete === false) warnings.push(`class differences are incomplete (${comparison.class_differences_reason ?? "unknown reason"})`);
+  if (comparison.recipe_differences_complete === false) warnings.push(`recipe differences are incomplete (${comparison.recipe_differences_reason ?? "unknown reason"})`);
+  if (comparison.cost_differences_complete === false) warnings.push(`cost differences are incomplete (${comparison.cost_differences_reason ?? "unknown reason"})`);
+  return `**Blueprint comparison** — **${left.blueprint_name ?? "left"}** vs **${right.blueprint_name ?? "right"}**\n\n` +
+    `- Header CL: ${side(left.header?.game_changelist)} vs ${side(right.header?.game_changelist)}; ` +
+      `Designer: ${dimensions(left.header?.designer_dimensions)} vs ${dimensions(right.header?.designer_dimensions)}\n` +
+    `- Decoded buildables: ${side(left.decoded?.buildable_count)} vs ${side(right.decoded?.buildable_count)}; ` +
+      `saved pivot spans: ${span(left.pivot_span_cm)} vs ${span(right.pivot_span_cm)}\n` +
+    `- Changed buildable classes: ${changedClasses || (comparison.class_differences_complete ? "none" : "unknown")}\n` +
+    `- Changed recipe references: ${changedRecipes || (comparison.recipe_differences_complete ? "none" : "unknown")}\n` +
+    `- Changed build cost: ${changedCosts || (comparison.cost_differences_complete ? "none" : "unknown")}\n` +
+    `- Topology deltas: ${topologyLine || "none or unknown"}.` +
+    (warnings.length > 0 ? `\n\n**Evidence limits:** ${warnings.join("; ")}.` : "") +
+    "\n\nThis is serialized native evidence only; it does not prove visual style, snap compatibility, terrain/collision fit, cross-blueprint joins, flow, or destination Build Gun validity. Nothing was changed in the world.";
 }
 
 function auditWholeCount(value) {
@@ -1862,6 +1921,35 @@ export function parseBlueprintLayoutRequest(question) {
     blueprintName.includes("\\");
   if (!blueprintName || blueprintName.length > 240 || unsafeReference) return null;
   return { blueprint_name: blueprintName };
+}
+
+// "compare blueprint <left> with blueprint <right>" — a deliberately
+// explicit local route. Blueprint names are matched by the read-only library
+// adapter; this parser never accepts paths or turns an arbitrary comparison
+// question into a style judgement.
+const BLUEPRINT_COMPARISON_REQUEST = [
+  /^(?:please\s+)?compare\s+(?:the\s+)?blue\s?print\s+["']?(.+?)["']?\s+(?:with|against|to|and)\s+(?:the\s+)?blue\s?print\s+["']?(.+?)["']?$/i,
+  /^(?:please\s+)?compare\s+["']?(.+?)["']?\s+blue\s?print\s+(?:with|against|to|and)\s+["']?(.+?)["']?\s+blue\s?print$/i,
+];
+
+function cleanBlueprintComparisonName(value) {
+  const name = String(value ?? "").replace(/["']+$/g, "").replace(/^["']+/g, "").replace(/\s+/g, " ").trim();
+  const unsafeReference =
+    /(^|[\\/])\.\.?([\\/]|$)/.test(name) ||
+    /^[\\/]/.test(name) ||
+    /^[A-Za-z]:[\\/]/.test(name) ||
+    name.includes("\\");
+  return name && name.length <= 240 && !unsafeReference ? name : null;
+}
+
+export function parseBlueprintComparisonRequest(question) {
+  const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
+  if (!text) return null;
+  const match = BLUEPRINT_COMPARISON_REQUEST.map((pattern) => text.match(pattern)).find(Boolean);
+  if (!match) return null;
+  const left = cleanBlueprintComparisonName(match[1]);
+  const right = cleanBlueprintComparisonName(match[2]);
+  return left && right ? { left_blueprint_name: left, right_blueprint_name: right } : null;
 }
 
 /**
@@ -4580,6 +4668,27 @@ export function answerLocally(question, graph, services) {
       return localAnswer(refusal, "blueprint_place_refused", started, "Refused by validation before anything ran.");
     }
     }
+  }
+
+  // "compare blueprint <left> with blueprint <right>" — join two exact saved
+  // native inspections locally. This is read-only and keeps all the evidence
+  // boundaries of the model-facing comparison tool.
+  const blueprintComparison = parseBlueprintComparisonRequest(question);
+  if (blueprintComparison && graph) {
+    const started = Date.now();
+    const comparison = solveBlueprintComparison(
+      graph,
+      blueprintComparison,
+      { inspectBlueprint: services?.inspectBlueprint },
+    );
+    return localAnswer(
+      formatBlueprintComparison(comparison),
+      "compare_blueprint_layouts",
+      started,
+      comparison.available
+        ? "Compared exact serialized records from two saved native blueprints."
+        : "The native Blueprint comparison stayed read-only and refused unavailable evidence.",
+    );
   }
 
   // "inspect blueprint <exact name>" — decode its saved transforms without a
