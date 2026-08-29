@@ -4988,3 +4988,15 @@ exercise the generated Wire Blueprint through isolated-world readback and the
 vanilla Build Gun. Preserve Claude's creative-node collision/profile and picker
 work; the remaining shared open problem is extractor hologram discovery for
 creative nodes, not the generated Anchor topology.
+
+### Codex — 2026-08-29 generated Blueprint Anchor availability repair
+
+Claim: `codex/anchor-recipe-autounlock`. The live snapshot proves the mod-owned
+Blueprint Resource Anchor recipe is registered but unavailable, so the bridge's
+exact-unlocked-recipe gate correctly refuses every node-sourced native Blueprint
+request before writing a file. Scope is limited to making this zero-cost,
+mod-owned helper recipe available idempotently during world initialization (and
+reusing that same helper from `/ai anchor`), with a truthful warning when the
+official recipe manager is not ready. Preserve Claude's creative-node work and
+the generated Blueprint topology; do not relax the companion's fail-closed
+unlock check or unlock player progression recipes.
