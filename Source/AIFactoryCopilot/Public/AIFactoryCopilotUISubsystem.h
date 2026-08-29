@@ -200,6 +200,47 @@ private:
 
     TSharedRef<SWidget> BuildCreativeNodeSection();
     void ArmCreativeNodeFromPanel(const FString& Purity);
+
+    /* ---------------------------- Node spawner ---------------------------- */
+
+    /**
+     * One scanned resource the spawner can offer.
+     *
+     * Built from the game's own item catalogue rather than a hardcoded list, so
+     * modded resources appear without guessing their class paths -- the same
+     * approach the `/ai node` resolver already uses.
+     */
+    struct FAIFactoryNodeCatalogEntry
+    {
+        TSubclassOf<class UFGResourceDescriptor> Resource;
+        FString DisplayName;
+        /** Solid / Liquid / Gas, or Geyser for a geyser descriptor. */
+        FString Kind;
+        /** Whether the creative node editor can actually construct this today. */
+        bool bSpawnable = false;
+        /**
+         * Why not, when it cannot. Unspawnable resources are listed with their
+         * reason rather than hidden: the owner asked for every node the game
+         * considers a node, and silently dropping half of them would misreport
+         * what the game contains.
+         */
+        FString Reason;
+    };
+
+    /** The panel shows the node spawner instead of the conversation when true. */
+    bool bNodeSpawnerTab = false;
+    /** Populated on first open of the tab, and by Rescan. */
+    TArray<FAIFactoryNodeCatalogEntry> NodeCatalog;
+    bool bNodeCatalogScanned = false;
+    TSharedPtr<class SVerticalBox> NodeSpawnerRows;
+    TSharedPtr<class SEditableTextBox> NodeSpawnerFilterBox;
+    TSharedPtr<STextBlock> NodeSpawnerStatusText;
+
+    TSharedRef<SWidget> BuildNodeSpawnerSection();
+    /** Rescan every resource descriptor the game knows, vanilla and modded. */
+    void RefreshNodeCatalog();
+    /** Repopulate the visible rows from NodeCatalog, honouring the filter text. */
+    void RebuildNodeSpawnerRows();
     /** Returns false without a world write when the native chat RCO is not ready. */
     bool ForwardCreativeNodePlacementCommand(
         const FString& CommandLine,

@@ -99,9 +99,15 @@ AAIFactoryBlueprintAnchorNode::AAIFactoryBlueprintAnchorNode()
         0.0f,
         0.0f,
         BlueprintAnchorClearanceHeightCm * 0.5f));
-    mBoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    mBoxComponent->SetCollisionObjectType(ECC_WorldStatic);
-    mBoxComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
+    // Same seam as AAIFactoryCreativeResourceNode. An extractor hologram finds
+    // its target by querying FactoryGame's "Resource" object type, so an
+    // anchor that is object type WorldStatic and blocks only ECC_Visibility is
+    // configured correctly and still invisible to every miner -- which defeats
+    // the entire point of a blueprint resource anchor. Use the shipped profile
+    // so this tracks the game's own definition.
+    mBoxComponent->SetCollisionProfileName(TEXT("Resource"));
+    // Kept on top of the profile so aim-based node resolution still works;
+    // see the matching note in AIFactoryCreativeResourceNode.cpp.
     mBoxComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
     mBoxComponent->SetGenerateOverlapEvents(false);
 }

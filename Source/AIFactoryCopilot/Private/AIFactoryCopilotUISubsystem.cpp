@@ -43,8 +43,12 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "AIFactoryCreativeResourceNode.h"
+#include "FGRecipeManager.h"
+#include "Resources/FGResourceDescriptor.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
@@ -165,6 +169,9 @@ void UAIFactoryCopilotUISubsystem::Deinitialize()
     LiveStatusText.Reset();
     RequestStatusText.Reset();
     CreativeNodeResourceBox.Reset();
+    NodeSpawnerRows.Reset();
+    NodeSpawnerFilterBox.Reset();
+    NodeSpawnerStatusText.Reset();
 
     Super::Deinitialize();
 }
@@ -238,6 +245,36 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .AutoWidth()
                         .Padding(8.0f, 0.0f)
                         [
+                            // Lives in the header, which is never hidden by a
+                            // tab. A tab control that can hide itself is the
+                            // exact mistake that made the box-scan sliders
+                            // unreachable earlier.
+                            SNew(SButton)
+                            .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                            .ForegroundColor(AIFactoryPalette::Orange)
+                            .Text_Lambda([this]()
+                            {
+                                return FText::FromString(bNodeSpawnerTab
+                                    ? TEXT("Copilot")
+                                    : TEXT("Node spawner"));
+                            })
+                            .ToolTipText(FText::FromString(TEXT(
+                                "Every resource the game registers as a node, vanilla and modded. "
+                                "Pick one and a purity to arm the Build Gun.")))
+                            .OnClicked_Lambda([this]()
+                            {
+                                bNodeSpawnerTab = !bNodeSpawnerTab;
+                                if (bNodeSpawnerTab && !bNodeCatalogScanned)
+                                {
+                                    RefreshNodeCatalog();
+                                }
+                                return FReply::Handled();
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(8.0f, 0.0f)
+                        [
                             SNew(SButton)
                             .Text(FText::FromString(TEXT("Help")))
                             .ButtonColorAndOpacity(AIFactoryPalette::Button)
@@ -297,6 +334,23 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         .AlwaysShowScrollbars(true)
                         .BackgroundColor(AIFactoryPalette::Field)
                         .ForegroundColor(AIFactoryPalette::Text)
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
+                        })
+                    ]
+                    + SVerticalBox::Slot()
+                    .FillHeight(1.0f)
+                    .Padding(0.0f, 12.0f)
+                    [
+                        SNew(SBox)
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Visible : EVisibility::Collapsed;
+                        })
+                        [
+                            BuildNodeSpawnerSection()
+                        ]
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -309,23 +363,45 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                                 ? AIFactoryPalette::Orange
                                 : AIFactoryPalette::TextMuted)
                         .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
+                        })
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
                     .Padding(0.0f, 0.0f, 0.0f, 8.0f)
                     [
-                        BuildCreativeNodeSection()
+                        SNew(SBox)
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
+                        })
+                        [
+                            BuildCreativeNodeSection()
+                        ]
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
                     .Padding(0.0f, 0.0f, 0.0f, 8.0f)
                     [
-                        BuildSelectionSection()
+                        SNew(SBox)
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
+                        })
+                        [
+                            BuildSelectionSection()
+                        ]
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
                     [
                         SNew(SHorizontalBox)
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
+                        })
                         + SHorizontalBox::Slot()
                         .FillWidth(1.0f)
                         .Padding(0.0f, 0.0f, 10.0f, 0.0f)
@@ -712,6 +788,278 @@ void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(const FString& Purit
     ForwardCreativeNodePlacementCommand(
         CommandLine,
         FString::Printf(TEXT("/%s"), *CommandLine));
+}
+
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildNodeSpawnerSection()
+{
+    return SNew(SVerticalBox)
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .VAlign(VAlign_Center)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString(TEXT("NODE SPAWNER")))
+                .ColorAndOpacity(AIFactoryPalette::Orange)
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 12))
+            ]
+            + SHorizontalBox::Slot()
+            .FillWidth(1.0f)
+            .VAlign(VAlign_Center)
+            .Padding(12.0f, 0.0f, 6.0f, 0.0f)
+            [
+                SAssignNew(NodeSpawnerFilterBox, SEditableTextBox)
+                .HintText(FText::FromString(TEXT("filter: iron, water, geyser, gas...")))
+                .OnTextChanged_Lambda([this](const FText&)
+                {
+                    RebuildNodeSpawnerRows();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .Text(FText::FromString(TEXT("Rescan")))
+                .ToolTipText(FText::FromString(TEXT(
+                    "Re-read the game's registered item catalogue. Run this after enabling a "
+                    "mod that adds resources.")))
+                .OnClicked_Lambda([this]()
+                {
+                    RefreshNodeCatalog();
+                    return FReply::Handled();
+                })
+            ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+        [
+            SAssignNew(NodeSpawnerStatusText, STextBlock)
+            .Text(FText::FromString(TEXT("Press Rescan to read the resource catalogue.")))
+            .ColorAndOpacity(AIFactoryPalette::TextMuted)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+            .AutoWrapText(true)
+        ]
+        + SVerticalBox::Slot()
+        .FillHeight(1.0f)
+        [
+            SNew(SBorder)
+            .Padding(FMargin(6.0f))
+            .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
+            .BorderBackgroundColor(AIFactoryPalette::Field)
+            [
+                SNew(SScrollBox)
+                + SScrollBox::Slot()
+                [
+                    SAssignNew(NodeSpawnerRows, SVerticalBox)
+                ]
+            ]
+        ];
+}
+
+void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
+{
+    NodeCatalog.Reset();
+    bNodeCatalogScanned = true;
+
+    UWorld* const World = GetWorld();
+    AFGRecipeManager* const Recipes = IsValid(World) ? AFGRecipeManager::Get(World) : nullptr;
+    if (Recipes == nullptr)
+    {
+        if (NodeSpawnerStatusText.IsValid())
+        {
+            NodeSpawnerStatusText->SetText(FText::FromString(TEXT(
+                "No recipe manager yet. Load a save, then press Rescan.")));
+        }
+        RebuildNodeSpawnerRows();
+        return;
+    }
+
+    // The registered item catalogue is the only authoritative list that also
+    // contains modded resources, and it does not require guessing class paths.
+    TSet<UClass*> Seen;
+    int32 Spawnable = 0;
+    for (const TSubclassOf<UFGItemDescriptor> Descriptor : Recipes->GetAllItemDescriptors())
+    {
+        UClass* const DescriptorClass = Descriptor.Get();
+        if (!IsValid(DescriptorClass) ||
+            !DescriptorClass->IsChildOf(UFGResourceDescriptor::StaticClass()) ||
+            Seen.Contains(DescriptorClass))
+        {
+            continue;
+        }
+        Seen.Add(DescriptorClass);
+
+        const TSubclassOf<UFGResourceDescriptor> Resource(DescriptorClass);
+        FAIFactoryNodeCatalogEntry Entry;
+        Entry.Resource = Resource;
+        Entry.DisplayName = UFGItemDescriptor::GetItemName(Resource).ToString().TrimStartAndEnd();
+        if (Entry.DisplayName.IsEmpty())
+        {
+            Entry.DisplayName = DescriptorClass->GetName();
+        }
+
+        switch (UFGItemDescriptor::GetForm(Resource))
+        {
+        case EResourceForm::RF_SOLID:  Entry.Kind = TEXT("Solid");  break;
+        case EResourceForm::RF_LIQUID: Entry.Kind = TEXT("Liquid"); break;
+        case EResourceForm::RF_GAS:    Entry.Kind = TEXT("Gas");    break;
+        default:                       Entry.Kind = TEXT("Other");  break;
+        }
+
+        // The editor's own validator decides, so the list never advertises
+        // something the server would then refuse.
+        Entry.bSpawnable = AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, RP_Normal, Entry.Reason);
+        if (Entry.bSpawnable)
+        {
+            ++Spawnable;
+        }
+        NodeCatalog.Add(MoveTemp(Entry));
+    }
+
+    // Spawnable first, then alphabetical, so the usable half is not buried.
+    NodeCatalog.Sort([](const FAIFactoryNodeCatalogEntry& A, const FAIFactoryNodeCatalogEntry& B)
+    {
+        if (A.bSpawnable != B.bSpawnable)
+        {
+            return A.bSpawnable;
+        }
+        return A.DisplayName < B.DisplayName;
+    });
+
+    if (NodeSpawnerStatusText.IsValid())
+    {
+        NodeSpawnerStatusText->SetText(FText::FromString(FString::Printf(
+            TEXT("%d registered resources, %d spawnable as a node. The rest are listed with ")
+            TEXT("the reason rather than hidden: liquids, gases and geysers are separate node ")
+            TEXT("types (FrackingCore, Geyser) that this editor does not construct yet."),
+            NodeCatalog.Num(), Spawnable)));
+    }
+    RebuildNodeSpawnerRows();
+}
+
+void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()
+{
+    if (!NodeSpawnerRows.IsValid())
+    {
+        return;
+    }
+    NodeSpawnerRows->ClearChildren();
+
+    const FString Filter = NodeSpawnerFilterBox.IsValid()
+        ? NodeSpawnerFilterBox->GetText().ToString().TrimStartAndEnd().ToLower()
+        : FString();
+
+    int32 Shown = 0;
+    for (const FAIFactoryNodeCatalogEntry& Entry : NodeCatalog)
+    {
+        if (!Filter.IsEmpty() &&
+            !Entry.DisplayName.ToLower().Contains(Filter) &&
+            !Entry.Kind.ToLower().Contains(Filter))
+        {
+            continue;
+        }
+        ++Shown;
+
+        const FString Name = Entry.DisplayName;
+        const FString Kind = Entry.Kind;
+        const FString Reason = Entry.Reason;
+        const bool bSpawnable = Entry.bSpawnable;
+
+        // Arming reuses the existing server-validated command path rather than
+        // introducing a second way to write the world.
+        const auto MakeArm = [this, Name](const TCHAR* const Label, const TCHAR* const PurityToken)
+        {
+            return SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .Text(FText::FromString(Label))
+                .ToolTipText(FText::FromString(FString::Printf(
+                    TEXT("Arm the Build Gun for a %s %s node."), *Name, Label)))
+                .OnClicked_Lambda([this, Name, PurityToken]()
+                {
+                    const FString CommandLine = FString::Printf(
+                        TEXT("ai node place %s %s"), *Name, PurityToken);
+                    ForwardCreativeNodePlacementCommand(
+                        CommandLine, FString::Printf(TEXT("/%s"), *CommandLine));
+                    return FReply::Handled();
+                });
+        };
+
+        TSharedPtr<SWidget> Trailing;
+        if (bSpawnable)
+        {
+            Trailing = SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+                [ MakeArm(TEXT("Impure"), TEXT("impure")) ]
+                + SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+                [ MakeArm(TEXT("Normal"), TEXT("normal")) ]
+                + SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+                [ MakeArm(TEXT("Pure"), TEXT("pure")) ];
+        }
+        else
+        {
+            Trailing = SNew(STextBlock)
+                .Text(FText::FromString(Reason))
+                .ColorAndOpacity(AIFactoryPalette::TextMuted)
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+                .AutoWrapText(true);
+        }
+
+        NodeSpawnerRows->AddSlot()
+        .AutoHeight()
+        .Padding(0.0f, 2.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot()
+            .FillWidth(1.0f)
+            .VAlign(VAlign_Center)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString(Name))
+                .ColorAndOpacity(bSpawnable ? AIFactoryPalette::Text : AIFactoryPalette::TextMuted)
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .VAlign(VAlign_Center)
+            .Padding(6.0f, 0.0f, 10.0f, 0.0f)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString(Kind))
+                .ColorAndOpacity(AIFactoryPalette::TextMuted)
+                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .VAlign(VAlign_Center)
+            [
+                Trailing.ToSharedRef()
+            ]
+        ];
+    }
+
+    if (Shown == 0)
+    {
+        NodeSpawnerRows->AddSlot()
+        .AutoHeight()
+        .Padding(0.0f, 6.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(NodeCatalog.Num() == 0
+                ? TEXT("Nothing scanned yet. Press Rescan.")
+                : TEXT("No resource matches that filter.")))
+            .ColorAndOpacity(AIFactoryPalette::TextMuted)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+        ];
+    }
 }
 
 bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(
@@ -1801,37 +2149,19 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     return FReply::Handled();
                 })
             ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 6.0f, 0.0f, 0.0f)
+        [
+            // These three buttons are how a selection is made, so they are
+            // always visible. They previously sat inside the box-scan row
+            // above, which is collapsed by default -- that hid the very button
+            // that reveals it, and took dismantle marks and Select aimed with
+            // it. Nothing could reach the sliders again once they closed.
+            SNew(SHorizontalBox)
             + SHorizontalBox::Slot()
             .AutoWidth()
-            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
-            [
-                SNew(SButton)
-                .ButtonColorAndOpacity(AIFactoryPalette::Button)
-                .ForegroundColor(AIFactoryPalette::TextMuted)
-                .Text_Lambda([this]()
-                {
-                    return FText::FromString(bShowBoxSelect
-                        ? TEXT("Hide box scan")
-                        : TEXT("Box scan"));
-                })
-                .ToolTipText(FText::FromString(TEXT(
-                    "The area scan: drag a box and take everything inside it. Best on an "
-                    "empty world where you have just built something and want all of it.")))
-                .OnClicked_Lambda([this]()
-                {
-                    bShowBoxSelect = !bShowBoxSelect;
-                    // Opening it should show what the box already holds rather than
-                    // three sliders above an empty count line.
-                    if (bShowBoxSelect)
-                    {
-                        RefreshSelectionPreview();
-                    }
-                    return FReply::Handled();
-                })
-            ]
-            + SHorizontalBox::Slot()
-            .AutoWidth()
-            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
             [
                 SNew(SButton)
                 .ButtonColorAndOpacity(AIFactoryPalette::Button)
@@ -1863,24 +2193,57 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildSelectionSection()
                     return FReply::Handled();
                 })
             ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::TextMuted)
+                .Text_Lambda([this]()
+                {
+                    return FText::FromString(bShowBoxSelect
+                        ? TEXT("Hide box scan")
+                        : TEXT("Box scan"));
+                })
+                .ToolTipText(FText::FromString(TEXT(
+                    "The area scan: drag a box and take everything inside it. Best on an "
+                    "empty world where you have just built something and want all of it.")))
+                .OnClicked_Lambda([this]()
+                {
+                    bShowBoxSelect = !bShowBoxSelect;
+                    // Opening it should show what the box already holds rather than
+                    // three sliders above an empty count line.
+                    if (bShowBoxSelect)
+                    {
+                        RefreshSelectionPreview();
+                    }
+                    return FReply::Handled();
+                })
+            ]
         ]
         + SVerticalBox::Slot()
         .AutoHeight()
         .Padding(0.0f, 6.0f, 0.0f, 0.0f)
         [
+            // Its own full-width row. Sharing a row with the name box and four
+            // buttons left this clipped mid-word and running into the name
+            // field, and the status line is often the longest text in the
+            // panel -- it reports counts, filter exclusions and the structural
+            // shortfall from a dismantle selection.
+            SAssignNew(SelectionCountText, STextBlock)
+            .Text(FText::FromString(TEXT("Nothing selected. Drag a slider or type a size, then tick what to include.")))
+            .ColorAndOpacity(AIFactoryPalette::Orange)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
+            .AutoWrapText(true)
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 4.0f, 0.0f, 0.0f)
+        [
             SNew(SHorizontalBox)
             + SHorizontalBox::Slot()
-            .FillWidth(1.0f)
-            .VAlign(VAlign_Center)
-            [
-                SAssignNew(SelectionCountText, STextBlock)
-                .Text(FText::FromString(TEXT("Nothing selected. Drag a slider or type a size, then tick what to include.")))
-                .ColorAndOpacity(AIFactoryPalette::Orange)
-                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 10))
-            ]
-            + SHorizontalBox::Slot()
             .AutoWidth()
-            .Padding(8.0f, 0.0f, 0.0f, 0.0f)
             [
                 SNew(SBox)
                 .WidthOverride(150.0f)
