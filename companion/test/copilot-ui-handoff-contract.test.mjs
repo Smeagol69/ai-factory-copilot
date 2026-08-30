@@ -39,7 +39,7 @@ test("the Insert panel forwards only the documented creative-node command throug
   const submit = functionSlice(
     ui,
     "void UAIFactoryCopilotUISubsystem::SubmitQuestion()",
-    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()",
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildNodeSpawnerSection()",
   );
   const forward = functionSlice(
     ui,
@@ -62,28 +62,27 @@ test("the Insert panel forwards only the documented creative-node command throug
   assert.doesNotMatch(submit, /AChatCommandSubsystem::RunChatCommand/);
 });
 
-test("the Creative Node picker only generates the existing server-validated placement handoff", () => {
-  const picker = functionSlice(
+test("the Creative Node Spawner only generates the existing server-validated placement handoff", () => {
+  const spawner = functionSlice(
     ui,
-    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()",
-    "void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(",
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildNodeSpawnerSection()",
+    "void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()",
   );
-  const arm = functionSlice(
+  const rows = functionSlice(
     ui,
-    "void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(",
+    "void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()",
     "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(",
   );
 
-  assert.match(picker, /SAssignNew\(CreativeNodeResourceBox, SEditableTextBox\)/);
-  assert.match(picker, /ArmCreativeNodeFromPanel\(TEXT\("impure"\)\)/);
-  assert.match(picker, /ArmCreativeNodeFromPanel\(TEXT\("normal"\)\)/);
-  assert.match(picker, /ArmCreativeNodeFromPanel\(TEXT\("pure"\)\)/);
-  assert.match(arm, /TEXT\("ai node place %s %s"\)/);
-  assert.match(arm, /ForwardCreativeNodePlacementCommand\(/);
-  assert.match(arm, /Resource\.Contains\(TEXT\("\\r"\)\)/);
-  assert.match(arm, /Resource\.Contains\(TEXT\("\\n"\)\)/);
-  assert.match(arm, /bFocusInputOnNextTick = false/);
-  assert.doesNotMatch(arm, /SpawnActor|SetActorLocation|ConfigureCreativeNode|ClientArmCreativeResourceNode/);
+  assert.match(spawner, /SAssignNew\(NodeSpawnerFilterBox, SEditableTextBox\)/);
+  assert.match(spawner, /RefreshNodeCatalog\(\)/);
+  assert.match(rows, /MakeArm\(TEXT\("Impure"\), TEXT\("impure"\)\)/);
+  assert.match(rows, /MakeArm\(TEXT\("Normal"\), TEXT\("normal"\)\)/);
+  assert.match(rows, /MakeArm\(TEXT\("Pure"\), TEXT\("pure"\)\)/);
+  assert.match(rows, /TEXT\("ai node place %s %s"\)/);
+  assert.match(rows, /TEXT\("ai node place-template %s %s"\)/);
+  assert.match(rows, /ForwardCreativeNodePlacementCommand\(/);
+  assert.doesNotMatch(rows, /SpawnActor|SetActorLocation|ConfigureCreativeNode|ClientArmCreativeResourceNode/);
 });
 
 test("native Blueprint export can adopt dismantle marks without dismantling", () => {

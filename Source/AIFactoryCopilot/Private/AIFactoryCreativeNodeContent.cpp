@@ -27,9 +27,11 @@ TSubclassOf<AFGHologram> UAIFactoryCreativeNodeDescriptor::GetHologramClassInter
 
 TSubclassOf<AActor> UAIFactoryCreativeNodeDescriptor::GetBuildClassInternal() const
 {
-    // The descriptor's normal class is a real ordinary AFGResourceNode so
-    // Miner holograms see the same inheritance contract as BP_ResourceNode.
-    // The custom hologram selects the retained geyser class only for an exact
+    // The descriptor's normal class is a real ordinary AFGResourceNode. Native
+    // mod classes cannot inherit the Blueprint-generated BP_ResourceNode_C
+    // class required by vanilla Miner CDOs, so the module supplies a scoped
+    // compatibility shim that preserves every non-class extractor check. The
+    // custom hologram selects the retained geyser class only for an exact
     // UFGResourceDescriptorGeyser request.
     return AAIFactoryCreativeOrdinaryResourceNode::StaticClass();
 }

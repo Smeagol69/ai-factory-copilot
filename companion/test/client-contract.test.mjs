@@ -269,6 +269,55 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(ui, /TEXT\("ai node place-template %s %s"\)/);
 });
 
+test("Miner compatibility bypasses only the Blueprint node-class gate for valid Copilot ordinary nodes", () => {
+  const moduleHeader = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Public/AIFactoryCopilotModule.h", import.meta.url),
+    "utf8",
+  );
+  const moduleSource = fs.readFileSync(
+    new URL("../../Source/AIFactoryCopilot/Private/AIFactoryCopilotModule.cpp", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(moduleHeader, /FDelegateHandle mCreativeNodeExtractorCompatibilityHook/);
+  assert.match(moduleSource, /#if WITH_EDITOR[\s\S]*?Shipping-only[\s\S]*?#else/);
+  assert.match(
+    moduleSource,
+    /SUBSCRIBE_METHOD\(\s*AFGBuildableResourceExtractorBase::IsAllowedOnResource/,
+  );
+  assert.match(
+    moduleSource,
+    /Cast<AAIFactoryCreativeOrdinaryResourceNode>\(Resource\.GetObject\(\)\)/,
+  );
+  assert.match(moduleSource, /CreativeNode->CanPlaceResourceExtractor\(\)/);
+  assert.match(moduleSource, /TEXT\("mRestrictToNodeType"\)/);
+  assert.match(
+    moduleSource,
+    /SetObjectPropertyValue_InContainer\(\s*MutableExtractor, nullptr\)/,
+  );
+  const originalCall = moduleSource.indexOf("Scope(Extractor, Resource)");
+  const restore = moduleSource.indexOf(
+    "MutableExtractor, PreviousRestriction",
+    originalCall,
+  );
+  const override = moduleSource.indexOf(
+    "Scope.Override(bAllowedByRemainingNativeChecks)",
+    restore,
+  );
+  assert.ok(
+    originalCall >= 0 && restore > originalCall && override > restore,
+    "the original FactoryGame checks must run while only the class gate is absent, then the exact restriction must be restored before returning",
+  );
+  assert.match(
+    moduleSource,
+    /UNSUBSCRIBE_METHOD\(\s*AFGBuildableResourceExtractorBase::IsAllowedOnResource/,
+  );
+  assert.doesNotMatch(
+    moduleSource,
+    /AAIFactoryCreativeResourceNode>\(Resource\.GetObject\(\)\)/,
+  );
+});
+
 test("native Blueprint preview refreshes only when the player requests a native preview", () => {
   const subsystem = fs.readFileSync(
     new URL("../../Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp", import.meta.url),

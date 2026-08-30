@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-30 | Codex | `codex/miner-node-class-gate` | Read-only audit of the live Miner snap refusal using the exact CL 502094 Shipping DLL/PDB, official headers, and captured reflected CDO properties. Identify the first failing native gate without changing node, hologram, extractor, collision, save, or placement behavior; append the evidence and safest implementation directions for Claude. | diagnosis complete: the native 200 cm overlap succeeds only into `CanOccupyResource`, whose extractor-side `IsAllowedOnResource` enforces the captured `mRestrictToNodeType = BP_ResourceNode_C`; the native creative `AFGResourceNode` child is not that Blueprint subtype. No runtime code changed. Baseline `origin/master` is 885/887 tests: two existing Creative Node picker source-contract failures from `5b2e3ee`. |
+| 2026-08-30 | Codex | `codex/miner-node-class-gate` | Implement the now-proven Miner compatibility fix without removing Claude's diagnostics or Codex's solid/fluid/gas/geyser/template/save behavior. Scope any extractor compatibility change to Copilot-created ordinary nodes, preserve the game's occupation/resource-form/resource-allowlist gates, verify against exact CL 502094 headers, then run tests, Shipping/Editor builds, package, and deploy for the owner's live test. Expected files: module hook/lifecycle, creative ordinary-node contract, focused source tests, changelog, and this handoff. | packaged and deployed for live test: a Shipping-only SML hook removes `mRestrictToNodeType` only during the original native check for a validated `AAIFactoryCreativeOrdinaryResourceNode`, then restores it exactly. Vanilla/template/geyser/other-mod paths are untouched. 888/888 tests, exact headers, Shipping/Editor and UAT pass. Steam DLL SHA-256 `1BC3CF022299AE5BDF6B2C9987FE2FDE518C3004697914CB1862761425CB5723`; live Miner snap remains pending. |
 | 2026-08-29 | Codex | `codex/creative-node-runtime-compat` | Live follow-up to the deployed Creative Node Spawner after owner testing. Preserve the existing solid/liquid/gas/geyser path while fixing player-facing purity titles, separating ordinary Miner-compatible node actors from geyser inheritance, and adding a fail-closed discovered-template lane for exact mod-owned resource-node classes whose descriptors/forms use special contracts (first evidence: Refined Power `BP_WaterTurbineNode_C`, `RF_INVALID`, node type `Invalid`, with native 8/20/50 MW behavior). Revalidate the selected template class/resource/purity against live registered node evidence on both client and server; never approximate a special node as generic Water or mutate a vanilla node. Expected files: creative node actor/hologram/RCO/placement/UI/chat contracts, focused source tests, changelog and append-only handoff. | implementation packaged and deployed; 887/887 tests, exact CL 502094 header validation, Shipping/Editor and UAT pass. Steam DLL matches Starter SHA-256 `FD9E48807C424F8BBC1618DB0E74E1FA100AF6A129661E15658365504DE171D6`; live Miner/Water Turbine placement remains pending. |
 | 2026-08-29 | Codex | `codex/creative-node-fluids-geysers` | Extend the mod-owned Creative Node Spawner beyond solid resources with explicit liquid, gas, and geothermal geyser modes. Preserve the native Build Gun/hologram path, saved configuration, resource-form validation, and fail-closed extractor/node-type rules; prove every new engine seam against CL 502094 before implementation. No retargeting or mutation of vanilla nodes, fracking satellites/cores, or direct client spawning. | complete in `562e4e9`; 887/887 companion tests, exact header validation, Editor/Shipping builds, and guarded UAT package/deploy pass. DLL SHA-256 `4F78131685B791C167421E99CFB5E748DB8601C75F8D76405D02CEC6514064EB`; live Miner/fluid/geothermal placement still pending. |
 | 2026-08-29 | Codex | `codex/generated-blueprint-two-stage-wire` | Extend the merged one-stage source/fan-out proof into one exact balanced two-stage linear production graph, aimed first at standard Copper Ore → Copper Ingot → Wire. Rebuild the generic base planner's explicitly logical-only row edge into distinct named-port native conveyors: Miner → one regular raw splitter → fully utilized Smelters, then each Smelter → its own regular splitter → the exact number of fully utilized Constructors supported by its captured per-machine output/input rates. Select only current unlocked recipes/parts, exact CDO factory ports, observed belt capacity and live collision footprints; keep every port unique and let the unchanged bridge/game/isolated-world gates revalidate. Refuse non-integral balance, partial clocks, coproducts, more than one intermediate edge, merger-required graphs, over-capacity legs, insufficient regular-splitter outputs, or geometry that cannot be proven inside the shell. Preserve generic Blueprints, the one-stage lane, power, pipelines, Anchor/Miner v4, Claude's Node Editor/Spawner/discovery/UI, and all write gates. No deploy while the game is open. | claimed; mapping exact production-step provenance and generated action indices before implementation |
@@ -5297,3 +5297,46 @@ are pre-existing source-contract tests for `BuildCreativeNodeSection` and
 Node picker. This diagnosis branch neither fixes nor waives those failures; do
 not treat it as a clean integration build until the picker is restored or that
 contract is deliberately superseded without losing working functionality.
+
+### Codex — 2026-08-30 Miner class-gate implementation and deploy
+
+Implemented the class-gate fix on `codex/miner-node-class-gate` without changing
+the spawned actor, its collision, saved configuration, Build Gun construction,
+or any special template/geyser path. The module hooks the public non-virtual
+`AFGBuildableResourceExtractorBase::IsAllowedOnResource`. The handler returns
+immediately for every resource except a valid
+`AAIFactoryCreativeOrdinaryResourceNode`. For that exact node only, it reads the
+reflected `mRestrictToNodeType`, saves the exact `UClass`, sets the property null,
+calls FactoryGame's original function, restores the exact class, and returns the
+original function's result. Consequently FactoryGame still owns resource-form,
+explicit allowlist, and all remaining compatibility decisions; the surrounding
+`CanOccupyResource` still owns occupation.
+
+The first UAT cook caught an important target difference before deployment:
+FactoryEditor's generated `IsAllowedOnResource` body is an empty stub too short
+for SML/funchook and caused a deterministic `Too short instructions` startup
+failure. The hook is now compiled only when `WITH_EDITOR` is false. Editor and
+cook log the intentional Shipping-only state, while the installed game's real
+Shipping implementation receives the hook. Do not remove this guard unless the
+Starter Project begins shipping the actual Editor implementation.
+
+Also updated the two stale UI source-contract tests removed by `5b2e3ee` to
+validate the Node Spawner that deliberately superseded the compact typed picker.
+No UI runtime behavior was changed. Verification:
+
+- Exact SML 3.12.0 / FactoryGame CL 502094 source validation passed.
+- Companion tests: 888/888.
+- FactoryGameSteam Shipping module build passed.
+- FactoryEditor Development module build passed.
+- UAT build, cook, archive, and Steam deployment passed with zero cook errors.
+- Starter and deployed Steam DLLs are both 1,418,752 bytes and SHA-256
+  `1BC3CF022299AE5BDF6B2C9987FE2FDE518C3004697914CB1862761425CB5723`.
+- Archive:
+  `D:\Modding\Satisfactory\StarterProject-502094\Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`,
+  19,850,002 bytes, SHA-256
+  `7CF98D4CAD38B212AC33FDA255F9EB0E754A8A3A8607FCA04271670763F74461`.
+
+The game remained closed after deployment. Live proof still required: load a
+save, place a normal solid node through Node Spawner, equip Miner Mk.1, and
+confirm the hologram snaps/constructs. `/ai why` remains available if it does
+not; capture its exact result rather than changing collision again.

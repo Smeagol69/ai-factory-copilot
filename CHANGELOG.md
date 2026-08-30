@@ -5,6 +5,23 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed vanilla Miner snapping on ordinary nodes created by the Creative Node
+  Spawner. FactoryGame CL 502094 restricts Miner CDOs to the Blueprint-generated
+  `BP_ResourceNode_C` class, which a native mod node cannot inherit even when it
+  implements the complete resource-node and collision contract. A narrowly
+  scoped SML hook now removes that one class predicate only while FactoryGame
+  evaluates a valid `AAIFactoryCreativeOrdinaryResourceNode`; the original
+  native function still decides occupation, allowed resource forms, explicit
+  extractor resource allowlists, and every non-class compatibility rule.
+  Vanilla nodes, geysers, Refined Power templates, and other mods' extractable
+  actors keep the untouched path. The hook is Shipping-only because the Starter
+  Project's generated Editor method is an empty non-hookable stub; this keeps
+  Editor/cook startup safe while targeting the installed game's real function.
+  Exact CL 502094 validation, Shipping and Editor builds, UAT cook/archive,
+  matched Steam deployment, and **888/888** tests pass. The installed DLL
+  SHA-256 is
+  `1BC3CF022299AE5BDF6B2C9987FE2FDE518C3004697914CB1862761425CB5723`;
+  live Miner hologram confirmation is the remaining gate.
 - Repaired the live Creative Node Spawner compatibility gaps found against
   Refined Power. Ordinary solid/liquid/gas resources now construct a true
   `AFGResourceNode` subclass instead of changing the type flag on a geyser
