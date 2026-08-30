@@ -46,6 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
+| 2026-08-30 | Codex | `codex/miner-node-class-gate` | Read-only audit of the live Miner snap refusal using the exact CL 502094 Shipping DLL/PDB, official headers, and captured reflected CDO properties. Identify the first failing native gate without changing node, hologram, extractor, collision, save, or placement behavior; append the evidence and safest implementation directions for Claude. | diagnosis complete: the native 200 cm overlap succeeds only into `CanOccupyResource`, whose extractor-side `IsAllowedOnResource` enforces the captured `mRestrictToNodeType = BP_ResourceNode_C`; the native creative `AFGResourceNode` child is not that Blueprint subtype. No runtime code changed. Baseline `origin/master` is 885/887 tests: two existing Creative Node picker source-contract failures from `5b2e3ee`. |
 | 2026-08-29 | Codex | `codex/creative-node-runtime-compat` | Live follow-up to the deployed Creative Node Spawner after owner testing. Preserve the existing solid/liquid/gas/geyser path while fixing player-facing purity titles, separating ordinary Miner-compatible node actors from geyser inheritance, and adding a fail-closed discovered-template lane for exact mod-owned resource-node classes whose descriptors/forms use special contracts (first evidence: Refined Power `BP_WaterTurbineNode_C`, `RF_INVALID`, node type `Invalid`, with native 8/20/50 MW behavior). Revalidate the selected template class/resource/purity against live registered node evidence on both client and server; never approximate a special node as generic Water or mutate a vanilla node. Expected files: creative node actor/hologram/RCO/placement/UI/chat contracts, focused source tests, changelog and append-only handoff. | implementation packaged and deployed; 887/887 tests, exact CL 502094 header validation, Shipping/Editor and UAT pass. Steam DLL matches Starter SHA-256 `FD9E48807C424F8BBC1618DB0E74E1FA100AF6A129661E15658365504DE171D6`; live Miner/Water Turbine placement remains pending. |
 | 2026-08-29 | Codex | `codex/creative-node-fluids-geysers` | Extend the mod-owned Creative Node Spawner beyond solid resources with explicit liquid, gas, and geothermal geyser modes. Preserve the native Build Gun/hologram path, saved configuration, resource-form validation, and fail-closed extractor/node-type rules; prove every new engine seam against CL 502094 before implementation. No retargeting or mutation of vanilla nodes, fracking satellites/cores, or direct client spawning. | complete in `562e4e9`; 887/887 companion tests, exact header validation, Editor/Shipping builds, and guarded UAT package/deploy pass. DLL SHA-256 `4F78131685B791C167421E99CFB5E748DB8601C75F8D76405D02CEC6514064EB`; live Miner/fluid/geothermal placement still pending. |
 | 2026-08-29 | Codex | `codex/generated-blueprint-two-stage-wire` | Extend the merged one-stage source/fan-out proof into one exact balanced two-stage linear production graph, aimed first at standard Copper Ore → Copper Ingot → Wire. Rebuild the generic base planner's explicitly logical-only row edge into distinct named-port native conveyors: Miner → one regular raw splitter → fully utilized Smelters, then each Smelter → its own regular splitter → the exact number of fully utilized Constructors supported by its captured per-machine output/input rates. Select only current unlocked recipes/parts, exact CDO factory ports, observed belt capacity and live collision footprints; keep every port unique and let the unchanged bridge/game/isolated-world gates revalidate. Refuse non-integral balance, partial clocks, coproducts, more than one intermediate edge, merger-required graphs, over-capacity legs, insufficient regular-splitter outputs, or geometry that cannot be proven inside the shell. Preserve generic Blueprints, the one-stage lane, power, pipelines, Anchor/Miner v4, Claude's Node Editor/Spawner/discovery/UI, and all write gates. No deploy while the game is open. | claimed; mapping exact production-step provenance and generated action indices before implementation |
@@ -5232,3 +5233,67 @@ dead end.
    what collision a working node's box actually has, i.e. measurement 1.
 
 Everything above is reproducible with `/ai why` in a packaged build.
+
+### Codex — 2026-08-30 Miner snap root cause: extractor class restriction
+
+Claude's collision investigation reached the correct symptom but stopped one
+gate too early. The installed CL 502094 Shipping DLL and its matching PDB expose
+the complete native path even though the Starter Project's generated private
+`.cpp` bodies are empty. `AFGResourceExtractorHologram::TrySnapToExtractableResource`
+at RVA `0x00B2CB20` performs a `UWorld::OverlapMultiByObjectType` with an exact
+`200.0 cm` sphere centred on `FHitResult::Location`. For every overlapped actor
+implementing `IFGExtractableResourceInterface`, it calls the hologram's
+`CanOccupyResource` virtual before considering the interface placement location.
+
+The decisive rejection is inside the default extractor, not the node.
+`AFGBuildableResourceExtractorBase::CanOccupyResource` first rejects occupied
+resources and then calls `IsAllowedOnResource` at RVA `0x00579930`.
+`IsAllowedOnResource` begins by enforcing the extractor CDO's
+`mRestrictToNodeType` through an actual `UClass::IsChildOf`-equivalent ancestry
+check. The latest live snapshot captures that field authoritatively on all four
+loaded Miner variants as:
+
+```
+/Game/FactoryGame/Resource/BP_ResourceNode.BP_ResourceNode_C
+```
+
+It also captures the expected `(RF_SOLID)` form restriction. Therefore
+`AAIFactoryCreativeOrdinaryResourceNode : AFGResourceNode` can have the exact
+Resource collision body, infinite amount, valid resource descriptor, correct
+form, `CanPlaceResourceExtractor=true`, and `isOccupied=false` and still be
+rejected: it is not a child of `BP_ResourceNode_C`. This exactly explains why
+changing the resource of a map-authored `BP_ResourceNode_C` works while every
+native creative-node attempt fails with `FGCDNeedsResourceNode`.
+
+Do not spend another build on collision response, ownership, resource amount,
+mesh presentation, ResourceNodeManager registration, or a wider overlap box
+until this concrete class gate is addressed. Claude's claim that the snap query
+is hidden in an unreadable Blueprint is also too broad: the relevant native
+routine is exported and disassembled above; a Blueprint class cannot override
+this non-`UFUNCTION` C++ virtual in a Blueprint graph.
+
+Implementation directions, safest first:
+
+1. Make the generated ordinary node a real child/instance of
+   `BP_ResourceNode_C`, ideally through a mod Blueprint subclass that supplies
+   the required default collision component and delegates configuration/save
+   state to a narrow native component. This preserves every vanilla and modded
+   extractor's own restriction contract.
+2. If an asset-backed subclass is impractical, spawn the exact
+   `BP_ResourceNode_C` and explicitly reconstruct its level-authored collision
+   component plus persistent configuration. Claude already proved that spawning
+   the bare class alone is hollow, so the component/save contract is mandatory.
+3. Patching every extractor CDO's `mRestrictToNodeType`, or hooking
+   `IsAllowedOnResource`, can make the native class work but is a broader global
+   gameplay change. If used, scope it only to Copilot creative nodes while still
+   executing the original occupancy, resource allowlist, and form checks.
+
+This branch changes documentation only. No new build, package, deploy, or live
+success is claimed.
+
+Validation note: `npm test` on `origin/master` produced 885/887. The two failures
+are pre-existing source-contract tests for `BuildCreativeNodeSection` and
+`ArmCreativeNodeFromPanel`, which `5b2e3ee` removed with the compact Creative
+Node picker. This diagnosis branch neither fixes nor waives those failures; do
+not treat it as a clean integration build until the picker is restored or that
+contract is deliberately superseded without losing working functionality.
