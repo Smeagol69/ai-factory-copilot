@@ -250,6 +250,11 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(nodeEdit, /Cast<AAIFactoryCreativeOrdinaryResourceNode>\(Node\)/);
   assert.match(nodeEdit, /KnownCreativeNodeTemplates\(/);
   assert.match(nodeEdit, /Evidence->GetClass\(\) != NodeClass\.Get\(\)/);
+  assert.match(nodeEdit, /Node->IsA<AFGResourceNodeGeyser>\(\)/);
+  assert.match(
+    nodeEdit,
+    /OutResource = Node->GetResourceClass\(\);[\s\S]*if \(!IsValid\(OutResource\)\)[\s\S]*OutResource = Node->GetResourceClassOriginal\(\);/,
+  );
   assert.match(nodeEdit, /Node->IsA<AAIFactoryBlueprintAnchorNode>\(\)/);
   assert.match(nodeEdit, /Cast<AFGResourceNode>\(Node\)/);
   assert.match(nodeEdit, /Node->GetResourceNodeType\(\) != EResourceNodeType::Node/);

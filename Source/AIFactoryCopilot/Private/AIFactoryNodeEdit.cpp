@@ -9,6 +9,7 @@
 #include "FGCharacterPlayer.h"
 #include "FGPlayerController.h"
 #include "FGRecipeManager.h"
+#include "FGResourceNodeGeyser.h"
 #include "GameFramework/PlayerController.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceDescriptor.h"
@@ -286,10 +287,25 @@ bool IsSpecialTemplateEvidence(
         return false;
     }
 
-    OutResource = Node->GetResourceClassOriginal();
+    // Vanilla geothermal nodes already use the dedicated Copilot geyser
+    // actor. Their descriptor has RF_INVALID form, so form alone would
+    // otherwise mislabel "Geyser" as an exact mod template. A real special
+    // template must preserve a different class contract.
+    if (Node->IsA<AFGResourceNodeGeyser>())
+    {
+        return false;
+    }
+
+    // Special nodes may deliberately seed the inherited original-resource
+    // slot with a vanilla compatibility descriptor. Refined Power's Water
+    // Turbine nodes are the live example: the authoritative current resource
+    // is Water Turbine Node while the inherited original can still read as
+    // Geyser. Clone what the node actually exposes, then fall back only when
+    // the current resource is absent.
+    OutResource = Node->GetResourceClass();
     if (!IsValid(OutResource))
     {
-        OutResource = Node->GetResourceClass();
+        OutResource = Node->GetResourceClassOriginal();
     }
     if (!IsValid(OutResource))
     {
