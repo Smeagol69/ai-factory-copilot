@@ -20,7 +20,7 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   Exact CL 502094 validation, Shipping and Editor builds, UAT cook/archive,
   matched Steam deployment, and **888/888** tests pass. The installed DLL
   SHA-256 is
-  `1BC3CF022299AE5BDF6B2C9987FE2FDE518C3004697914CB1862761425CB5723`;
+  `139F7F22E66C454C321004B41E54FA5F582944CC0F448B413CD2C1E8DF33E70C`;
   live Miner hologram confirmation is the remaining gate.
 - Repaired the live Creative Node Spawner compatibility gaps found against
   Refined Power. Ordinary solid/liquid/gas resources now construct a true
