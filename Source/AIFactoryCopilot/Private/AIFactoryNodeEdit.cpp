@@ -296,9 +296,24 @@ bool IsSpecialTemplateEvidence(
         return false;
     }
 
-    // Normal resources and real geysers already have the safer mod-owned
-    // classes above. Template cloning exists only for mod-specific contracts
-    // such as Refined Power's RF_INVALID / Invalid Water Turbine node.
+    // Template cloning is reserved for mod-specific contracts such as Refined
+    // Power's RF_INVALID Water Turbine node. Ordinary vanilla nodes are
+    // deliberately excluded, and that exclusion was re-instated after being
+    // briefly lifted.
+    //
+    // Lifting it looked justified: a geyser -- which reaches this path only
+    // because a geyser descriptor's form is RF_INVALID, so this exclusion never
+    // covered it -- clones from BP_ResourceNodeGeyser_C and behaves correctly.
+    // But cloning BP_ResourceNode_C produces a hollow actor. A live snapshot
+    // diff against a working map node showed the clone with mBoxComponent=None,
+    // mMeshActor=None and mResourcesLeft=0: the box, the mesh actor and the
+    // resource count are all level-authored per-instance data that a runtime
+    // spawn cannot populate. The result is an invisible node with no collision
+    // that no extractor can find -- strictly worse than the native class.
+    //
+    // The native path is correct for ordinary nodes; its real defect was
+    // mResourcesLeft never being set, which is fixed at the InitResource call
+    // sites rather than by cloning a Blueprint we cannot fully construct.
     const EResourceForm Form = UFGItemDescriptor::GetForm(OutResource);
     const EResourceNodeType NodeType = Node->GetResourceNodeType();
     if (Form != EResourceForm::RF_INVALID &&
@@ -335,7 +350,14 @@ TMap<FString, FAIFactoryCreativeNodeTemplate> KnownCreativeNodeTemplates(
         }
 
         UClass* const NodeClassObject = Node->GetClass();
-        const FString ClassPath = NodeClassObject->GetPathName();
+        // Keyed by class AND resource, not class alone. The vanilla ordinary
+        // node Blueprint backs every ore in the map, so a class-only key would
+        // collapse dozens of live nodes into a single arbitrary row -- one
+        // "Iron Ore" template and no way to ask the same Blueprint for coal.
+        // Each pair is separately proven by a live node, which is exactly the
+        // evidence ValidateCreativeNodeTemplate goes looking for.
+        const FString ClassPath = FString::Printf(
+            TEXT("%s|%s"), *NodeClassObject->GetPathName(), *Resource->GetPathName());
         if (ByClassPath.Contains(ClassPath))
         {
             continue;
@@ -358,7 +380,24 @@ TMap<FString, FAIFactoryCreativeNodeTemplate> KnownCreativeNodeTemplates(
 
     for (const TPair<FString, FAIFactoryCreativeNodeTemplate>& Entry : ByClassPath)
     {
+        // The combined "class|resource" key is what the panel sends, so one
+        // Blueprint can be asked for a specific ore.
         Result.Add(Entry.Key.ToLower(), Entry.Value);
+
+        // The bare class path must keep resolving as well. Chat commands look
+        // templates up that way, and keying this map by class+resource alone
+        // silently broke every template -- including the geyser that already
+        // worked -- with "that exact special node class is no longer proven by
+        // a live node". First resource registered for a class wins here; the
+        // combined key above is how a caller asks for an exact pairing.
+        if (IsValid(Entry.Value.NodeClass))
+        {
+            const FString BareClassPath = Entry.Value.NodeClass->GetPathName().ToLower();
+            if (!Result.Contains(BareClassPath))
+            {
+                Result.Add(BareClassPath, Entry.Value);
+            }
+        }
     }
     for (const TPair<FString, TArray<FString>>& Entry : ClassPathsByDisplayName)
     {

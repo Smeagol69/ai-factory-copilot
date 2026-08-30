@@ -47,6 +47,8 @@
 #include "AIFactoryNodeEdit.h"
 #include "FGRecipeManager.h"
 #include "Resources/FGResourceDescriptor.h"
+#include "Resources/FGResourceDescriptorGeyser.h"
+#include "UObject/UObjectHash.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -169,7 +171,6 @@ void UAIFactoryCopilotUISubsystem::Deinitialize()
     TranscriptBox.Reset();
     LiveStatusText.Reset();
     RequestStatusText.Reset();
-    CreativeNodeResourceBox.Reset();
     NodeSpawnerRows.Reset();
     NodeSpawnerFilterBox.Reset();
     NodeSpawnerStatusText.Reset();
@@ -368,19 +369,6 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         {
                             return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
                         })
-                    ]
-                    + SVerticalBox::Slot()
-                    .AutoHeight()
-                    .Padding(0.0f, 0.0f, 0.0f, 8.0f)
-                    [
-                        SNew(SBox)
-                        .Visibility_Lambda([this]()
-                        {
-                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
-                        })
-                        [
-                            BuildCreativeNodeSection()
-                        ]
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -643,155 +631,16 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
 }
 
 /**
- * The compact Creative Node picker deliberately produces one already-supported
- * command rather than acquiring an alternate write path. The chat-command
+ * The node spawner. It replaced a typed resource field beside three Arm
+ * buttons: with every registered resource listed and clickable there was
+ * nothing left to type, and the field was one more thing to get wrong.
+ *
+ * It keeps that section's important property, which is why this comment
+ * survives the deletion: the panel produces one already-supported command
+ * rather than acquiring an alternate write path. The chat-command
  * implementation remains the single server authority for permissions,
  * descriptor validation, RCO staging, and normal Build Gun construction.
  */
-TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildCreativeNodeSection()
-{
-    return SNew(SBorder)
-        .Padding(FMargin(8.0f, 6.0f))
-        .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
-        .BorderBackgroundColor(AIFactoryPalette::Field)
-        [
-            SNew(SVerticalBox)
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(0.0f, 0.0f, 0.0f, 4.0f)
-            [
-                SNew(STextBlock)
-                .Text(FText::FromString(TEXT("CREATIVE RESOURCE NODE")))
-                .ColorAndOpacity(AIFactoryPalette::Orange)
-                .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 10))
-            ]
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot()
-                .FillWidth(1.0f)
-                .Padding(0.0f, 0.0f, 6.0f, 0.0f)
-                [
-                    SAssignNew(CreativeNodeResourceBox, SEditableTextBox)
-                    .HintText(FText::FromString(TEXT(
-                        "resource (for example: Copper Ore, Water, Nitrogen Gas)")))
-                    .ToolTipText(FText::FromString(TEXT(
-                        "Enter a registered solid, liquid, gas, or geyser resource name. The server validates "
-                        "the exact choice, including modded resources, before it arms the Build Gun.")))
-                    .SelectAllTextWhenFocused(true)
-                    .OnTextCommitted_Lambda([this](const FText&, const ETextCommit::Type CommitType)
-                    {
-                        if (CommitType == ETextCommit::OnEnter)
-                        {
-                            ArmCreativeNodeFromPanel(TEXT("normal"));
-                        }
-                    })
-                ]
-                + SHorizontalBox::Slot()
-                .AutoWidth()
-                .Padding(0.0f, 0.0f, 4.0f, 0.0f)
-                [
-                    SNew(SButton)
-                    .ButtonColorAndOpacity(AIFactoryPalette::Button)
-                    .ForegroundColor(AIFactoryPalette::Text)
-                    .Text(FText::FromString(TEXT("Arm impure")))
-                    .ToolTipText(FText::FromString(TEXT(
-                        "Ask the server to arm the normal Build Gun hologram for an impure node.")))
-                    .OnClicked_Lambda([this]()
-                    {
-                        ArmCreativeNodeFromPanel(TEXT("impure"));
-                        return FReply::Handled();
-                    })
-                ]
-                + SHorizontalBox::Slot()
-                .AutoWidth()
-                .Padding(0.0f, 0.0f, 4.0f, 0.0f)
-                [
-                    SNew(SButton)
-                    .ButtonColorAndOpacity(AIFactoryPalette::Button)
-                    .ForegroundColor(AIFactoryPalette::Orange)
-                    .Text(FText::FromString(TEXT("Arm normal")))
-                    .ToolTipText(FText::FromString(TEXT(
-                        "Ask the server to arm the normal Build Gun hologram for a normal node.")))
-                    .OnClicked_Lambda([this]()
-                    {
-                        ArmCreativeNodeFromPanel(TEXT("normal"));
-                        return FReply::Handled();
-                    })
-                ]
-                + SHorizontalBox::Slot()
-                .AutoWidth()
-                [
-                    SNew(SButton)
-                    .ButtonColorAndOpacity(AIFactoryPalette::Button)
-                    .ForegroundColor(AIFactoryPalette::Text)
-                    .Text(FText::FromString(TEXT("Arm pure")))
-                    .ToolTipText(FText::FromString(TEXT(
-                        "Ask the server to arm the normal Build Gun hologram for a pure node.")))
-                    .OnClicked_Lambda([this]()
-                    {
-                        ArmCreativeNodeFromPanel(TEXT("pure"));
-                        return FReply::Handled();
-                    })
-                ]
-            ]
-        ];
-}
-
-void UAIFactoryCopilotUISubsystem::ArmCreativeNodeFromPanel(const FString& Purity)
-{
-    if (bWaitingForAnswer)
-    {
-        if (RequestStatusText.IsValid())
-        {
-            RequestStatusText->SetText(FText::FromString(
-                TEXT("Wait for the current Copilot answer before arming a Creative Node.")));
-        }
-        return;
-    }
-
-    const FString Resource = CreativeNodeResourceBox.IsValid()
-        ? CreativeNodeResourceBox->GetText().ToString().TrimStartAndEnd()
-        : FString();
-    if (Resource.IsEmpty())
-    {
-        if (RequestStatusText.IsValid())
-        {
-            RequestStatusText->SetText(FText::FromString(
-                TEXT("Type a resource name first; the server will validate its solid/liquid/gas/geyser form before arming.")));
-        }
-        if (CreativeNodeResourceBox.IsValid() && FSlateApplication::IsInitialized())
-        {
-            // ShowPanel's one-frame conversation focus must not steal this
-            // explicit correction back to the generic question box.
-            bFocusInputOnNextTick = false;
-            FSlateApplication::Get().SetAllUserFocus(CreativeNodeResourceBox, EFocusCause::SetDirectly);
-            FSlateApplication::Get().SetKeyboardFocus(CreativeNodeResourceBox, EFocusCause::SetDirectly);
-        }
-        return;
-    }
-
-    // Newlines would make the UI transcript ambiguous and are never a valid
-    // display-name alias. Spaces and the brackets used for an ambiguous modded
-    // descriptor remain valid; the server still resolves the exact resource.
-    if (Resource.Contains(TEXT("\r")) || Resource.Contains(TEXT("\n")))
-    {
-        if (RequestStatusText.IsValid())
-        {
-            RequestStatusText->SetText(FText::FromString(
-                TEXT("A resource name must be one line. Use /ai node to list the exact choices.")));
-        }
-        return;
-    }
-
-    const FString CommandLine = FString::Printf(
-        TEXT("ai node place %s %s"), *Resource, *Purity);
-    ForwardCreativeNodePlacementCommand(
-        CommandLine,
-        FString::Printf(TEXT("/%s"), *CommandLine));
-}
-
 TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildNodeSpawnerSection()
 {
     return SNew(SVerticalBox)
@@ -895,8 +744,15 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
         {
             continue;
         }
+        // Keyed by class AND resource. The vanilla ordinary node Blueprint
+        // backs every ore on the map, so a class-only key would show a single
+        // arbitrary row instead of one per resource the world actually proves.
         TemplatesByClass.FindOrAdd(
-            Alias.Value.NodeClass->GetPathName(), Alias.Value);
+            FString::Printf(
+                TEXT("%s|%s"),
+                *Alias.Value.NodeClass->GetPathName(),
+                *Alias.Value.Resource->GetPathName()),
+            Alias.Value);
         TemplateResources.Add(Alias.Value.Resource.Get());
     }
 
@@ -980,6 +836,43 @@ void UAIFactoryCopilotUISubsystem::RefreshNodeCatalog()
         NodeCatalog.Add(MoveTemp(Entry));
     }
 
+    // Geyser descriptors are not holdable items, so they never appear in the
+    // item catalogue above. Geothermal/power nodes would therefore be silently
+    // missing from a list whose whole point is to be complete. Enumerate them
+    // by class instead, which also catches modded geyser descriptors.
+    TArray<UClass*> GeyserClasses;
+    GetDerivedClasses(UFGResourceDescriptorGeyser::StaticClass(), GeyserClasses, true);
+    GeyserClasses.Add(UFGResourceDescriptorGeyser::StaticClass());
+    for (UClass* const GeyserClass : GeyserClasses)
+    {
+        if (!IsValid(GeyserClass) ||
+            GeyserClass->HasAnyClassFlags(CLASS_Abstract) ||
+            Seen.Contains(GeyserClass))
+        {
+            continue;
+        }
+        Seen.Add(GeyserClass);
+
+        const TSubclassOf<UFGResourceDescriptor> Resource(GeyserClass);
+        FAIFactoryNodeCatalogEntry Entry;
+        Entry.Resource = Resource;
+        Entry.DisplayName = UFGItemDescriptor::GetItemName(Resource).ToString().TrimStartAndEnd();
+        if (Entry.DisplayName.IsEmpty())
+        {
+            Entry.DisplayName = GeyserClass->GetName();
+        }
+        Entry.Kind = TEXT("Geyser");
+        // Geysers must be validated as the native Geyser node type; asking for
+        // the ordinary type is explicitly refused by the validator.
+        Entry.bSpawnable = AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            Resource, RP_Normal, EResourceNodeType::Geyser, Entry.Reason);
+        if (Entry.bSpawnable)
+        {
+            ++Spawnable;
+        }
+        NodeCatalog.Add(MoveTemp(Entry));
+    }
+
     // Spawnable first, then alphabetical, so the usable half is not buried.
     NodeCatalog.Sort([](const FAIFactoryNodeCatalogEntry& A, const FAIFactoryNodeCatalogEntry& B)
     {
@@ -1028,8 +921,15 @@ void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()
         const FString Kind = Entry.Kind;
         const FString Reason = Entry.Reason;
         const bool bSpawnable = Entry.bSpawnable;
-        const FString TemplateClassPath = IsValid(Entry.TemplateClass)
-            ? Entry.TemplateClass->GetPathName()
+        // Send the combined "class|resource" alias, not the bare class path.
+        // One Blueprint (the vanilla BP_ResourceNode) backs every ore in the
+        // map, so the bare path cannot say which ore is wanted -- it would
+        // resolve to whichever resource happened to register first.
+        const FString TemplateClassPath = (IsValid(Entry.TemplateClass) && IsValid(Entry.Resource))
+            ? FString::Printf(
+                TEXT("%s|%s"),
+                *Entry.TemplateClass->GetPathName(),
+                *Entry.Resource->GetPathName())
             : FString();
 
         // Arming reuses the existing server-validated command path rather than

@@ -5138,3 +5138,97 @@ Node Spawner, choose
 `Water Turbine Node`, place Normal and Pure variants, and confirm Refined
 Power's own prompt/output changes from 20 MW to 50 MW. Also confirm an existing
 saved generic Water node now reads `Water (Pure)` after reload.
+
+### Claude — 2026-08-30 miner-snap handoff: everything eliminated, with evidence
+
+Handing this to Codex. I have not solved it. What follows is every measurement
+taken, every theory killed and how, so none of it gets repeated. Owner's summary
+of the symptom: **a Miner will not attach to a spawned creative node, but WILL
+attach to an existing map node whose resource we changed** (e.g. limestone → coal).
+
+#### The diagnostic to use first
+
+`/ai node ...` aside, there is now a **`/ai why`** chat command
+(`AIFactoryChatCommand.cpp`). Aim so the Miner hologram is showing, run it, and it
+prints the live hologram's own verdict:
+
+```
+Hologram <class>: canConstruct=<bool>, <n> disqualifier(s) || gun hit: actor=<a>
+class=<c> comp=<comp> dist=<m> | <DisqualifierName>...
+```
+
+An unbuilt extension (in the working tree, not yet live-tested) additionally walks
+the nearest `AFGResourceNode` to the gun's impact point and dumps every
+`UPrimitiveComponent` with `GetCollisionEnabled` / `GetCollisionObjectType` /
+`GetCollisionResponseToChannel` for Resource(GTC3), Hologram(GTC2),
+BuildGun(GTC5) and Visibility. That comparison — working map node vs ours — is
+the obvious next measurement and is the reason this is a handoff rather than a
+dead end.
+
+#### Hard facts (measured in a packaged game, not inferred)
+
+1. The Miner's hologram is **`NudgeableResourceExtractorHologram`** — a Blueprint
+   class that does not exist in the CL 502094 headers. Every header I reasoned
+   from (`AFGResourceExtractorHologram`) was the wrong class.
+2. The refusal is exactly one disqualifier: **`FGCDNeedsResourceNode`**, i.e.
+   `mSnappedExtractableResource` is null. The snap never happens.
+3. **The Build Gun's own trace hits the LANDSCAPE in both the working and the
+   failing case** — same actor, same `LandscapeHeightfieldCollisionComponent_1`.
+   Vanilla nodes are *not* hit by the gun's trace either. So the hologram does not
+   snap from the hit actor; it takes the hit **location** and searches nearby.
+4. Distance is **not** the variable. Vanilla succeeded at 5.34 m and 6.94 m; ours
+   failed at 3.83 m and 11.20 m.
+5. Our node **is** hit by the camera/use traces: a live snapshot capture resolved
+   `AIFactoryCreativeOrdinaryResourceNode` via component
+   `CreativeOrdinaryNodeCollision` at 1.73 m, `is_direct_trace_hit=true`.
+6. Every `IFGExtractableResourceInterface` gate reads correct on our node:
+   `canPlaceExtractor=1 canBecomeOccupied=1 isOccupied=0 hasResources=1
+   resourcesLeft=-1 nodeType=0(Node)`.
+7. Snapshot property diff, our node vs a working `BP_ResourceNode`, after fixes:
+   remaining differences are `mMeshActor`(None), `mPurityTextArray`(empty),
+   `mSignificanceRange`(18000 vs 10000), `mDoSpawnParticle`,
+   `mHighlightParticleSystemTemplate`, `bGenerateOverlapEventsDuringLevelStreaming`.
+
+#### Theories killed, and how
+
+- **Collision profile / object type.** Fixed both node classes to the shipped
+  `Resource` profile. Did not fix it. Fact 5 proves the box is hit anyway.
+- **Blueprint vs native class.** Cloning `BP_ResourceNode_C` at runtime yields a
+  *hollow* actor: `mBoxComponent=None mMeshActor=None mResourcesLeft=0` — those
+  are level-authored per-instance data. Invisible, no collision, inert. Reverted.
+- **`mResourcesLeft`.** Was 0 on ours, -1 on map nodes; now set to -1 at every
+  `InitResource` call site. Did not fix it. Note hand-mining worked fine while it
+  was 0, so this was never the blocker I claimed.
+- **Node registration.** `AFGResourceNodeManager` only does randomization and
+  mesh pairing, and has no `FACTORYGAME_API` so it cannot be called anyway.
+- **Build Gun ownership.** Clearing `SetOwner(nullptr)` after `FinishSpawning`
+  did not fix the Miner **and broke hand-mining on every new node**. Reverted.
+  Owner is load-bearing for interaction.
+- **`mMeshActor`.** `EditInstanceOnly`, visual only; `GetMeshActor()` is inline
+  and used for presentation.
+
+#### Linker constraints (each cost a build)
+
+- `AFGResourceNodeBase::UpdateMeshFromDescriptor(bool, UMaterial*)` is public in
+  the header and **not exported** — compiles against FactoryEditor, fails the
+  Shipping link with LNK2019/LNK1120.
+- `AFGResourceNodeManager` has no `FACTORYGAME_API`.
+- Confirmed callable: `UFGBuildGunStateBuild::GetHologram`,
+  `AFGHologram::GetConstructDisqualifiers`, `AFGHologram::CanConstruct`,
+  `AFGBuildGun::GetHitResult` (FORCEINLINE, zero risk).
+
+#### Unexplored, in the order I would take them
+
+1. **What query the snap actually uses.** `TrySnapToExtractableResource` is
+   overridden by a Blueprint we cannot read. The component-collision dump above
+   is the way to infer its requirements empirically.
+2. **`UFGResourceNodeData`** (`FACTORYGAME_API`, `UPrimaryDataAsset`) holds
+   `mNodeMeshOverrides` keyed by `ENodeMeshType::MT_Node`. We currently use
+   `GetDepositMesh()`, which is the hand-mineable *deposit* chunk — the owner
+   spotted that our nodes look like deposits sitting on nothing. Real node meshes
+   come from this asset, and it may carry collision the deposit mesh lacks.
+3. Spawning a genuine `BP_ResourceNode_C` **and attaching the collision box the
+   level normally supplies** — the owner's suggestion. Blocked only on knowing
+   what collision a working node's box actually has, i.e. measurement 1.
+
+Everything above is reproducible with `/ai why` in a packaged build.

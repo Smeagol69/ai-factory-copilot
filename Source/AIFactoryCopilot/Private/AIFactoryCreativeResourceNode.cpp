@@ -432,6 +432,13 @@ bool AAIFactoryCreativeResourceNode::ApplyCreativeConfiguration(FString& OutReas
         : mCreativeConfiguration.NodeType;
     mResourceNodeType = NodeType;
     InitResource(Resource, RA_Infinite, Purity);
+    // InitResource sets the amount ENUM but never writes mResourcesLeft, which
+    // is the field an extractor actually reads. A live snapshot diff against a
+    // working map node showed map=-1 (infinite) versus ours=0 -- the game saw a
+    // depleted node and refused every Miner, while HasAnyResources() kept
+    // returning true because it consults the enum. That is exactly why the gate
+    // diagnostic read all-green for hours while placement still failed.
+    mResourcesLeft = -1;
     SetResourceClassOverride(Resource);
     SetResourcePurityOverride(Purity);
 
@@ -467,12 +474,13 @@ bool AAIFactoryCreativeResourceNode::ApplyCreativeConfiguration(FString& OutReas
     // headers whose .cpp bodies are stubs in the Starter Project.
     UE_LOG(LogAIFactoryCopilot, Display,
         TEXT("Creative node gates: canPlaceExtractor=%d canBecomeOccupied=%d isOccupied=%d ")
-        TEXT("nodeType=%d hasResources=%d amount=%d resource=%s purity=%s"),
+        TEXT("nodeType=%d hasResources=%d resourcesLeft=%d amount=%d resource=%s purity=%s"),
         CanPlaceResourceExtractor() ? 1 : 0,
         CanBecomeOccupied() ? 1 : 0,
         IsOccupied() ? 1 : 0,
         static_cast<int32>(mResourceNodeType),
         HasAnyResources() ? 1 : 0,
+        mResourcesLeft,
         static_cast<int32>(GetResourceAmount()),
         *GetNameSafe(GetResourceClass()),
         *StaticEnum<EResourcePurity>()->GetNameStringByValue(
@@ -673,6 +681,13 @@ bool AAIFactoryCreativeOrdinaryResourceNode::ApplyCreativeConfiguration(
     const EResourcePurity Purity = mCreativeConfiguration.Purity;
     mResourceNodeType = EResourceNodeType::Node;
     InitResource(Resource, RA_Infinite, Purity);
+    // InitResource sets the amount ENUM but never writes mResourcesLeft, which
+    // is the field an extractor actually reads. A live snapshot diff against a
+    // working map node showed map=-1 (infinite) versus ours=0 -- the game saw a
+    // depleted node and refused every Miner, while HasAnyResources() kept
+    // returning true because it consults the enum. That is exactly why the gate
+    // diagnostic read all-green for hours while placement still failed.
+    mResourcesLeft = -1;
     SetResourceClassOverride(Resource);
     SetResourcePurityOverride(Purity);
 
@@ -693,11 +708,12 @@ bool AAIFactoryCreativeOrdinaryResourceNode::ApplyCreativeConfiguration(
 
     UE_LOG(LogAIFactoryCopilot, Display,
         TEXT("Creative ordinary node gates: canPlaceExtractor=%d canBecomeOccupied=%d ")
-        TEXT("isOccupied=%d hasResources=%d resource=%s purity=%s"),
+        TEXT("isOccupied=%d hasResources=%d resourcesLeft=%d resource=%s purity=%s"),
         CanPlaceResourceExtractor() ? 1 : 0,
         CanBecomeOccupied() ? 1 : 0,
         IsOccupied() ? 1 : 0,
         HasAnyResources() ? 1 : 0,
+        mResourcesLeft,
         *GetNameSafe(GetResourceClass()),
         *StaticEnum<EResourcePurity>()->GetNameStringByValue(
             static_cast<int64>(GetResourcePurity())));

@@ -281,6 +281,10 @@ bool AAIFactoryBlueprintAnchorNode::ApplyConfiguration(FString& OutReason)
     const EResourcePurity Purity = mConfiguration.Purity;
     mResourceNodeType = EResourceNodeType::Node;
     InitResource(Resource, RA_Infinite, Purity);
+    // Same fix as AIFactoryCreativeResourceNode: InitResource writes the amount
+    // enum, not mResourcesLeft, so the node reads as depleted (0) where a map
+    // node reads -1 for infinite. An extractor checks the field, not the enum.
+    mResourcesLeft = -1;
     SetResourceClassOverride(Resource);
     SetResourcePurityOverride(Purity);
 

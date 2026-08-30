@@ -11,7 +11,14 @@
 
 #include "AIFactorySubsystem.h"
 #include "Command/CommandSender.h"
+#include "Components/PrimitiveComponent.h"
+#include "EngineUtils.h"
+#include "Equipment/FGBuildGun.h"
+#include "Equipment/FGBuildGunBuild.h"
+#include "FGCharacterPlayer.h"
+#include "FGConstructDisqualifier.h"
 #include "FGPlayerController.h"
+#include "Hologram/FGHologram.h"
 #include "GameFramework/Pawn.h"
 
 AAIFactoryChatCommand::AAIFactoryChatCommand()
@@ -457,6 +464,111 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
         Sender->SendChatMessage(FString::Printf(
             TEXT("Capturing a frame to %s (the file lands a moment from now)."),
             *AIFactoryVision::VisionDirectory()));
+        return EExecutionStatus::COMPLETED;
+    }
+
+    if (Subcommand == TEXT("why"))
+    {
+        // Ask the live hologram why it refuses, instead of inferring it from
+        // what the node looks like. Every property difference between a working
+        // map node and a spawned one has been eliminated -- collision profile,
+        // node class, mResourcesLeft, Build Gun ownership -- and a Miner still
+        // reports "Must be placed on a Resource Node!". The hologram records
+        // the actual reason in mConstructDisqualifiers, which is not a
+        // UPROPERTY and so cannot be reached by the snapshot's reflection.
+        AFGPlayerController* const WhyPlayer = Sender->GetPlayer();
+        AFGCharacterPlayer* const WhyCharacter = IsValid(WhyPlayer)
+            ? Cast<AFGCharacterPlayer>(WhyPlayer->GetPawn())
+            : nullptr;
+        AFGBuildGun* const WhyGun = IsValid(WhyCharacter) ? WhyCharacter->GetBuildGun() : nullptr;
+        if (!IsValid(WhyGun))
+        {
+            Sender->SendChatMessage(TEXT("Equip the Build Gun first, then aim and run this again."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        UFGBuildGunStateBuild* const WhyState = Cast<UFGBuildGunStateBuild>(
+            WhyGun->GetBuildGunStateFor(EBuildGunState::BGS_BUILD));
+        AFGHologram* const WhyHologram = IsValid(WhyState) ? WhyState->GetHologram() : nullptr;
+        if (!IsValid(WhyHologram))
+        {
+            Sender->SendChatMessage(TEXT(
+                "No active hologram. Select the building (for example Miner Mk.1), aim at the "
+                "node so the placement preview is showing, then run this again."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+
+        TArray<TSubclassOf<UFGConstructDisqualifier>> Disqualifiers;
+        WhyHologram->GetConstructDisqualifiers(Disqualifiers);
+
+        // The Build Gun's own hit result is the input the hologram snaps from,
+        // and it is not the same query as the camera/use traces the snapshot
+        // records. GetHitResult is FORCEINLINE, so reading it costs no exported
+        // symbol -- unlike UpdateMeshFromDescriptor, which linked in the editor
+        // and failed the Shipping build.
+        const FHitResult& GunHit = WhyGun->GetHitResult();
+        FString Report = FString::Printf(
+            TEXT("Hologram %s: canConstruct=%s, %d disqualifier(s) || gun hit: actor=%s class=%s comp=%s dist=%.2fm"),
+            *GetNameSafe(WhyHologram->GetClass()),
+            WhyHologram->CanConstruct() ? TEXT("true") : TEXT("false"),
+            Disqualifiers.Num(),
+            *GetNameSafe(GunHit.GetActor()),
+            GunHit.GetActor() != nullptr ? *GetNameSafe(GunHit.GetActor()->GetClass()) : TEXT("none"),
+            *GetNameSafe(GunHit.GetComponent()),
+            GunHit.Distance / 100.0f);
+        for (const TSubclassOf<UFGConstructDisqualifier>& Disqualifier : Disqualifiers)
+        {
+            Report += FString::Printf(TEXT(" | %s"), *GetNameSafe(Disqualifier.Get()));
+        }
+        // Both the working and failing cases hit the landscape, at the same
+        // component -- so the hologram is not snapping from the hit actor at
+        // all. It takes the hit LOCATION and searches nearby for an extractable
+        // resource. The question is therefore why that search finds a vanilla
+        // node and not ours, which comes down to what our box actually looks
+        // like to a collision query at runtime. Report it rather than trusting
+        // that SetCollisionProfileName("Resource") survived the two
+        // SetCollisionResponseToChannel calls that follow it.
+        UWorld* const WhyWorld = WhyGun->GetWorld();
+        const FVector Probe = GunHit.ImpactPoint;
+        if (IsValid(WhyWorld) && GunHit.bBlockingHit)
+        {
+            AFGResourceNode* Nearest = nullptr;
+            double NearestDistSq = TNumericLimits<double>::Max();
+            for (TActorIterator<AFGResourceNode> It(WhyWorld); It; ++It)
+            {
+                AFGResourceNode* const Candidate = *It;
+                if (!IsValid(Candidate)) { continue; }
+                const double DistSq = FVector::DistSquared(Candidate->GetActorLocation(), Probe);
+                if (DistSq < NearestDistSq) { NearestDistSq = DistSq; Nearest = Candidate; }
+            }
+            if (IsValid(Nearest))
+            {
+                Report += FString::Printf(
+                    TEXT(" || nearest node: %s (%s) at %.2fm"),
+                    *Nearest->GetName(),
+                    *GetNameSafe(Nearest->GetClass()),
+                    FMath::Sqrt(NearestDistSq) / 100.0f);
+
+                // Every primitive on that node, with what a query would see.
+                TInlineComponentArray<UPrimitiveComponent*> Prims(Nearest);
+                for (UPrimitiveComponent* const Prim : Prims)
+                {
+                    if (!IsValid(Prim)) { continue; }
+                    Report += FString::Printf(
+                        TEXT(" | %s enabled=%d objType=%d resp[Resource=%d Hologram=%d BuildGun=%d Vis=%d]"),
+                        *Prim->GetName(),
+                        static_cast<int32>(Prim->GetCollisionEnabled()),
+                        static_cast<int32>(Prim->GetCollisionObjectType()),
+                        static_cast<int32>(Prim->GetCollisionResponseToChannel(ECC_GameTraceChannel3)),
+                        static_cast<int32>(Prim->GetCollisionResponseToChannel(ECC_GameTraceChannel2)),
+                        static_cast<int32>(Prim->GetCollisionResponseToChannel(ECC_GameTraceChannel5)),
+                        static_cast<int32>(Prim->GetCollisionResponseToChannel(ECC_Visibility)));
+                }
+            }
+        }
+
+        UE_LOG(LogAIFactoryCopilot, Display, TEXT("%s"), *Report);
+        Sender->SendChatMessage(Report);
         return EExecutionStatus::COMPLETED;
     }
 

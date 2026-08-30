@@ -179,6 +179,15 @@ AActor* AAIFactoryCreativeNodeHologram::Construct(
         Node->SetResourceClassOverride(mRequestedResource);
         Node->SetResourcePurityOverride(mRequestedPurity);
         Node->FinishSpawning(PlacementTransform);
+    // DO NOT clear the Build Gun ownership here. It was tried, on the theory
+    // that a placement trace ignores actors the gun owns, and it was wrong
+    // twice: the Miner still refused the node, and clearing the owner also
+    // broke hand-mining on every newly placed node. The owner is load-bearing
+    // for interaction.
+    //
+    // The evidence was clean: nodes placed before the change still hand-mined
+    // afterwards, and they receive the same mResourcesLeft repair on save load,
+    // so the only thing unique to the broken ones was the cleared owner.
 
         // Blueprint construction may reapply class defaults. The overrides are
         // the game's SaveGame/replicated seams, so set them once more and then
@@ -238,6 +247,15 @@ AActor* AAIFactoryCreativeNodeHologram::Construct(
             return nullptr;
         }
         Node->FinishSpawning(PlacementTransform);
+    // DO NOT clear the Build Gun ownership here. It was tried, on the theory
+    // that a placement trace ignores actors the gun owns, and it was wrong
+    // twice: the Miner still refused the node, and clearing the owner also
+    // broke hand-mining on every newly placed node. The owner is load-bearing
+    // for interaction.
+    //
+    // The evidence was clean: nodes placed before the change still hand-mined
+    // afterwards, and they receive the same mResourcesLeft repair on save load,
+    // so the only thing unique to the broken ones was the cleared owner.
         Node->FlushNetDormancy();
         Node->ForceNetUpdate();
         return Node;
@@ -268,6 +286,15 @@ AActor* AAIFactoryCreativeNodeHologram::Construct(
     }
 
     Node->FinishSpawning(PlacementTransform);
+    // DO NOT clear the Build Gun ownership here. It was tried, on the theory
+    // that a placement trace ignores actors the gun owns, and it was wrong
+    // twice: the Miner still refused the node, and clearing the owner also
+    // broke hand-mining on every newly placed node. The owner is load-bearing
+    // for interaction.
+    //
+    // The evidence was clean: nodes placed before the change still hand-mined
+    // afterwards, and they receive the same mResourcesLeft repair on save load,
+    // so the only thing unique to the broken ones was the cleared owner.
     Node->FlushNetDormancy();
     Node->ForceNetUpdate();
     FNetConstructionID ConstructionIdForLog = ConstructionID;
