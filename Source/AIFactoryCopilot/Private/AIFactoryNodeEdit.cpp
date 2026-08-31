@@ -11,10 +11,12 @@
 #include "FGRecipeManager.h"
 #include "FGResourceNodeGeyser.h"
 #include "GameFramework/PlayerController.h"
+#include "HAL/PlatformTime.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "Resources/FGResourceNode.h"
 #include "Resources/FGResourceNodeBase.h"
+#include "UObject/ObjectKey.h"
 
 namespace AIFactoryNodeEdit
 {
@@ -625,5 +627,203 @@ bool SetNodeResource(
         IsValid(Original) ? *Original->GetName() : TEXT("unknown"),
         *Resource->GetName());
     return true;
+}
+
+bool GetCreativeNodeConfiguration(
+    AFGResourceNodeBase* const Node,
+    TSubclassOf<UFGResourceDescriptor>& OutResource,
+    EResourcePurity& OutPurity,
+    EResourceNodeType& OutNodeType,
+    FString& OutReason)
+{
+    OutResource = nullptr;
+    OutPurity = RP_MAX;
+    OutNodeType = EResourceNodeType::Invalid;
+    OutReason.Reset();
+
+    if (!IsValid(Node) || Node->IsActorBeingDestroyed())
+    {
+        OutReason = TEXT("the aimed resource node is no longer live");
+        return false;
+    }
+
+    if (const AAIFactoryCreativeOrdinaryResourceNode* const Ordinary =
+            Cast<AAIFactoryCreativeOrdinaryResourceNode>(Node))
+    {
+        const FAIFactoryCreativeResourceNodeConfiguration& Configuration =
+            Ordinary->GetCreativeConfiguration();
+        OutResource = Configuration.ResourceClass;
+        OutPurity = Configuration.Purity;
+        OutNodeType = Configuration.NodeType;
+    }
+    else if (const AAIFactoryCreativeResourceNode* const GeyserOrLegacy =
+                 Cast<AAIFactoryCreativeResourceNode>(Node))
+    {
+        const FAIFactoryCreativeResourceNodeConfiguration& Configuration =
+            GeyserOrLegacy->GetCreativeConfiguration();
+        OutResource = Configuration.ResourceClass;
+        OutPurity = Configuration.Purity;
+        OutNodeType = Configuration.NodeType;
+    }
+    else
+    {
+        OutReason = TEXT(
+            "that is not a Copilot-owned creative node. Vanilla map nodes, Blueprint "
+            "Resource Anchors, and exact mod-node templates remain owned by their original systems");
+        return false;
+    }
+
+    FString ValidationReason;
+    if (!AAIFactoryCreativeResourceNode::ValidateCreativeConfiguration(
+            OutResource,
+            OutPurity,
+            OutNodeType,
+            ValidationReason))
+    {
+        OutReason = FString::Printf(
+            TEXT("the creative node's saved configuration is invalid: %s"),
+            *ValidationReason);
+        return false;
+    }
+
+    // A saved configuration is not enough by itself. Read the actor back too,
+    // so Clone/Remove can never act on a partially loaded or stale node whose
+    // runtime state no longer matches the values the mod owns.
+    const AFGResourceNode* const RuntimeNode = Cast<AFGResourceNode>(Node);
+    if (!IsValid(RuntimeNode) ||
+        Node->GetResourceClass() != OutResource ||
+        RuntimeNode->GetResourcePurity() != OutPurity ||
+        Node->GetResourceNodeType() != OutNodeType)
+    {
+        OutReason = TEXT(
+            "the creative node's live resource, purity, or node type does not match its saved configuration");
+        return false;
+    }
+    return true;
+}
+
+namespace
+{
+constexpr double AIFactoryCreativeNodeRemovalConfirmationSeconds = 5.0;
+
+struct FAIFactoryPendingCreativeNodeRemoval
+{
+    TWeakObjectPtr<AFGPlayerController> Player;
+    TWeakObjectPtr<AFGResourceNodeBase> Node;
+    TWeakObjectPtr<UWorld> World;
+    FString ActorPath;
+    TSubclassOf<UFGResourceDescriptor> Resource;
+    EResourcePurity Purity = RP_MAX;
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+    double ArmedAtSeconds = 0.0;
+};
+
+TMap<FObjectKey, FAIFactoryPendingCreativeNodeRemoval>
+    AIFactoryPendingCreativeNodeRemovals;
+
+void PruneAIFactoryCreativeNodeRemovalConfirmations(const double NowSeconds)
+{
+    for (auto It = AIFactoryPendingCreativeNodeRemovals.CreateIterator(); It; ++It)
+    {
+        const FAIFactoryPendingCreativeNodeRemoval& Pending = It.Value();
+        if (!Pending.Player.IsValid() || !Pending.Node.IsValid() ||
+            !Pending.World.IsValid() ||
+            (NowSeconds - Pending.ArmedAtSeconds) >
+                AIFactoryCreativeNodeRemovalConfirmationSeconds)
+        {
+            It.RemoveCurrent();
+        }
+    }
+}
+}
+
+ECreativeNodeRemovalResult RemoveCreativeNode(
+    AFGPlayerController* const RequestingPlayer,
+    UWorld* const World,
+    AFGResourceNodeBase* const Node,
+    FString& OutReason)
+{
+    OutReason.Reset();
+    if (!AIFactoryWorldEditAccess::CanEdit(RequestingPlayer, OutReason))
+    {
+        return ECreativeNodeRemovalResult::Refused;
+    }
+    if (!IsValid(World) || !IsValid(Node) ||
+        RequestingPlayer->GetWorld() != World || Node->GetWorld() != World)
+    {
+        OutReason = TEXT("the aimed node is not a live actor in the requesting player's world");
+        return ECreativeNodeRemovalResult::Refused;
+    }
+    if (!Node->HasAuthority())
+    {
+        OutReason = TEXT("creative-node removal must run on the authoritative game server");
+        return ECreativeNodeRemovalResult::Refused;
+    }
+
+    TSubclassOf<UFGResourceDescriptor> Resource;
+    EResourcePurity Purity = RP_MAX;
+    EResourceNodeType NodeType = EResourceNodeType::Invalid;
+    if (!GetCreativeNodeConfiguration(
+            Node, Resource, Purity, NodeType, OutReason))
+    {
+        return ECreativeNodeRemovalResult::Refused;
+    }
+    if (Node->IsOccupied())
+    {
+        OutReason = TEXT(
+            "a resource extractor occupies this creative node. Dismantle the extractor first; "
+            "the node editor will never delete a player's machine with the ground");
+        return ECreativeNodeRemovalResult::Refused;
+    }
+
+    const double NowSeconds = FPlatformTime::Seconds();
+    PruneAIFactoryCreativeNodeRemovalConfirmations(NowSeconds);
+    const FObjectKey PlayerKey(RequestingPlayer);
+    const FString ActorPath = Node->GetPathName();
+    if (const FAIFactoryPendingCreativeNodeRemoval* const Pending =
+            AIFactoryPendingCreativeNodeRemovals.Find(PlayerKey);
+        Pending == nullptr || Pending->Player.Get() != RequestingPlayer ||
+        Pending->World.Get() != World || Pending->Node.Get() != Node ||
+        Pending->ActorPath != ActorPath ||
+        Pending->Resource != Resource || Pending->Purity != Purity ||
+        Pending->NodeType != NodeType ||
+        (NowSeconds - Pending->ArmedAtSeconds) >
+            AIFactoryCreativeNodeRemovalConfirmationSeconds)
+    {
+        FAIFactoryPendingCreativeNodeRemoval Confirmation;
+        Confirmation.Player = RequestingPlayer;
+        Confirmation.Node = Node;
+        Confirmation.World = World;
+        Confirmation.ActorPath = ActorPath;
+        Confirmation.Resource = Resource;
+        Confirmation.Purity = Purity;
+        Confirmation.NodeType = NodeType;
+        Confirmation.ArmedAtSeconds = NowSeconds;
+        AIFactoryPendingCreativeNodeRemovals.Add(PlayerKey, MoveTemp(Confirmation));
+        OutReason = TEXT(
+            "repeat Remove aimed within five seconds while still aiming at this exact node to confirm");
+        return ECreativeNodeRemovalResult::ConfirmationRequired;
+    }
+
+    // Consume before mutation. A failed engine Destroy request must require a
+    // fresh confirmation rather than becoming an armed delete loop.
+    AIFactoryPendingCreativeNodeRemovals.Remove(PlayerKey);
+    const bool bDestroyAccepted = Node->Destroy();
+    if (!bDestroyAccepted || !Node->IsActorBeingDestroyed())
+    {
+        OutReason = TEXT("the game did not accept destruction of the creative node");
+        return ECreativeNodeRemovalResult::Refused;
+    }
+
+    UE_LOG(
+        LogAIFactoryCopilot,
+        Display,
+        TEXT("Removed creative node %s (resource=%s purity=%s nodeType=%d)"),
+        *ActorPath,
+        *GetNameSafe(Resource.Get()),
+        *StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+            static_cast<int64>(Purity)).ToString(),
+        static_cast<int32>(NodeType));
+    return ECreativeNodeRemovalResult::Removed;
 }
 }

@@ -25,22 +25,22 @@ Creative Resource Node recipe. The player still sees Satisfactory's own
 green/red hologram and must confirm placement normally. A placement only occurs
 through the Build Gun's normal server construction route.
 
-The Insert panel forwards only this exact `/ai node place …` form through SML's
-existing reliable server chat-command RPC, then closes so the Build Gun can take
-over. It does not execute commands locally, forward any other slash command, or
-claim that placement succeeded; Satisfactory's native chat reports the server's
-actual arming result.
+The Insert panel forwards only four narrow Creative Node forms through SML's
+existing reliable server chat-command RPC: `place`, `place-template`, `clone`,
+and `remove`. It does not execute them locally, forward any other slash command,
+or claim that the server accepted one; Satisfactory's native chat reports the
+actual result. Placement and cloning close the panel so the Build Gun can take
+over. Removal keeps it open so its required second click can be made within the
+five-second confirmation window.
 
-For this particular command, the panel also has a **Creative Resource Node**
-strip: type the exact registered resource name (solid, liquid, gas, or geyser)
-and click **Arm impure**, **Arm normal**, or **Arm pure**. Pressing Enter in the
-field means normal. The strip builds the same `/ai node place <resource>
-<purity>` command and nothing else; the server remains the authority for the
-resource lookup, modded-resource support, write/admin gate, recipe availability,
-RCO staging, hologram, and final construction. It refuses multi-line text
-locally so the transcript cannot hide a second command. It is a text field for
-now, not a client-side guessed resource list—use `/ai node` to see exact
-available names and their supported kind.
+The panel's **Node Spawner** reads the live Recipe Manager catalogue, discovered
+exact mod-node templates, and geyser descriptor classes. It lists every choice
+with its real kind and validation result, supports filtering and rescanning,
+and offers **Impure**, **Normal**, and **Pure** Build Gun buttons only when the
+server-side configuration can be represented. The UI creates the same
+`/ai node place …` or exact `place-template` command and nothing else; resource
+lookup, mod support, write/admin access, recipe availability, RCO staging,
+hologram validation, and final construction remain server-owned.
 
 The existing `/ai node <resource>` command uses the same world-editor
 write/admin gate before it changes either a previously created Creative
@@ -67,6 +67,23 @@ use the existing command:
 That reconfigures the node through its own saved configuration and retains its
 chosen purity. `original` remains deliberately unavailable for a creative node:
 there is no vanilla map original to restore.
+
+For a Copilot-created node, the Node Spawner also exposes:
+
+```
+/ai node clone
+/ai node remove
+```
+
+`clone` reads the aimed node's saved resource, purity, and node type, requires
+the live actor to match all three, then arms the same normal Build Gun workflow
+used by a catalogue choice. The original remains unchanged. `remove` requires
+the same exact aimed actor twice within five seconds. Both calls repeat the
+write/admin, world, ownership, saved/live configuration, and occupation gates;
+the second calls Unreal's authoritative actor destruction only for an
+unoccupied `AAIFactoryCreativeOrdinaryResourceNode` or retained
+`AAIFactoryCreativeResourceNode`. A changed crosshair target starts a new
+confirmation instead of deleting either node.
 
 ## What the game validates
 
@@ -125,13 +142,14 @@ see it as a normal miner-hostable node without special guesswork.
   fracking actors, or Blueprint Resource Anchor runtime nodes. A creative node
   keeps its own saveable configuration, while an Anchor is configured only by
   its saved buildable root.
-- There is no delete/undo command yet. It will be limited to unoccupied,
-  mod-owned creative nodes and require an explicit confirmation; it will never
-  be widened into vanilla-node deletion.
-- The Insert panel's resource/purity strip can forward only the exact
-  documented `/ai node place …` command through the native server chat path.
-  A Build Gun category and a server-backed pick-list remain follow-on UX; a
-  generic unconfigured Build Gun recipe must not be advertised as usable.
+- Node removal is intentionally not undoable: a creative node costs no
+  materials and is recreated with **Clone aimed** or a catalogue choice. The
+  two-click server confirmation exists precisely because this is a real save
+  mutation. It will never be widened into vanilla or arbitrary mod-node
+  deletion.
+- The Insert panel can forward only the four documented Creative Node forms
+  through the native server chat path. A generic arbitrary chat-command bridge
+  remains forbidden.
 - Remote-client receipt of a newly granted recipe/schematic must be live tested.
   The server chat response says the client arming was *requested*, not that it
   succeeded, until the player sees the actual hologram.
@@ -174,10 +192,17 @@ save:
    an ordinary vanilla node and restore it. Attempt the generic command on a
    Blueprint Anchor runtime node, deposit, geyser, and fracking node; each must
    refuse without changing its saved/resource configuration.
-8. In the Insert panel, arm Copper Ore using each purity button and Enter
-   (normal). Verify each yields the same server chat arming message and native
-   hologram as the manual command; empty, multi-line, disabled-write, and
-   non-admin attempts must create no actor or recipe/schematic availability.
+8. In the Insert panel, filter and rescan the Node Spawner, then arm Copper Ore
+   using each purity button. Verify each yields the same server chat arming
+   message and native hologram as the manual command; an unavailable row,
+   disabled-write setting, and non-admin attempt must create no actor or
+   recipe/schematic availability.
+9. Aim at a Copilot-created node and prove **Clone aimed** creates an identical
+   Build Gun preview without changing the source. For **Remove aimed**, prove
+   one click changes nothing, a different target changes nothing, expiry
+   changes nothing, an occupied node refuses, and only two clicks on the same
+   unoccupied Copilot node remove it. Repeat against a vanilla node, Blueprint
+   Anchor runtime node, and discovered special mod template; all must remain.
 
-Until all eight are recorded from the packaged build, this is a verified source
+Until all nine are recorded from the packaged build, this is a verified source
 implementation awaiting live proof—not a claim of a shipped editor.

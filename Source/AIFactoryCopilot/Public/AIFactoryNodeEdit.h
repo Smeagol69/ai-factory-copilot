@@ -51,6 +51,14 @@ struct FAIFactoryCreativeNodeTemplate
  */
 namespace AIFactoryNodeEdit
 {
+    /** Outcome of the server-side two-step creative-node removal gate. */
+    enum class ECreativeNodeRemovalResult : uint8
+    {
+        Refused,
+        ConfirmationRequired,
+        Removed
+    };
+
     /**
      * Every registered solid resource descriptor the live game knows, by
      * display name.
@@ -120,5 +128,30 @@ namespace AIFactoryNodeEdit
         UWorld* World,
         AFGResourceNodeBase* Node,
         TSubclassOf<UFGResourceDescriptor> Resource,
+        FString& OutReason);
+
+    /**
+     * Read the exact persisted configuration of a Copilot-owned creative node.
+     *
+     * This deliberately refuses vanilla nodes, Blueprint Anchor runtime nodes,
+     * and discovered special mod templates. Callers may use the result to arm
+     * the existing Build Gun placement path without approximating the source.
+     */
+    bool GetCreativeNodeConfiguration(
+        AFGResourceNodeBase* Node,
+        TSubclassOf<UFGResourceDescriptor>& OutResource,
+        EResourcePurity& OutPurity,
+        EResourceNodeType& OutNodeType,
+        FString& OutReason);
+
+    /**
+     * Remove one aimed Copilot-owned node through an authoritative two-step
+     * confirmation. The second call must name the same live actor within five
+     * seconds; every permission, ownership and occupation check is repeated.
+     */
+    ECreativeNodeRemovalResult RemoveCreativeNode(
+        AFGPlayerController* RequestingPlayer,
+        UWorld* World,
+        AFGResourceNodeBase* Node,
         FString& OutReason);
 }

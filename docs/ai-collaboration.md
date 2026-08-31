@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-30 | Codex | `codex/creative-node-delete` | Add two aimed-node quality-of-life workflows now that ordinary-node Miner compatibility is live-verified: **Clone aimed** re-arms the normal Build Gun with the exact saved resource/purity/type of a Copilot-owned node, and **Remove aimed** deletes only an unoccupied Copilot-owned ordinary creative node or creative geyser. Require the existing write/admin authority gates; removal also requires a short-lived second confirmation, executes only on the server, and reports exact engine acceptance. Never delete, clone as generic, or retarget vanilla map nodes, deposits, Blueprint Anchor runtime nodes, occupied nodes, or arbitrary mod templates, and never remove a node whose identity changed between confirmation and commit. Preserve Node Spawner/Editor, Miner compatibility, resource discovery, generated Blueprints, and all existing chat/AI actions. Expected files: creative node chat/edit authority path, focused Node Spawner controls using the existing narrow server command bridge, source-contract tests, editor docs/changelog, and this append-only handoff. | claimed; exact actor ownership, configuration readback, authority, and `AActor::Destroy` lifecycle are now proven; implementation starting |
+| 2026-08-30 | Codex | `codex/creative-node-delete` | Add two aimed-node quality-of-life workflows now that ordinary-node Miner compatibility is live-verified: **Clone aimed** re-arms the normal Build Gun with the exact saved resource/purity/type of a Copilot-owned node, and **Remove aimed** deletes only an unoccupied Copilot-owned ordinary creative node or creative geyser. Require the existing write/admin authority gates; removal also requires a short-lived second confirmation, executes only on the server, and reports exact engine acceptance. Never delete, clone as generic, or retarget vanilla map nodes, deposits, Blueprint Anchor runtime nodes, occupied nodes, or arbitrary mod templates, and never remove a node whose identity changed between confirmation and commit. Preserve Node Spawner/Editor, Miner compatibility, resource discovery, generated Blueprints, and all existing chat/AI actions. Expected files: creative node chat/edit authority path, focused Node Spawner controls using the existing narrow server command bridge, source-contract tests, editor docs/changelog, and this append-only handoff. | complete and deployed; 891/891 tests, exact header validation, Shipping/Editor builds, and UAT build/cook/archive/deploy pass; live Clone/Remove interaction verification remains |
 | 2026-08-30 | Codex | `codex/miner-node-class-gate` | Implement the now-proven Miner compatibility fix without removing Claude's diagnostics or Codex's solid/fluid/gas/geyser/template/save behavior. Scope any extractor compatibility change to Copilot-created ordinary nodes, preserve the game's occupation/resource-form/resource-allowlist gates, verify against exact CL 502094 headers, then run tests, Shipping/Editor builds, package, and deploy for the owner's live test. Expected files: module hook/lifecycle, creative ordinary-node contract, focused source tests, changelog, and this handoff. | complete and live-verified, including `d29abd3`'s Refined Power/template discovery fix: a Shipping-only SML hook removes `mRestrictToNodeType` only during the original native check for a validated `AAIFactoryCreativeOrdinaryResourceNode`, then restores it exactly. Vanilla/template/geyser/other-mod hook paths are untouched. 888/888 tests, exact headers, Shipping/Editor and UAT pass. Steam DLL SHA-256 `139F7F22E66C454C321004B41E54FA5F582944CC0F448B413CD2C1E8DF33E70C`; owner confirmed the packaged Miner snaps to and works on a spawned ordinary node. |
 | 2026-08-29 | Codex | `codex/creative-node-runtime-compat` | Live follow-up to the deployed Creative Node Spawner after owner testing. Preserve the existing solid/liquid/gas/geyser path while fixing player-facing purity titles, separating ordinary Miner-compatible node actors from geyser inheritance, and adding a fail-closed discovered-template lane for exact mod-owned resource-node classes whose descriptors/forms use special contracts (first evidence: Refined Power `BP_WaterTurbineNode_C`, `RF_INVALID`, node type `Invalid`, with native 8/20/50 MW behavior). Revalidate the selected template class/resource/purity against live registered node evidence on both client and server; never approximate a special node as generic Water or mutate a vanilla node. Expected files: creative node actor/hologram/RCO/placement/UI/chat contracts, focused source tests, changelog and append-only handoff. | complete and deployed. Live pre-fix check reached the menu, loaded a 51-mod save, and proved the false exact-template `Geyser` row came from choosing Refined Power's inherited original descriptor instead of current `Water Turbine Node`; native geysers are now excluded from the template lane. **887/887**, exact CL 502094 validation, Shipping/Editor and UAT pass. Installed DLL `9714A0D07C82FD2E5AE903538F1C44FE9F39C66BD8603A1217FC7E2DE8B046AE`; corrected build reached the main menu with 51 mods, while final in-save placement remains pending. |
 | 2026-08-29 | Codex | `codex/creative-node-fluids-geysers` | Extend the mod-owned Creative Node Spawner beyond solid resources with explicit liquid, gas, and geothermal geyser modes. Preserve the native Build Gun/hologram path, saved configuration, resource-form validation, and fail-closed extractor/node-type rules; prove every new engine seam against CL 502094 before implementation. No retargeting or mutation of vanilla nodes, fracking satellites/cores, or direct client spawning. | complete in `562e4e9`; 887/887 companion tests, exact header validation, Editor/Shipping builds, and guarded UAT package/deploy pass. DLL SHA-256 `4F78131685B791C167421E99CFB5E748DB8601C75F8D76405D02CEC6514064EB`; live Miner/fluid/geothermal placement still pending. |
@@ -5357,3 +5357,47 @@ game's Miner snaps to and works on a Node Spawner-created ordinary resource
 node. Treat the `mRestrictToNodeType` investigation as closed. `/ai why` remains
 available for future extractor-specific or mod-specific failures, which must be
 diagnosed independently rather than reopening the solved ordinary-node path.
+
+### Codex — 2026-08-30 Creative node clone/remove controls
+
+Implemented the two aimed Node Spawner workflows on
+`codex/creative-node-delete`. **Clone aimed** accepts only an exact
+`AAIFactoryCreativeOrdinaryResourceNode` or retained
+`AAIFactoryCreativeResourceNode`, reads its saved resource, purity, and node
+type, proves the live `AFGResourceNode` agrees, and arms the existing
+server-validated Build Gun placement path. It does not mutate the source node.
+
+**Remove aimed** is deliberately narrower and destructive. The first request
+records the exact player, world, weak actor, actor path, resource, purity, and
+node type for five seconds. The second request repeats the write/admin and
+server-authority gates, reruns the exact class/configuration/live-state checks,
+requires the same actor and path, refuses occupation, and succeeds only when
+Unreal accepts `AActor::Destroy` and reports the actor being destroyed. A
+different target starts a new confirmation. Vanilla nodes, Blueprint Resource
+Anchors, discovered exact mod templates, occupied nodes, invalid configuration,
+and stale or changed targets fail closed.
+
+The Insert panel exposes **Clone aimed** and **Remove aimed** through its same
+narrow server chat bridge. Its whitelist remains limited to `place`,
+`place-template`, exact `clone`, and exact `remove`; it cannot forward arbitrary
+slash commands. Removal keeps the panel open for the second click, while clone
+closes it so the native Build Gun can take over.
+
+Verification and deployment evidence:
+
+- Exact SML 3.12.0 / FactoryGame CL 502094 source validation passed.
+- Companion tests: 891/891.
+- FactoryGameSteam Shipping and FactoryEditor Development module builds passed.
+- UAT build, cook, archive, and Steam deployment passed.
+- Starter and deployed Shipping DLLs are both 1,437,696 bytes and SHA-256
+  `AF8B55DE6F92CDCC24402B583E22EFB95772916618BAC555BD759BEEA513FB84`.
+- Final archive is 19,884,783 bytes and SHA-256
+  `9A369ECCF497A5B12805D6F0ACEE882D140A3E2F11B31ADFD98B3221389435A7`.
+- Satisfactory was left closed after the deployment.
+
+Live verification remains explicit: clone an aimed Copilot node and confirm the
+native hologram matches while the source is unchanged; click remove once and
+confirm no mutation; prove target changes, expiry, occupation, vanilla nodes,
+Blueprint Anchors, and special templates all refuse; then click remove twice on
+the same unoccupied Copilot node within five seconds and confirm only it is
+destroyed.

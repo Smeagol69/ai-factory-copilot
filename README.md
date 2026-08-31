@@ -167,9 +167,13 @@ The native Creative Resource Node editor uses the same write switch. Once it
 is enabled, `/ai node place copper ore pure` arms the normal Build Gun
 hologram rather than directly spawning an actor. The spawner catalog also
 supports registered liquid, gas, and geothermal geyser descriptors, while
-leaving water-volume and fracking actors to their native extractor systems. In multiplayer, a
-Satisfactory server admin must arm it; the resulting recipe availability is a
-persistent world-level unlock, not a player permission. See
+leaving water-volume and fracking actors to their native extractor systems.
+Aim at an existing Copilot-created node and use **Clone aimed** to arm an exact
+copy, or **Remove aimed** twice within five seconds to remove that same node;
+the latter refuses occupied nodes and every node the mod does not own. In
+multiplayer, a Satisfactory server admin must arm or remove one; the resulting
+recipe availability is a persistent world-level unlock, not a player
+permission. See
 [`docs/CREATIVE_WORLD_EDITOR.md`](docs/CREATIVE_WORLD_EDITOR.md) for the
 current supported boundary and live-test status.
 

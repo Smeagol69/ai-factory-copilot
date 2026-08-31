@@ -35,7 +35,7 @@ test("closing the Copilot panel restores every Slate user to the game viewport",
   assert.doesNotMatch(hide, /SetAllUserFocus\(InputBox/);
 });
 
-test("the Insert panel forwards only the documented creative-node command through SML's server RPC", () => {
+test("the Insert panel forwards only documented creative-node commands through SML's server RPC", () => {
   const submit = functionSlice(
     ui,
     "void UAIFactoryCopilotUISubsystem::SubmitQuestion()",
@@ -43,7 +43,7 @@ test("the Insert panel forwards only the documented creative-node command throug
   );
   const forward = functionSlice(
     ui,
-    "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(",
+    "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodeCommand(",
     "void UAIFactoryCopilotUISubsystem::ClearConversation()",
   );
 
@@ -53,16 +53,18 @@ test("the Insert panel forwards only the documented creative-node command throug
   assert.match(submit, /CommandTokens\[0\]\.Equals\(TEXT\("ai"\), ESearchCase::IgnoreCase\)/);
   assert.match(submit, /CommandTokens\[1\]\.Equals\(TEXT\("node"\), ESearchCase::IgnoreCase\)/);
   assert.match(submit, /CommandTokens\[2\]\.Equals\(TEXT\("place"\), ESearchCase::IgnoreCase\)/);
-  assert.match(submit, /ForwardCreativeNodePlacementCommand\(CommandLine, Question\)/);
+  assert.match(submit, /CommandTokens\[2\]\.Equals\(TEXT\("clone"\), ESearchCase::IgnoreCase\)/);
+  assert.match(submit, /CommandTokens\[2\]\.Equals\(TEXT\("remove"\), ESearchCase::IgnoreCase\)/);
+  assert.match(submit, /ForwardCreativeNodeCommand\(CommandLine, Question\)/);
   assert.match(forward, /CommandLine\.ParseIntoArrayWS\(CommandTokens\)/);
   assert.match(forward, /GetRemoteCallObjectOfClass\(USMLRemoteCallObject::StaticClass\(\)\)/);
   assert.match(forward, /RemoteCallObject->HandleChatCommand\(CommandLine\)/);
-  assert.match(forward, /RemoteCallObject->HandleChatCommand\(CommandLine\);\s*HidePanel\(\);/);
+  assert.match(forward, /!CommandTokens\[2\]\.Equals\(TEXT\("remove"\), ESearchCase::IgnoreCase\)[\s\S]*HidePanel\(\)/);
   assert.doesNotMatch(forward, /AChatCommandSubsystem::RunChatCommand/);
   assert.doesNotMatch(submit, /AChatCommandSubsystem::RunChatCommand/);
 });
 
-test("the Creative Node Spawner only generates the existing server-validated placement handoff", () => {
+test("the Creative Node Spawner generates only server-validated placement and aimed-node handoffs", () => {
   const spawner = functionSlice(
     ui,
     "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildNodeSpawnerSection()",
@@ -71,7 +73,7 @@ test("the Creative Node Spawner only generates the existing server-validated pla
   const rows = functionSlice(
     ui,
     "void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()",
-    "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(",
+    "bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodeCommand(",
   );
 
   assert.match(spawner, /SAssignNew\(NodeSpawnerFilterBox, SEditableTextBox\)/);
@@ -81,7 +83,12 @@ test("the Creative Node Spawner only generates the existing server-validated pla
   assert.match(rows, /MakeArm\(TEXT\("Pure"\), TEXT\("pure"\)\)/);
   assert.match(rows, /TEXT\("ai node place %s %s"\)/);
   assert.match(rows, /TEXT\("ai node place-template %s %s"\)/);
-  assert.match(rows, /ForwardCreativeNodePlacementCommand\(/);
+  assert.match(spawner, /Clone aimed/);
+  assert.match(spawner, /Remove aimed \(2 clicks\)/);
+  assert.match(spawner, /TEXT\("ai node clone"\)/);
+  assert.match(spawner, /TEXT\("ai node remove"\)/);
+  assert.match(rows, /ForwardCreativeNodeCommand\(/);
+  assert.doesNotMatch(spawner, /SpawnActor|SetActorLocation|ConfigureCreativeNode|Destroy\(/);
   assert.doesNotMatch(rows, /SpawnActor|SetActorLocation|ConfigureCreativeNode|ClientArmCreativeResourceNode/);
 });
 

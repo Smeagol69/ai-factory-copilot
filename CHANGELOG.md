@@ -5,6 +5,20 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added two aimed-node controls to the Creative Node Spawner. **Clone aimed**
+  reads a Copilot-created node's exact saved resource, purity, and node type,
+  verifies the live actor agrees, and re-arms the normal server-validated Build
+  Gun path without changing the original. **Remove aimed** is a server-only,
+  five-second two-click operation that accepts only the same exact unoccupied
+  Copilot-owned node on both clicks. It rechecks write/admin authority,
+  ownership, world, saved/live configuration, actor identity/path, and
+  occupation immediately before `AActor::Destroy`; vanilla nodes, Blueprint
+  Resource Anchors, exact mod templates, occupied nodes, and changed targets
+  fail closed. Exact CL 502094 validation, **891/891** tests, Shipping and
+  Editor module builds, and UAT build/cook/archive/deployment all pass. The
+  deployed Shipping DLL is SHA-256
+  `AF8B55DE6F92CDCC24402B583E22EFB95772916618BAC555BD759BEEA513FB84`;
+  live Clone/Remove interaction verification remains pending.
 - Fixed vanilla Miner snapping on ordinary nodes created by the Creative Node
   Spawner. FactoryGame CL 502094 restricts Miner CDOs to the Blueprint-generated
   `BP_ResourceNode_C` class, which a native mod node cannot inherit even when it

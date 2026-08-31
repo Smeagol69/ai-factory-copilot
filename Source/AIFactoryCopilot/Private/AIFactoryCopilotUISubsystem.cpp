@@ -575,10 +575,16 @@ void UAIFactoryCopilotUISubsystem::SubmitQuestion()
             CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
             (CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase) ||
              CommandTokens[2].Equals(TEXT("place-template"), ESearchCase::IgnoreCase));
-        if (bIsCreativeNodePlacement)
+        const bool bIsCreativeNodeActorCommand =
+            CommandTokens.Num() == 3 &&
+            CommandTokens[0].Equals(TEXT("ai"), ESearchCase::IgnoreCase) &&
+            CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
+            (CommandTokens[2].Equals(TEXT("clone"), ESearchCase::IgnoreCase) ||
+             CommandTokens[2].Equals(TEXT("remove"), ESearchCase::IgnoreCase));
+        if (bIsCreativeNodePlacement || bIsCreativeNodeActorCommand)
         {
             InputBox->SetText(FText::GetEmpty());
-            ForwardCreativeNodePlacementCommand(CommandLine, Question);
+            ForwardCreativeNodeCommand(CommandLine, Question);
             return;
         }
 
@@ -696,6 +702,45 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildNodeSpawnerSection()
             .ColorAndOpacity(AIFactoryPalette::TextMuted)
             .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
             .AutoWrapText(true)
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            .Padding(0.0f, 0.0f, 6.0f, 0.0f)
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .Text(FText::FromString(TEXT("Clone aimed")))
+                .ToolTipText(FText::FromString(TEXT(
+                    "Aim at a Copilot-created node and arm the normal Build Gun with its exact saved resource, purity, and node type.")))
+                .OnClicked_Lambda([this]()
+                {
+                    ForwardCreativeNodeCommand(
+                        TEXT("ai node clone"), TEXT("/ai node clone"));
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            [
+                SNew(SButton)
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Danger)
+                .Text(FText::FromString(TEXT("Remove aimed (2 clicks)")))
+                .ToolTipText(FText::FromString(TEXT(
+                    "Only an unoccupied Copilot-created node can be removed. Click twice within five seconds while still aiming at the same exact node.")))
+                .OnClicked_Lambda([this]()
+                {
+                    ForwardCreativeNodeCommand(
+                        TEXT("ai node remove"), TEXT("/ai node remove"));
+                    return FReply::Handled();
+                })
+            ]
         ]
         + SVerticalBox::Slot()
         .FillHeight(1.0f)
@@ -952,7 +997,7 @@ void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()
                             TEXT("ai node place-template %s %s"),
                             *TemplateClassPath,
                             PurityToken);
-                    ForwardCreativeNodePlacementCommand(
+                    ForwardCreativeNodeCommand(
                         CommandLine, FString::Printf(TEXT("/%s"), *CommandLine));
                     return FReply::Handled();
                 });
@@ -1027,7 +1072,7 @@ void UAIFactoryCopilotUISubsystem::RebuildNodeSpawnerRows()
     }
 }
 
-bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(
+bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodeCommand(
     const FString& CommandLine,
     const FString& TranscriptLine)
 {
@@ -1042,12 +1087,18 @@ bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(
         CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
         (CommandTokens[2].Equals(TEXT("place"), ESearchCase::IgnoreCase) ||
          CommandTokens[2].Equals(TEXT("place-template"), ESearchCase::IgnoreCase));
-    if (!bIsCreativeNodePlacement)
+    const bool bIsCreativeNodeActorCommand =
+        CommandTokens.Num() == 3 &&
+        CommandTokens[0].Equals(TEXT("ai"), ESearchCase::IgnoreCase) &&
+        CommandTokens[1].Equals(TEXT("node"), ESearchCase::IgnoreCase) &&
+        (CommandTokens[2].Equals(TEXT("clone"), ESearchCase::IgnoreCase) ||
+         CommandTokens[2].Equals(TEXT("remove"), ESearchCase::IgnoreCase));
+    if (!bIsCreativeNodePlacement && !bIsCreativeNodeActorCommand)
     {
         if (RequestStatusText.IsValid())
         {
             RequestStatusText->SetText(FText::FromString(
-                TEXT("Only the Creative Node placement command can be forwarded from this panel.")));
+                TEXT("Only Creative Node placement, Clone aimed, and Remove aimed can be forwarded from this panel.")));
         }
         return false;
     }
@@ -1069,7 +1120,18 @@ bool UAIFactoryCopilotUISubsystem::ForwardCreativeNodePlacementCommand(
 
     AppendTranscript(TEXT("YOU"), TranscriptLine);
     RemoteCallObject->HandleChatCommand(CommandLine);
-    HidePanel();
+    // Placement and cloning arm the Build Gun, so return focus to the game.
+    // Removal deliberately keeps the panel open: its server confirmation needs
+    // a second click within five seconds against the same crosshair target.
+    if (!CommandTokens[2].Equals(TEXT("remove"), ESearchCase::IgnoreCase))
+    {
+        HidePanel();
+    }
+    else if (NodeSpawnerStatusText.IsValid())
+    {
+        NodeSpawnerStatusText->SetText(FText::FromString(TEXT(
+            "Removal request sent. If the server accepted this exact target, click Remove aimed again within five seconds to confirm.")));
+    }
     return true;
 }
 

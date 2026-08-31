@@ -136,7 +136,9 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
                 TEXT("Use 'original' to undo a vanilla-node override. To place a new mod-owned node anywhere, ")
                 TEXT("run /ai node place <resource> [impure|normal|pure]. The spawner also accepts liquid, gas, "
                 TEXT("and geyser descriptors. Exact special mod nodes discovered in this live world ")
-                TEXT("also appear in the panel's Node Spawner without being approximated as generic resources.")),
+                TEXT("also appear in the panel's Node Spawner without being approximated as generic resources. ")
+                TEXT("Aim at a Copilot-created node and use /ai node clone to arm an exact copy, or ")
+                TEXT("/ai node remove twice within five seconds to remove it safely.")),
                 *FString::Join(Names, TEXT(", "))));
             return EExecutionStatus::COMPLETED;
         }
@@ -292,6 +294,89 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
             Sender->SendChatMessage(TEXT(
                 "Look directly at a resource node and run it again — nothing under the crosshair is one."));
             return EExecutionStatus::UNCOMPLETED;
+        }
+
+        if (Arguments[1].Equals(TEXT("clone"), ESearchCase::IgnoreCase) ||
+            Arguments[1].Equals(TEXT("copy"), ESearchCase::IgnoreCase))
+        {
+            if (Arguments.Num() != 2)
+            {
+                Sender->SendChatMessage(TEXT(
+                    "Usage: aim at a Copilot-created node and run /ai node clone."));
+                return EExecutionStatus::BAD_ARGUMENTS;
+            }
+
+            TSubclassOf<UFGResourceDescriptor> Resource;
+            EResourcePurity Purity = RP_MAX;
+            EResourceNodeType NodeType = EResourceNodeType::Invalid;
+            FString Reason;
+            if (!AIFactoryNodeEdit::GetCreativeNodeConfiguration(
+                    Target, Resource, Purity, NodeType, Reason))
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("Clone refused: %s."), *Reason));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+            if (!AIFactoryCreativeNodePlacement::ArmForPlayer(
+                    NodePlayer, Resource, Purity, NodeType, Reason))
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("Clone was not armed: %s."), *Reason));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("Exact copy armed: %s (%s). Place its normal Build Gun hologram; ")
+                TEXT("the original node is unchanged."),
+                *UFGItemDescriptor::GetItemName(Resource).ToString(),
+                *StaticEnum<EResourcePurity>()->GetDisplayNameTextByValue(
+                    static_cast<int64>(Purity)).ToString()));
+            return EExecutionStatus::COMPLETED;
+        }
+
+        if (Arguments[1].Equals(TEXT("remove"), ESearchCase::IgnoreCase) ||
+            Arguments[1].Equals(TEXT("delete"), ESearchCase::IgnoreCase))
+        {
+            if (Arguments.Num() != 2)
+            {
+                Sender->SendChatMessage(TEXT(
+                    "Usage: aim at a Copilot-created node and run /ai node remove twice within five seconds."));
+                return EExecutionStatus::BAD_ARGUMENTS;
+            }
+
+            const TSubclassOf<UFGResourceDescriptor> ResourceBeforeRemoval =
+                Target->GetResourceClass();
+            const FString ResourceName = IsValid(ResourceBeforeRemoval)
+                ? UFGItemDescriptor::GetItemName(ResourceBeforeRemoval).ToString()
+                : TEXT("unknown resource");
+            const FString ActorPath = Target->GetPathName();
+            FString Reason;
+            const AIFactoryNodeEdit::ECreativeNodeRemovalResult Result =
+                AIFactoryNodeEdit::RemoveCreativeNode(
+                    NodePlayer, NodeWorld, Target, Reason);
+            if (Result == AIFactoryNodeEdit::ECreativeNodeRemovalResult::Refused)
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("Remove refused: %s."), *Reason));
+                return EExecutionStatus::UNCOMPLETED;
+            }
+            if (Result ==
+                AIFactoryNodeEdit::ECreativeNodeRemovalResult::ConfirmationRequired)
+            {
+                Sender->SendChatMessage(FString::Printf(
+                    TEXT("Ready to remove %s (%s). %s. No vanilla or mod-template node can pass this gate."),
+                    *ResourceName,
+                    *ActorPath,
+                    *Reason));
+                return EExecutionStatus::COMPLETED;
+            }
+
+            Sender->SendChatMessage(FString::Printf(
+                TEXT("Removed Copilot-created %s node (%s). The server accepted destruction; ")
+                TEXT("no player building or vanilla map node was touched."),
+                *ResourceName,
+                *ActorPath));
+            return EExecutionStatus::COMPLETED;
         }
 
         const FString Wanted = Arguments[1].ToLower();
@@ -667,6 +752,6 @@ void AAIFactoryChatCommand::SendHelp(UCommandSender* Sender)
     Sender->SendChatMessage(TEXT("/ai <question> - chat using a fresh nearby snapshot, exact position, and current crosshair focus"));
     Sender->SendChatMessage(TEXT("/ai all <question> - chat using the whole-world live snapshot"));
     Sender->SendChatMessage(TEXT("/ai reset - clear this save/player conversation"));
-    Sender->SendChatMessage(TEXT("/ai status | scan | terrain [radius_m] [step_m] | look | node [resource] | anchor <resource> [impure|normal|pure] | export [radius_m|all]"));
+    Sender->SendChatMessage(TEXT("/ai status | scan | terrain [radius_m] [step_m] | look | node [resource|place|clone|remove] | anchor <resource> [impure|normal|pure] | export [radius_m|all]"));
     Sender->SendChatMessage(TEXT("Examples: /ai what should I do here?  /ai is this machine connected correctly?"));
 }

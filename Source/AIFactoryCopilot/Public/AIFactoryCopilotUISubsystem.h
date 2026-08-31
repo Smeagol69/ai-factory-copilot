@@ -235,7 +235,7 @@ private:
     /** Repopulate the visible rows from NodeCatalog, honouring the filter text. */
     void RebuildNodeSpawnerRows();
     /** Returns false without a world write when the native chat RCO is not ready. */
-    bool ForwardCreativeNodePlacementCommand(
+    bool ForwardCreativeNodeCommand(
         const FString& CommandLine,
         const FString& TranscriptLine);
     void BuildPanel();
