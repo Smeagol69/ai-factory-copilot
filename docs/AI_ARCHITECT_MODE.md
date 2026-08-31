@@ -84,8 +84,10 @@ Implemented companion checkpoint (2026-08-31):
   deterministic design request under a named Architect session;
 - revisions are immutable and content-addressed, carry an explicit label and
   parent, and persist per exact map/save/player chat scope;
-- `manage_architect_revisions` lists, retrieves, compares, selects, rolls back,
-  and deletes only an unselected leaf draft;
+- `manage_architect_revisions` lists, retrieves, compares, redraws, selects,
+  rolls back, and deletes only an unselected leaf draft. Redraw recompiles and
+  revalidates the stored option before emitting the same private draw-only
+  preview, and does not change the selected revision;
 - selection recompiles the stored design request from the current full graph
   and requires the same semantic manifest, design-family, and unlock
   fingerprints. Global `world_revision` drift is reported rather than refused

@@ -22,12 +22,17 @@ function toolGraph() {
   return buildGraph(snapshot);
 }
 
-function run(graph, name, args, architect) {
+function run(graph, name, args, architect, emitted = null) {
   return JSON.parse(runSolverTool(
     graph,
     name,
     args,
-    { services: { architect, actions: { emit: () => {} } } },
+    {
+      services: {
+        architect,
+        actions: { emit: (actions) => emitted?.push(...actions) },
+      },
+    },
   ).serialized);
 }
 
@@ -97,6 +102,22 @@ test("model-facing Architect tools create, compare, select, roll back, and delet
   assert.equal(rollback.ok, true, rollback.reason);
   assert.equal(rollback.operation, "rollback");
   assert.equal(rollback.selected_revision_id, optionAId);
+
+  const emitted = [];
+  const previewed = run(graph, "manage_architect_revisions", {
+    operation: "preview",
+    session_name: "Iron Rod Campus",
+    revision_id: optionBId,
+  }, architect, emitted);
+  assert.equal(previewed.ok, true, previewed.reason);
+  assert.equal(previewed.architect_preview.selection_changed, false);
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].action, "architect_preview");
+  const afterPreview = run(graph, "manage_architect_revisions", {
+    operation: "list",
+    session_name: "Iron Rod Campus",
+  }, architect);
+  assert.equal(afterPreview.architect_sessions[0].selected_revision_id, optionAId);
 
   const deleted = run(graph, "manage_architect_revisions", {
     operation: "delete_draft",

@@ -5475,12 +5475,14 @@ created it. Revisions are immutable and content-addressed; submitting the same
 option is idempotent rather than a silent rewrite.
 
 `manage_architect_revisions` provides bounded `list`, `get`, `compare`,
-`select`, `rollback`, and `delete_draft` operations. Selection and rollback
-rerun the stored design request against the current complete graph and require
-the same semantic manifest, design-family, and unlock fingerprints. The global
-world revision is preserved and drift is reported, not refused, because belt
-traffic advances it continuously. Changed unlocks or any changed relevant
-compiler output refuse promotion and require a new child revision.
+`preview`, `select`, `rollback`, and `delete_draft` operations. Preview,
+selection, and rollback rerun the stored design request against the current
+complete graph and require the same semantic manifest, design-family, and
+unlock fingerprints. Preview emits only the private draw action and never
+changes selection, so “show option B” has an exact safe path. The global world
+revision is preserved and drift is reported, not refused, because belt traffic
+advances it continuously. Changed unlocks or any changed relevant compiler
+output refuse use and require a new child revision.
 
 Comparison keeps exact geometry, production-program, connection, style, and
 construction-blocker deltas separate. Native Blueprint cost remains explicitly
@@ -5509,7 +5511,7 @@ Verification and deployment evidence:
 - Health advertises `manage_architect_revisions`, confirms the Architect store
   is configured for disk persistence, and reports its exact scope policy.
 - Installed and repository `architect-revisions.mjs` are both SHA-256
-  `D89BCC24AFF9DD056A2BF850851F5CAD617B8A49D73349202CF807A45FDF8447`.
+  `00E68E676125FCB387B9FB35696FBAE3F73FB548597FE0954B7FC0F2DB65E5F9`.
 - No C++ changed, so the already deployed Architect preview DLL from `bbc83bc`
   remains current; Satisfactory was left closed.
 

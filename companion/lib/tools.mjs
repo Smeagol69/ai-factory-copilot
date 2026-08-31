@@ -748,18 +748,24 @@ export const SOLVER_TOOLS = [
   {
     name: "manage_architect_revisions",
     description:
-      "Reads or changes only save/session-scoped AI Architect metadata. Use list/get to inspect immutable options, compare for exact geometry/production/topology/style/blocker deltas, select or rollback to promote a stored revision only after it recompiles identically against the current snapshot/unlocks, and delete_draft to remove an unselected leaf draft. This tool never writes or deletes a native Blueprint, never places/dismantles actors, and never edits a stored revision in place.",
+      "Reads or changes only save/session-scoped AI Architect metadata. Use list/get to inspect immutable options, compare for exact geometry/production/topology/style/blocker deltas, preview to redraw one stored option only after it recompiles identically against the current snapshot/unlocks, select or rollback to promote it under the same gate, and delete_draft to remove an unselected leaf draft. This tool never writes or deletes a native Blueprint, never places/dismantles actors, and never edits a stored revision in place.",
     parameters: {
       type: "object",
       properties: {
         operation: {
           type: "string",
-          enum: ["list", "get", "compare", "select", "rollback", "delete_draft"],
+          enum: ["list", "get", "compare", "preview", "select", "rollback", "delete_draft"],
         },
         session_name: { type: "string", maxLength: 80 },
         revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
         left_revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
         right_revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
+        preview_lifetime_seconds: {
+          type: "number",
+          minimum: 0,
+          maximum: 3600,
+          description: "For preview only. Zero keeps the draw-only overlay until it is cleared.",
+        },
       },
       required: ["operation"],
       additionalProperties: false,
@@ -794,7 +800,7 @@ export const SOLVER_TOOLS = [
           revision_id: args.revision_id,
         });
       }
-      if (args.operation === "select" || args.operation === "rollback") {
+      if (["preview", "select", "rollback"].includes(args.operation)) {
         const stored = store.getRevision({
           session_name: args.session_name,
           revision_id: args.revision_id,
@@ -818,6 +824,34 @@ export const SOLVER_TOOLS = [
             reason: "architect_revision_could_not_recompile_against_current_snapshot",
             current_result: recompiled.result,
             effect: "create_a_new_revision_from_current_game_evidence",
+          };
+        }
+        if (args.operation === "preview") {
+          const verified = store.verifyRevision({
+            session_name: args.session_name,
+            revision_id: args.revision_id,
+            recompiled_manifest: recompiled.manifest,
+          });
+          if (!verified.ok) return verified;
+          const preview = compileArchitectPreview(recompiled.manifest, {
+            lifetime_seconds: args.preview_lifetime_seconds,
+          });
+          if (!preview.compiled) return preview;
+          services?.actions?.emit?.([preview.action]);
+          return {
+            ok: true,
+            operation: "preview",
+            revision: verified.revision,
+            evidence: verified.evidence,
+            architect_preview: {
+              schema: preview.schema,
+              manifest_fingerprint: preview.manifest_fingerprint,
+              element_count: preview.element_count,
+              overlay: preview.action.overlay,
+              status: "draw_action_emitted_pending_game_readback",
+              construction: false,
+              selection_changed: false,
+            },
           };
         }
         return store.selectRevision({

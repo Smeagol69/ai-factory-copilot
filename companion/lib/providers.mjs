@@ -79,7 +79,7 @@ factory arithmetic yourself:
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - a creative elevated, terraced, or campus megabase preview, optionally saved as an immutable Architect option -> design_megabase_concept;
-- listing, comparing, selecting, rolling back, or deleting an AI Architect draft revision -> manage_architect_revisions;
+- listing, comparing, redrawing, selecting, rolling back, or deleting an AI Architect draft revision -> manage_architect_revisions;
 - a foundation-grid platform, raised deck, walls, supports, or roof shell -> plan_structure;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight;

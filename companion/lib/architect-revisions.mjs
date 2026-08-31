@@ -436,6 +436,44 @@ export function createArchitectRevisionStore({ directory = null, now = () => new
       return { ok: true, ...found, revision };
     }
 
+    function verifyFoundRevision(found, recompiledManifest) {
+      const currentEvidence = fingerprintArchitectManifest(recompiledManifest);
+      if (!currentEvidence.ok) {
+        return { ...currentEvidence, effect: "replan_before_using_this_revision" };
+      }
+      if (currentEvidence.unlock_fingerprint !== found.revision.unlock_fingerprint) {
+        return resultError("architect_revision_unlock_fingerprint_is_stale", {
+          stored_unlock_fingerprint: found.revision.unlock_fingerprint,
+          current_unlock_fingerprint: currentEvidence.unlock_fingerprint,
+          effect: "replan_before_using_this_revision",
+        });
+      }
+      if (currentEvidence.manifest_fingerprint !== found.revision.manifest_fingerprint) {
+        return resultError("architect_revision_recompile_no_longer_matches", {
+          stored_manifest_fingerprint: found.revision.manifest_fingerprint,
+          current_manifest_fingerprint: currentEvidence.manifest_fingerprint,
+          effect: "create_a_child_revision_from_current_game_evidence",
+        });
+      }
+      const currentWorldRevision =
+        recompiledManifest.unlock_constraints?.captured_world_revision ?? null;
+      return {
+        ok: true,
+        revision: found.revision,
+        architect_session: found.session,
+        evidence: {
+          manifest_fingerprint: currentEvidence.manifest_fingerprint,
+          unlock_fingerprint: currentEvidence.unlock_fingerprint,
+          stored_world_revision: found.revision.captured_world_revision,
+          current_world_revision: currentWorldRevision,
+          world_revision_drift:
+            String(found.revision.captured_world_revision) !== String(currentWorldRevision),
+          world_revision_policy:
+            "reported_not_refused; global revision moves with belt traffic, while exact recompile and unlock fingerprints gate use",
+        },
+      };
+    }
+
     return {
       configured: Boolean(directory),
       scope: scopeResult.ok ? clone(scopeResult.scope) : null,
@@ -600,6 +638,25 @@ export function createArchitectRevisionStore({ directory = null, now = () => new
         return compareArchitectRevisions(left.revision, right.revision);
       },
 
+      verifyRevision({
+        session_name: sessionName,
+        revision_id: revisionId,
+        recompiled_manifest: recompiledManifest,
+      }) {
+        const loaded = load();
+        if (!loaded.ok) return loaded;
+        const found = getRevisionInternal(loaded.state, sessionName, revisionId);
+        if (!found.ok) return found;
+        const verified = verifyFoundRevision(found, recompiledManifest);
+        if (!verified.ok) return verified;
+        return {
+          ok: true,
+          revision: summarizeRevision(found.revision),
+          architect_session: summarizeSession(found.session, false),
+          evidence: verified.evidence,
+        };
+      },
+
       selectRevision({
         session_name: sessionName,
         revision_id: revisionId,
@@ -610,45 +667,18 @@ export function createArchitectRevisionStore({ directory = null, now = () => new
         if (!loaded.ok) return loaded;
         const found = getRevisionInternal(loaded.state, sessionName, revisionId);
         if (!found.ok) return found;
-        const currentEvidence = fingerprintArchitectManifest(recompiledManifest);
-        if (!currentEvidence.ok) {
-          return { ...currentEvidence, effect: "replan_before_selecting_this_revision" };
-        }
-        if (currentEvidence.unlock_fingerprint !== found.revision.unlock_fingerprint) {
-          return resultError("architect_revision_unlock_fingerprint_is_stale", {
-            stored_unlock_fingerprint: found.revision.unlock_fingerprint,
-            current_unlock_fingerprint: currentEvidence.unlock_fingerprint,
-            effect: "replan_before_selecting_this_revision",
-          });
-        }
-        if (currentEvidence.manifest_fingerprint !== found.revision.manifest_fingerprint) {
-          return resultError("architect_revision_recompile_no_longer_matches", {
-            stored_manifest_fingerprint: found.revision.manifest_fingerprint,
-            current_manifest_fingerprint: currentEvidence.manifest_fingerprint,
-            effect: "create_a_child_revision_from_current_game_evidence",
-          });
-        }
+        const verified = verifyFoundRevision(found, recompiledManifest);
+        if (!verified.ok) return verified;
         found.session.selected_revision_id = found.revision.revision_id;
         found.session.updated_at_utc = now();
         const persisted = write(loaded.state);
         if (!persisted.ok) return persisted;
-        const currentWorldRevision =
-          recompiledManifest.unlock_constraints?.captured_world_revision ?? null;
         return {
           ok: true,
           operation,
           selected_revision_id: found.revision.revision_id,
           architect_session: summarizeSession(found.session, false),
-          evidence: {
-            manifest_fingerprint: currentEvidence.manifest_fingerprint,
-            unlock_fingerprint: currentEvidence.unlock_fingerprint,
-            stored_world_revision: found.revision.captured_world_revision,
-            current_world_revision: currentWorldRevision,
-            world_revision_drift:
-              String(found.revision.captured_world_revision) !== String(currentWorldRevision),
-            world_revision_policy:
-              "reported_not_refused; global revision moves with belt traffic, while exact recompile and unlock fingerprints gate selection",
-          },
+          evidence: verified.evidence,
         };
       },
 

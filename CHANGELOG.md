@@ -10,7 +10,9 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   `megabase.design/v1` manifest as an immutable content-addressed revision under
   the exact map/save/player-chat scope. Revisions have explicit option labels
   and parents; a new `manage_architect_revisions` tool can list, inspect,
-  compare, select, roll back, or delete only an unselected leaf draft.
+  compare, redraw, select, roll back, or delete only an unselected leaf draft.
+  Redraw revalidates and recompiles that exact stored option before emitting the
+  private draw-only overlay, and never changes which revision is selected.
   Selection reruns the stored design request against the current complete graph
   and requires identical semantic manifest, design-family, and unlock
   fingerprints. Noisy belt-driven global revision drift is reported, while
