@@ -526,7 +526,7 @@ test("manifest validation catches actions, transform drift and missing endpoints
   assert.ok(result.issues.some((issue) => issue.startsWith("connection_endpoint_missing:")));
 });
 
-test("the model-facing solver builds its inputs from the graph and cannot emit actions", () => {
+test("the model-facing solver is action-free by default and can emit one draw-only Architect preview", () => {
   const snapshot = buildFactorySnapshot();
   for (const actor of snapshot.actors) {
     if (actor.kind !== "buildable") continue;
@@ -539,12 +539,13 @@ test("the model-facing solver builds its inputs from the graph and cannot emit a
     if (actor.factory) actor.factory.production_cycle_seconds = 0;
   }
   const toolGraph = buildGraph(snapshot);
-  const result = runSolverTool(toolGraph, "design_megabase_concept", {
+  const request = {
     item_name: "Iron Rod",
     target_rate_per_minute: 60,
     origin: { x: 100_000, y: 100_000, z: 500 },
     style: "elevated_industrial_campus",
-  });
+  };
+  const result = runSolverTool(toolGraph, "design_megabase_concept", request);
   const parsed = JSON.parse(result.serialized);
 
   assert.equal(parsed.compiled, true, parsed.reason);
@@ -554,4 +555,19 @@ test("the model-facing solver builds its inputs from the graph and cannot emit a
   assert.equal(parsed.program.groups.length, 2, "existing surplus must not erase a new megabase program by default");
   assert.equal(parsed.part_candidates.source, "captured_build_gun_recipe_catalog");
   assert.deepEqual(parsed.actions, []);
+
+  const emitted = [];
+  const withPreview = runSolverTool(
+    toolGraph,
+    "design_megabase_concept",
+    { ...request, preview_in_world: true },
+    { services: { actions: { emit: (actions) => emitted.push(...actions) } } },
+  );
+  const previewed = JSON.parse(withPreview.serialized);
+  assert.equal(previewed.architect_preview.compiled, true);
+  assert.equal(previewed.architect_preview.status, "draw_action_emitted_pending_game_readback");
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].action, "architect_preview");
+  assert.equal(emitted[0].commit, true);
+  assert.equal(emitted[0].elements.length, parsed.elements.length);
 });

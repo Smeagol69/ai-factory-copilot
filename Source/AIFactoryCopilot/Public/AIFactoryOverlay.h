@@ -111,6 +111,29 @@ struct FAIFactorySelectionOverlayResult
     int32 InvalidBoundsCount = 0;
 };
 
+/** One exact semantic volume from a validated AI Architect manifest. */
+struct FAIFactoryArchitectPreviewEntry
+{
+    FString Id;
+    FString Kind;
+    /** Rotated lower corner, exactly as emitted by `megabase.design/v1`. */
+    FVector Origin = FVector::ZeroVector;
+    /** Positive local X/Y/Z size before yaw is applied. */
+    FVector Size = FVector::ZeroVector;
+    double YawDegrees = 0.0;
+};
+
+/** Authoritative readback for a draw-only Architect preview. */
+struct FAIFactoryArchitectPreviewResult
+{
+    bool bDrawn = false;
+    FString OverlayName;
+    FString Status = TEXT("not_run");
+    FString Reason;
+    int32 ElementCount = 0;
+    int32 LineCount = 0;
+};
+
 namespace AIFactoryOverlay
 {
     /**
@@ -142,6 +165,17 @@ namespace AIFactoryOverlay
         const TArray<FAIFactorySelectionOverlayEntry>& Entries,
         const FAIFactoryOverlayStyle& Style);
 
+    /**
+     * Draws a bounded semantic campus manifest as oriented wireframe volumes.
+     * This is never a placement hologram and never mutates the save.
+     */
+    FAIFactoryArchitectPreviewResult DrawArchitectPreview(
+        UWorld* World,
+        const FString& OverlayName,
+        const TArray<FAIFactoryArchitectPreviewEntry>& Entries,
+        double FloorHeightCm,
+        const FAIFactoryOverlayStyle& Style);
+
     /** Removes one named overlay. Returns false if no such overlay is drawn. */
     bool Clear(UWorld* World, const FString& OverlayName);
 
@@ -152,4 +186,5 @@ namespace AIFactoryOverlay
     TArray<FString> ActiveOverlays();
 
     TSharedPtr<class FJsonObject> ResultToJson(const FAIFactoryOverlayResult& Result);
+    TSharedPtr<class FJsonObject> ResultToJson(const FAIFactoryArchitectPreviewResult& Result);
 }

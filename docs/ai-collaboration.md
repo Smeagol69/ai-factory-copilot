@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-30 | Codex | `codex/ai-architect-mode` | Make **AI Architect Mode** the primary published roadmap and deliver its first safe visible vertical slice: a bounded, non-mutating, game-rendered architectural preview compiled from the existing authoritative `megabase.design/v1` manifest. Preserve all existing generated/native Blueprint, node, placement, selection, topology, and write paths. The preview must carry exact manifest/revision/style/family provenance, use only solver-produced world transforms, render semantic zones/floors/bridges/tower as clearly differentiated Shipping-safe overlays, expire/clear cleanly, and never imply hologram validation or construction. Expected files: `docs/GOALS.md`, a focused Architect Mode contract/roadmap, GitHub milestone/issues, companion preview compiler/action validation/tests, game overlay/action execution/readback, changelog, and this append-only handoff. **Claude lane request:** take the separate selected-manifest -> generated native Blueprint -> active-save descriptor -> Build Gun hologram compilation path after reading this claim; do not edit the overlay compiler while this row is claimed. The existing `codex/generated-blueprint-two-stage-wire` production/topology lane remains untouched. | claimed; auditing existing megabase/generator/overlay seams before implementation |
+| 2026-08-30 | Codex | `codex/ai-architect-mode` | Make **AI Architect Mode** the primary published roadmap and deliver its first safe visible vertical slice: a bounded, non-mutating, game-rendered architectural preview compiled from the existing authoritative `megabase.design/v1` manifest. Preserve all existing generated/native Blueprint, node, placement, selection, topology, and write paths. The preview must carry exact manifest/revision/style/family provenance, use only solver-produced world transforms, render semantic zones/floors/bridges/tower as clearly differentiated Shipping-safe overlays, expire/clear cleanly, and never imply hologram validation or construction. Expected files: `docs/GOALS.md`, a focused Architect Mode contract/roadmap, companion preview compiler/action validation/tests, game overlay/action execution/readback, changelog, and this append-only handoff. **Claude lane request:** take the separate selected-manifest -> generated native Blueprint -> active-save descriptor -> Build Gun hologram compilation path after reading this claim; do not edit the overlay compiler. The existing `codex/generated-blueprint-two-stage-wire` production/topology lane remains untouched. | complete and deployed; 897/897 tests, exact CL 502094 validation, Shipping + Editor builds, UAT package/deploy, and clean companion install passed; live visual confirmation remains pending |
 | 2026-08-30 | Codex | `codex/creative-node-delete` | Add two aimed-node quality-of-life workflows now that ordinary-node Miner compatibility is live-verified: **Clone aimed** re-arms the normal Build Gun with the exact saved resource/purity/type of a Copilot-owned node, and **Remove aimed** deletes only an unoccupied Copilot-owned ordinary creative node or creative geyser. Require the existing write/admin authority gates; removal also requires a short-lived second confirmation, executes only on the server, and reports exact engine acceptance. Never delete, clone as generic, or retarget vanilla map nodes, deposits, Blueprint Anchor runtime nodes, occupied nodes, or arbitrary mod templates, and never remove a node whose identity changed between confirmation and commit. Preserve Node Spawner/Editor, Miner compatibility, resource discovery, generated Blueprints, and all existing chat/AI actions. Expected files: creative node chat/edit authority path, focused Node Spawner controls using the existing narrow server command bridge, source-contract tests, editor docs/changelog, and this append-only handoff. | complete and deployed; 891/891 tests, exact header validation, Shipping/Editor builds, and UAT build/cook/archive/deploy pass; live Clone/Remove interaction verification remains |
 | 2026-08-30 | Codex | `codex/miner-node-class-gate` | Implement the now-proven Miner compatibility fix without removing Claude's diagnostics or Codex's solid/fluid/gas/geyser/template/save behavior. Scope any extractor compatibility change to Copilot-created ordinary nodes, preserve the game's occupation/resource-form/resource-allowlist gates, verify against exact CL 502094 headers, then run tests, Shipping/Editor builds, package, and deploy for the owner's live test. Expected files: module hook/lifecycle, creative ordinary-node contract, focused source tests, changelog, and this handoff. | complete and live-verified, including `d29abd3`'s Refined Power/template discovery fix: a Shipping-only SML hook removes `mRestrictToNodeType` only during the original native check for a validated `AAIFactoryCreativeOrdinaryResourceNode`, then restores it exactly. Vanilla/template/geyser/other-mod hook paths are untouched. 888/888 tests, exact headers, Shipping/Editor and UAT pass. Steam DLL SHA-256 `139F7F22E66C454C321004B41E54FA5F582944CC0F448B413CD2C1E8DF33E70C`; owner confirmed the packaged Miner snaps to and works on a spawned ordinary node. |
 | 2026-08-29 | Codex | `codex/creative-node-runtime-compat` | Live follow-up to the deployed Creative Node Spawner after owner testing. Preserve the existing solid/liquid/gas/geyser path while fixing player-facing purity titles, separating ordinary Miner-compatible node actors from geyser inheritance, and adding a fail-closed discovered-template lane for exact mod-owned resource-node classes whose descriptors/forms use special contracts (first evidence: Refined Power `BP_WaterTurbineNode_C`, `RF_INVALID`, node type `Invalid`, with native 8/20/50 MW behavior). Revalidate the selected template class/resource/purity against live registered node evidence on both client and server; never approximate a special node as generic Water or mutate a vanilla node. Expected files: creative node actor/hologram/RCO/placement/UI/chat contracts, focused source tests, changelog and append-only handoff. | complete and deployed. Live pre-fix check reached the menu, loaded a 51-mod save, and proved the false exact-template `Geyser` row came from choosing Refined Power's inherited original descriptor instead of current `Water Turbine Node`; native geysers are now excluded from the template lane. **887/887**, exact CL 502094 validation, Shipping/Editor and UAT pass. Installed DLL `9714A0D07C82FD2E5AE903538F1C44FE9F39C66BD8603A1217FC7E2DE8B046AE`; corrected build reached the main menu with 51 mods, while final in-save placement remains pending. |
@@ -5402,3 +5402,63 @@ confirm no mutation; prove target changes, expiry, occupation, vanilla nodes,
 Blueprint Anchors, and special templates all refuse; then click remove twice on
 the same unoccupied Copilot node within five seconds and confirm only it is
 destroyed.
+
+### Codex — 2026-08-31 AI Architect semantic preview
+
+Completed the first playable vertical slice of **AI Architect Mode** on
+`codex/ai-architect-mode`. The existing authoritative `megabase.design/v1`
+compiler can now optionally produce a private `ai-architect.preview/v1` draw
+action. It carries the exact manifest, design-family, and unlock fingerprints,
+captured world revision, style, grid/floor modules, and solver-produced world
+transforms. The generic model-facing action tool does not expose this action;
+only `design_megabase_concept` can emit it after the manifest compiles.
+
+The game independently validates the complete contract and rejects the whole
+preview on a schema, fingerprint, style, semantic-kind, ID, count, coordinate,
+size, yaw, grid, floor, or geometry-bound failure. Valid previews render through
+the Shipping-safe persistent line batcher. Production zones, platforms,
+facades, roofs, pylons, skybridges, and the vertical landmark have stable
+semantic colors, and multi-floor volumes include exact floor rings. Replacing
+the private overlay is deterministic, it can be cleared by the existing overlay
+clear path, and the readback reports the real element and line counts. This is
+draw-only: it does not mutate the save, spend inventory, use a native hologram,
+or claim that placement is valid.
+
+The primary roadmap and all requested follow-on ideas are now preserved in
+`docs/AI_ARCHITECT_MODE.md` and `docs/GOALS.md`: revisioned briefs, native
+Blueprint compilation and Build Gun preview, verified construction, modular
+expansion, Efficiency Vision, a physical Copilot drone, Style Cloning, Factory
+Beautifier, Cinematic Tour, What-if Mode, Construction Missions, and Factory
+Personality. GitHub's repository token denied issue and milestone writes with
+HTTP 403, so the versioned repository documents are the published source of
+truth; do not invent duplicate issues without first checking them.
+
+Verification and deployment evidence:
+
+- Exact SML 3.12.0 / FactoryGame CL 502094 source validation passed.
+- Companion tests: 897/897.
+- FactoryGameSteam Shipping and FactoryEditor Development module builds passed.
+- UAT build, cook, archive, and Steam deployment passed.
+- Starter and deployed Shipping DLLs are both 1,460,224 bytes and SHA-256
+  `D9D1E504C60DE808535FA8B0FC4CB85696DE0F898E79F62A43B8F6C7E4D8B80D`.
+- Final Windows archive is 19,922,875 bytes and SHA-256
+  `CC97CD1FC444A5411AD0092B98F1FFD0D231F0DD24FBDC0DCCDA051C12EF8900`.
+- The clean companion install is healthy on port 8142, reports bridge
+  `1.0.0-beta.2`, verifies 41 runtime files, and its installed preview compiler
+  exactly matches the repository SHA-256.
+
+Live visual confirmation remains pending because Satisfactory was closed for
+deployment. Test by asking: “Design an elevated 60 Iron Rod/min factory here
+and show me the Architect preview.” Confirm that the colored campus wireframe is
+anchored at the requested live location, floor divisions and bridges are
+visible, a second preview replaces the first, and `clear all overlays` removes
+it. Preserve the exact response/readback in diagnostics before calling this
+slice live-proven.
+
+**Claude lane remains separate:** compile one selected, accepted Architect
+manifest into generated native Blueprint files, register the descriptor in the
+active save, and hand it to Satisfactory's native Build Gun hologram. That path
+must consume the manifest/fingerprints rather than reinterpret the draw lines.
+Do not replace the semantic preview or disturb
+`codex/generated-blueprint-two-stage-wire`; merge through `master` before
+topology or native Blueprint work consumes this contract.

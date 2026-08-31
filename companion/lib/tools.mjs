@@ -18,6 +18,7 @@ import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
+import { compileArchitectPreview } from "./architect-preview.mjs";
 import {
   planBeltedModule,
   solveBeltChain,
@@ -481,7 +482,7 @@ export const SOLVER_TOOLS = [
   {
     name: "design_megabase_concept",
     description:
-      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, skybridges, a repeatable visual theme, or independently commissionable build phases rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. It never emits actions and never claims construction will succeed. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
+      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants AI Architect Mode: an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, skybridges, a repeatable visual theme, or independently commissionable build phases rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. Set preview_in_world=true when the player wants to see the resulting whole-campus wireframe in the game; that emitted action draws only and never constructs, spends, or claims hologram validity. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
     parameters: {
       type: "object",
       properties: {
@@ -533,6 +534,18 @@ export const SOLVER_TOOLS = [
             "Subtract existing surplus only when true. Defaults to false because a megabase request normally asks for a new self-contained production program.",
         },
         align_to_base: { type: "boolean", description: "Match the captured base grid. Defaults to true." },
+        preview_in_world: {
+          type: "boolean",
+          description:
+            "Draw the compiled semantic campus as a Shipping-safe in-world wireframe. This is a non-mutating architectural preview, not a native Blueprint hologram or placement guarantee.",
+        },
+        preview_lifetime_seconds: {
+          type: "number",
+          minimum: 0,
+          maximum: 3600,
+          description:
+            "How long the Architect overlay remains. Zero means until explicitly cleared. Used only when preview_in_world is true.",
+        },
         creative_parameters: {
           type: "object",
           description: "Optional integer proportions. Unsupported fields are refused by the schema.",
@@ -601,6 +614,32 @@ export const SOLVER_TOOLS = [
         creative_parameters: args.creative_parameters,
         part_selections: args.part_selections,
       });
+      if (args.preview_in_world === true && manifest.compiled === true) {
+        const preview = compileArchitectPreview(manifest, {
+          lifetime_seconds: args.preview_lifetime_seconds,
+        });
+        if (!preview.compiled) {
+          return {
+            ...manifest,
+            vertical_module: vertical,
+            architect_preview: preview,
+          };
+        }
+        services?.actions?.emit?.([preview.action]);
+        return {
+          ...manifest,
+          vertical_module: vertical,
+          architect_preview: {
+            compiled: true,
+            schema: preview.schema,
+            manifest_fingerprint: preview.manifest_fingerprint,
+            element_count: preview.element_count,
+            overlay: preview.action.overlay,
+            status: "draw_action_emitted_pending_game_readback",
+            construction: false,
+          },
+        };
+      }
       return {
         ...manifest,
         vertical_module: vertical,

@@ -44,7 +44,7 @@ test("a waypoint is classified as a write, and only drawings are exempt", () => 
   // not on this list.
   assert.deepEqual(
     [...OVERLAY_ACTION_KINDS].sort(),
-    ["clear_highlight", "clear_holograms", "highlight"],
+    ["architect_preview", "clear_highlight", "clear_holograms", "highlight"],
   );
   for (const kind of OVERLAY_ACTION_KINDS) {
     assert.ok(!WRITE_ACTION_KINDS.includes(kind), `${kind} cannot be both draw-only and a write`);

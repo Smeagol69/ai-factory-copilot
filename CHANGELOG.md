@@ -5,6 +5,26 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Made **AI Architect Mode** the primary roadmap and connected the existing
+  authoritative `megabase.design/v1` compiler to its first playable in-world
+  preview. `design_megabase_concept` can now emit one private draw-only action
+  containing only the manifest's exact world transforms. The game independently
+  validates schema, manifest/design-family/unlock fingerprints, supported
+  style and semantic kinds, element limit, unique IDs, coordinates, positive
+  sizes, yaw, grid, and floor module before drawing. Production halls,
+  platforms, glass facades, roof intents, supports, skybridges, and the landmark
+  tower use distinct Shipping-safe wireframe colors; multi-floor volumes show
+  their exact floor divisions. It never constructs, spends, or claims native
+  Blueprint hologram validity, and remains absent from the model's generic
+  world-write tool. The complete Architect and follow-on feature roadmap is in
+  `docs/AI_ARCHITECT_MODE.md` and `docs/GOALS.md`. Exact CL 502094 validation,
+  **897/897** companion tests, Shipping and Editor module builds, UAT
+  build/cook/archive/deployment, and the clean companion install all pass. The
+  deployed Shipping DLL is SHA-256
+  `D9D1E504C60DE808535FA8B0FC4CB85696DE0F898E79F62A43B8F6C7E4D8B80D`;
+  the Windows archive is 19,922,875 bytes and SHA-256
+  `CC97CD1FC444A5411AD0092B98F1FFD0D231F0DD24FBDC0DCCDA051C12EF8900`.
+  Live visual confirmation remains pending.
 - Added two aimed-node controls to the Creative Node Spawner. **Clone aimed**
   reads a Copilot-created node's exact saved resource, purity, and node type,
   verifies the live actor agrees, and re-arms the normal server-validated Build

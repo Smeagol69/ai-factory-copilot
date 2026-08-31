@@ -54,6 +54,7 @@ namespace
         return
             bCommitted &&
             Action != TEXT("highlight") &&
+            Action != TEXT("architect_preview") &&
             Action != TEXT("clear_highlight");
     }
 

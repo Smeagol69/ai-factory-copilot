@@ -32,6 +32,9 @@ namespace
      * never silently draws a prefix.
      */
     constexpr int32 MaximumSelectionOverlayEntries = 2048;
+    constexpr int32 MaximumArchitectPreviewEntries = 256;
+    constexpr int32 MaximumArchitectPreviewLines = 16384;
+    constexpr int32 MaximumArchitectFloorsPerElement = 32;
 
     /** Depth priority 1 (SDPG_Foreground) renders over world geometry. */
     constexpr uint8 OverlayDepthWorld = 0;
@@ -149,6 +152,87 @@ namespace
             Entry.Extent.X >= 0.0 &&
             Entry.Extent.Y >= 0.0 &&
             Entry.Extent.Z >= 0.0;
+    }
+
+    bool AIFactoryArchitectEntryIsFinite(const FAIFactoryArchitectPreviewEntry& Entry)
+    {
+        return !Entry.Origin.ContainsNaN() &&
+            !Entry.Size.ContainsNaN() &&
+            FMath::IsFinite(Entry.YawDegrees) &&
+            Entry.Size.X > 0.0 && Entry.Size.Y > 0.0 && Entry.Size.Z > 0.0 &&
+            !Entry.Id.IsEmpty() && !Entry.Kind.IsEmpty();
+    }
+
+    FLinearColor AIFactoryArchitectColor(const FString& Kind)
+    {
+        if (Kind == TEXT("production_zone")) return FLinearColor(0.1f, 1.0f, 0.4f, 1.0f);
+        if (Kind == TEXT("structural_platform")) return FLinearColor(0.2f, 0.5f, 1.0f, 1.0f);
+        if (Kind == TEXT("glazed_facade")) return FLinearColor(0.1f, 0.9f, 1.0f, 1.0f);
+        if (Kind == TEXT("sloped_roof_intent")) return FLinearColor(0.7f, 0.3f, 1.0f, 1.0f);
+        if (Kind == TEXT("support_pylon")) return FLinearColor(1.0f, 0.5f, 0.05f, 1.0f);
+        if (Kind == TEXT("skybridge")) return FLinearColor(1.0f, 0.9f, 0.1f, 1.0f);
+        if (Kind == TEXT("vertical_landmark")) return FLinearColor::White;
+        return FLinearColor(1.0f, 0.15f, 0.15f, 1.0f);
+    }
+
+    void AIFactoryAppendArchitectBoxLines(
+        TArray<FBatchedLine>& OutLines,
+        const FAIFactoryArchitectPreviewEntry& Entry,
+        const double FloorHeightCm,
+        const float Lifetime,
+        const float Thickness,
+        const uint8 Depth,
+        const uint32 BatchId)
+    {
+        const FQuat Rotation(FRotator(0.0, Entry.YawDegrees, 0.0));
+        const FVector LocalCorners[8] = {
+            FVector(0.0, 0.0, 0.0),
+            FVector(Entry.Size.X, 0.0, 0.0),
+            FVector(Entry.Size.X, Entry.Size.Y, 0.0),
+            FVector(0.0, Entry.Size.Y, 0.0),
+            FVector(0.0, 0.0, Entry.Size.Z),
+            FVector(Entry.Size.X, 0.0, Entry.Size.Z),
+            FVector(Entry.Size.X, Entry.Size.Y, Entry.Size.Z),
+            FVector(0.0, Entry.Size.Y, Entry.Size.Z),
+        };
+        FVector Corners[8];
+        for (int32 Index = 0; Index < 8; ++Index)
+        {
+            Corners[Index] = Entry.Origin + Rotation.RotateVector(LocalCorners[Index]);
+        }
+        static constexpr int32 Edges[12][2] = {
+            { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
+            { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+            { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
+        };
+        const FLinearColor Color = AIFactoryArchitectColor(Entry.Kind);
+        for (const int32 (&Edge)[2] : Edges)
+        {
+            OutLines.Emplace(
+                Corners[Edge[0]], Corners[Edge[1]], Color,
+                Lifetime, Thickness, Depth, BatchId);
+        }
+
+        const int32 FloorCount = FMath::Clamp(
+            FMath::FloorToInt(Entry.Size.Z / FloorHeightCm),
+            1,
+            MaximumArchitectFloorsPerElement);
+        for (int32 Floor = 1; Floor < FloorCount; ++Floor)
+        {
+            const double Z = FMath::Min(Floor * FloorHeightCm, Entry.Size.Z);
+            const FVector Ring[4] = {
+                Entry.Origin + Rotation.RotateVector(FVector(0.0, 0.0, Z)),
+                Entry.Origin + Rotation.RotateVector(FVector(Entry.Size.X, 0.0, Z)),
+                Entry.Origin + Rotation.RotateVector(FVector(Entry.Size.X, Entry.Size.Y, Z)),
+                Entry.Origin + Rotation.RotateVector(FVector(0.0, Entry.Size.Y, Z)),
+            };
+            for (int32 Edge = 0; Edge < 4; ++Edge)
+            {
+                OutLines.Emplace(
+                    Ring[Edge], Ring[(Edge + 1) % 4], Color,
+                    Lifetime, Thickness * 0.65f, Depth, BatchId);
+            }
+        }
     }
 }
 
@@ -456,6 +540,93 @@ FAIFactorySelectionOverlayResult DrawSelection(
     return Result;
 }
 
+FAIFactoryArchitectPreviewResult DrawArchitectPreview(
+    UWorld* World,
+    const FString& OverlayName,
+    const TArray<FAIFactoryArchitectPreviewEntry>& Entries,
+    const double FloorHeightCm,
+    const FAIFactoryOverlayStyle& Style)
+{
+    FAIFactoryArchitectPreviewResult Result;
+    Result.OverlayName = OverlayName.IsEmpty() ? TEXT("ai-architect") : OverlayName;
+    Result.ElementCount = Entries.Num();
+
+    if (!IsValid(World))
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("no_world");
+        return Result;
+    }
+    Clear(World, Result.OverlayName);
+    if (!FMath::IsFinite(FloorHeightCm) || FloorHeightCm <= 0.0)
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("architect_floor_height_is_not_finite_and_positive");
+        return Result;
+    }
+    if (Entries.IsEmpty() || Entries.Num() > MaximumArchitectPreviewEntries)
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("architect_preview_element_count_is_out_of_bounds");
+        return Result;
+    }
+
+    int32 ExpectedLines = 0;
+    for (const FAIFactoryArchitectPreviewEntry& Entry : Entries)
+    {
+        if (!AIFactoryArchitectEntryIsFinite(Entry))
+        {
+            Result.Status = TEXT("refused");
+            Result.Reason = TEXT("architect_preview_element_is_invalid");
+            return Result;
+        }
+        const int32 Floors = FMath::Clamp(
+            FMath::FloorToInt(Entry.Size.Z / FloorHeightCm),
+            1,
+            MaximumArchitectFloorsPerElement);
+        ExpectedLines += 12 + (Floors - 1) * 4;
+        if (ExpectedLines > MaximumArchitectPreviewLines)
+        {
+            Result.Status = TEXT("refused");
+            Result.Reason = TEXT("architect_preview_exceeds_line_budget");
+            return Result;
+        }
+    }
+
+    ULineBatchComponent* Batcher = GetOverlayBatcher(World, Style.bDrawThroughWalls);
+    if (!IsValid(Batcher))
+    {
+        Result.Status = TEXT("refused");
+        Result.Reason = TEXT("no_line_batcher_available");
+        return Result;
+    }
+    const uint32 BatchId = GNextOverlayBatchId++;
+    PruneOverlayWorldStates();
+    GOverlayBatchIdsByWorld.FindOrAdd(TWeakObjectPtr<UWorld>(World))
+        .Add(Result.OverlayName, BatchId);
+    const uint8 Depth = Style.bDrawThroughWalls ? OverlayDepthForeground : OverlayDepthWorld;
+    const float Lifetime = FMath::Max(0.0f, Style.LifetimeSeconds);
+    TArray<FBatchedLine> Lines;
+    Lines.Reserve(ExpectedLines);
+    for (const FAIFactoryArchitectPreviewEntry& Entry : Entries)
+    {
+        AIFactoryAppendArchitectBoxLines(
+            Lines,
+            Entry,
+            FloorHeightCm,
+            Lifetime,
+            Style.Thickness,
+            Depth,
+            BatchId);
+    }
+    Batcher->DrawLines(Lines);
+
+    Result.bDrawn = true;
+    Result.LineCount = Lines.Num();
+    Result.Status = TEXT("architect_preview_drawn");
+    return Result;
+}
+
 bool Clear(UWorld* World, const FString& OverlayName)
 {
     if (!IsValid(World))
@@ -570,6 +741,27 @@ TSharedPtr<FJsonObject> ResultToJson(const FAIFactoryOverlayResult& Result)
     }
     Object->SetArrayField(TEXT("hits"), Hits);
     Object->SetStringField(TEXT("source"), TEXT("resolved_against_live_actors_and_drawn_in_world"));
+    return Object;
+}
+
+TSharedPtr<FJsonObject> ResultToJson(const FAIFactoryArchitectPreviewResult& Result)
+{
+    TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+    Object->SetStringField(TEXT("overlay"), Result.OverlayName);
+    Object->SetStringField(TEXT("status"), Result.Status);
+    Object->SetBoolField(TEXT("drawn"), Result.bDrawn);
+    Object->SetNumberField(TEXT("element_count"), Result.ElementCount);
+    Object->SetNumberField(TEXT("line_count"), Result.LineCount);
+    if (!Result.Reason.IsEmpty())
+    {
+        Object->SetStringField(TEXT("reason"), Result.Reason);
+    }
+    Object->SetStringField(
+        TEXT("source"),
+        TEXT("validated_megabase_manifest_semantic_geometry_drawn_in_world"));
+    Object->SetStringField(
+        TEXT("construction_status"),
+        TEXT("draw_only_not_a_blueprint_hologram_or_placement_validation"));
     return Object;
 }
 

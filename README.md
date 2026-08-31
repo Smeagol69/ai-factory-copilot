@@ -13,6 +13,13 @@ This repository implements a working **AI co-player that can act**: it reads the
 world, computes answers deterministically, and — when asked — changes the world
 through server-authoritative actions the game itself executes and confirms.
 
+The primary roadmap is now **AI Architect Mode**: describe a factory and theme,
+see the solver-grounded whole-campus concept in the running game, revise it in
+conversation, then hand the accepted revision to Satisfactory's native
+Blueprint and Build Gun workflow. The first in-world semantic preview uses
+exact `megabase.design/v1` transforms and never pretends its colored wireframes
+are placement validation. See [`docs/AI_ARCHITECT_MODE.md`](docs/AI_ARCHITECT_MODE.md).
+
 - an Insert-toggled in-game chat panel: type a question however you want to word
   it, Enter to send, Shift+Enter for a new line, with a transcript, a live
   elapsed indicator while the answer is being worked out, and a continuously
@@ -74,6 +81,7 @@ absence in the model's view is never treated as an absence in the world.
 | `find_belt_candidates` | recipe-compatible pairs of captured free conveyor ports, shortest first, with exact component paths |
 | `plan_belt_route` | a direct conveyor route between two captured connection components |
 | `plan_belted_module` | a compact two-phase miner-to-machine module using measured footprints |
+| `design_megabase_concept` | AI Architect Mode concept: exact semantic campus transforms, design-family provenance, blockers, and optional draw-only in-world preview |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
 | `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
 | `clear_highlight` | removes an overlay |

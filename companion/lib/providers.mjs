@@ -1810,6 +1810,8 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
       "design_family_id",
       "match_design_family_fingerprint",
       "commissioning_phases",
+      "preview_in_world",
+      "preview_lifetime_seconds",
     ];
     return {
       ...tool,
@@ -1817,7 +1819,8 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
         ...tool.function,
         description:
           "Preview an architectural megabase from live measured factory data. " +
-          "Returns exact transforms, footprint, blockers and mod-aware part candidates; never emits actions.",
+          "Returns exact transforms, footprint, blockers and mod-aware part candidates. " +
+          "When preview_in_world is true it emits one draw-only semantic overlay; it never constructs.",
         parameters: {
           type: "object",
           properties: Object.fromEntries(

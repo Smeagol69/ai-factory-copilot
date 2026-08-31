@@ -1219,6 +1219,24 @@ namespace
         return Fallback;
     }
 
+    bool IsAIFactoryExactSha256(const FString& Value)
+    {
+        if (Value.Len() != 71 || !Value.StartsWith(TEXT("sha256:")))
+        {
+            return false;
+        }
+        for (int32 Index = 7; Index < Value.Len(); ++Index)
+        {
+            const TCHAR Character = Value[Index];
+            if (!((Character >= TEXT('0') && Character <= TEXT('9')) ||
+                  (Character >= TEXT('a') && Character <= TEXT('f'))))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * `waypoint` / `clear_waypoints`, using the game's own map markers.
      *
@@ -1463,6 +1481,170 @@ namespace
             Result.bAccepted = true;
             Result.bCommitted = true;
             Result.Status = Cleared > 0 ? TEXT("committed") : TEXT("nothing_to_clear");
+            return Result;
+        }
+
+        if (Kind == TEXT("architect_preview"))
+        {
+            FString PreviewSchema;
+            FString ManifestSchema;
+            FString ManifestFingerprint;
+            FString FamilyFingerprint;
+            FString UnlockFingerprint;
+            FString StyleName;
+            FString CapturedWorldRevision;
+            if (!Spec->TryGetStringField(TEXT("preview_schema"), PreviewSchema) ||
+                PreviewSchema != TEXT("ai-architect.preview/v1") ||
+                !Spec->TryGetStringField(TEXT("manifest_schema"), ManifestSchema) ||
+                ManifestSchema != TEXT("megabase.design/v1") ||
+                !Spec->TryGetStringField(TEXT("manifest_fingerprint"), ManifestFingerprint) ||
+                !IsAIFactoryExactSha256(ManifestFingerprint) ||
+                !Spec->TryGetStringField(TEXT("design_family_fingerprint"), FamilyFingerprint) ||
+                !IsAIFactoryExactSha256(FamilyFingerprint) ||
+                !Spec->TryGetStringField(TEXT("unlock_fingerprint"), UnlockFingerprint) ||
+                !IsAIFactoryExactSha256(UnlockFingerprint) ||
+                !Spec->TryGetStringField(TEXT("style"), StyleName) ||
+                !Spec->TryGetStringField(TEXT("captured_world_revision"), CapturedWorldRevision) ||
+                CapturedWorldRevision.IsEmpty() || CapturedWorldRevision.Len() > 64 ||
+                OverlayName.IsEmpty() || OverlayName.Len() > 64 ||
+                OverlayName.Contains(TEXT("\n")) || OverlayName.Contains(TEXT("\r")) ||
+                OverlayName.Contains(TEXT("\t")))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind, TEXT("architect_preview_provenance_is_invalid"));
+            }
+
+            static const TSet<FString> AllowedStyles = {
+                TEXT("elevated_industrial_campus"),
+                TEXT("terraced_megafactory"),
+                TEXT("curvilinear_future_campus"),
+            };
+            static const TSet<FString> AllowedKinds = {
+                TEXT("production_zone"),
+                TEXT("structural_platform"),
+                TEXT("glazed_facade"),
+                TEXT("sloped_roof_intent"),
+                TEXT("support_pylon"),
+                TEXT("skybridge"),
+                TEXT("vertical_landmark"),
+            };
+            if (!AllowedStyles.Contains(StyleName))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind, TEXT("architect_preview_style_is_unsupported"));
+            }
+
+            double FloorHeightCm = 0.0;
+            double GridUnitCm = 0.0;
+            if (!Spec->TryGetNumberField(TEXT("floor_height_cm"), FloorHeightCm) ||
+                !Spec->TryGetNumberField(TEXT("grid_unit_cm"), GridUnitCm) ||
+                !FMath::IsFinite(FloorHeightCm) || FloorHeightCm <= 0.0 ||
+                FloorHeightCm > 100000.0 ||
+                !FMath::IsFinite(GridUnitCm) || GridUnitCm <= 0.0 ||
+                GridUnitCm > 100000.0)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind, TEXT("architect_preview_grid_is_invalid"));
+            }
+
+            const TArray<TSharedPtr<FJsonValue>>* ElementValues = nullptr;
+            if (!Spec->TryGetArrayField(TEXT("elements"), ElementValues) ||
+                ElementValues == nullptr || ElementValues->IsEmpty() ||
+                ElementValues->Num() > 256)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind, TEXT("architect_preview_element_count_is_out_of_bounds"));
+            }
+
+            TArray<FAIFactoryArchitectPreviewEntry> Entries;
+            Entries.Reserve(ElementValues->Num());
+            TSet<FString> SeenIds;
+            for (const TSharedPtr<FJsonValue>& Value : *ElementValues)
+            {
+                const TSharedPtr<FJsonObject>* Element = nullptr;
+                if (!Value.IsValid() || !Value->TryGetObject(Element) || Element == nullptr)
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind, TEXT("architect_preview_element_is_not_an_object"));
+                }
+
+                FAIFactoryArchitectPreviewEntry Entry;
+                if (!(*Element)->TryGetStringField(TEXT("id"), Entry.Id) ||
+                    Entry.Id.IsEmpty() || Entry.Id.Len() > 96 || SeenIds.Contains(Entry.Id) ||
+                    !(*Element)->TryGetStringField(TEXT("kind"), Entry.Kind) ||
+                    !AllowedKinds.Contains(Entry.Kind) ||
+                    !(*Element)->TryGetNumberField(TEXT("yaw_degrees"), Entry.YawDegrees))
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind, TEXT("architect_preview_element_identity_is_invalid"));
+                }
+
+                const TSharedPtr<FJsonObject>* Origin = nullptr;
+                const TSharedPtr<FJsonObject>* Size = nullptr;
+                if (!(*Element)->TryGetObjectField(TEXT("origin_cm"), Origin) || Origin == nullptr ||
+                    !(*Element)->TryGetObjectField(TEXT("size_cm"), Size) || Size == nullptr ||
+                    !(*Origin)->TryGetNumberField(TEXT("x"), Entry.Origin.X) ||
+                    !(*Origin)->TryGetNumberField(TEXT("y"), Entry.Origin.Y) ||
+                    !(*Origin)->TryGetNumberField(TEXT("z"), Entry.Origin.Z) ||
+                    !(*Size)->TryGetNumberField(TEXT("x"), Entry.Size.X) ||
+                    !(*Size)->TryGetNumberField(TEXT("y"), Entry.Size.Y) ||
+                    !(*Size)->TryGetNumberField(TEXT("z"), Entry.Size.Z) ||
+                    Entry.Origin.ContainsNaN() || Entry.Size.ContainsNaN() ||
+                    !FMath::IsFinite(Entry.YawDegrees) ||
+                    Entry.Size.X <= 0.0 || Entry.Size.Y <= 0.0 || Entry.Size.Z <= 0.0 ||
+                    Entry.Origin.GetAbsMax() > 100000000.0 ||
+                    Entry.Size.GetAbsMax() > 100000000.0)
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind, TEXT("architect_preview_element_geometry_is_invalid"));
+                }
+                SeenIds.Add(Entry.Id);
+                Entries.Add(MoveTemp(Entry));
+            }
+
+            FAIFactoryOverlayStyle Style;
+            Style.bDrawTracers = false;
+            Style.bDrawPillars = false;
+            Style.bDrawBoxes = true;
+            Spec->TryGetBoolField(TEXT("through_walls"), Style.bDrawThroughWalls);
+            double Lifetime = Style.LifetimeSeconds;
+            if (Spec->TryGetNumberField(TEXT("lifetime_seconds"), Lifetime))
+            {
+                Style.LifetimeSeconds = static_cast<float>(FMath::Clamp(Lifetime, 0.0, 3600.0));
+            }
+            Style.Thickness = 4.0f;
+            const FAIFactoryArchitectPreviewResult Preview =
+                AIFactoryOverlay::DrawArchitectPreview(
+                    Context.World,
+                    OverlayName,
+                    Entries,
+                    FloorHeightCm,
+                    Style);
+
+            Result.bAccepted = true;
+            Result.Observed = AIFactoryOverlay::ResultToJson(Preview);
+            Result.Observed->SetStringField(TEXT("preview_schema"), PreviewSchema);
+            Result.Observed->SetStringField(TEXT("manifest_schema"), ManifestSchema);
+            Result.Observed->SetStringField(TEXT("manifest_fingerprint"), ManifestFingerprint);
+            Result.Observed->SetStringField(TEXT("design_family_fingerprint"), FamilyFingerprint);
+            Result.Observed->SetStringField(TEXT("unlock_fingerprint"), UnlockFingerprint);
+            Result.Observed->SetStringField(TEXT("captured_world_revision"), CapturedWorldRevision);
+            Result.Observed->SetStringField(TEXT("style"), StyleName);
+            Result.Observed->SetNumberField(TEXT("grid_unit_cm"), GridUnitCm);
+            Result.Observed->SetNumberField(TEXT("floor_height_cm"), FloorHeightCm);
+            if (Preview.bDrawn)
+            {
+                Result.bCommitted = true;
+                Result.Status = TEXT("committed");
+                Result.bUndoable = true;
+                Result.UndoDescription = FString::Printf(
+                    TEXT("Clear the '%s' Architect preview."), *Preview.OverlayName);
+            }
+            else
+            {
+                Result.Status = Preview.Status;
+                Result.Reason = Preview.Reason;
+            }
             return Result;
         }
 
@@ -4051,7 +4233,8 @@ namespace
         {
             return RunWaypointAction(Context, Kind, Spec);
         }
-        if (Kind == TEXT("highlight") || Kind == TEXT("clear_highlight"))
+        if (Kind == TEXT("highlight") || Kind == TEXT("architect_preview") ||
+            Kind == TEXT("clear_highlight") || Kind == TEXT("clear_holograms"))
         {
             return RunOverlayAction(Context, Kind, Spec);
         }
@@ -4302,7 +4485,8 @@ FString ExecutePlan(
         {
             continue;
         }
-        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("clear_highlight"))
+        if (Item.Kind == TEXT("highlight") || Item.Kind == TEXT("architect_preview") ||
+            Item.Kind == TEXT("clear_highlight") || Item.Kind == TEXT("clear_holograms"))
         {
             Item.Preflight.Action = Item.Kind;
             Item.Preflight.bAccepted = true;

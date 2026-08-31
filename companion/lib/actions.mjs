@@ -72,7 +72,12 @@ export const WRITE_ACTION_KINDS = [
  */
 // Removing a hologram costs nothing: it is a preview, never built and never
 // saved. So it is not write-gated and needs no confirmation.
-export const OVERLAY_ACTION_KINDS = ["highlight", "clear_highlight", "clear_holograms"];
+export const OVERLAY_ACTION_KINDS = [
+  "highlight",
+  "architect_preview",
+  "clear_highlight",
+  "clear_holograms",
+];
 
 /** Everything the mod knows how to execute. */
 
@@ -104,6 +109,16 @@ const MAX_PLACEMENT_REACH_METERS = 5_000;
  * if you genuinely want more.
  */
 const MAX_ITEMS_PER_GIVE = 50_000;
+const MAX_ARCHITECT_PREVIEW_ELEMENTS = 256;
+const ARCHITECT_PREVIEW_KINDS = new Set([
+  "production_zone",
+  "structural_platform",
+  "glazed_facade",
+  "sloped_roof_intent",
+  "support_pylon",
+  "skybridge",
+  "vertical_landmark",
+]);
 
 /** Finds an item by class path, class name, or display name, in that order. */
 function findItemInCatalog(graph, requested) {
@@ -1428,6 +1443,120 @@ export function validateAction(graph, proposal) {
         actor_id: actorId,
         commit: proposal.commit === true,
       }, proposal),
+    };
+  }
+
+  if (kind === "architect_preview") {
+    if (proposal.preview_schema !== "ai-architect.preview/v1") {
+      return reject(kind, "preview_schema_must_be_ai_architect_preview_v1");
+    }
+    if (proposal.manifest_schema !== "megabase.design/v1") {
+      return reject(kind, "manifest_schema_must_be_megabase_design_v1");
+    }
+    const fingerprint = String(proposal.manifest_fingerprint ?? "").trim();
+    const familyFingerprint = String(proposal.design_family_fingerprint ?? "").trim();
+    const unlockFingerprint = String(proposal.unlock_fingerprint ?? "").trim();
+    if (!/^sha256:[0-9a-f]{64}$/.test(fingerprint)) {
+      return reject(kind, "manifest_fingerprint_must_be_exact_sha256");
+    }
+    if (!/^sha256:[0-9a-f]{64}$/.test(familyFingerprint)) {
+      return reject(kind, "design_family_fingerprint_must_be_exact_sha256");
+    }
+    if (!/^sha256:[0-9a-f]{64}$/.test(unlockFingerprint)) {
+      return reject(kind, "unlock_fingerprint_must_be_exact_sha256");
+    }
+    const overlay = String(proposal.overlay ?? "").trim();
+    if (!overlay || overlay.length > 64 || /[\r\n\t]/.test(overlay)) {
+      return reject(kind, "overlay_name_must_be_1_to_64_single_line_characters");
+    }
+    const style = String(proposal.style ?? "").trim();
+    if (![
+      "elevated_industrial_campus",
+      "terraced_megafactory",
+      "curvilinear_future_campus",
+    ].includes(style)) {
+      return reject(kind, "architect_preview_style_is_not_supported");
+    }
+    const gridUnit = finite(proposal.grid_unit_cm);
+    const floorHeight = finite(proposal.floor_height_cm);
+    if (gridUnit === null || gridUnit <= 0 || gridUnit > 100_000 ||
+        floorHeight === null || floorHeight <= 0 || floorHeight > 100_000) {
+      return reject(kind, "architect_preview_grid_or_floor_module_is_invalid");
+    }
+    const elements = proposal.elements;
+    if (!Array.isArray(elements) || elements.length === 0) {
+      return reject(kind, "architect_preview_requires_elements");
+    }
+    if (elements.length > MAX_ARCHITECT_PREVIEW_ELEMENTS) {
+      return reject(kind, "architect_preview_has_too_many_elements", {
+        element_count: elements.length,
+        maximum_elements: MAX_ARCHITECT_PREVIEW_ELEMENTS,
+      });
+    }
+    const normalized = [];
+    const ids = new Set();
+    for (const element of elements) {
+      const id = String(element?.id ?? "").trim();
+      const elementKind = String(element?.kind ?? "").trim();
+      const origin = vector(element?.origin_cm);
+      const size = vector(element?.size_cm);
+      const yaw = finite(element?.yaw_degrees);
+      if (!id || id.length > 96 || /[\r\n\t]/.test(id) || ids.has(id)) {
+        return reject(kind, "architect_preview_element_id_is_invalid_or_duplicated", {
+          element_id: id || null,
+        });
+      }
+      if (!ARCHITECT_PREVIEW_KINDS.has(elementKind)) {
+        return reject(kind, "architect_preview_element_kind_is_unsupported", {
+          element_id: id,
+          element_kind: elementKind || null,
+        });
+      }
+      if (!origin || !size || yaw === null || size.x <= 0 || size.y <= 0 || size.z <= 0) {
+        return reject(kind, "architect_preview_element_geometry_is_invalid", {
+          element_id: id,
+        });
+      }
+      if ([...Object.values(origin), ...Object.values(size)].some((value) => Math.abs(value) > 100_000_000)) {
+        return reject(kind, "architect_preview_element_geometry_is_out_of_bounds", {
+          element_id: id,
+        });
+      }
+      ids.add(id);
+      normalized.push({ id, kind: elementKind, origin_cm: origin, size_cm: size, yaw_degrees: yaw });
+    }
+    const lifetime = finite(proposal.lifetime_seconds ?? 0);
+    if (lifetime === null || lifetime < 0 || lifetime > 3600) {
+      return reject(kind, "architect_preview_lifetime_must_be_from_0_through_3600");
+    }
+    return {
+      valid: true,
+      warnings: [
+        "This is semantic wireframe geometry only. It is not a native Blueprint hologram and does not prove terrain, clearance, affordability, routing, or construction.",
+      ],
+      checks: {
+        draws_only: true,
+        manifest_schema: proposal.manifest_schema,
+        manifest_fingerprint: fingerprint,
+        element_count: normalized.length,
+      },
+      action: {
+        action: kind,
+        overlay,
+        preview_schema: proposal.preview_schema,
+        manifest_schema: proposal.manifest_schema,
+        manifest_fingerprint: fingerprint,
+        style,
+        design_family_fingerprint: familyFingerprint,
+        unlock_fingerprint: unlockFingerprint,
+        captured_world_revision: String(proposal.captured_world_revision ?? "unknown"),
+        grid_unit_cm: gridUnit,
+        floor_height_cm: floorHeight,
+        elements: normalized,
+        lifetime_seconds: lifetime,
+        through_walls: proposal.through_walls !== false,
+        commit: true,
+      },
     };
   }
 

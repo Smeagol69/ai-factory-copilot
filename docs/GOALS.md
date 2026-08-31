@@ -30,6 +30,56 @@ Four things, and the fourth is what makes it a mod rather than a tool:
 It has to install from SML like any other mod and be useful to someone who is
 not us.
 
+## Primary roadmap: AI Architect Mode
+
+**AI Architect Mode is now the project's main focus.** The target interaction
+is: aim at a site, describe a production goal and visual theme, inspect the
+entire proposed campus in-world, revise it conversationally, then hand the
+accepted design to Satisfactory's native Blueprint/Build Gun systems. The AI
+chooses creative proportions; deterministic solvers own recipes, rates,
+unlocks, coordinates, terrain evidence, routing, and capacity; the game owns
+every eventual placement and readback.
+
+The delivery order is deliberately playable at every stage:
+
+1. Render the existing authoritative `megabase.design/v1` manifest as a
+   bounded, color-coded semantic campus preview in the running game.
+2. Preserve an Architect brief and immutable design revisions so the player can
+   ask for changes, compare variants, and return to an earlier concept.
+3. Compile the selected revision into one generated native Blueprint, register
+   it in the active save, and arm its real Build Gun hologram.
+4. Add exact terrain/clearance, logistics, power, pipe, circulation, and
+   commissioning gates until the hologram represents a working factory rather
+   than only attractive massing.
+5. Close the visual feedback loop with style capture and bounded screenshots,
+   while keeping pixels permanently non-authoritative for game facts.
+
+The complete contract and acceptance gates live in
+[`AI_ARCHITECT_MODE.md`](AI_ARCHITECT_MODE.md).
+
+### Fun features committed to the product roadmap
+
+These are goals, not discarded ideas. They build on the Architect foundation:
+
+- **Efficiency Vision** — live green/yellow/red machine, belt, pipe, and power
+  overlays grounded in deterministic bottleneck results.
+- **Physical Copilot Drone** — a non-authoritative companion presence that
+  follows the player, speaks sparingly, and projects solver-owned guidance.
+- **Style Cloning** — learn a design-family vocabulary from an explicitly
+  selected native Blueprint or factory region, then require its fingerprint in
+  related Architect revisions.
+- **Factory Beautifier** — generate a non-destructive styled replacement for a
+  selected factory, compare old/new evidence, and build only after approval.
+- **Cinematic Tour Mode** — produce an optional camera route and narration from
+  verified factory structure without moving or editing the factory.
+- **What-if Mode** — change target output, tier, recipe, or constraint and show
+  the exact production/layout delta before any write.
+- **Construction Missions** — turn an accepted design into numbered,
+  independently commissionable stages with waypoints and verified completion.
+- **Factory Personality** — presentation profiles such as strict efficiency
+  engineer, creative architect, FICSIT manager, and chaotic goblin; personality
+  may change wording and aesthetic preferences, never facts or safety gates.
+
 ---
 
 ## The end state
