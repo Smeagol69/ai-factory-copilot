@@ -21,7 +21,8 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   matched Steam deployment, and **888/888** tests pass. The installed DLL
   SHA-256 is
   `139F7F22E66C454C321004B41E54FA5F582944CC0F448B413CD2C1E8DF33E70C`;
-  live Miner hologram confirmation is the remaining gate.
+  the owner subsequently confirmed in the packaged game that a Miner snaps to
+  and works on a Node Spawner-created ordinary resource node.
 - Repaired the live Creative Node Spawner compatibility gaps found against
   Refined Power. Ordinary solid/liquid/gas resources now construct a true
   `AFGResourceNode` subclass instead of changing the type flag on a geyser
