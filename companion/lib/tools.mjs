@@ -53,6 +53,65 @@ const actorIdsSchema = {
   description: "Optional exact actor_id values from the snapshot. Omit to cover every captured machine.",
 };
 
+function architectDesignRequest(args = {}) {
+  return {
+    item_name: args.item_name,
+    target_rate_per_minute: args.target_rate_per_minute,
+    origin: args.origin,
+    style: args.style,
+    design_family_id: args.design_family_id,
+    match_design_family_fingerprint: args.match_design_family_fingerprint,
+    commissioning_phases: args.commissioning_phases,
+    recipe_class: args.recipe_class,
+    use_existing_surplus: args.use_existing_surplus === true,
+    align_to_base: args.align_to_base,
+    creative_parameters: args.creative_parameters,
+    part_selections: args.part_selections,
+  };
+}
+
+function compileArchitectDesignRequest(graph, request, services = {}) {
+  const layout = designFactoryLayout(graph, {
+    item_name: request.item_name,
+    target_rate_per_minute: request.target_rate_per_minute,
+    origin: request.origin,
+    recipe_class: request.recipe_class,
+    use_existing_surplus: request.use_existing_surplus === true,
+    align_to_base: request.align_to_base,
+  }, services);
+  if (!layout.designed) return { compiled: false, result: layout };
+
+  const vertical = deriveMegabaseFloorHeight(layout);
+  if (!vertical.derived) {
+    return {
+      compiled: false,
+      result: {
+        schema: "megabase.design/v1",
+        compiled: false,
+        status: "concept_refused",
+        reason: vertical.reason,
+        effect: vertical.effect ?? null,
+        actions: [],
+      },
+    };
+  }
+  const manifest = compileMegabaseConcept(graph, layout, {
+    style: request.style,
+    design_family_id: request.design_family_id,
+    match_design_family_fingerprint: request.match_design_family_fingerprint,
+    commissioning_phases: request.commissioning_phases,
+    floor_height_cm: vertical.floor_height_cm,
+    creative_parameters: request.creative_parameters,
+    part_selections: request.part_selections,
+  });
+  return {
+    compiled: manifest.compiled === true,
+    result: { ...manifest, vertical_module: vertical },
+    manifest,
+    vertical,
+  };
+}
+
 export const SOLVER_TOOLS = [
   {
     name: "get_factory_summary",
@@ -482,7 +541,7 @@ export const SOLVER_TOOLS = [
   {
     name: "design_megabase_concept",
     description:
-      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants AI Architect Mode: an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, skybridges, a repeatable visual theme, or independently commissionable build phases rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. Set preview_in_world=true when the player wants to see the resulting whole-campus wireframe in the game; that emitted action draws only and never constructs, spends, or claims hologram validity. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
+      "Creates a PREVIEW-ONLY architectural megabase manifest from this save's measured machines and an explicit site. Use this when the player wants AI Architect Mode: an elevated campus, terraced megafactory, landmark tower, glazed halls, supports, skybridges, a repeatable visual theme, or independently commissionable build phases rather than a plain machine-row layout. It calls the production/layout solvers internally, derives vertical clearance from the tallest measured machine, and compiles integer design cells to exact world XYZ. Set preview_in_world=true when the player wants to see the resulting whole-campus wireframe in the game; that emitted action draws only and never constructs, spends, or claims hologram validity. Set architect_session_name to preserve the exact manifest as an immutable, content-addressed revision; use parent_revision_id for a requested change rather than silently replacing the prior option. Semantic vanilla or modded parts resolve only when the selected recipe exists and is available in the captured catalog; everything else stays explicitly unresolved.",
     parameters: {
       type: "object",
       properties: {
@@ -546,6 +605,43 @@ export const SOLVER_TOOLS = [
           description:
             "How long the Architect overlay remains. Zero means until explicitly cleared. Used only when preview_in_world is true.",
         },
+        architect_session_name: {
+          type: "string",
+          maxLength: 80,
+          description:
+            "Optional stable name for a save/session-scoped Architect project. When present, the exact compiled manifest and design request are stored as a new immutable revision.",
+        },
+        architect_revision_label: {
+          type: "string",
+          maxLength: 80,
+          description: "Optional visible option/revision label, such as 'Option B — compact tower'.",
+        },
+        architect_parent_revision_id: {
+          type: "string",
+          pattern: "^sha256:[0-9a-f]{64}$",
+          description:
+            "Exact stored parent revision when this concept changes an earlier option. It must belong to the same Architect session.",
+        },
+        architect_select_revision: {
+          type: "boolean",
+          description:
+            "Select this newly compiled revision for later promotion. Selection changes only Architect metadata; it does not generate, place, or delete a Blueprint.",
+        },
+        architect_brief: {
+          type: "object",
+          description:
+            "Human creative brief stored beside exact solver provenance. It may describe intent but cannot override manifest game facts.",
+          properties: {
+            goal: { type: "string", maxLength: 512 },
+            creative_direction: { type: "string", maxLength: 1000 },
+            constraints: {
+              type: "array",
+              maxItems: 32,
+              items: { type: "string", maxLength: 256 },
+            },
+          },
+          additionalProperties: false,
+        },
         creative_parameters: {
           type: "object",
           description: "Optional integer proportions. Unsupported fields are refused by the schema.",
@@ -584,36 +680,35 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args, services) => {
-      const layout = designFactoryLayout(graph, {
-        item_name: args.item_name,
-        target_rate_per_minute: args.target_rate_per_minute,
-        origin: args.origin,
-        recipe_class: args.recipe_class,
-        use_existing_surplus: args.use_existing_surplus === true,
-        align_to_base: args.align_to_base,
-      }, services ?? {});
-      if (!layout.designed) return layout;
-
-      const vertical = deriveMegabaseFloorHeight(layout);
-      if (!vertical.derived) {
-        return {
-          schema: "megabase.design/v1",
-          compiled: false,
-          status: "concept_refused",
-          reason: vertical.reason,
-          effect: vertical.effect ?? null,
-          actions: [],
-        };
+      const designRequest = architectDesignRequest(args);
+      const compiled = compileArchitectDesignRequest(graph, designRequest, services ?? {});
+      if (!compiled.compiled) return compiled.result;
+      const { manifest, vertical } = compiled;
+      let architectRevision = null;
+      if (args.architect_session_name) {
+        const store = services?.architect;
+        architectRevision = store?.saveRevision
+          ? store.saveRevision({
+              session_name: args.architect_session_name,
+              label: args.architect_revision_label,
+              parent_revision_id: args.architect_parent_revision_id,
+              brief: {
+                goal:
+                  args.architect_brief?.goal ??
+                  `${args.target_rate_per_minute} ${args.item_name}/min at the exact requested site`,
+                creative_direction: args.architect_brief?.creative_direction ?? null,
+                constraints: args.architect_brief?.constraints ?? [],
+              },
+              manifest,
+              design_request: designRequest,
+              select: args.architect_select_revision === true,
+            })
+          : {
+              ok: false,
+              reason: "architect_revision_store_is_not_available_for_this_request",
+              effect: "the_manifest_was_compiled_but_not_persisted",
+            };
       }
-      const manifest = compileMegabaseConcept(graph, layout, {
-        style: args.style,
-        design_family_id: args.design_family_id,
-        match_design_family_fingerprint: args.match_design_family_fingerprint,
-        commissioning_phases: args.commissioning_phases,
-        floor_height_cm: vertical.floor_height_cm,
-        creative_parameters: args.creative_parameters,
-        part_selections: args.part_selections,
-      });
       if (args.preview_in_world === true && manifest.compiled === true) {
         const preview = compileArchitectPreview(manifest, {
           lifetime_seconds: args.preview_lifetime_seconds,
@@ -622,6 +717,7 @@ export const SOLVER_TOOLS = [
           return {
             ...manifest,
             vertical_module: vertical,
+            ...(architectRevision ? { architect_revision: architectRevision } : {}),
             architect_preview: preview,
           };
         }
@@ -629,6 +725,7 @@ export const SOLVER_TOOLS = [
         return {
           ...manifest,
           vertical_module: vertical,
+          ...(architectRevision ? { architect_revision: architectRevision } : {}),
           architect_preview: {
             compiled: true,
             schema: preview.schema,
@@ -643,7 +740,94 @@ export const SOLVER_TOOLS = [
       return {
         ...manifest,
         vertical_module: vertical,
+        ...(architectRevision ? { architect_revision: architectRevision } : {}),
       };
+    },
+  },
+
+  {
+    name: "manage_architect_revisions",
+    description:
+      "Reads or changes only save/session-scoped AI Architect metadata. Use list/get to inspect immutable options, compare for exact geometry/production/topology/style/blocker deltas, select or rollback to promote a stored revision only after it recompiles identically against the current snapshot/unlocks, and delete_draft to remove an unselected leaf draft. This tool never writes or deletes a native Blueprint, never places/dismantles actors, and never edits a stored revision in place.",
+    parameters: {
+      type: "object",
+      properties: {
+        operation: {
+          type: "string",
+          enum: ["list", "get", "compare", "select", "rollback", "delete_draft"],
+        },
+        session_name: { type: "string", maxLength: 80 },
+        revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
+        left_revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
+        right_revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
+      },
+      required: ["operation"],
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      const store = services?.architect;
+      if (!store) {
+        return {
+          ok: false,
+          reason: "architect_revision_store_is_not_available_for_this_request",
+        };
+      }
+      if (args.operation === "list") {
+        return store.list({ session_name: args.session_name });
+      }
+      if (args.operation === "get") {
+        return store.getRevision({
+          session_name: args.session_name,
+          revision_id: args.revision_id,
+        });
+      }
+      if (args.operation === "compare") {
+        return store.compare({
+          session_name: args.session_name,
+          left_revision_id: args.left_revision_id,
+          right_revision_id: args.right_revision_id,
+        });
+      }
+      if (args.operation === "delete_draft") {
+        return store.deleteDraft({
+          session_name: args.session_name,
+          revision_id: args.revision_id,
+        });
+      }
+      if (args.operation === "select" || args.operation === "rollback") {
+        const stored = store.getRevision({
+          session_name: args.session_name,
+          revision_id: args.revision_id,
+        });
+        if (!stored.ok) return stored;
+        if (!stored.revision?.design_request) {
+          return {
+            ok: false,
+            reason: "architect_revision_has_no_recompilable_design_request",
+            effect: "create_a_new_revision_from_current_game_evidence",
+          };
+        }
+        const recompiled = compileArchitectDesignRequest(
+          graph,
+          stored.revision.design_request,
+          services ?? {},
+        );
+        if (!recompiled.compiled) {
+          return {
+            ok: false,
+            reason: "architect_revision_could_not_recompile_against_current_snapshot",
+            current_result: recompiled.result,
+            effect: "create_a_new_revision_from_current_game_evidence",
+          };
+        }
+        return store.selectRevision({
+          session_name: args.session_name,
+          revision_id: args.revision_id,
+          recompiled_manifest: recompiled.manifest,
+          operation: args.operation,
+        });
+      }
+      return { ok: false, reason: "unsupported_architect_revision_operation" };
     },
   },
 

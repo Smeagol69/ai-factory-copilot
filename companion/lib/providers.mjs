@@ -78,7 +78,8 @@ factory arithmetic yourself:
 - current objective, active milestone, game phase, exact recipe availability,
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
-- a creative elevated, terraced, or campus megabase preview -> design_megabase_concept;
+- a creative elevated, terraced, or campus megabase preview, optionally saved as an immutable Architect option -> design_megabase_concept;
+- listing, comparing, selecting, rolling back, or deleting an AI Architect draft revision -> manage_architect_revisions;
 - a foundation-grid platform, raised deck, walls, supports, or roof shell -> plan_structure;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight;
@@ -569,7 +570,7 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
-    tools: ["list_blueprints", "inspect_blueprint_layout", "compare_blueprint_layouts", "design_factory_layout", "design_megabase_concept", "plan_production"],
+    tools: ["list_blueprints", "inspect_blueprint_layout", "compare_blueprint_layouts", "design_factory_layout", "design_megabase_concept", "manage_architect_revisions", "plan_production"],
   },
   {
     pattern: /\b(platform|raised deck|building shell|structural shell|walls? and (?:a )?roof)\b/i,
@@ -679,6 +680,8 @@ function evidenceRows(tool, parsed) {
       return parsed.designed === true ? [parsed] : [];
     case "design_megabase_concept":
       return parsed.compiled === true && parsed.validation?.valid === true ? [parsed] : [];
+    case "manage_architect_revisions":
+      return parsed.ok === true ? [parsed] : [];
     case "plan_structure":
       return parsed.planned === true && parsed.source && parsed.certainty ? [parsed] : [];
     default:
@@ -1812,6 +1815,10 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
       "commissioning_phases",
       "preview_in_world",
       "preview_lifetime_seconds",
+      "architect_session_name",
+      "architect_revision_label",
+      "architect_parent_revision_id",
+      "architect_select_revision",
     ];
     return {
       ...tool,
@@ -1820,7 +1827,8 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
         description:
           "Preview an architectural megabase from live measured factory data. " +
           "Returns exact transforms, footprint, blockers and mod-aware part candidates. " +
-          "When preview_in_world is true it emits one draw-only semantic overlay; it never constructs.",
+          "When preview_in_world is true it emits one draw-only semantic overlay; it never constructs. " +
+          "When architect_session_name is present it saves an immutable revision.",
         parameters: {
           type: "object",
           properties: Object.fromEntries(
@@ -1847,6 +1855,7 @@ const SOLVER_TOOL_NAMES = [
   "design_composition",
   "design_factory_layout",
   "design_megabase_concept",
+  "manage_architect_revisions",
   "diagnose_bottlenecks",
   "find_belt_candidates",
   "find_best_site",

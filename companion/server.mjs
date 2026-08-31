@@ -17,6 +17,10 @@ import { createTerrainCache } from "./lib/terrain-cache.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
 import {
+  createArchitectRevisionStore,
+  resolveArchitectStoreDirectory,
+} from "./lib/architect-revisions.mjs";
+import {
   anthropicWebSearchTool,
   openAIWebSearchTool,
   resolveSourcePolicy,
@@ -685,6 +689,8 @@ export function createBridgeServer({ env = process.env } = {}) {
   const leanMaxActors = positiveInteger(env.AIFACTORY_LEAN_MAX_ACTORS, 120);
   const leanMaxCharacters = positiveInteger(env.AIFACTORY_LEAN_MAX_CHARS, 200_000);
   const conveyorSpeedDivisor = Number.parseFloat(env.AIFACTORY_BELT_SPEED_DIVISOR ?? "") || 2;
+  const architectStoreDirectory = resolveArchitectStoreDirectory(env);
+  const architectStore = createArchitectRevisionStore({ directory: architectStoreDirectory });
   const listBlueprints = makeBlueprintReader(env);
   const inspectBlueprint = listBlueprints?.inspect ?? null;
   // The terrain scan the mod writes. One fixed path that this bridge owns --
@@ -739,6 +745,11 @@ export function createBridgeServer({ env = process.env } = {}) {
           loopback_only: true,
           maximum_request_body_bytes: maximumBodyBytes,
           solver_tools: SOLVER_TOOLS.map((tool) => tool.name),
+          architect_revision_store: {
+            configured: architectStore.configured,
+            scope: "exact_map_save_session_and_chat_session",
+            persistence: architectStore.configured ? "disk" : "request_process_memory_only",
+          },
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
           blueprint_layout_inspection: Boolean(inspectBlueprint),
@@ -882,12 +893,16 @@ export function createBridgeServer({ env = process.env } = {}) {
       // Collected per request, never shared: two questions in flight must not
       // hand each other's actions to the game.
       const actionCollector = createActionCollector();
+      const sessionId = String(body.session_id || "default").trim().slice(0, 256);
       const requestServices = {
         ...solverServices,
         actions: actionCollector,
+        architect: architectStore.scope({
+          snapshot: body.world_snapshot,
+          chat_session_id: sessionId,
+        }),
       };
 
-      const sessionId = String(body.session_id || "default").trim().slice(0, 256);
       const history = sessions.get(sessionId) ?? [];
       const vision = await loadVisionFrames({ question: body.question, env });
       const context = {

@@ -609,6 +609,10 @@ test("local megabase dispatch uses the compact core schema", async () => {
       "commissioning_phases",
       "preview_in_world",
       "preview_lifetime_seconds",
+      "architect_session_name",
+      "architect_revision_label",
+      "architect_parent_revision_id",
+      "architect_select_revision",
     ]);
     assert.deepEqual(definition.parameters.required, [
       "item_name",

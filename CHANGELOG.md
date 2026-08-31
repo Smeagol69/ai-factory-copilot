@@ -5,6 +5,22 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added persistent **AI Architect briefs, revisions, and variants**. A named
+  Architect session now stores the exact deterministic design request and valid
+  `megabase.design/v1` manifest as an immutable content-addressed revision under
+  the exact map/save/player-chat scope. Revisions have explicit option labels
+  and parents; a new `manage_architect_revisions` tool can list, inspect,
+  compare, select, roll back, or delete only an unselected leaf draft.
+  Selection reruns the stored design request against the current complete graph
+  and requires identical semantic manifest, design-family, and unlock
+  fingerprints. Noisy belt-driven global revision drift is reported, while
+  changed relevant evidence refuses promotion. Exact comparisons keep geometry,
+  production, topology, style, blockers, and the still-unknown native Blueprint
+  cost separate. The bounded atomic store validates every content address and
+  fails closed on corruption; its delete path cannot touch `.sbp`/`.sbpcfg`, the
+  game save, or placed actors. Exact CL 502094 validation and **907/907** tests
+  pass; the clean companion install verifies 42 runtime files and reports the
+  store ready for disk persistence.
 - Made **AI Architect Mode** the primary roadmap and connected the existing
   authoritative `megabase.design/v1` compiler to its first playable in-world
   preview. `design_megabase_concept` can now emit one private draw-only action

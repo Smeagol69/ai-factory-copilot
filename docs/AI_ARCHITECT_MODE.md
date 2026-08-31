@@ -74,9 +74,29 @@ style deltas from exact manifests.
 Acceptance:
 
 - revisions survive bridge restarts and are scoped to the save/session;
-- stale world or unlock fingerprints force re-planning before promotion;
+- stale relevant-world semantic or unlock fingerprints force re-planning before promotion;
 - option A/B/C and rollback to an earlier revision are explicit;
 - deleting a draft never deletes a native Blueprint or placed factory.
+
+Implemented companion checkpoint (2026-08-31):
+
+- `design_megabase_concept` can preserve its exact compiled manifest and exact
+  deterministic design request under a named Architect session;
+- revisions are immutable and content-addressed, carry an explicit label and
+  parent, and persist per exact map/save/player chat scope;
+- `manage_architect_revisions` lists, retrieves, compares, selects, rolls back,
+  and deletes only an unselected leaf draft;
+- selection recompiles the stored design request from the current full graph
+  and requires the same semantic manifest, design-family, and unlock
+  fingerprints. Global `world_revision` drift is reported rather than refused
+  because belt traffic changes it continuously; changed relevant solver output
+  or unlock evidence refuses selection and requires a child revision;
+- comparisons report bounded exact geometry, production-program, connection,
+  style, and blocker deltas. Native Blueprint cost remains explicitly unknown
+  until A3 supplies a verified native cost;
+- the JSON store is size-bounded, written through a temporary file, validates
+  every content address on load, and refuses corrupt or tampered data without
+  overwriting it.
 
 ### A3 — Selected revision to native Build Gun hologram
 

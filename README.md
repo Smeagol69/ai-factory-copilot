@@ -82,6 +82,7 @@ absence in the model's view is never treated as an absence in the world.
 | `plan_belt_route` | a direct conveyor route between two captured connection components |
 | `plan_belted_module` | a compact two-phase miner-to-machine module using measured footprints |
 | `design_megabase_concept` | AI Architect Mode concept: exact semantic campus transforms, design-family provenance, blockers, and optional draw-only in-world preview |
+| `manage_architect_revisions` | save/session-scoped immutable Architect options: list, inspect, compare, select, roll back, or delete an unselected leaf draft after exact current-snapshot recompilation |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
 | `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
 | `clear_highlight` | removes an overlay |
@@ -323,6 +324,14 @@ production dependencies, so a normal SML install does not need an `npm` step.
 For a source checkout, run `npm ci` once in `companion/` (the validation and
 Starter Project install scripts do this automatically) before starting it by
 hand.
+
+AI Architect briefs and revisions persist under
+`%LOCALAPPDATA%\FactoryGame\Saved\AIFactoryCopilot\Architect`. Set
+`AIFACTORY_ARCHITECT_STORE` to an explicit directory to move that metadata, or
+to `off` to disable disk persistence. The store filename is a digest; the
+scope inside it is the exact map, save session, and stable player chat session.
+This metadata is separate from native `.sbp`/`.sbpcfg` files and deleting a
+draft cannot delete a Blueprint or placed actor.
 
 Diagnostic mode works without an API key:
 

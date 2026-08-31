@@ -50,6 +50,7 @@ test("exposes the roadmap solver set to the model", () => {
     "inspect_blueprint_layout",
     "list_blueprints",
     "locate",
+    "manage_architect_revisions",
     "perform_actions",
     "plan_belt_route",
     "plan_belted_module",

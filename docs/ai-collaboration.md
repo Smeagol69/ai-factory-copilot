@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-08-31 | Codex | `codex/ai-architect-revisions` | Implement AI Architect milestone A2's companion-side persistence contract without touching Claude's selected-manifest -> native Blueprint/Build Gun lane or the existing game overlay. Scope immutable, content-addressed Architect briefs and manifest revisions to the exact save/session, persist them outside the repository, expose bounded list/get/compare/select/rollback/delete-draft operations, make option/parent relationships explicit, and fail closed when current save/unlock evidence no longer matches promotion requirements. Deleting a draft must affect only Architect metadata and never native Blueprint files or placed actors. Expected files: a zero-dependency store, focused solver/tool/provider/server contracts and restart/corruption/isolation/staleness tests, roadmap/changelog, and append-only handoff. | claimed; mapping exact snapshot/save identity and current `megabase.design/v1` provenance before implementation |
+| 2026-08-31 | Codex | `codex/ai-architect-revisions` | Implement AI Architect milestone A2's companion-side persistence contract without touching Claude's selected-manifest -> native Blueprint/Build Gun lane or the existing game overlay. Scope immutable, content-addressed Architect briefs and manifest revisions to the exact save/session, persist them outside the repository, expose bounded list/get/compare/select/rollback/delete-draft operations, make option/parent relationships explicit, and fail closed when current save/unlock evidence no longer matches promotion requirements. Deleting a draft must affect only Architect metadata and never native Blueprint files or placed actors. Expected files: a zero-dependency store, focused solver/tool/provider/server contracts and restart/corruption/isolation/staleness tests, roadmap/changelog, and append-only handoff. | complete and companion-installed; 907/907 tests and exact CL 502094 validation pass; bridge health reports disk persistence and the new tool ready; no C++ or game DLL changed |
 | 2026-08-30 | Codex | `codex/ai-architect-mode` | Make **AI Architect Mode** the primary published roadmap and deliver its first safe visible vertical slice: a bounded, non-mutating, game-rendered architectural preview compiled from the existing authoritative `megabase.design/v1` manifest. Preserve all existing generated/native Blueprint, node, placement, selection, topology, and write paths. The preview must carry exact manifest/revision/style/family provenance, use only solver-produced world transforms, render semantic zones/floors/bridges/tower as clearly differentiated Shipping-safe overlays, expire/clear cleanly, and never imply hologram validation or construction. Expected files: `docs/GOALS.md`, a focused Architect Mode contract/roadmap, companion preview compiler/action validation/tests, game overlay/action execution/readback, changelog, and this append-only handoff. **Claude lane request:** take the separate selected-manifest -> generated native Blueprint -> active-save descriptor -> Build Gun hologram compilation path after reading this claim; do not edit the overlay compiler. The existing `codex/generated-blueprint-two-stage-wire` production/topology lane remains untouched. | complete and deployed; 897/897 tests, exact CL 502094 validation, Shipping + Editor builds, UAT package/deploy, and clean companion install passed; live visual confirmation remains pending |
 | 2026-08-30 | Codex | `codex/creative-node-delete` | Add two aimed-node quality-of-life workflows now that ordinary-node Miner compatibility is live-verified: **Clone aimed** re-arms the normal Build Gun with the exact saved resource/purity/type of a Copilot-owned node, and **Remove aimed** deletes only an unoccupied Copilot-owned ordinary creative node or creative geyser. Require the existing write/admin authority gates; removal also requires a short-lived second confirmation, executes only on the server, and reports exact engine acceptance. Never delete, clone as generic, or retarget vanilla map nodes, deposits, Blueprint Anchor runtime nodes, occupied nodes, or arbitrary mod templates, and never remove a node whose identity changed between confirmation and commit. Preserve Node Spawner/Editor, Miner compatibility, resource discovery, generated Blueprints, and all existing chat/AI actions. Expected files: creative node chat/edit authority path, focused Node Spawner controls using the existing narrow server command bridge, source-contract tests, editor docs/changelog, and this append-only handoff. | complete and deployed; 891/891 tests, exact header validation, Shipping/Editor builds, and UAT build/cook/archive/deploy pass; live Clone/Remove interaction verification remains |
 | 2026-08-30 | Codex | `codex/miner-node-class-gate` | Implement the now-proven Miner compatibility fix without removing Claude's diagnostics or Codex's solid/fluid/gas/geyser/template/save behavior. Scope any extractor compatibility change to Copilot-created ordinary nodes, preserve the game's occupation/resource-form/resource-allowlist gates, verify against exact CL 502094 headers, then run tests, Shipping/Editor builds, package, and deploy for the owner's live test. Expected files: module hook/lifecycle, creative ordinary-node contract, focused source tests, changelog, and this handoff. | complete and live-verified, including `d29abd3`'s Refined Power/template discovery fix: a Shipping-only SML hook removes `mRestrictToNodeType` only during the original native check for a validated `AAIFactoryCreativeOrdinaryResourceNode`, then restores it exactly. Vanilla/template/geyser/other-mod hook paths are untouched. 888/888 tests, exact headers, Shipping/Editor and UAT pass. Steam DLL SHA-256 `139F7F22E66C454C321004B41E54FA5F582944CC0F448B413CD2C1E8DF33E70C`; owner confirmed the packaged Miner snaps to and works on a spawned ordinary node. |
@@ -5463,3 +5463,59 @@ must consume the manifest/fingerprints rather than reinterpret the draw lines.
 Do not replace the semantic preview or disturb
 `codex/generated-blueprint-two-stage-wire`; merge through `master` before
 topology or native Blueprint work consumes this contract.
+
+### Codex — 2026-08-31 AI Architect briefs and immutable revisions
+
+Completed milestone A2's companion checkpoint on
+`codex/ai-architect-revisions`. `design_megabase_concept` now accepts an
+optional named Architect session, option label, parent revision, creative
+brief, and select flag. The tool stores only a valid compiled
+`megabase.design/v1` manifest and the exact deterministic design request that
+created it. Revisions are immutable and content-addressed; submitting the same
+option is idempotent rather than a silent rewrite.
+
+`manage_architect_revisions` provides bounded `list`, `get`, `compare`,
+`select`, `rollback`, and `delete_draft` operations. Selection and rollback
+rerun the stored design request against the current complete graph and require
+the same semantic manifest, design-family, and unlock fingerprints. The global
+world revision is preserved and drift is reported, not refused, because belt
+traffic advances it continuously. Changed unlocks or any changed relevant
+compiler output refuse promotion and require a new child revision.
+
+Comparison keeps exact geometry, production-program, connection, style, and
+construction-blocker deltas separate. Native Blueprint cost remains explicitly
+unknown until A3 produces a verified file. A draft can be deleted only when it
+is unselected and has no children; the result explicitly reports that no native
+Blueprint file, placed actor, or game save was touched.
+
+The zero-dependency JSON store lives by default under
+`%LOCALAPPDATA%\FactoryGame\Saved\AIFactoryCopilot\Architect`. A filename is
+derived from a digest; the validated scope inside the file is the exact map,
+save-session name, and stable player chat session. Each write is size-bounded
+and staged through a temporary file. Every session/revision identity and
+manifest fingerprint is revalidated on load, so corrupt or tampered content
+fails closed and is never overwritten. `AIFACTORY_ARCHITECT_STORE` can move the
+directory or disable disk persistence.
+
+Verification and deployment evidence:
+
+- Exact SML 3.12.0 / FactoryGame CL 502094 source validation passed.
+- Companion tests: 907/907, including restart persistence, map/save/chat
+  isolation, explicit parent/option behavior, exact comparison, global-revision
+  drift, stale unlock/semantic refusal, deletion boundaries, invalid JSON, and
+  valid-JSON tamper detection.
+- The clean companion install verifies 42 runtime files and is healthy on port
+  8142 with bridge `1.0.0-beta.2` / hybrid provider ready.
+- Health advertises `manage_architect_revisions`, confirms the Architect store
+  is configured for disk persistence, and reports its exact scope policy.
+- Installed and repository `architect-revisions.mjs` are both SHA-256
+  `D89BCC24AFF9DD056A2BF850851F5CAD617B8A49D73349202CF807A45FDF8447`.
+- No C++ changed, so the already deployed Architect preview DLL from `bbc83bc`
+  remains current; Satisfactory was left closed.
+
+**Claude handoff:** A3 can now resolve the selected revision by exact session
+name and revision ID, then consume its stored manifest, manifest fingerprint,
+design-family fingerprint, unlock fingerprint, construction blockers, and
+design request. Recompile/select must succeed before native Blueprint
+generation. Do not accept arbitrary model-supplied geometry as a substitute,
+and do not edit a revision in place; any requested change becomes a child.

@@ -56,7 +56,9 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.ok(body.solver_tools.length >= 16);
   assert.ok(body.solver_tools.includes("design_factory_layout"));
   assert.ok(body.solver_tools.includes("design_megabase_concept"));
+  assert.ok(body.solver_tools.includes("manage_architect_revisions"));
   assert.ok(body.solver_tools.includes("perform_actions"));
+  assert.equal(body.architect_revision_store.scope, "exact_map_save_session_and_chat_session");
   assert.equal(body.outside_references.web_search, false);
   assert.equal(body.outside_references.requested_but_unavailable, true);
   assert.equal(body.outside_references.restricted_to_configured_sources, false);
