@@ -54,6 +54,12 @@ The delivery order is deliberately playable at every stage:
 5. Close the visual feedback loop with style capture and bounded screenshots,
    while keeping pixels permanently non-authoritative for game facts.
 
+Steps 1 and 2 are implemented. Step 3 now has its selected-revision,
+current-unlock, exact-role, and native-generator promotion boundary plus the
+first executable Foundation-grid adapter. Whole-campus promotion remains
+blocked until every other semantic element has an equally exact compiler; the
+status tool names those missing adapters instead of dropping them.
+
 The complete contract and acceptance gates live in
 [`AI_ARCHITECT_MODE.md`](AI_ARCHITECT_MODE.md).
 

@@ -116,6 +116,32 @@ Acceptance:
 - the player sees the normal move/rotate/snap/cost/confirm experience;
 - failure leaves no partial world construction and reports the exact gate.
 
+Promotion-adapter checkpoint (2026-09-01):
+
+- `manage_architect_revisions promotion_status` now reloads and deterministically
+  recompiles the exact stored revision, requires it to be the session's selected
+  revision, repeats the immutable manifest and current unlock-fingerprint gates,
+  and reports every semantic role or element that still lacks an exact native
+  placement adapter;
+- `promote_selected` additionally requires an explicit `commit:true`. It emits
+  no action unless the entire selected manifest compiles. When it does, the
+  result is passed unchanged into the existing standalone
+  `generate_native_blueprint` transaction; Satisfactory still stages, measures,
+  serializes, reloads, checks contents/topology, refreshes the active registry,
+  and reports the real outcome;
+- the first executable adapter is deliberately narrow: one or more
+  `structural_platform` elements become exact Foundation cells only when the
+  selected recipe is currently captured and unlocked, belongs to the Build Gun,
+  resolves to a captured building class, carries parseable descriptor
+  dimensions, and its width exactly equals the manifest grid. The adapter does
+  not impose a Designer dimension cap;
+- production halls, machines, facades, roofs, pylons, bridges, landmark towers,
+  lights, and all topology still report named blockers. They are not silently
+  omitted and therefore a normal whole-campus revision is not yet promotable.
+  Expanding those exact semantic compilers is the remaining A3 work. After a
+  verified native file readback, the existing `preview_blueprint` handoff arms
+  that exact descriptor in the player's normal Build Gun.
+
 ### A4 — Working-factory topology
 
 Production machines, splitters/mergers, conveyors/lifts, pipes/junctions/pumps,

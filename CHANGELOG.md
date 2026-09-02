@@ -5,6 +5,19 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Began the fail-closed **AI Architect A3 native-promotion adapter**. The exact
+  stored revision is deterministically recompiled against the current complete
+  graph, must still pass manifest/design-family/unlock fingerprints, and must be
+  the explicitly selected option. `promotion_status` reports every missing
+  semantic role/element adapter without emitting an action; `promote_selected`
+  additionally requires `commit:true` and can emit only the existing standalone
+  `generate_native_blueprint` transaction. The first executable slice compiles
+  exact `structural_platform` cells only when their selected Foundation recipe
+  is captured, unlocked, Build-Gun produced, backed by a captured buildable
+  class, dimensioned by its descriptor, and exactly matches the manifest grid.
+  Other campus elements remain named blockers and are never guessed or dropped.
+  No C++ serializer, Blueprint registry, Build Gun handoff, or world-write gate
+  was changed.
 - Added persistent **AI Architect briefs, revisions, and variants**. A named
   Architect session now stores the exact deterministic design request and valid
   `megabase.design/v1` manifest as an immutable content-addressed revision under

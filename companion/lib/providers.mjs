@@ -79,7 +79,7 @@ factory arithmetic yourself:
   tech tier, and purchased schematics -> get_unlock_status;
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - a creative elevated, terraced, or campus megabase preview, optionally saved as an immutable Architect option -> design_megabase_concept;
-- listing, comparing, redrawing, selecting, rolling back, or deleting an AI Architect draft revision -> manage_architect_revisions;
+- listing, comparing, redrawing, selecting, rolling back, checking native-promotion blockers, promoting an explicitly selected revision, or deleting an AI Architect draft revision -> manage_architect_revisions. Always call promotion_status before promote_selected. A semantic preview is not a native layout: never remove, paraphrase away, or fabricate a reported blocker. promote_selected requires the player's explicit request and commit:true; after the game verifies the generated file, use preview_blueprint in perform_actions to arm that exact native descriptor;
 - a foundation-grid platform, raised deck, walls, supports, or roof shell -> plan_structure;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight;

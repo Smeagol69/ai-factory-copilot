@@ -19,6 +19,7 @@ import { compositionActions, planComposition, stageComposition } from "./composi
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
+import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
   solveBeltChain,
@@ -748,13 +749,13 @@ export const SOLVER_TOOLS = [
   {
     name: "manage_architect_revisions",
     description:
-      "Reads or changes only save/session-scoped AI Architect metadata. Use list/get to inspect immutable options, compare for exact geometry/production/topology/style/blocker deltas, preview to redraw one stored option only after it recompiles identically against the current snapshot/unlocks, select or rollback to promote it under the same gate, and delete_draft to remove an unselected leaf draft. This tool never writes or deletes a native Blueprint, never places/dismantles actors, and never edits a stored revision in place.",
+      "Manages save/session-scoped AI Architect revisions. Use list/get to inspect immutable options, compare for exact geometry/production/topology/style/blocker deltas, preview to redraw one stored option, select or rollback to choose it, promotion_status to recompile the exact selected revision and list every missing native-placement adapter, promote_selected only after the player explicitly asks to write the proven layout through the existing native Designer/serializer, and delete_draft to remove an unselected leaf draft. Promotion never guesses or drops a semantic element: it emits one standalone generate_native_blueprint action only when the revision, current unlock fingerprint, selected recipes, descriptor dimensions, every element compiler, and the existing generated-Blueprint contract all pass. Native generation still does not place a factory; after verified game readback, use preview_blueprint to arm the saved descriptor in the player's Build Gun.",
     parameters: {
       type: "object",
       properties: {
         operation: {
           type: "string",
-          enum: ["list", "get", "compare", "preview", "select", "rollback", "delete_draft"],
+          enum: ["list", "get", "compare", "preview", "select", "rollback", "promotion_status", "promote_selected", "delete_draft"],
         },
         session_name: { type: "string", maxLength: 80 },
         revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
@@ -765,6 +766,20 @@ export const SOLVER_TOOLS = [
           minimum: 0,
           maximum: 3600,
           description: "For preview only. Zero keeps the draw-only overlay until it is cleared.",
+        },
+        blueprint_name: {
+          type: "string",
+          maxLength: 240,
+          description: "promotion_status/promote_selected: exact native Blueprint name. A deterministic revision-derived name is used when omitted.",
+        },
+        blueprint_description: {
+          type: "string",
+          maxLength: 1000,
+          description: "promote_selected: optional native Blueprint description; revision and manifest provenance are retained when omitted.",
+        },
+        commit: {
+          type: "boolean",
+          description: "promote_selected only: must be true after an explicit player request. promotion_status never emits an action.",
         },
       },
       required: ["operation"],
@@ -800,7 +815,7 @@ export const SOLVER_TOOLS = [
           revision_id: args.revision_id,
         });
       }
-      if (["preview", "select", "rollback"].includes(args.operation)) {
+      if (["preview", "select", "rollback", "promotion_status", "promote_selected"].includes(args.operation)) {
         const stored = store.getRevision({
           session_name: args.session_name,
           revision_id: args.revision_id,
@@ -852,6 +867,64 @@ export const SOLVER_TOOLS = [
               construction: false,
               selection_changed: false,
             },
+          };
+        }
+        if (["promotion_status", "promote_selected"].includes(args.operation)) {
+          const verified = store.verifyRevision({
+            session_name: args.session_name,
+            revision_id: args.revision_id,
+            recompiled_manifest: recompiled.manifest,
+          });
+          if (!verified.ok) return verified;
+          const selectedRevisionId = stored.architect_session?.selected_revision_id ?? null;
+          const defaultName = `AI Architect ${stored.revision.label ?? "Revision"} ${String(args.revision_id).slice(7, 15)}`;
+          const promotion = compileArchitectPromotion(graph, recompiled.manifest, {
+            revision_id: args.revision_id,
+            selected_revision_id: selectedRevisionId,
+            blueprint_name: args.blueprint_name ?? defaultName,
+            description: args.blueprint_description,
+            commit: args.operation === "promote_selected" && args.commit === true,
+          });
+          const { action, ...status } = promotion;
+          if (args.operation === "promotion_status") {
+            return {
+              ok: true,
+              operation: "promotion_status",
+              revision: verified.revision,
+              evidence: verified.evidence,
+              promotion: status,
+              action_emitted: false,
+            };
+          }
+          if (args.commit !== true) {
+            return {
+              ok: false,
+              reason: "architect_native_promotion_requires_explicit_commit_true",
+              revision: verified.revision,
+              promotion: status,
+              action_emitted: false,
+            };
+          }
+          if (!promotion.ready_for_native_generation || !action) {
+            return {
+              ok: false,
+              reason: "architect_revision_is_not_ready_for_native_generation",
+              revision: verified.revision,
+              promotion: status,
+              action_emitted: false,
+            };
+          }
+          services?.actions?.emit?.([action]);
+          return {
+            ok: true,
+            operation: "promote_selected",
+            revision: verified.revision,
+            evidence: verified.evidence,
+            promotion: status,
+            action_emitted: true,
+            status: "native_generation_action_emitted_pending_game_readback",
+            next_step_after_verified_game_readback:
+              `preview blueprint ${promotion.native_blueprint.blueprint_name}`,
           };
         }
         return store.selectRevision({

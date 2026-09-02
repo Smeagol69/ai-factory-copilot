@@ -94,6 +94,42 @@ test("model-facing Architect tools create, compare, select, roll back, and delet
   assert.equal(selected.ok, true, selected.reason);
   assert.equal(selected.selected_revision_id, optionBId);
 
+  const promotionStatus = run(graph, "manage_architect_revisions", {
+    operation: "promotion_status",
+    session_name: "Iron Rod Campus",
+    revision_id: optionBId,
+  }, architect);
+  assert.equal(promotionStatus.ok, true, promotionStatus.reason);
+  assert.equal(promotionStatus.operation, "promotion_status");
+  assert.equal(promotionStatus.action_emitted, false);
+  assert.equal(promotionStatus.promotion.ready_for_native_generation, false);
+  assert.ok(
+    promotionStatus.promotion.blockers.some((blocker) =>
+      blocker.startsWith("architect_element_kind_has_no_native_compiler:")),
+  );
+
+  const promotionActions = [];
+  const promotionRefused = run(graph, "manage_architect_revisions", {
+    operation: "promote_selected",
+    session_name: "Iron Rod Campus",
+    revision_id: optionBId,
+    blueprint_name: "Iron Rod Campus Option B",
+    commit: true,
+  }, architect, promotionActions);
+  assert.equal(promotionRefused.ok, false);
+  assert.equal(promotionRefused.reason, "architect_revision_is_not_ready_for_native_generation");
+  assert.equal(promotionRefused.action_emitted, false);
+  assert.equal(promotionActions.length, 0);
+
+  const unselectedStatus = run(graph, "manage_architect_revisions", {
+    operation: "promotion_status",
+    session_name: "Iron Rod Campus",
+    revision_id: optionAId,
+  }, architect);
+  assert.ok(
+    unselectedStatus.promotion.blockers.includes("architect_revision_is_not_the_selected_revision"),
+  );
+
   const rollback = run(graph, "manage_architect_revisions", {
     operation: "rollback",
     session_name: "Iron Rod Campus",

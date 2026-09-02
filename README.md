@@ -82,7 +82,7 @@ absence in the model's view is never treated as an absence in the world.
 | `plan_belt_route` | a direct conveyor route between two captured connection components |
 | `plan_belted_module` | a compact two-phase miner-to-machine module using measured footprints |
 | `design_megabase_concept` | AI Architect Mode concept: exact semantic campus transforms, design-family provenance, blockers, and optional draw-only in-world preview |
-| `manage_architect_revisions` | save/session-scoped immutable Architect options: list, inspect, compare, redraw, select, roll back, or delete an unselected leaf draft after exact current-snapshot recompilation |
+| `manage_architect_revisions` | save/session-scoped immutable Architect options: list, inspect, compare, redraw, select, roll back, report exact native-promotion blockers, promote only a completely compiled selected revision through the existing native Blueprint transaction, or delete an unselected leaf draft |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
 | `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
 | `clear_highlight` | removes an overlay |
