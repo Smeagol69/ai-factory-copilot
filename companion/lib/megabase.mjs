@@ -286,6 +286,11 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
   const groups = [];
   for (const row of rows) {
     const machines = whole(row?.machines);
+    const productionStep = whole(row?.production_step);
+    const machinesExact = positive(row?.machines_exact);
+    const perMachineOutput = positive(row?.per_machine_output_rate_per_minute);
+    const producesItemClass = String(row?.produces_item_class ?? "").trim();
+    const producesRate = positive(row?.produces_rate_per_minute);
     const widthCm = positive(row?.machine_footprint_cm?.width);
     const depthCm = positive(row?.machine_footprint_cm?.depth);
     const heightCm = positive(row?.machine_footprint_cm?.height);
@@ -293,33 +298,62 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
     const buildRecipe = String(row?.build_recipe_class ?? "").trim();
     const productionRecipe = String(row?.production_recipe_class ?? "").trim();
     if (
-      machines === null || machines < 1 || widthCm === null ||
-      depthCm === null || heightCm === null || !measured
+      machines === null || machines < 1 || productionStep === null ||
+      productionStep < 1 || machinesExact === null || machinesExact > machines ||
+      perMachineOutput === null || !producesItemClass || producesRate === null ||
+      widthCm === null || depthCm === null || heightCm === null || !measured
     ) {
       return {
         valid: false,
-        reason: "every_machine_group_needs_a_measured_positive_footprint",
+        reason: "every_machine_group_needs_exact_production_rates_and_a_measured_positive_footprint",
         row: row?.row ?? null,
       };
     }
-    if (!buildRecipe) {
+    if (!buildRecipe || !productionRecipe) {
       return {
         valid: false,
-        reason: "every_machine_group_needs_a_captured_build_recipe",
+        reason: "every_machine_group_needs_captured_build_and_production_recipes",
         row: row?.row ?? null,
       };
     }
 
     const machineWidthCells = Math.ceil(widthCm / unitCm);
     const machineDepthCells = Math.ceil(depthCm / unitCm);
+    const inputs = [];
+    for (const input of row?.inputs_required ?? []) {
+      const itemClass = String(input?.item_class ?? "").trim();
+      const rate = positive(input?.rate_per_minute);
+      if (!itemClass || rate === null) {
+        return {
+          valid: false,
+          reason: "every_machine_group_input_needs_an_exact_item_and_positive_rate",
+          row: row?.row ?? null,
+        };
+      }
+      inputs.push({
+        item_class: itemClass,
+        item_name: String(input?.item_name ?? "").trim() || null,
+        rate_per_minute: rate,
+      });
+    }
+    const chain = Array.isArray(row?.production_chain)
+      ? row.production_chain.map((entry) => String(entry ?? "").trim()).filter(Boolean)
+      : [];
     groups.push({
       id: `production-${groups.length + 1}`,
       row: whole(row.row) ?? groups.length + 1,
+      production_step: productionStep,
       produces: row.produces ?? null,
+      produces_item_class: producesItemClass,
+      produces_rate_per_minute: producesRate,
       machines,
+      machines_exact: machinesExact,
+      per_machine_output_rate_per_minute: perMachineOutput,
+      inputs_required: inputs,
+      production_chain: chain,
       building_class: row.building_class ?? null,
       build_recipe_class: buildRecipe,
-      production_recipe_class: productionRecipe || null,
+      production_recipe_class: productionRecipe,
       machine_footprint_cm: { width: widthCm, depth: depthCm, height: heightCm },
       machine_footprint_cells: { x: machineWidthCells, y: machineDepthCells },
       hall_size_cells: {
@@ -329,7 +363,53 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
       measurement_source: measured,
     });
   }
-  return { valid: true, groups };
+  const seenSteps = new Set();
+  for (const group of groups) {
+    if (seenSteps.has(group.production_step)) {
+      return { valid: false, reason: "production_step_ids_must_be_unique" };
+    }
+    seenSteps.add(group.production_step);
+  }
+  const sameChain = (left, right) => JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
+  const materialEdges = [];
+  const externalInputs = [];
+  for (const consumer of groups) {
+    const producerChain = [...consumer.production_chain, consumer.production_recipe_class];
+    for (const input of consumer.inputs_required) {
+      const candidates = groups.filter((producer) =>
+        producer.id !== consumer.id &&
+        producer.produces_item_class === input.item_class &&
+        sameChain(producer.production_chain, producerChain));
+      if (candidates.length > 1) {
+        return {
+          valid: false,
+          reason: "production_material_edge_has_multiple_producer_groups",
+          consumer_group: consumer.id,
+          item_class: input.item_class,
+        };
+      }
+      if (candidates.length === 0) {
+        externalInputs.push({
+          consumer_group: consumer.id,
+          item_class: input.item_class,
+          item_name: input.item_name,
+          rate_per_minute: input.rate_per_minute,
+        });
+        continue;
+      }
+      const producer = candidates[0];
+      materialEdges.push({
+        id: `material-edge-${materialEdges.length + 1}`,
+        from_program_group: producer.id,
+        to_program_group: consumer.id,
+        item_class: input.item_class,
+        item_name: input.item_name ?? producer.produces ?? null,
+        required_rate_per_minute: input.rate_per_minute,
+        evidence: "exact production-chain provenance and matching item class",
+      });
+    }
+  }
+  return { valid: true, groups, material_edges: materialEdges, external_inputs: externalInputs };
 }
 
 /**
@@ -736,6 +816,88 @@ export function validateMegabaseManifest(manifest) {
       if (!ids.has(segment)) issues.push(`connection_segment_missing:${connection.id}:${segment}`);
     }
   }
+  const groupIds = new Set();
+  const groupsById = new Map();
+  for (const group of manifest?.program?.groups ?? []) {
+    if (!group?.id || groupIds.has(group.id)) {
+      issues.push(`duplicate_or_missing_program_group_id:${group?.id ?? ""}`);
+    }
+    groupIds.add(group?.id);
+    groupsById.set(group?.id, group);
+  }
+  for (const zone of zones) {
+    if (!groupIds.has(zone?.program_group)) {
+      issues.push(`production_zone_program_group_missing:${zone?.id ?? ""}`);
+    }
+  }
+  const edgeIds = new Set();
+  const materialSources = new Map();
+  for (const edge of manifest?.program?.material_edges ?? []) {
+    if (!edge?.id || edgeIds.has(edge.id)) {
+      issues.push(`duplicate_or_missing_material_edge_id:${edge?.id ?? ""}`);
+    }
+    edgeIds.add(edge?.id);
+    if (!groupIds.has(edge?.from_program_group) || !groupIds.has(edge?.to_program_group) ||
+        edge.from_program_group === edge.to_program_group) {
+      issues.push(`material_edge_endpoint_missing_or_invalid:${edge?.id ?? ""}`);
+    }
+    if (!String(edge?.item_class ?? "").trim() || positive(edge?.required_rate_per_minute) === null) {
+      issues.push(`material_edge_item_or_rate_invalid:${edge?.id ?? ""}`);
+    }
+    const producer = groupsById.get(edge?.from_program_group);
+    const consumer = groupsById.get(edge?.to_program_group);
+    if (producer && consumer) {
+      const matchingInputs = (consumer.inputs_required ?? []).filter(
+        (input) => input?.item_class === edge?.item_class,
+      );
+      const requiredInputRate = matchingInputs.reduce(
+        (total, input) => total + (positive(input?.rate_per_minute) ?? 0),
+        0,
+      );
+      const expectedProducerChain = [
+        ...(consumer.production_chain ?? []),
+        consumer.production_recipe_class,
+      ];
+      if (producer.produces_item_class !== edge?.item_class || matchingInputs.length === 0 ||
+          positive(edge?.required_rate_per_minute) !== requiredInputRate ||
+          JSON.stringify(producer.production_chain ?? []) !== JSON.stringify(expectedProducerChain)) {
+        issues.push(`material_edge_provenance_or_rate_mismatch:${edge?.id ?? ""}`);
+      }
+      const sourceKey = `${consumer.id}|${edge.item_class}`;
+      materialSources.set(sourceKey, (materialSources.get(sourceKey) ?? 0) + 1);
+    }
+  }
+  const externalInputKeys = new Set();
+  for (const input of manifest?.program?.external_inputs ?? []) {
+    const consumer = groupsById.get(input?.consumer_group);
+    const key = `${input?.consumer_group ?? ""}|${input?.item_class ?? ""}`;
+    if (externalInputKeys.has(key)) issues.push(`duplicate_external_input:${key}`);
+    externalInputKeys.add(key);
+    if (!consumer || !String(input?.item_class ?? "").trim() ||
+        positive(input?.rate_per_minute) === null) {
+      issues.push(`external_input_endpoint_item_or_rate_invalid:${key}`);
+      continue;
+    }
+    const matchingInputs = (consumer.inputs_required ?? []).filter(
+      (entry) => entry?.item_class === input.item_class,
+    );
+    const requiredInputRate = matchingInputs.reduce(
+      (total, entry) => total + (positive(entry?.rate_per_minute) ?? 0),
+      0,
+    );
+    if (matchingInputs.length === 0 || positive(input.rate_per_minute) !== requiredInputRate) {
+      issues.push(`external_input_provenance_or_rate_mismatch:${key}`);
+    }
+    materialSources.set(key, (materialSources.get(key) ?? 0) + 1);
+  }
+  for (const group of groupsById.values()) {
+    for (const input of group?.inputs_required ?? []) {
+      const key = `${group.id}|${input?.item_class ?? ""}`;
+      if (materialSources.get(key) !== 1) {
+        issues.push(`production_input_must_have_exactly_one_material_source:${key}`);
+      }
+    }
+  }
   return { valid: issues.length === 0, issues };
 }
 
@@ -1023,6 +1185,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
         machine_counts: true,
         architectural_part_candidates: true,
         placement_geometry: true,
+        internal_material_dependencies: true,
         transport_routing: false,
       },
       transport_routing_effect:
@@ -1031,6 +1194,8 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     program: {
       source: "measured_factory_layout",
       groups: program.groups,
+      material_edges: program.material_edges,
+      external_inputs: program.external_inputs,
     },
     elements,
     connections,

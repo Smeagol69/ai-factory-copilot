@@ -26,31 +26,60 @@ const layout = {
     rows: [
       {
         row: 1,
+        production_step: 3,
         produces: "Iron Ingot",
+        produces_item_class: "Desc_IronIngot",
+        produces_rate_per_minute: 60,
         building_class: "/Game/Buildable/Build_Smelter.Build_Smelter_C",
         build_recipe_class: "/Game/Recipes/Recipe_Smelter.Recipe_Smelter_C",
         production_recipe_class: "/Game/Recipes/Recipe_IngotIron.Recipe_IngotIron_C",
         machines: 2,
+        machines_exact: 2,
+        per_machine_output_rate_per_minute: 30,
+        inputs_required: [{ item_class: "Desc_OreIron", item_name: "Iron Ore", rate_per_minute: 60 }],
+        production_chain: [
+          "/Game/Recipes/Recipe_ReinforcedIronPlate.Recipe_ReinforcedIronPlate_C",
+          "/Game/Recipes/Recipe_IronPlate.Recipe_IronPlate_C",
+        ],
         machine_footprint_cm: { width: 600, depth: 900, height: 800 },
         footprint_measured_from: "2 of your own machines",
       },
       {
         row: 2,
+        production_step: 2,
         produces: "Iron Plate",
+        produces_item_class: "Desc_IronPlate",
+        produces_rate_per_minute: 80,
         building_class: "/Game/Buildable/Build_Constructor.Build_Constructor_C",
         build_recipe_class: "/Game/Recipes/Recipe_Constructor.Recipe_Constructor_C",
         production_recipe_class: "/Game/Recipes/Recipe_IronPlate.Recipe_IronPlate_C",
         machines: 4,
+        machines_exact: 4,
+        per_machine_output_rate_per_minute: 20,
+        inputs_required: [{ item_class: "Desc_IronIngot", item_name: "Iron Ingot", rate_per_minute: 120 }],
+        production_chain: [
+          "/Game/Recipes/Recipe_ReinforcedIronPlate.Recipe_ReinforcedIronPlate_C",
+        ],
         machine_footprint_cm: { width: 800, depth: 600, height: 800 },
         footprint_measured_from: "6 of your own machines",
       },
       {
         row: 3,
+        production_step: 1,
         produces: "Reinforced Iron Plate",
+        produces_item_class: "Desc_ReinforcedIronPlate",
+        produces_rate_per_minute: 10,
         building_class: "/Game/Buildable/Build_Assembler.Build_Assembler_C",
         build_recipe_class: "/Game/Recipes/Recipe_Assembler.Recipe_Assembler_C",
         production_recipe_class: "/Game/Recipes/Recipe_ReinforcedIronPlate.Recipe_ReinforcedIronPlate_C",
         machines: 2,
+        machines_exact: 2,
+        per_machine_output_rate_per_minute: 5,
+        inputs_required: [
+          { item_class: "Desc_IronPlate", item_name: "Iron Plate", rate_per_minute: 60 },
+          { item_class: "Desc_Screw", item_name: "Screw", rate_per_minute: 120 },
+        ],
+        production_chain: [],
         machine_footprint_cm: { width: 1000, depth: 1500, height: 1200 },
         footprint_measured_from: "1 of your own machines",
       },
@@ -423,9 +452,27 @@ test("machine halls retain measured recipes and grow from measured footprints", 
   assert.equal(group.produces, "Iron Plate");
   assert.equal(group.build_recipe_class, layout.layout.rows[1].build_recipe_class);
   assert.equal(group.production_recipe_class, layout.layout.rows[1].production_recipe_class);
+  assert.equal(group.production_step, layout.layout.rows[1].production_step);
+  assert.equal(group.machines_exact, layout.layout.rows[1].machines_exact);
+  assert.equal(group.inputs_required[0].item_class, "Desc_IronIngot");
   assert.deepEqual(group.machine_footprint_cm, { width: 800, depth: 600, height: 800 });
   assert.equal(group.hall_size_cells.x, 8);
   assert.match(group.measurement_source, /your own machines/);
+  assert.deepEqual(
+    concept.program.material_edges.map((edge) => [
+      edge.from_program_group,
+      edge.to_program_group,
+      edge.item_class,
+    ]),
+    [
+      ["production-1", "production-2", "Desc_IronIngot"],
+      ["production-2", "production-3", "Desc_IronPlate"],
+    ],
+  );
+  assert.deepEqual(
+    concept.program.external_inputs.map((input) => input.item_class).sort(),
+    ["Desc_OreIron", "Desc_Screw"],
+  );
 });
 
 test("a missing measured footprint stays missing instead of becoming vanilla geometry", () => {
@@ -436,7 +483,10 @@ test("a missing measured footprint stays missing instead of becoming vanilla geo
     floor_height_cm: 400,
   });
   assert.equal(concept.compiled, false);
-  assert.equal(concept.reason, "every_machine_group_needs_a_measured_positive_footprint");
+  assert.equal(
+    concept.reason,
+    "every_machine_group_needs_exact_production_rates_and_a_measured_positive_footprint",
+  );
   assert.deepEqual(concept.actions, []);
 });
 
@@ -523,11 +573,45 @@ test("manifest validation catches actions, transform drift and missing endpoints
   corrupted.actions.push({ action: "place_building" });
   corrupted.elements[0].world_origin_cm.x += 1;
   corrupted.connections[0].to = "does-not-exist";
+  corrupted.program.material_edges[0].to_program_group = "does-not-exist";
+  corrupted.program.material_edges[0].required_rate_per_minute = 0;
   const result = validateMegabaseManifest(corrupted);
   assert.equal(result.valid, false);
   assert.ok(result.issues.includes("a_preview_manifest_must_not_contain_actions"));
   assert.ok(result.issues.some((issue) => issue.startsWith("world_transform_mismatch:")));
   assert.ok(result.issues.some((issue) => issue.startsWith("connection_endpoint_missing:")));
+  assert.ok(result.issues.some((issue) => issue.startsWith("material_edge_endpoint_missing_or_invalid:")));
+  assert.ok(result.issues.some((issue) => issue.startsWith("material_edge_item_or_rate_invalid:")));
+});
+
+test("manifest validation preserves exact material-edge provenance and consumer rate", () => {
+  const concept = compile("elevated_industrial_campus");
+  const corrupted = structuredClone(concept);
+  corrupted.program.material_edges[0].required_rate_per_minute += 1;
+  const result = validateMegabaseManifest(corrupted);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.includes("material_edge_provenance_or_rate_mismatch:material-edge-1"));
+});
+
+test("manifest validation accounts for every production input exactly once", () => {
+  const concept = compile("elevated_industrial_campus");
+  const missing = structuredClone(concept);
+  missing.program.external_inputs = missing.program.external_inputs.filter(
+    (input) => input.item_class !== "Desc_Screw",
+  );
+  let result = validateMegabaseManifest(missing);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.includes(
+    "production_input_must_have_exactly_one_material_source:production-3|Desc_Screw",
+  ));
+
+  const duplicated = structuredClone(concept);
+  duplicated.program.external_inputs.push(structuredClone(duplicated.program.external_inputs[0]));
+  result = validateMegabaseManifest(duplicated);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((issue) => issue.startsWith("duplicate_external_input:")));
+  assert.ok(result.issues.some((issue) =>
+    issue.startsWith("production_input_must_have_exactly_one_material_source:")));
 });
 
 test("the model-facing solver is action-free by default and can emit one draw-only Architect preview", () => {

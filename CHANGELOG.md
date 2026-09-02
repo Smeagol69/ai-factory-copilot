@@ -5,6 +5,20 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added the first fail-closed **AI Architect A4 working-topology compiler**.
+  Architect manifests now retain exact production-step IDs, selected production
+  recipes, item classes, machine-exact counts, per-machine output rates, input
+  rates, recursive production provenance, derived internal material edges, and
+  explicit external inputs. Promotion must compile every retained internal edge
+  or emit no native action. The first executable subset creates generated-
+  Blueprint v2 direct conveyor links only for equal-count, fully utilised,
+  rate-matched solid-item machine pairs with one captured native output/input
+  connector and an unlocked conveyor capacity observed on a captured live
+  instance. Port reuse, ambiguous producers/connectors, insufficient or unknown
+  capacity, split/merge balancing, and non-solid flow all fail closed. Splitters,
+  mergers, lifts, fluids, power, and external I/O remain named follow-on work;
+  operational readiness remains false until those systems and game readback are
+  proven.
 - Began the fail-closed **AI Architect A3 native-promotion adapter**. The exact
   stored revision is deterministically recompiled against the current complete
   graph, must still pass manifest/design-family/unlock fingerprints, and must be

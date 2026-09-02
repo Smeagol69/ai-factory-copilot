@@ -430,11 +430,24 @@ export function designFactoryLayout(graph, args = {}, services = {}) {
     layout: {
       rows: rows.map((row, index) => ({
         row: index + 1,
+        production_step: row.step.step ?? index + 1,
         produces: row.step.produces?.item_name ?? null,
+        produces_item_class: row.step.produces?.item_class ?? null,
+        produces_rate_per_minute:
+          row.step.produces?.display_units_per_minute ?? null,
         building_class: row.footprint.class_path,
         build_recipe_class: row.footprint.build_recipe_class,
         production_recipe_class: row.step.recipe_class ?? null,
         machines: row.machines,
+        machines_exact: row.step.machines_exact ?? null,
+        per_machine_output_rate_per_minute:
+          row.step.per_machine_display_units_per_minute ?? null,
+        inputs_required: (row.step.inputs_required ?? []).map((input) => ({
+          item_class: input.item_class ?? null,
+          item_name: input.item_name ?? null,
+          rate_per_minute: input.display_units_per_minute ?? null,
+        })),
+        production_chain: [...(row.step.chain ?? [])],
         machine_footprint_cm: {
           width: row.footprint.width_cm,
           depth: row.footprint.depth_cm,

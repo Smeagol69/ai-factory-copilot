@@ -173,6 +173,31 @@ I/O are routed from captured native connectors and capacities. Terrain and
 clearance evidence is recalculated at the destination immediately before native
 Blueprint generation.
 
+Direct-conveyor checkpoint (2026-09-01):
+
+- immutable Architect production groups now retain their exact solver-selected
+  step/recipe/item identity, machine-exact count, per-machine output, required
+  inputs, and recursive production chain. The manifest deterministically derives
+  every unambiguous internal material dependency and separately records external
+  inputs; ambiguous producers invalidate the manifest;
+- selected-revision promotion must compile every internal material edge. The
+  first accepted subset is one direct solid conveyor per paired producer and
+  consumer machine when both groups have equal integer/full-utilisation counts,
+  the edge rate divides into the exact producer output rate, each captured
+  machine class exposes exactly one native output/input connector, and the
+  current graph proves an unlocked Build Gun conveyor with sufficient capacity
+  observed on a captured live instance;
+- accepted lanes use the existing `aifactory.generated-blueprint/v2` step and
+  connector contract. The existing action validator rechecks both endpoint
+  classes, exact native component names, direction, unconnected state, relative
+  endpoints, and conveyor recipe before Satisfactory stages and reads the native
+  topology back;
+- a needed splitter/merger, lift, fluid path, clocking/balancing step, reused or
+  ambiguous connector, or unknown capacity blocks the complete native action.
+  No dependency is silently dropped. External input/output routing, power,
+  circulation, commissioning and destination terrain/clearance remain open, so
+  this checkpoint still reports `operational_readiness.ready = false`.
+
 Acceptance:
 
 - every requested output and commissioning phase re-solves exactly;

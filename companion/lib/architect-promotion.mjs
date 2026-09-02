@@ -16,6 +16,7 @@
  */
 
 import { parsePieceDimensions } from "./architecture.mjs";
+import { compileArchitectConveyors } from "./architect-topology.mjs";
 import { fingerprintArchitectManifest } from "./architect-revisions.mjs";
 import { compileGeneratedBlueprint, generatedBlueprintAction } from "./generated-blueprints.mjs";
 import { captureUnlockConstraints, gridPointToWorld, validateMegabaseManifest } from "./megabase.mjs";
@@ -417,6 +418,7 @@ function compileMachineActions(manifest, elements, machineEvidence) {
         action: "place_building",
         recipe_class: evidence.build_recipe_class,
         production_recipe_class: evidence.production_recipe_class,
+        architect_group_id: evidence.group_id,
         location: world,
         exact_z: true,
         yaw,
@@ -778,7 +780,8 @@ export function compileArchitectPromotion(graph, manifest, {
     blockers: uniqueBlockers,
     operational_readiness: {
       ready: false,
-      reason: "A3 creates a native architectural Blueprint; A4 must still compile and verify production logistics, power, fluids, circulation, commissioning isolation, and destination hookups.",
+      internal_material_topology: "not_evaluated",
+      reason: "Native generation is not yet a commissioned factory. A4 can compile the proven direct solid-material subset, while split/merge balancing, lifts, fluids, power, circulation, commissioning isolation, resource/external I/O, and destination hookups remain fail-closed.",
     },
     authority:
       "The companion may compile only proven native parts. Satisfactory remains responsible for staging, native save/load readback, active descriptor registration, Build Gun hologram cost/snap/collision, and final construction.",
@@ -898,21 +901,42 @@ export function compileArchitectPromotion(graph, manifest, {
       diagnostic: landmarks,
     };
   }
+  const buildingActions = [
+    ...platform.actions,
+    ...machines.actions,
+    ...facades.actions,
+    ...roofs.actions,
+    ...supports.actions,
+    ...bridges.actions,
+    ...landmarks.actions,
+  ];
+  const internalConveyors = compileArchitectConveyors(
+    graph,
+    manifest,
+    buildingActions,
+  );
+  if (!internalConveyors.compiled) {
+    return {
+      ...base,
+      compiled: false,
+      ready_for_native_generation: false,
+      blockers: [`architect_internal_conveyor_compiler_refused:${internalConveyors.reason}`],
+      internal_conveyors: internalConveyors,
+      operational_readiness: {
+        ...base.operational_readiness,
+        internal_material_topology: "blocked",
+        internal_material_topology_reason: internalConveyors.reason,
+      },
+      effect: "No native Blueprint action was produced; incomplete internal material topology was not omitted.",
+    };
+  }
   const native = compileGeneratedBlueprint({
     blueprint_name: name,
     description: cleanText(description, 1_000) ??
       `AI Architect revision ${revisionId}; manifest ${fingerprint.manifest_fingerprint}.`,
-    actions: [
-      ...platform.actions,
-      ...machines.actions,
-      ...facades.actions,
-      ...roofs.actions,
-      ...supports.actions,
-      ...bridges.actions,
-      ...landmarks.actions,
-    ],
+    actions: [...buildingActions, ...internalConveyors.actions],
     origin_cm: manifest.anchor_cm,
-    schema: "aifactory.generated-blueprint/v1",
+    schema: internalConveyors.topology_schema,
   });
   if (!native.compiled) {
     return {
@@ -937,6 +961,15 @@ export function compileArchitectPromotion(graph, manifest, {
         : "validated_preview_action_only",
       next_after_verified_game_readback:
         `preview blueprint ${native.blueprint_name}`,
+    },
+    internal_conveyors: internalConveyors,
+    operational_readiness: {
+      ...base.operational_readiness,
+      internal_material_topology: internalConveyors.actions.length > 0
+        ? "compiled_pending_native_game_readback"
+        : "no_internal_material_edges_in_manifest",
+      compiled_internal_material_edges: internalConveyors.evidence.length,
+      compiled_internal_conveyor_segments: internalConveyors.actions.length,
     },
     action,
   };

@@ -86,7 +86,7 @@ absence in the model's view is never treated as an absence in the world.
 | `plan_belt_route` | a direct conveyor route between two captured connection components |
 | `plan_belted_module` | a compact two-phase miner-to-machine module using measured footprints |
 | `design_megabase_concept` | AI Architect Mode concept: exact semantic campus transforms, design-family provenance, blockers, and optional draw-only in-world preview |
-| `manage_architect_revisions` | save/session-scoped immutable Architect options: list, inspect, compare, redraw, select, roll back, report exact native-promotion blockers, promote only a completely compiled selected revision through the existing native Blueprint transaction, or delete an unselected leaf draft |
+| `manage_architect_revisions` | save/session-scoped immutable Architect options: list, inspect, compare, redraw, select, roll back, report exact native-promotion/topology blockers, promote only a completely compiled selected revision through the existing native Blueprint transaction, or delete an unselected leaf draft |
 | `perform_actions` | places, removes, moves, teleports — validated, then executed by the game |
 | `highlight` | tracer lines and bounding boxes around anything, drawn in-world |
 | `clear_highlight` | removes an overlay |
@@ -97,6 +97,14 @@ resource diversity, purity-weighted node count, coverage of the resources you
 named, and distance cost — returning exact coordinates, the runners-up, and the
 per-factor breakdown. Occupied nodes and hand-mined `Deposit` nodes are excluded,
 because a miner cannot be placed on either.
+
+Architect promotion now preserves exact production-step provenance, rates, and
+internal material dependencies in the immutable manifest. Its first A4 topology
+slice compiles only direct one-to-one solid conveyor lanes when machine counts
+and per-lane rates match, each endpoint class has one captured native connector,
+and an unlocked conveyor has a capacity observed in the live snapshot. Any edge
+that needs a splitter, merger, lift, fluid path, guessed port, or unproved
+capacity blocks the whole native Blueprint instead of disappearing from it.
 
 Saved blueprints can be inspected without placing them: ask *"inspect blueprint
 <name>"* to decode native saved `Build_*` entities, their classes, a bounded

@@ -5574,3 +5574,33 @@ only unambiguous capacity-compatible internal conveyor links into the existing
 generated-Blueprint v2 validator/game readback contract. No new serializer,
 world writer, belt hologram bypass, guessed connector, external source/sink,
 splitter network, pipe, pump, power, lift, or terrain work is in this claim.
+
+### Codex — 2026-09-01 A4 direct internal conveyor checkpoint
+
+Completed the claimed first A4 slice on `codex/ai-architect-topology`.
+`design_factory_layout` now retains exact production step/recipe/item identity,
+machine-exact count, per-machine output, required input rates, and recursive
+production provenance. `megabase.design/v1` turns only an unambiguous matching
+producer into a `material_edge`, records every remaining dependency as an
+`external_input`, and validates that each recipe input has exactly one source
+with unchanged provenance and rate.
+
+Selected Architect promotion now compiles every internal edge or emits no
+native action. The accepted subset is deliberately narrow: equal-count,
+fully-utilised producer/consumer machines; equal exact per-lane rates; a proven
+solid item; one captured native output/input connector per endpoint class; and
+an unlocked Build Gun conveyor whose sufficient capacity was observed on a
+captured live instance. Accepted links reuse the existing generated-Blueprint
+v2 step-reference/connector contract and its independent action validation plus
+native reciprocal topology readback. Ambiguous ports/producers, port reuse,
+unknown or insufficient capacity, clocking, split/merge balancing, non-solid
+flow, and any uncompiled dependency fail the whole promotion closed.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation passed and
+all **918/918** companion tests pass. The new direct-link proposal is also
+independently accepted by the existing generated-Blueprint action validator.
+No C++/serializer/world-write code changed. Native `.sbp` topology readback and
+Build Gun visual placement remain pending, so operational readiness stays
+false. Splitter/merger networks, lifts, fluids, power, resource/external I/O,
+circulation, commissioning, and destination terrain remain separate follow-on
+claims.

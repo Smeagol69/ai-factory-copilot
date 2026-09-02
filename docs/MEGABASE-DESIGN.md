@@ -76,6 +76,13 @@ connector occupancy, capacities, terrain and obstructions have been solved.
 
 `companion/lib/megabase.mjs` emits `megabase.design/v1`. A manifest contains:
 
+- exact production groups retaining their solver step, build and production
+  recipes, produced item/rate, machine-exact count, per-machine output, required
+  inputs, recursive production provenance, and measured footprint;
+- deterministic `material_edges` only where that provenance proves one internal
+  producer, plus explicit `external_inputs` for every remaining recipe input.
+  Validation requires every production input to have exactly one internal or
+  external source and rejects rate or provenance drift;
 - an authoritative anchor, grid unit, floor height and yaw;
 - the requested style and its explicit creative parameters;
 - production zones derived from measured machine rows;
