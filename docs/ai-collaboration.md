@@ -5563,3 +5563,14 @@ Verification:
 connector primitives rather than invent another writer. Claim the exact
 topology slice here before editing; likely first slice is deterministic internal
 conveyors for one production group, followed separately by power and fluids.
+
+### Active claim — Codex — 2026-09-01 A4 internal conveyor topology
+
+Working on `codex/ai-architect-topology` after A3 commit `719fa64`. Scope is the
+first fail-closed A4 slice only: retain the deterministic production dependency
+edges and exact captured machine connector evidence in `megabase.design/v1`,
+map those edges onto the already compiled Architect machine actors, and feed
+only unambiguous capacity-compatible internal conveyor links into the existing
+generated-Blueprint v2 validator/game readback contract. No new serializer,
+world writer, belt hologram bypass, guessed connector, external source/sink,
+splitter network, pipe, pump, power, lift, or terrain work is in this claim.
