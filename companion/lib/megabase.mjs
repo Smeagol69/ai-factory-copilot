@@ -291,6 +291,7 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
     const heightCm = positive(row?.machine_footprint_cm?.height);
     const measured = String(row?.footprint_measured_from ?? "").trim();
     const buildRecipe = String(row?.build_recipe_class ?? "").trim();
+    const productionRecipe = String(row?.production_recipe_class ?? "").trim();
     if (
       machines === null || machines < 1 || widthCm === null ||
       depthCm === null || heightCm === null || !measured
@@ -318,6 +319,7 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
       machines,
       building_class: row.building_class ?? null,
       build_recipe_class: buildRecipe,
+      production_recipe_class: productionRecipe || null,
       machine_footprint_cm: { width: widthCm, depth: depthCm, height: heightCm },
       machine_footprint_cells: { x: machineWidthCells, y: machineDepthCells },
       hall_size_cells: {
@@ -858,11 +860,12 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       "production_zone",
       zone.local,
       zone.size,
-      ["foundation", "wall", "lighting"],
+      ["foundation", "wall"],
       {
         program_group: zone.group.id,
         produces: zone.group.produces,
         phase_machine_allocation: phaseMachineAllocation,
+        optional_roles: ["lighting"],
       },
     );
     add(
@@ -932,7 +935,8 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     "vertical_landmark",
     { x: towerX, y: maxY + parameters.hall_gap_cells, z: towerZ },
     { x: parameters.tower_width_cells, y: parameters.tower_depth_cells, z: parameters.tower_floors },
-    ["foundation", "wall", "window", "lighting"],
+    ["foundation", "wall", "window"],
+    { optional_roles: ["lighting"] },
   );
 
   const elements = rawElements.map((element) => ({
@@ -953,6 +957,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     ...(element.phase_machine_allocation
       ? { phase_machine_allocation: element.phase_machine_allocation }
       : {}),
+    ...(element.optional_roles ? { optional_roles: element.optional_roles } : {}),
   }));
 
   const parts = resolveSemanticRoles(graph, options.part_selections);

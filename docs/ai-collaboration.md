@@ -5522,3 +5522,44 @@ design-family fingerprint, unlock fingerprint, construction blockers, and
 design request. Recompile/select must succeed before native Blueprint
 generation. Do not accept arbitrary model-supplied geometry as a substitute,
 and do not edit a revision in place; any requested change becomes a child.
+
+### Codex — 2026-09-01 AI Architect native massing promotion checkpoint
+
+Completed the current A3 semantic-to-native adapter on
+`codex/ai-architect-promotion`. This supersedes the older note assigning all A3
+work to a separate Claude lane. `promotion_status` and `promote_selected` first
+reload the exact revision, deterministically recompile its stored request,
+repeat content/design-family/unlock fingerprints, and require that revision to
+be selected. Only `promote_selected` with explicit `commit:true` may emit the
+existing standalone `generate_native_blueprint` action.
+
+Every semantic massing kind currently emitted by `megabase.design/v1` now has
+a fail-closed adapter: top-aligned structural Foundation decks; production
+machines with exact selected build/production recipes, compatibility, measured
+footprints, count, and hall fit; vertically modular wall/window facades; tiled
+roofs; stacked support columns; one-cell-wide orthogonal walkways with two rail
+lines; and repeated Foundation/wall/window landmark floors. Each role is
+re-resolved from the current captured unlocked Build Gun catalog and must carry
+a captured building class plus positive descriptor dimensions compatible with
+the exact manifest grid. No unsupported or unresolved element is omitted from
+a purportedly complete promotion.
+
+Lighting is intentionally `optional_roles` visual polish until its native
+attachment contract is proven. A3 still claims no belts, lifts, pipes, pumps,
+power, entrances, vertical circulation, resource/external I/O, commissioning,
+terrain fit, collision result, native file, or Build Gun success. Those remain
+A4 or game-authority gates. The existing C++ native Designer serializer,
+staging/readback, registry refresh, and Build Gun handoff were not changed.
+
+Verification:
+
+- Exact SML 3.12.0 / FactoryGame CL 502094 validation passed.
+- Companion tests: 914/914, including the full 61-buildable massing proposal
+  independently accepted by the existing action validator.
+- Packaged-game `.sbp` readback and visual Build Gun verification are still
+  pending; do not call A3 live-certified until that evidence exists.
+
+**Next shared claim:** A4 must consume the existing generated-Blueprint v2/v3/v4
+connector primitives rather than invent another writer. Claim the exact
+topology slice here before editing; likely first slice is deterministic internal
+conveyors for one production group, followed separately by power and fluids.

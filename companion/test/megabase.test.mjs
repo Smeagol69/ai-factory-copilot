@@ -29,6 +29,7 @@ const layout = {
         produces: "Iron Ingot",
         building_class: "/Game/Buildable/Build_Smelter.Build_Smelter_C",
         build_recipe_class: "/Game/Recipes/Recipe_Smelter.Recipe_Smelter_C",
+        production_recipe_class: "/Game/Recipes/Recipe_IngotIron.Recipe_IngotIron_C",
         machines: 2,
         machine_footprint_cm: { width: 600, depth: 900, height: 800 },
         footprint_measured_from: "2 of your own machines",
@@ -38,6 +39,7 @@ const layout = {
         produces: "Iron Plate",
         building_class: "/Game/Buildable/Build_Constructor.Build_Constructor_C",
         build_recipe_class: "/Game/Recipes/Recipe_Constructor.Recipe_Constructor_C",
+        production_recipe_class: "/Game/Recipes/Recipe_IronPlate.Recipe_IronPlate_C",
         machines: 4,
         machine_footprint_cm: { width: 800, depth: 600, height: 800 },
         footprint_measured_from: "6 of your own machines",
@@ -47,6 +49,7 @@ const layout = {
         produces: "Reinforced Iron Plate",
         building_class: "/Game/Buildable/Build_Assembler.Build_Assembler_C",
         build_recipe_class: "/Game/Recipes/Recipe_Assembler.Recipe_Assembler_C",
+        production_recipe_class: "/Game/Recipes/Recipe_ReinforcedIronPlate.Recipe_ReinforcedIronPlate_C",
         machines: 2,
         machine_footprint_cm: { width: 1000, depth: 1500, height: 1200 },
         footprint_measured_from: "1 of your own machines",
@@ -419,6 +422,7 @@ test("machine halls retain measured recipes and grow from measured footprints", 
   const group = concept.program.groups[1];
   assert.equal(group.produces, "Iron Plate");
   assert.equal(group.build_recipe_class, layout.layout.rows[1].build_recipe_class);
+  assert.equal(group.production_recipe_class, layout.layout.rows[1].production_recipe_class);
   assert.deepEqual(group.machine_footprint_cm, { width: 800, depth: 600, height: 800 });
   assert.equal(group.hall_size_cells.x, 8);
   assert.match(group.measurement_source, /your own machines/);

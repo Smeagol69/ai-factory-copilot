@@ -433,6 +433,7 @@ export function designFactoryLayout(graph, args = {}, services = {}) {
         produces: row.step.produces?.item_name ?? null,
         building_class: row.footprint.class_path,
         build_recipe_class: row.footprint.build_recipe_class,
+        production_recipe_class: row.step.recipe_class ?? null,
         machines: row.machines,
         machine_footprint_cm: {
           width: row.footprint.width_cm,

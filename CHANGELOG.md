@@ -15,7 +15,16 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   exact `structural_platform` cells only when their selected Foundation recipe
   is captured, unlocked, Build-Gun produced, backed by a captured buildable
   class, dimensioned by its descriptor, and exactly matches the manifest grid.
-  Other campus elements remain named blockers and are never guessed or dropped.
+  Production zones also retain and recheck each deterministic production
+  recipe, exact compatible machine class, measured footprint, count, and
+  in-hall fit before compiling configured native machines. All current massing
+  kinds now have exact fail-closed adapters: vertically modular wall/window
+  facades, tiled roofs, stacked pylons, one-cell orthogonal walkways with two
+  rail lines, and repeated Foundation/wall/window landmark floors. Lighting is
+  explicitly optional until its attachment contract exists; all belts, pipes,
+  power, circulation, external I/O, and commissioning remain named A4
+  readiness gaps rather than guessed or silently dropped. This is companion-
+  verified but not yet packaged-game/readback certified.
   No C++ serializer, Blueprint registry, Build Gun handoff, or world-write gate
   was changed.
 - Added persistent **AI Architect briefs, revisions, and variants**. A named

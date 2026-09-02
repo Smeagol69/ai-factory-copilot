@@ -18,7 +18,11 @@ see the solver-grounded whole-campus concept in the running game, revise it in
 conversation, then hand the accepted revision to Satisfactory's native
 Blueprint and Build Gun workflow. The first in-world semantic preview uses
 exact `megabase.design/v1` transforms and never pretends its colored wireframes
-are placement validation. See [`docs/AI_ARCHITECT_MODE.md`](docs/AI_ARCHITECT_MODE.md).
+are placement validation. The selected-revision promotion path now has
+fail-closed native massing compilers for platforms, configured production
+machines, modular facades/roofs, pylons, guarded skybridges, and landmark
+towers; topology and packaged-game readback remain explicit readiness gates.
+See [`docs/AI_ARCHITECT_MODE.md`](docs/AI_ARCHITECT_MODE.md).
 
 - an Insert-toggled in-game chat panel: type a question however you want to word
   it, Enter to send, Shift+Enter for a new line, with a transcript, a live

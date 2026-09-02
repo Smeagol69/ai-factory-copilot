@@ -103,9 +103,11 @@ test("model-facing Architect tools create, compare, select, roll back, and delet
   assert.equal(promotionStatus.operation, "promotion_status");
   assert.equal(promotionStatus.action_emitted, false);
   assert.equal(promotionStatus.promotion.ready_for_native_generation, false);
+  assert.ok(promotionStatus.promotion.blockers.length > 0);
   assert.ok(
-    promotionStatus.promotion.blockers.some((blocker) =>
+    !promotionStatus.promotion.blockers.some((blocker) =>
       blocker.startsWith("architect_element_kind_has_no_native_compiler:")),
+    "all current Architect massing kinds have native compilers; this fixture is blocked by missing exact live part evidence",
   );
 
   const promotionActions = [];

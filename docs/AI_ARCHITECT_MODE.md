@@ -129,18 +129,41 @@ Promotion-adapter checkpoint (2026-09-01):
   `generate_native_blueprint` transaction; Satisfactory still stages, measures,
   serializes, reloads, checks contents/topology, refreshes the active registry,
   and reports the real outcome;
-- the first executable adapter is deliberately narrow: one or more
-  `structural_platform` elements become exact Foundation cells only when the
+- `structural_platform` elements become exact Foundation cells only when the
   selected recipe is currently captured and unlocked, belongs to the Build Gun,
-  resolves to a captured building class, carries parseable descriptor
-  dimensions, and its width exactly equals the manifest grid. The adapter does
-  not impose a Designer dimension cap;
-- production halls, machines, facades, roofs, pylons, bridges, landmark towers,
-  lights, and all topology still report named blockers. They are not silently
-  omitted and therefore a normal whole-campus revision is not yet promotable.
-  Expanding those exact semantic compilers is the remaining A3 work. After a
-  verified native file readback, the existing `preview_blueprint` handoff arms
-  that exact descriptor in the player's normal Build Gun.
+  resolves to a captured building class, carries positive parseable descriptor
+  dimensions, and its width exactly equals the manifest grid. Raised slabs are
+  top-aligned to their semantic deck so the next floor starts on their proven
+  thickness. The adapter does not impose a Designer dimension cap;
+- `production_zone` now has an exact machine-population adapter too. Each
+  production group retains its deterministic selected production recipe in the
+  immutable manifest; promotion rechecks its Build Gun recipe, building class,
+  production recipe unlock and machine compatibility, measured three-axis
+  footprint, integer grid footprint, count, and fit inside the semantic hall.
+  It then emits exact configured-machine transforms centred in that hall. This
+  is contents only: it still claims no belt, pipe, power, or commissioning
+  connectivity;
+- all current massing kinds now have fail-closed native adapters. Glazed
+  facades stack exact matching wall/window vertical modules; roofs tile the
+  selected grid-width roof; pylons stack exact height divisors; skybridges are
+  restricted to one-cell-wide orthogonal segments with an exact walkway and
+  two rail lines; landmark towers repeat exact Foundation floors and matching
+  wall/window perimeter modules. Any missing recipe, unlock, building class,
+  positive descriptor dimension, grid divisibility, footprint fit, or semantic
+  compiler still blocks the entire revision;
+- lighting is explicitly optional visual polish because its native attachment
+  contract is not yet compiled. No light is silently promised or required for
+  an otherwise exact shell. Belts, lifts, pipes, pumps, power, entrances,
+  vertical circulation, resource/external I/O, and commissioning remain A4
+  topology and operational-readiness work, so A3 never calls the shell a
+  working factory;
+- a whole-campus revision can now reach the existing native transaction only
+  when every required live part selection satisfies those exact checks. This
+  has companion test coverage, but the resulting large `.sbp` and Build Gun
+  hologram still require packaged-game readback and visual verification before
+  A3 is called live-certified. After verified native file readback, the existing
+  `preview_blueprint` handoff arms that exact descriptor in the player's normal
+  Build Gun.
 
 ### A4 — Working-factory topology
 
@@ -222,10 +245,14 @@ weaken write gates, or convert previews into permission.
 
 ## Claude/Codex collaboration seam
 
-- The draw-only semantic preview compiler and game overlay are the Codex lane.
-- The selected-manifest to generated native Blueprint and Build Gun hologram is
-  the requested Claude lane.
-- Both consume `megabase.design/v1`; neither rewrites the other's output.
-- Production/topology work already claimed on
-  `codex/generated-blueprint-two-stage-wire` remains independent and should be
-  merged through `master` before Architect topology consumes it.
+- Both agents coordinate through `docs/ai-collaboration.md` and `master`; neither
+  relies on private chat state.
+- The draw-only preview, immutable revision store, and fail-closed native
+  promotion adapter all consume the same `megabase.design/v1` manifest and keep
+  its fingerprints intact.
+- Existing generated-Blueprint serialization and topology primitives remain the
+  shared authority boundary. Architect extensions call those proven contracts
+  instead of creating a parallel writer.
+- A4 production/topology work must be claimed before editing and merged through
+  `master` so a belt, pipe, or power compiler cannot silently diverge from the
+  existing game-side readback rules.
