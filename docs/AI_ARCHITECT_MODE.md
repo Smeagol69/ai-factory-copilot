@@ -199,9 +199,31 @@ Direct-conveyor checkpoint (2026-09-01):
   topology back;
 - a needed splitter/merger, lift, fluid path, clocking/balancing step, reused or
   ambiguous connector, or unknown capacity blocks the complete native action.
-  No dependency is silently dropped. External input/output routing, power,
-  circulation, commissioning and destination terrain/clearance remain open, so
+  No dependency is silently dropped. External input/output routing, power
+  generation/external feed, circulation, commissioning and destination
+  terrain/clearance remain open, so
   this checkpoint still reports `operational_readiness.ready = false`.
+
+Internal-power checkpoint (2026-09-03):
+
+- every configured production-machine action is passed through the existing
+  deterministic generated-Blueprint power planner. Each exact buildable class
+  must expose one visible captured native circuit connector with a non-empty
+  component name, circuit type, link capacity, and class-default position;
+- a currently unlocked Build Gun wire must expose a captured maximum length.
+  Length preflight transforms each connector position by its exact generated
+  actor transform, matching what the native staging world will measure;
+- compatible machines use a direct capacity-safe native daisy chain where
+  possible. Otherwise an unlocked captured ground pole with a compatible
+  circuit type and sufficient captured capacity is added as a minimal trunk.
+  One link on the first endpoint remains reserved and explicitly reported for
+  the player's live external grid;
+- physical edges compile through the existing generated-Blueprint v2 power
+  contract and still require native isolated-world wire/link readback. Missing
+  connector, type, capacity, position, wire, range, or pole evidence blocks the
+  whole selected revision. Internal distribution is not generation and the
+  reserved external link is not called connected, so operational readiness
+  remains false.
 
 Acceptance:
 

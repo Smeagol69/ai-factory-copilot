@@ -57,13 +57,17 @@ function visibleConnectors(building) {
     name: String(connection?.component_name ?? "").trim(),
     circuit_type_class_path: String(connection?.circuit_type_class_path ?? "").trim(),
     max_links: finite(connection?.max_links),
+    location: vector(connection?.native_default_location_cm),
   }));
 }
 
 function availableBuildGunRecipes(graph) {
   return [...(graph?.recipesByClass?.values?.() ?? [])].filter(
     (recipe) => recipe?.available === true &&
-      (recipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun")),
+      (recipe.produced_in ?? []).some((producer) => {
+        const name = shortClass(producer);
+        return name === "BP_BuildGun" || name === "FGBuildGun";
+      }),
   );
 }
 
@@ -108,12 +112,14 @@ function selectGroundPole(graph, preferredTier = null) {
         connectors,
         capacity: connectors.length === 1 ? connectors[0].max_links : null,
         connector_name: connectors.length === 1 ? connectors[0].name : null,
+        connector_location: connectors.length === 1 ? connectors[0].location : null,
         circuit_type_class_path:
           connectors.length === 1 ? connectors[0].circuit_type_class_path : null,
       };
     })
     .filter((entry) =>
-      entry.capacity !== null && entry.capacity >= 3 &&
+      entry.capacity !== null && entry.capacity >= 3 && entry.connector_name &&
+      entry.connector_location &&
       (preferredTier === null || entry.tier === Number(preferredTier))
     )
     .sort((left, right) =>
@@ -132,6 +138,26 @@ function withinWireLength(left, right, maxLengthCm) {
   return squaredDistance(left, right) <= maxLengthCm ** 2;
 }
 
+function rotateYaw(value, yawDegrees) {
+  const radians = yawDegrees * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return {
+    x: value.x * cosine - value.y * sine,
+    y: value.x * sine + value.y * cosine,
+    z: value.z,
+  };
+}
+
+function transformedPoint(origin, local, yawDegrees) {
+  const offset = rotateYaw(local, yawDegrees);
+  return {
+    x: origin.x + offset.x,
+    y: origin.y + offset.y,
+    z: origin.z + offset.z,
+  };
+}
+
 function machineCapabilities(graph, actions) {
   const machines = [];
   const unavailable = [];
@@ -144,15 +170,17 @@ function machineCapabilities(graph, actions) {
       continue;
     }
     const location = vector(action.location);
+    const yaw = finite(action.yaw ?? 0);
     const metadata = buildRecipeMetadata(graph, action.recipe_class);
     const connectors = visibleConnectors(metadata?.building);
     const minerCapability = !miner || (
       metadata?.building?.native_topology_kind === "resource_extractor" &&
       metadata?.building?.supports_generated_blueprint_resource_anchor === true
     );
-    if (!location || !metadata || !minerCapability || connectors.length !== 1 ||
+    if (!location || yaw === null || !metadata || !minerCapability || connectors.length !== 1 ||
         connectors[0].max_links === null || connectors[0].max_links < 1 ||
-        !connectors[0].circuit_type_class_path) {
+        !connectors[0].name || !connectors[0].circuit_type_class_path ||
+        !connectors[0].location) {
       unavailable.push({
         step: index + 1,
         recipe_class: action.recipe_class ?? null,
@@ -163,13 +191,14 @@ function machineCapabilities(graph, actions) {
             ? "generated_miner_lacks_captured_resource_anchor_capability"
           : connectors.length !== 1
             ? "generated_powered_buildable_needs_exactly_one_visible_native_circuit_connector"
-            : "generated_powered_buildable_connector_capacity_or_circuit_type_is_unknown",
+            : "generated_powered_buildable_connector_identity_capacity_position_or_circuit_type_is_unknown",
       });
       continue;
     }
     machines.push({
       step: index + 1,
       location,
+      connector_location: transformedPoint(location, connectors[0].location, yaw),
       capacity: connectors[0].max_links,
       connector_name: connectors[0].name,
       circuit_type_class_path: connectors[0].circuit_type_class_path,
@@ -202,7 +231,11 @@ function directChain(machines, wire) {
   }
   const connections = [];
   for (let index = 0; index < ordered.length - 1; index += 1) {
-    if (!withinWireLength(ordered[index].location, ordered[index + 1].location, wire.max_length_cm)) {
+    if (!withinWireLength(
+      ordered[index].connector_location,
+      ordered[index + 1].connector_location,
+      wire.max_length_cm,
+    )) {
       return { possible: false, reason: "machine_chain_exceeds_captured_wire_length" };
     }
     connections.push({
@@ -273,16 +306,22 @@ function poleTopology(machines, pole, wire, buildingActionCount, options) {
     : Math.min(...orderedMachines.map((machine) => machine.location.y)) - offset;
   const poles = groups.map((group, index) => {
     const center = centroid(group);
+    const location = { x: center.x, y: corridorY, z: center.z };
     return {
       step: buildingActionCount + index + 1,
-      location: { x: center.x, y: corridorY, z: center.z },
+      location,
+      connector_location: transformedPoint(location, pole.connector_location, 0),
       group,
     };
   });
 
   const connections = [];
   for (let index = 0; index < poles.length - 1; index += 1) {
-    if (!withinWireLength(poles[index].location, poles[index + 1].location, wire.max_length_cm)) {
+    if (!withinWireLength(
+      poles[index].connector_location,
+      poles[index + 1].connector_location,
+      wire.max_length_cm,
+    )) {
       return { possible: false, reason: "generated_power_pole_trunk_exceeds_captured_wire_length" };
     }
     connections.push({
@@ -295,7 +334,11 @@ function poleTopology(machines, pole, wire, buildingActionCount, options) {
   }
   for (const generatedPole of poles) {
     for (const machine of generatedPole.group) {
-      if (!withinWireLength(generatedPole.location, machine.location, wire.max_length_cm)) {
+      if (!withinWireLength(
+        generatedPole.connector_location,
+        machine.connector_location,
+        wire.max_length_cm,
+      )) {
         return { possible: false, reason: "generated_machine_drop_exceeds_captured_wire_length" };
       }
       connections.push({
@@ -368,7 +411,7 @@ export function planGeneratedBlueprintPower(graph, actions, options = {}) {
         note: "Connect the placed Blueprint's reserved endpoint to the live grid.",
       },
       wire,
-      certainty: "captured_native_connector_capacity_and_wire_length; exact staged endpoints required",
+      certainty: "captured_native_connector_identity_capacity_position_and_wire_length; exact staged endpoints required",
     };
   }
 
@@ -415,7 +458,7 @@ export function planGeneratedBlueprintPower(graph, actions, options = {}) {
     },
     pole,
     wire,
-    certainty: "captured_native_connector_capacity_and_wire_length; exact staged endpoints required",
+    certainty: "captured_native_connector_identity_capacity_position_and_wire_length; exact staged endpoints required",
   };
 }
 

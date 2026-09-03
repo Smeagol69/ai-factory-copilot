@@ -19,6 +19,7 @@ import { parsePieceDimensions } from "./architecture.mjs";
 import { compileArchitectConveyors } from "./architect-topology.mjs";
 import { fingerprintArchitectManifest } from "./architect-revisions.mjs";
 import { compileGeneratedBlueprint, generatedBlueprintAction } from "./generated-blueprints.mjs";
+import { planGeneratedBlueprintPower } from "./generated-power.mjs";
 import { captureUnlockConstraints, gridPointToWorld, validateMegabaseManifest } from "./megabase.mjs";
 
 export const ARCHITECT_PROMOTION_SCHEMA = "ai-architect.promotion/v1";
@@ -781,7 +782,7 @@ export function compileArchitectPromotion(graph, manifest, {
     operational_readiness: {
       ready: false,
       internal_material_topology: "not_evaluated",
-      reason: "Native generation is not yet a commissioned factory. A4 can compile the proven direct solid-material subset, while split/merge balancing, lifts, fluids, power, circulation, commissioning isolation, resource/external I/O, and destination hookups remain fail-closed.",
+      reason: "Native generation is not yet a commissioned factory. A4 can compile the proven direct solid-material and internal power-distribution subsets, while split/merge balancing, lifts, fluids, power generation/external feeds, circulation, commissioning isolation, resource/external material I/O, and destination hookups remain fail-closed.",
     },
     authority:
       "The companion may compile only proven native parts. Satisfactory remains responsible for staging, native save/load readback, active descriptor registration, Build Gun hologram cost/snap/collision, and final construction.",
@@ -930,13 +931,53 @@ export function compileArchitectPromotion(graph, manifest, {
       effect: "No native Blueprint action was produced; incomplete internal material topology was not omitted.",
     };
   }
+  const topologyActions = [...buildingActions, ...internalConveyors.actions];
+  const internalPower = machines.actions.length > 0
+    ? planGeneratedBlueprintPower(graph, topologyActions, {
+        pole_corridor_offset_cm: Number(manifest.grid.unit_cm),
+      })
+    : {
+        planned: true,
+        mode: "no_powered_production_machines",
+        actions: topologyActions,
+        power_connections: [],
+        machines: 0,
+        poles: 0,
+        wires: 0,
+        external_connection: null,
+        certainty: "no configured production-machine actions require a circuit",
+      };
+  if (!internalPower.planned) {
+    return {
+      ...base,
+      compiled: false,
+      ready_for_native_generation: false,
+      blockers: [`architect_internal_power_compiler_refused:${internalPower.reason}`],
+      internal_conveyors: internalConveyors,
+      internal_power: internalPower,
+      operational_readiness: {
+        ...base.operational_readiness,
+        internal_material_topology: internalConveyors.actions.length > 0
+          ? "compiled_pending_native_game_readback"
+          : "no_internal_material_edges_in_manifest",
+        internal_power_topology: "blocked",
+        internal_power_topology_reason: internalPower.reason,
+      },
+      effect: "No native Blueprint action was produced; powered production machines were not emitted without authoritative circuit topology.",
+    };
+  }
+  const topologySchema = internalConveyors.actions.length > 0 ||
+      internalPower.power_connections.length > 0
+    ? "aifactory.generated-blueprint/v2"
+    : "aifactory.generated-blueprint/v1";
   const native = compileGeneratedBlueprint({
     blueprint_name: name,
     description: cleanText(description, 1_000) ??
       `AI Architect revision ${revisionId}; manifest ${fingerprint.manifest_fingerprint}.`,
-    actions: [...buildingActions, ...internalConveyors.actions],
+    actions: internalPower.actions,
     origin_cm: manifest.anchor_cm,
-    schema: internalConveyors.topology_schema,
+    schema: topologySchema,
+    power_connections: internalPower.power_connections,
   });
   if (!native.compiled) {
     return {
@@ -963,6 +1004,7 @@ export function compileArchitectPromotion(graph, manifest, {
         `preview blueprint ${native.blueprint_name}`,
     },
     internal_conveyors: internalConveyors,
+    internal_power: internalPower,
     operational_readiness: {
       ...base.operational_readiness,
       internal_material_topology: internalConveyors.actions.length > 0
@@ -970,6 +1012,14 @@ export function compileArchitectPromotion(graph, manifest, {
         : "no_internal_material_edges_in_manifest",
       compiled_internal_material_edges: internalConveyors.evidence.length,
       compiled_internal_conveyor_segments: internalConveyors.actions.length,
+      internal_power_topology: internalPower.wires > 0
+        ? "compiled_pending_native_game_readback_and_external_grid_connection"
+        : internalPower.machines > 0
+          ? "external_grid_connection_reserved_no_internal_wires_needed"
+          : "not_required",
+      compiled_internal_power_wires: internalPower.wires,
+      generated_power_poles: internalPower.poles,
+      external_power_connection: internalPower.external_connection,
     },
     action,
   };

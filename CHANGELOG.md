@@ -5,6 +5,19 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added fail-closed **AI Architect internal power distribution** by reusing the
+  generated-Blueprint power planner and v2 native physical-wire contract.
+  Every configured Architect production machine must expose exactly one
+  captured visible circuit connector with its identity, circuit type, link
+  capacity, and class-default position. An unlocked native wire must carry a
+  captured maximum length. Compatible machines receive a capacity-safe daisy
+  chain when their native link counts allow it; otherwise the planner adds the
+  smallest sufficient captured compatible ground-pole trunk, reserving one
+  external-grid link. Wire-length preflight now uses the exact transformed
+  connector positions instead of actor origins. Missing/mismatched metadata,
+  capacity, circuit type, wire length, or pole evidence blocks the complete
+  Architect promotion. This compiles internal distribution only—it does not
+  invent generation or claim the reserved external feed is connected.
 - Added the first fail-closed **AI Architect A4 working-topology compiler**.
   Architect manifests now retain exact production-step IDs, selected production
   recipes, item classes, machine-exact counts, per-machine output rates, input

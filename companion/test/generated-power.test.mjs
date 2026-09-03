@@ -87,14 +87,14 @@ function addPowerCatalog(snapshot, { machineCapacity = 2, poleCapacity = 4 } = {
   return snapshot;
 }
 
-function machine(step, { x = step * 1_000, y = 0, z = 800, commit = true } = {}) {
+function machine(step, { x = step * 1_000, y = 0, z = 800, yaw = 0, commit = true } = {}) {
   return {
     action: "place_building",
     recipe_class: "Recipe_SmelterMk1",
     production_recipe_class: "Recipe_IngotIron",
     location: { x, y, z },
     exact_z: true,
-    yaw: 0,
+    yaw,
     generated_role: "machine",
     commit,
   };
@@ -239,6 +239,25 @@ test("obvious overlength power edges are refused before native staging", () => {
   assert.equal(result.planned, false);
   assert.equal(result.reason, "generated_machine_drop_exceeds_captured_wire_length");
   assert.equal(result.direct_chain_reason, "machine_chain_exceeds_captured_wire_length");
+});
+
+test("wire-length preflight uses transformed connector positions, not actor origins", () => {
+  const snapshot = addPowerCatalog(buildFactorySnapshot(), { machineCapacity: 2 });
+  const machineItem = snapshot.content.items.filter(
+    (item) => item.class_path === "Desc_SmelterMk1",
+  ).at(-1);
+  machineItem.building.native_circuit_connections[0].native_default_location_cm = {
+    x: 1_000,
+    y: 0,
+    z: 200,
+  };
+  const result = planGeneratedBlueprintPower(buildGraph(snapshot), [
+    machine(1, { x: 0, yaw: 180 }),
+    machine(2, { x: 9_000, yaw: 0 }),
+  ], { preferred_pole_tier: 99 });
+  assert.equal(result.planned, false);
+  assert.equal(result.direct_chain_reason, "machine_chain_exceeds_captured_wire_length");
+  assert.equal(result.reason, "requested_power_pole_tier_is_not_unlocked_with_captured_capacity");
 });
 
 test("generated action validation rejects links beyond captured endpoint capacity", () => {

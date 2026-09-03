@@ -35,6 +35,11 @@ const FINAL_ITEM = "/Game/Test/Desc_FinalPart.Desc_FinalPart_C";
 const BELT_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_ConveyorBeltMk1.Recipe_ConveyorBeltMk1_C";
 const BELT_ITEM = "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk1/Desc_ConveyorBeltMk1.Desc_ConveyorBeltMk1_C";
 const BELT_CLASS = "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk1/Build_ConveyorBeltMk1.Build_ConveyorBeltMk1_C";
+const POWER_WIRE_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_PowerLine.Recipe_PowerLine_C";
+const POWER_WIRE_ITEM = "/Game/FactoryGame/Buildable/Factory/PowerLine/Desc_PowerLine.Desc_PowerLine_C";
+const POWER_CIRCUIT = "/Script/FactoryGame.FGPowerCircuit";
+const POWER_POLE_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_PowerPoleMk1.Recipe_PowerPoleMk1_C";
+const POWER_POLE_ITEM = "/Game/FactoryGame/Buildable/Factory/PowerPoleMk1/Desc_PowerPoleMk1.Desc_PowerPoleMk1_C";
 
 function promotionGraph() {
   const snapshot = buildFactorySnapshot();
@@ -100,6 +105,16 @@ function promotionGraph() {
           native_default_normal: { x: 0, y: 1, z: 0 },
         },
       ],
+      native_circuit_connections: [
+        {
+          component_name: "PowerConnection",
+          component_class_path: "/Script/FactoryGame.FGPowerConnectionComponent",
+          hidden: false,
+          max_links: 2,
+          circuit_type_class_path: POWER_CIRCUIT,
+          native_default_location_cm: { x: 0, y: 0, z: 300 },
+        },
+      ],
     },
   });
   snapshot.content.recipes.push({
@@ -119,6 +134,39 @@ function promotionGraph() {
       available: true,
       building: { class_path: BELT_CLASS, native_topology_kind: "conveyor" },
     },
+    {
+      class_path: POWER_WIRE_ITEM,
+      name: "Power Line",
+      form: "RF_SOLID",
+      available: true,
+      building: {
+        class_path: "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        native_topology_kind: "power_wire",
+        wire_max_length_cm: 10_000,
+      },
+    },
+    {
+      class_path: POWER_POLE_ITEM,
+      name: "Power Pole Mk.1",
+      form: "RF_SOLID",
+      owner_mod: "FactoryGame",
+      available: true,
+      building: {
+        class_path: "/Game/FactoryGame/Buildable/Factory/PowerPoleMk1/Build_PowerPoleMk1.Build_PowerPoleMk1_C",
+        native_topology_kind: "power_pole",
+        power_pole_type: "PPT_POLE",
+        native_circuit_connections: [
+          {
+            component_name: "PowerConnection",
+            component_class_path: "/Script/FactoryGame.FGPowerConnectionComponent",
+            hidden: false,
+            max_links: 4,
+            circuit_type_class_path: POWER_CIRCUIT,
+            native_default_location_cm: { x: 0, y: 0, z: 500 },
+          },
+        ],
+      },
+    },
   );
   snapshot.content.recipes.push(
     {
@@ -136,6 +184,23 @@ function promotionGraph() {
       available: true,
       ingredients: [],
       products: [{ item_class: BELT_ITEM, item_name: "Conveyor Belt Mk.1", amount: 1 }],
+      produced_in: ["/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C"],
+    },
+    {
+      class_path: POWER_WIRE_RECIPE,
+      name: "Power Line",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: POWER_WIRE_ITEM, item_name: "Power Line", amount: 1 }],
+      produced_in: ["/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C"],
+    },
+    {
+      class_path: POWER_POLE_RECIPE,
+      name: "Power Pole Mk.1",
+      owner_mod: "FactoryGame",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: POWER_POLE_ITEM, item_name: "Power Pole Mk.1", amount: 1 }],
       produced_in: ["/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C"],
     },
   );
@@ -545,6 +610,10 @@ test("one-to-one rate-matched internal dependencies compile through native v2 co
   assert.equal(promoted.internal_conveyors.compiled, true);
   assert.equal(promoted.internal_conveyors.evidence[0].lane_rate_per_minute, 15);
   assert.equal(promoted.internal_conveyors.evidence[0].belt_capacity_per_minute, 20);
+  assert.equal(promoted.internal_power.planned, true);
+  assert.equal(promoted.internal_power.mode, "native_machine_daisy_chain");
+  assert.equal(promoted.internal_power.wires, 1);
+  assert.equal(promoted.native_blueprint.counts.power_wires, 1);
   assert.equal(promoted.action.conveyors[0].from_connector_name, "OutputConnection0");
   assert.equal(promoted.action.conveyors[0].to_connector_name, "InputConnection0");
 
@@ -555,6 +624,7 @@ test("one-to-one rate-matched internal dependencies compile through native v2 co
     independentlyValidated.checks.native_topology_readback,
     "isolated_blueprint_world_exact_reciprocal_endpoints_required",
   );
+  assert.equal(independentlyValidated.checks.captured_power_capacity_checked_endpoints, 2);
 });
 
 test("an unequal material fan-out remains a named topology blocker", () => {
@@ -605,4 +675,45 @@ test("a diagonal machine pair is not mislabeled as a native straight conveyor", 
   ]);
   assert.ok(refused.internal_conveyors.direct_route_diagnostic.from_alignment < 0.995);
   assert.equal(refused.action, undefined);
+});
+
+test("powered Architect machines without a proven wire block native promotion", () => {
+  const graph = promotionGraph();
+  graph.recipesByClass.delete(POWER_WIRE_RECIPE);
+  graph.itemsByClass.delete(POWER_WIRE_ITEM);
+  const manifest = directTopologyManifest(graph);
+  const refused = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Missing Power Evidence",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_internal_power_compiler_refused:no_unlocked_native_power_wire_with_captured_length",
+  ]);
+  assert.equal(refused.internal_power.planned, false);
+  assert.equal(refused.operational_readiness.internal_power_topology, "blocked");
+  assert.equal(refused.action, undefined);
+});
+
+test("single-link Architect machines receive a capacity-safe pole with an external link reserved", () => {
+  const graph = promotionGraph();
+  const constructor = graph.itemsByClass.get(CONSTRUCTOR_ITEM);
+  constructor.building.native_circuit_connections[0].max_links = 1;
+  const manifest = directTopologyManifest(graph);
+  const promoted = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Pole Distribution",
+  });
+  assert.equal(promoted.compiled, true, JSON.stringify(promoted));
+  assert.equal(promoted.internal_power.mode, "captured_capacity_power_pole_trunk");
+  assert.equal(promoted.internal_power.poles, 1);
+  assert.equal(promoted.internal_power.wires, 2);
+  assert.equal(promoted.internal_power.external_connection.reserved_links, 1);
+  assert.equal(promoted.native_blueprint.counts.buildables, 7);
+  assert.equal(promoted.native_blueprint.counts.power_wires, 2);
+  const independentlyValidated = validateAction(graph, promoted.action);
+  assert.equal(independentlyValidated.valid, true, JSON.stringify(independentlyValidated));
+  assert.equal(independentlyValidated.checks.captured_power_capacity_checked_endpoints, 3);
 });

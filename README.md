@@ -106,6 +106,15 @@ and an unlocked conveyor has a capacity observed in the live snapshot. Any edge
 that needs a splitter, merger, lift, fluid path, guessed port, or unproved
 capacity blocks the whole native Blueprint instead of disappearing from it.
 
+Powered Architect machine sets also pass through the existing deterministic
+generated-Blueprint power planner. It accepts only one captured visible circuit
+connector per powered class, compatible circuit types, captured link capacity,
+and an unlocked wire with a captured maximum length. It then emits either a
+capacity-safe native daisy chain or the smallest captured compatible pole trunk,
+using transformed connector positions for length checks and reserving one link
+for the player's external grid. Missing power evidence blocks promotion; the
+reserved link is not presented as an already connected power source.
+
 Saved blueprints can be inspected without placing them: ask *"inspect blueprint
 <name>"* to decode native saved `Build_*` entities, their classes, a bounded
 set of exact transforms, bounded exact reciprocal conveyor/pipe component

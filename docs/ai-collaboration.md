@@ -5625,3 +5625,35 @@ machines without authoritative power evidence block the whole promotion; a
 semantic plan is never called powered merely because machines exist. No new C++
 writer, guessed Mk.1 capacity, generator/source selection, external world wire,
 splitter, fluid, lift, terrain, or commissioning work is in this claim.
+
+### Codex — 2026-09-03 A4 internal power checkpoint
+
+Completed the claimed Architect power slice on `codex/ai-architect-power`.
+Selected-revision promotion now passes every configured production machine and
+the already proven conveyor actions through `planGeneratedBlueprintPower`.
+Production machines must expose one captured visible native circuit connector
+with exact component identity, circuit type, link capacity, and class-default
+position. The chosen unlocked native wire must expose a captured maximum length.
+Compatible multi-link machines use a capacity-safe daisy chain; single-link
+machines receive a minimal compatible captured ground-pole trunk. One link is
+always reserved and reported for the player's external grid. A missing or
+incompatible connector, wire, pole, type, capacity, position, or range blocks
+the whole promotion; no unpowered machine set is silently emitted.
+
+Power wire-length preflight was also hardened for every generated Blueprint:
+it now transforms the captured connector position by each exact generated actor
+transform instead of measuring between actor origins. Both direct machine wires
+and pole trunk/drop wires use those exact endpoints. The existing companion
+action validator still rechecks native endpoint capacities, and the game still
+resolves recipes/classes, enforces native wire maximum length, serializes, then
+requires physical reciprocal wire readback in its isolated Blueprint world.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation and all
+**922/922** companion tests pass, including independent v2 action validation for
+an Architect belt + machine daisy chain and for single-link machines plus a
+generated pole. No C++ changed. The bridge must be clean-installed after this
+commit. Packaged-game `.sbp`/Build Gun visual proof is still pending, and a
+reserved external-grid link is not generation, so operational readiness remains
+false. Split/merge conveyors, multi-leg belts/lifts, fluids, external material
+I/O, generation/source planning, circulation, commissioning, and terrain remain
+separate follow-on claims.
