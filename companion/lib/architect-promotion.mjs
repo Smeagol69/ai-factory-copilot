@@ -1085,6 +1085,12 @@ export function compileArchitectPromotion(graph, manifest, {
         internalConveyors.evidence.length + internalPipelines.evidence.length,
       compiled_internal_conveyor_segments: internalConveyors.actions.length,
       compiled_internal_pipeline_segments: internalPipelines.pipeline_connections.length,
+      external_material_io: (manifest.program.external_inputs.length > 0 ||
+          manifest.program.external_outputs.length > 0)
+        ? "routing_required"
+        : "not_required",
+      external_material_inputs: manifest.program.external_inputs,
+      external_material_outputs: manifest.program.external_outputs,
       internal_power_topology: internalPower.wires > 0
         ? "compiled_pending_native_game_readback_and_external_grid_connection"
         : internalPower.machines > 0

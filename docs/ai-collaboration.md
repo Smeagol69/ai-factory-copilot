@@ -5720,3 +5720,36 @@ entire demand when the production solver deliberately used existing-base
 surplus. It does not invent storage, sinks, conveyors/pipes, external resource
 sources, or hookups. Existing immutable revisions will recompile to a new
 fingerprint rather than being silently reinterpreted.
+
+### Codex — 2026-09-03 Architect material I/O accounting checkpoint
+
+Completed the claimed accounting slice on `codex/ai-architect-io-accounting`.
+The semantic compiler now treats every planned producer rate as a finite budget.
+Each provenance-matched internal material edge receives only the producer's
+remaining rate; any consumer shortfall is retained as an exact external-input
+obligation, and every unconsumed intermediate or final product is retained as
+an exact external-output obligation. This fixes the observed case where
+`plan_production` correctly reused 60/min of existing-base surplus but the old
+Architect manifest incorrectly relabelled a new 60/min producer as supplying
+the consumer's full 120/min demand.
+
+Manifest validation independently accounts for every consumer input and every
+producer output across internal and external flows, rejects duplicate routes,
+invalid provenance, and oversized rates, and requires both sides to balance to
+within the compiler's six-decimal normalization. External outputs are part of
+the immutable semantic manifest and therefore its revision fingerprint. The
+promotion report exposes both external-input and external-output obligations
+instead of implying they are connected.
+
+The narrow direct conveyor and pipeline compilers also refuse a consumer that
+needs both an internal lane and an external supplement: one native machine port
+cannot truthfully carry both, so promotion names the required merger or fluid
+junction. This checkpoint intentionally does not place that merger/junction or
+route external material I/O.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation and all
+**929/929** companion tests pass. Coverage includes exact input/output
+accounting, the existing-base-surplus regression, and fail-closed promotion for
+partial internal plus external feeds. No C++ changed, so no DLL/package rebuild
+is required. Clean companion installation and hash/readiness verification are
+the remaining deployment step for this checkpoint.

@@ -109,6 +109,13 @@ and hologram length limits. Any edge that needs a splitter, merger, lift,
 junction, pump/head lift, bent route, guessed port, or unproved capacity blocks
 the whole native Blueprint instead of disappearing from it.
 
+Material flow is balanced before routing. Each planned producer's exact rate is
+allocated among provenance-matched internal edges; any unsupplied consumer rate
+is recorded as an external input, and every unconsumed intermediate or finished
+product is recorded as an external output. Both sides must sum exactly to the
+captured plan. A partial internal plus external feed is named as needing a real
+merger or pipe junction, not wired onto one occupied machine port.
+
 Powered Architect machine sets also pass through the existing deterministic
 generated-Blueprint power planner. It accepts only one captured visible circuit
 connector per powered class, compatible circuit types, captured link capacity,

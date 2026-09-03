@@ -5,6 +5,16 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added exact **AI Architect material I/O accounting**. The semantic compiler
+  now allocates each provenance-matched producer only up to its planned output
+  rate instead of assuming it satisfies an entire downstream demand. Any
+  consumer shortfall becomes an explicit external-input obligation, and every
+  remaining intermediate or final product becomes an explicit external-output
+  obligation. Manifest validation independently requires all incoming demand
+  and all outgoing production to balance exactly, rejects duplicate/oversized
+  flows, and makes output changes part of immutable revision fingerprints.
+  Direct conveyor or pipe promotion refuses a mixed internal+external feed
+  until an explicit merger or junction topology exists.
 - Added fail-closed **AI Architect direct internal fluid topology** through the
   existing generated-Blueprint v3 pipeline contract. Internal liquid and gas
   dependencies are separated from solid conveyor edges by their captured item

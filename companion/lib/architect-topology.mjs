@@ -253,6 +253,20 @@ export function compileArchitectConveyors(graph, manifest, buildingActions) {
         edge_id: edgeId,
       };
     }
+    const supplementalInput = (manifest?.program?.external_inputs ?? []).find(
+      (input) => input?.consumer_group === consumer.id &&
+        shortClass(input?.item_class) === shortClass(edge?.item_class) &&
+        finite(input?.rate_per_minute) > EPSILON,
+    );
+    if (supplementalInput) {
+      return {
+        compiled: false,
+        reason: "architect_material_edge_requires_merger_for_external_supplement",
+        edge_id: edgeId,
+        internal_rate_per_minute: finite(edge?.required_rate_per_minute),
+        external_rate_per_minute: finite(supplementalInput.rate_per_minute),
+      };
+    }
     if (producerActions.length !== consumerActions.length) {
       return {
         compiled: false,

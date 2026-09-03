@@ -463,15 +463,23 @@ test("machine halls retain measured recipes and grow from measured footprints", 
       edge.from_program_group,
       edge.to_program_group,
       edge.item_class,
+      edge.required_rate_per_minute,
     ]),
     [
-      ["production-1", "production-2", "Desc_IronIngot"],
-      ["production-2", "production-3", "Desc_IronPlate"],
+      ["production-1", "production-2", "Desc_IronIngot", 60],
+      ["production-2", "production-3", "Desc_IronPlate", 60],
     ],
   );
   assert.deepEqual(
     concept.program.external_inputs.map((input) => input.item_class).sort(),
-    ["Desc_OreIron", "Desc_Screw"],
+    ["Desc_IronIngot", "Desc_OreIron", "Desc_Screw"],
+  );
+  assert.deepEqual(
+    concept.program.external_outputs.map((output) => [
+      output.item_class,
+      output.rate_per_minute,
+    ]).sort(),
+    [["Desc_IronPlate", 20], ["Desc_ReinforcedIronPlate", 10]],
   );
 });
 
@@ -593,7 +601,7 @@ test("manifest validation preserves exact material-edge provenance and consumer 
   assert.ok(result.issues.includes("material_edge_provenance_or_rate_mismatch:material-edge-1"));
 });
 
-test("manifest validation accounts for every production input exactly once", () => {
+test("manifest validation accounts for every production input rate exactly", () => {
   const concept = compile("elevated_industrial_campus");
   const missing = structuredClone(concept);
   missing.program.external_inputs = missing.program.external_inputs.filter(
@@ -602,7 +610,7 @@ test("manifest validation accounts for every production input exactly once", () 
   let result = validateMegabaseManifest(missing);
   assert.equal(result.valid, false);
   assert.ok(result.issues.includes(
-    "production_input_must_have_exactly_one_material_source:production-3|Desc_Screw",
+    "production_input_rate_is_not_fully_accounted:production-3|Desc_Screw",
   ));
 
   const duplicated = structuredClone(concept);
@@ -611,7 +619,33 @@ test("manifest validation accounts for every production input exactly once", () 
   assert.equal(result.valid, false);
   assert.ok(result.issues.some((issue) => issue.startsWith("duplicate_external_input:")));
   assert.ok(result.issues.some((issue) =>
-    issue.startsWith("production_input_must_have_exactly_one_material_source:")));
+    issue.startsWith("production_input_rate_is_not_fully_accounted:")));
+});
+
+test("manifest validation accounts for every production output rate exactly", () => {
+  const concept = compile("elevated_industrial_campus");
+  const missing = structuredClone(concept);
+  missing.program.external_outputs = missing.program.external_outputs.filter(
+    (output) => output.item_class !== "Desc_ReinforcedIronPlate",
+  );
+  let result = validateMegabaseManifest(missing);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.includes(
+    "production_output_rate_is_not_fully_accounted:production-3|Desc_ReinforcedIronPlate",
+  ));
+
+  const oversized = structuredClone(concept);
+  oversized.program.external_outputs.find(
+    (output) => output.item_class === "Desc_IronPlate",
+  ).rate_per_minute = 81;
+  result = validateMegabaseManifest(oversized);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.includes(
+    "production_output_rate_is_not_fully_accounted:production-2|Desc_IronPlate",
+  ));
+  assert.ok(result.issues.includes(
+    "external_output_provenance_or_rate_mismatch:production-2|Desc_IronPlate",
+  ));
 });
 
 test("the model-facing solver is action-free by default and can emit one draw-only Architect preview", () => {

@@ -246,6 +246,21 @@ Direct-fluid checkpoint (2026-09-03):
   remain blocked, so internal pipe generation is not a commissioned fluid
   system.
 
+Material-I/O accounting checkpoint (2026-09-03):
+
+- producer output is now a finite budget. A provenance-matched internal edge
+  receives at most the producer's remaining planned rate, so existing-base
+  surplus used by `plan_production` cannot be relabeled as output from a newly
+  planned machine group;
+- every remaining consumer demand is an explicit `external_input`, and every
+  unconsumed intermediate or final product is an explicit `external_output`.
+  Manifest validation requires the internal and external rates to sum exactly
+  for every input and output item;
+- external I/O obligations are reported in promotion readiness and remain part
+  of the immutable manifest fingerprint. They are not silently treated as
+  routed. A consumer that needs both an internal lane and an external supplement
+  is blocked until a real merger or fluid junction is compiled.
+
 Acceptance:
 
 - every requested output and commissioning phase re-solves exactly;

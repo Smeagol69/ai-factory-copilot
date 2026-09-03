@@ -373,6 +373,9 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
   const sameChain = (left, right) => JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
   const materialEdges = [];
   const externalInputs = [];
+  const remainingOutputByGroup = new Map(
+    groups.map((group) => [group.id, group.produces_rate_per_minute]),
+  );
   for (const consumer of groups) {
     const producerChain = [...consumer.production_chain, consumer.production_recipe_class];
     for (const input of consumer.inputs_required) {
@@ -388,28 +391,58 @@ function normalizeProgram(factoryLayout, unitCm, marginCells) {
           item_class: input.item_class,
         };
       }
-      if (candidates.length === 0) {
+      const producer = candidates[0] ?? null;
+      const producerRemaining = producer
+        ? remainingOutputByGroup.get(producer.id) ?? 0
+        : 0;
+      const internalRate = round(Math.min(producerRemaining, input.rate_per_minute), 6);
+      const externalRate = round(input.rate_per_minute - internalRate, 6);
+      if (producer && internalRate > 0) {
+        materialEdges.push({
+          id: `material-edge-${materialEdges.length + 1}`,
+          from_program_group: producer.id,
+          to_program_group: consumer.id,
+          item_class: input.item_class,
+          item_name: input.item_name ?? producer.produces ?? null,
+          required_rate_per_minute: internalRate,
+          evidence:
+            "exact production-chain provenance with rate bounded by the planned producer output",
+        });
+        remainingOutputByGroup.set(
+          producer.id,
+          round(Math.max(0, producerRemaining - internalRate), 6),
+        );
+      }
+      if (externalRate > 0) {
         externalInputs.push({
           consumer_group: consumer.id,
           item_class: input.item_class,
           item_name: input.item_name,
-          rate_per_minute: input.rate_per_minute,
+          rate_per_minute: externalRate,
+          evidence: producer
+            ? "exact consumer demand minus the provenance-matched planned producer output"
+            : "no provenance-matched producer exists in this compiled program",
         });
-        continue;
       }
-      const producer = candidates[0];
-      materialEdges.push({
-        id: `material-edge-${materialEdges.length + 1}`,
-        from_program_group: producer.id,
-        to_program_group: consumer.id,
-        item_class: input.item_class,
-        item_name: input.item_name ?? producer.produces ?? null,
-        required_rate_per_minute: input.rate_per_minute,
-        evidence: "exact production-chain provenance and matching item class",
-      });
     }
   }
-  return { valid: true, groups, material_edges: materialEdges, external_inputs: externalInputs };
+  const externalOutputs = groups
+    .map((group) => ({ group, rate: round(remainingOutputByGroup.get(group.id) ?? 0, 6) }))
+    .filter(({ rate }) => rate > 0)
+    .map(({ group, rate }) => ({
+      producer_group: group.id,
+      item_class: group.produces_item_class,
+      item_name: group.produces ?? null,
+      rate_per_minute: rate,
+      evidence: "planned producer output minus every provenance-matched internal material edge",
+    }));
+  return {
+    valid: true,
+    groups,
+    material_edges: materialEdges,
+    external_inputs: externalInputs,
+    external_outputs: externalOutputs,
+  };
 }
 
 /**
@@ -830,23 +863,37 @@ export function validateMegabaseManifest(manifest) {
       issues.push(`production_zone_program_group_missing:${zone?.id ?? ""}`);
     }
   }
+  const materialEdges = manifest?.program?.material_edges;
+  const externalInputs = manifest?.program?.external_inputs;
+  const externalOutputs = manifest?.program?.external_outputs;
+  if (!Array.isArray(materialEdges)) issues.push("program_material_edges_must_be_an_array");
+  if (!Array.isArray(externalInputs)) issues.push("program_external_inputs_must_be_an_array");
+  if (!Array.isArray(externalOutputs)) issues.push("program_external_outputs_must_be_an_array");
+  const ratesMatch = (left, right) => Math.abs(Number(left) - Number(right)) <= 1e-6;
+  const addRate = (map, key, rate) => map.set(key, (map.get(key) ?? 0) + rate);
+  const incomingRates = new Map();
+  const outgoingRates = new Map();
   const edgeIds = new Set();
-  const materialSources = new Map();
-  for (const edge of manifest?.program?.material_edges ?? []) {
+  const edgeRoutes = new Set();
+  for (const edge of materialEdges ?? []) {
     if (!edge?.id || edgeIds.has(edge.id)) {
       issues.push(`duplicate_or_missing_material_edge_id:${edge?.id ?? ""}`);
     }
     edgeIds.add(edge?.id);
+    const routeKey = `${edge?.from_program_group ?? ""}|${edge?.to_program_group ?? ""}|${edge?.item_class ?? ""}`;
+    if (edgeRoutes.has(routeKey)) issues.push(`duplicate_material_edge_route:${routeKey}`);
+    edgeRoutes.add(routeKey);
     if (!groupIds.has(edge?.from_program_group) || !groupIds.has(edge?.to_program_group) ||
         edge.from_program_group === edge.to_program_group) {
       issues.push(`material_edge_endpoint_missing_or_invalid:${edge?.id ?? ""}`);
     }
-    if (!String(edge?.item_class ?? "").trim() || positive(edge?.required_rate_per_minute) === null) {
+    const edgeRate = positive(edge?.required_rate_per_minute);
+    if (!String(edge?.item_class ?? "").trim() || edgeRate === null) {
       issues.push(`material_edge_item_or_rate_invalid:${edge?.id ?? ""}`);
     }
     const producer = groupsById.get(edge?.from_program_group);
     const consumer = groupsById.get(edge?.to_program_group);
-    if (producer && consumer) {
+    if (producer && consumer && edgeRate !== null) {
       const matchingInputs = (consumer.inputs_required ?? []).filter(
         (input) => input?.item_class === edge?.item_class,
       );
@@ -854,27 +901,29 @@ export function validateMegabaseManifest(manifest) {
         (total, input) => total + (positive(input?.rate_per_minute) ?? 0),
         0,
       );
+      const producerOutputRate = positive(producer?.produces_rate_per_minute);
       const expectedProducerChain = [
         ...(consumer.production_chain ?? []),
         consumer.production_recipe_class,
       ];
       if (producer.produces_item_class !== edge?.item_class || matchingInputs.length === 0 ||
-          positive(edge?.required_rate_per_minute) !== requiredInputRate ||
+          producerOutputRate === null || edgeRate > producerOutputRate + 1e-6 ||
+          edgeRate > requiredInputRate + 1e-6 ||
           JSON.stringify(producer.production_chain ?? []) !== JSON.stringify(expectedProducerChain)) {
         issues.push(`material_edge_provenance_or_rate_mismatch:${edge?.id ?? ""}`);
       }
-      const sourceKey = `${consumer.id}|${edge.item_class}`;
-      materialSources.set(sourceKey, (materialSources.get(sourceKey) ?? 0) + 1);
+      addRate(incomingRates, `${consumer.id}|${edge.item_class}`, edgeRate);
+      addRate(outgoingRates, `${producer.id}|${edge.item_class}`, edgeRate);
     }
   }
   const externalInputKeys = new Set();
-  for (const input of manifest?.program?.external_inputs ?? []) {
+  for (const input of externalInputs ?? []) {
     const consumer = groupsById.get(input?.consumer_group);
     const key = `${input?.consumer_group ?? ""}|${input?.item_class ?? ""}`;
     if (externalInputKeys.has(key)) issues.push(`duplicate_external_input:${key}`);
     externalInputKeys.add(key);
-    if (!consumer || !String(input?.item_class ?? "").trim() ||
-        positive(input?.rate_per_minute) === null) {
+    const inputRate = positive(input?.rate_per_minute);
+    if (!consumer || !String(input?.item_class ?? "").trim() || inputRate === null) {
       issues.push(`external_input_endpoint_item_or_rate_invalid:${key}`);
       continue;
     }
@@ -885,17 +934,46 @@ export function validateMegabaseManifest(manifest) {
       (total, entry) => total + (positive(entry?.rate_per_minute) ?? 0),
       0,
     );
-    if (matchingInputs.length === 0 || positive(input.rate_per_minute) !== requiredInputRate) {
+    if (matchingInputs.length === 0 || inputRate > requiredInputRate + 1e-6) {
       issues.push(`external_input_provenance_or_rate_mismatch:${key}`);
     }
-    materialSources.set(key, (materialSources.get(key) ?? 0) + 1);
+    addRate(incomingRates, key, inputRate);
+  }
+  const externalOutputKeys = new Set();
+  for (const output of externalOutputs ?? []) {
+    const producer = groupsById.get(output?.producer_group);
+    const key = `${output?.producer_group ?? ""}|${output?.item_class ?? ""}`;
+    if (externalOutputKeys.has(key)) issues.push(`duplicate_external_output:${key}`);
+    externalOutputKeys.add(key);
+    const outputRate = positive(output?.rate_per_minute);
+    const producerRate = positive(producer?.produces_rate_per_minute);
+    if (!producer || !String(output?.item_class ?? "").trim() || outputRate === null) {
+      issues.push(`external_output_endpoint_item_or_rate_invalid:${key}`);
+      continue;
+    }
+    if (producer.produces_item_class !== output.item_class || producerRate === null ||
+        outputRate > producerRate + 1e-6) {
+      issues.push(`external_output_provenance_or_rate_mismatch:${key}`);
+    }
+    addRate(outgoingRates, key, outputRate);
   }
   for (const group of groupsById.values()) {
+    const requiredByItem = new Map();
     for (const input of group?.inputs_required ?? []) {
-      const key = `${group.id}|${input?.item_class ?? ""}`;
-      if (materialSources.get(key) !== 1) {
-        issues.push(`production_input_must_have_exactly_one_material_source:${key}`);
+      const itemClass = String(input?.item_class ?? "");
+      addRate(requiredByItem, itemClass, positive(input?.rate_per_minute) ?? 0);
+    }
+    for (const [itemClass, requiredRate] of requiredByItem) {
+      const key = `${group.id}|${itemClass}`;
+      if (!ratesMatch(incomingRates.get(key) ?? 0, requiredRate)) {
+        issues.push(`production_input_rate_is_not_fully_accounted:${key}`);
       }
+    }
+    const outputKey = `${group.id}|${group?.produces_item_class ?? ""}`;
+    const producesRate = positive(group?.produces_rate_per_minute);
+    if (producesRate === null ||
+        !ratesMatch(outgoingRates.get(outputKey) ?? 0, producesRate ?? 0)) {
+      issues.push(`production_output_rate_is_not_fully_accounted:${outputKey}`);
     }
   }
   return { valid: issues.length === 0, issues };
@@ -1196,6 +1274,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       groups: program.groups,
       material_edges: program.material_edges,
       external_inputs: program.external_inputs,
+      external_outputs: program.external_outputs,
     },
     elements,
     connections,

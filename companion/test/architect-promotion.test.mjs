@@ -360,8 +360,15 @@ function platformAndMachinesManifest(graph) {
   manifest.elements.push(productionZone);
   manifest.program.groups.push({
     id: "production-1",
+    production_step: 1,
     produces: "Iron Rod",
+    produces_item_class: "Desc_IronRod",
+    produces_rate_per_minute: 30,
     machines: 2,
+    machines_exact: 2,
+    per_machine_output_rate_per_minute: 15,
+    inputs_required: [],
+    production_chain: [],
     building_class: CONSTRUCTOR_CLASS,
     build_recipe_class: CONSTRUCTOR_BUILD_RECIPE,
     production_recipe_class: "Recipe_IronRod",
@@ -369,6 +376,13 @@ function platformAndMachinesManifest(graph) {
     machine_footprint_cells: { x: 1, y: 1 },
     hall_size_cells: { x: 4, y: 3 },
     measurement_source: "captured constructor bounds",
+  });
+  manifest.program.external_outputs.push({
+    producer_group: "production-1",
+    item_class: "Desc_IronRod",
+    item_name: "Iron Rod",
+    rate_per_minute: 30,
+    evidence: "planned producer output minus every provenance-matched internal material edge",
   });
   manifest.validation = validateMegabaseManifest(manifest);
   return manifest;
@@ -479,6 +493,13 @@ function directTopologyManifest(graph) {
     item_name: "Iron Ingot",
     rate_per_minute: 15,
   });
+  manifest.program.external_outputs.push({
+    producer_group: "production-2",
+    item_class: FINAL_ITEM,
+    item_name: "Final Part",
+    rate_per_minute: 15,
+    evidence: "planned producer output minus every provenance-matched internal material edge",
+  });
   manifest.validation = validateMegabaseManifest(manifest);
   return manifest;
 }
@@ -548,6 +569,13 @@ function directFluidTopologyManifest(graph) {
     item_name: "Architect Water",
     required_rate_per_minute: 120,
     evidence: "exact production-chain provenance and matching item class",
+  });
+  manifest.program.external_outputs.push({
+    producer_group: "production-2",
+    item_class: FINAL_ITEM,
+    item_name: "Final Part",
+    rate_per_minute: 15,
+    evidence: "planned producer output minus every provenance-matched internal material edge",
   });
   manifest.validation = validateMegabaseManifest(manifest);
   return manifest;
@@ -624,7 +652,13 @@ function platformManifest(graph, kind = "structural_platform") {
     design_family: { family_id: "test-family", fingerprint: FAMILY },
     commissioning: { planned: true, exact_total_preserved: true },
     unlock_constraints: captureUnlockConstraints(graph),
-    program: { source: "test", groups: [], material_edges: [], external_inputs: [] },
+    program: {
+      source: "test",
+      groups: [],
+      material_edges: [],
+      external_inputs: [],
+      external_outputs: [],
+    },
     elements: [element],
     connections: [],
     part_resolution: {
@@ -829,6 +863,35 @@ test("an unequal material fan-out remains a named topology blocker", () => {
     "architect_internal_conveyor_compiler_refused:architect_material_edge_requires_splitter_or_merger_topology",
   ]);
   assert.equal(refused.internal_conveyors.edge_id, "material-edge-1");
+  assert.equal(refused.action, undefined);
+});
+
+test("a partial internal feed stays blocked until an explicit merger is compiled", () => {
+  const graph = promotionGraph();
+  const manifest = directTopologyManifest(graph);
+  const producer = manifest.program.groups.find((group) => group.id === "production-1");
+  producer.produces_rate_per_minute = 10;
+  producer.per_machine_output_rate_per_minute = 10;
+  manifest.program.material_edges[0].required_rate_per_minute = 10;
+  manifest.program.external_inputs.push({
+    consumer_group: "production-2",
+    item_class: "Desc_IronRod",
+    item_name: "Iron Rod",
+    rate_per_minute: 5,
+    evidence: "exact consumer demand minus the provenance-matched planned producer output",
+  });
+  manifest.validation = validateMegabaseManifest(manifest);
+  assert.equal(manifest.validation.valid, true, JSON.stringify(manifest.validation));
+  const refused = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Needs External Merger",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_internal_conveyor_compiler_refused:architect_material_edge_requires_merger_for_external_supplement",
+  ]);
+  assert.equal(refused.internal_conveyors.external_rate_per_minute, 5);
   assert.equal(refused.action, undefined);
 });
 
