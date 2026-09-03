@@ -133,6 +133,73 @@ function close(left, right) {
   return Math.abs(Number(left) - Number(right)) <= EPSILON;
 }
 
+function rotateYaw(value, yawDegrees) {
+  const radians = Number(yawDegrees) * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return {
+    x: value.x * cosine - value.y * sine,
+    y: value.x * sine + value.y * cosine,
+    z: value.z,
+  };
+}
+
+function transformedPort(action, port) {
+  const origin = vector(action?.location);
+  const yaw = finite(action?.yaw);
+  if (!origin || yaw === null) return null;
+  const offset = rotateYaw(port.location, yaw);
+  const normal = rotateYaw(port.normal, yaw);
+  const normalLength = Math.hypot(normal.x, normal.y, normal.z);
+  if (normalLength <= EPSILON) return null;
+  return {
+    location: {
+      x: origin.x + offset.x,
+      y: origin.y + offset.y,
+      z: origin.z + offset.z,
+    },
+    normal: {
+      x: normal.x / normalLength,
+      y: normal.y / normalLength,
+      z: normal.z / normalLength,
+    },
+  };
+}
+
+function directAlignment(fromAction, output, toAction, input) {
+  const from = transformedPort(fromAction, output);
+  const to = transformedPort(toAction, input);
+  if (!from || !to) return { aligned: false, reason: "non_finite_transformed_connector" };
+  const delta = {
+    x: to.location.x - from.location.x,
+    y: to.location.y - from.location.y,
+    z: to.location.z - from.location.z,
+  };
+  const distance = Math.hypot(delta.x, delta.y, delta.z);
+  if (!Number.isFinite(distance) || distance <= EPSILON) {
+    return { aligned: false, reason: "connector_endpoints_have_no_finite_separation" };
+  }
+  const travel = {
+    x: delta.x / distance,
+    y: delta.y / distance,
+    z: delta.z / distance,
+  };
+  const fromAlignment = output
+    ? from.normal.x * travel.x + from.normal.y * travel.y + from.normal.z * travel.z
+    : -1;
+  const toAlignment = input
+    ? to.normal.x * travel.x + to.normal.y * travel.y + to.normal.z * travel.z
+    : 1;
+  const minimum = 0.995;
+  return {
+    aligned: fromAlignment >= minimum && toAlignment <= -minimum,
+    reason: "connector_endpoints_require_explicit_multi_leg_route",
+    distance_cm: distance,
+    from_alignment: fromAlignment,
+    to_alignment: toAlignment,
+  };
+}
+
 /** Compile every exact internal material dependency or refuse the set whole. */
 export function compileArchitectConveyors(graph, manifest, buildingActions) {
   const edges = manifest?.program?.material_edges;
@@ -268,6 +335,16 @@ export function compileArchitectConveyors(graph, manifest, buildingActions) {
           lane: index + 1,
         };
       }
+      const alignment = directAlignment(fromAction, output, toAction, input);
+      if (!alignment.aligned) {
+        return {
+          compiled: false,
+          reason: "architect_material_edge_requires_explicit_multi_leg_route",
+          edge_id: edgeId,
+          lane: index + 1,
+          direct_route_diagnostic: alignment,
+        };
+      }
       usedPorts.add(fromKey);
       usedPorts.add(toKey);
       actions.push({
@@ -290,6 +367,8 @@ export function compileArchitectConveyors(graph, manifest, buildingActions) {
       belt_capacity_observed_actor_id: belt.observed_actor_id,
       producer_connector_name: output.name,
       consumer_connector_name: input.name,
+      direct_lane_distances_cm: producerActions.map((action, index) =>
+        directAlignment(action, output, consumerActions[index], input).distance_cm),
       certainty:
         "exact production provenance and rates + captured native endpoints + observed unlocked conveyor capacity; game hologram/readback still authoritative",
     });

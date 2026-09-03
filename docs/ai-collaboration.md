@@ -5596,8 +5596,14 @@ native reciprocal topology readback. Ambiguous ports/producers, port reuse,
 unknown or insufficient capacity, clocking, split/merge balancing, non-solid
 flow, and any uncompiled dependency fail the whole promotion closed.
 
+Post-checkpoint hardening also transforms each captured connector position and
+normal through its exact generated machine transform and repeats the C++ native
+serializer's `0.995` straight-alignment threshold. Diagonal, vertically offset,
+or reversed endpoints now fail locally as `requires_explicit_multi_leg_route`
+instead of producing a file action that the game is already known to reject.
+
 Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation passed and
-all **918/918** companion tests pass. The new direct-link proposal is also
+all **919/919** companion tests pass. The new direct-link proposal is also
 independently accepted by the existing generated-Blueprint action validator.
 No C++/serializer/world-write code changed. Native `.sbp` topology readback and
 Build Gun visual placement remain pending, so operational readiness stays

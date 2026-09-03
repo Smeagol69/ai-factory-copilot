@@ -187,6 +187,11 @@ Direct-conveyor checkpoint (2026-09-01):
   machine class exposes exactly one native output/input connector, and the
   current graph proves an unlocked Build Gun conveyor with sufficient capacity
   observed on a captured live instance;
+- each proposed direct lane transforms the captured connector locations and
+  normals by the exact generated machine transforms and repeats the native
+  serializer's straight-alignment threshold. A diagonal or vertically offset
+  pair is reported as needing an explicit multi-leg route before a file action
+  can exist;
 - accepted lanes use the existing `aifactory.generated-blueprint/v2` step and
   connector contract. The existing action validator rechecks both endpoint
   classes, exact native component names, direction, unconnected state, relative

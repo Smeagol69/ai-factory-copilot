@@ -580,3 +580,29 @@ test("an unequal material fan-out remains a named topology blocker", () => {
   assert.equal(refused.internal_conveyors.edge_id, "material-edge-1");
   assert.equal(refused.action, undefined);
 });
+
+test("a diagonal machine pair is not mislabeled as a native straight conveyor", () => {
+  const graph = promotionGraph();
+  const manifest = directTopologyManifest(graph);
+  const consumerZone = manifest.elements.find(
+    (element) => element.program_group === "production-2",
+  );
+  consumerZone.local.x += 1;
+  consumerZone.world_origin_cm = gridPointToWorld(
+    consumerZone.local,
+    manifest.grid,
+    manifest.anchor_cm,
+  );
+  manifest.validation = validateMegabaseManifest(manifest);
+  const refused = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Needs Multi Leg Belt",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_internal_conveyor_compiler_refused:architect_material_edge_requires_explicit_multi_leg_route",
+  ]);
+  assert.ok(refused.internal_conveyors.direct_route_diagnostic.from_alignment < 0.995);
+  assert.equal(refused.action, undefined);
+});

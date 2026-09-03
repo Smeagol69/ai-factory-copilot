@@ -15,7 +15,9 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   rate-matched solid-item machine pairs with one captured native output/input
   connector and an unlocked conveyor capacity observed on a captured live
   instance. Port reuse, ambiguous producers/connectors, insufficient or unknown
-  capacity, split/merge balancing, and non-solid flow all fail closed. Splitters,
+  capacity, or transformed endpoints that do not satisfy the native straight-
+  belt alignment threshold fail before file generation. Split/merge balancing
+  and non-solid flow also fail closed. Splitters,
   mergers, lifts, fluids, power, and external I/O remain named follow-on work;
   operational readiness remains false until those systems and game readback are
   proven.
