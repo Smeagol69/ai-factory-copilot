@@ -5706,3 +5706,17 @@ Deployment note: the clean companion install now verifies **45** runtime file
 hashes and is healthy on port 8142 with the hybrid provider ready. Repository
 and installed `architect-fluid-topology.mjs` hashes match. No DLL/package update
 was needed because this checkpoint changes only the companion and documentation.
+
+### Active claim — Codex — 2026-09-03 Architect material I/O accounting
+
+Working on `codex/ai-architect-io-accounting` after fluid checkpoint `bff9a31`.
+Scope is semantic accounting, not world routing: allocate each planned producer's
+exact output rate between provenance-matched internal material edges and a new
+explicit external-output obligation; represent any consumer demand not supplied
+by the compiled producer as an explicit external input; and validate that every
+consumer input rate and every producer output rate balances exactly. This fixes
+the current false assumption that a partial upstream step supplies a consumer's
+entire demand when the production solver deliberately used existing-base
+surplus. It does not invent storage, sinks, conveyors/pipes, external resource
+sources, or hookups. Existing immutable revisions will recompile to a new
+fingerprint rather than being silently reinterpreted.
