@@ -5,6 +5,20 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added fail-closed **AI Architect direct internal fluid topology** through the
+  existing generated-Blueprint v3 pipeline contract. Internal liquid and gas
+  dependencies are separated from solid conveyor edges by their captured item
+  form, and every edge must compile exactly once. Accepted fluid lanes require
+  equal fully utilised producer/consumer counts, exact per-lane m³/min rates,
+  one unambiguous fluid product and ingredient, one captured usable native pipe
+  port at each endpoint, and an unlocked pipeline whose captured class-default
+  flow limit and native hologram length range support the route. Connector
+  positions/normals are transformed through the exact generated actor
+  transforms before the same straight-alignment gate used by the game-side
+  serializer. Insufficient capacity, ambiguous recipes or ports, port reuse,
+  diagonal/elevated paths, and missing capability data refuse the entire native
+  action. Pumps, head lift, junctions/manifolds, bends, and external fluid I/O
+  remain explicit blockers.
 - Added fail-closed **AI Architect internal power distribution** by reusing the
   generated-Blueprint power planner and v2 native physical-wire contract.
   Every configured Architect production machine must expose exactly one
@@ -30,10 +44,10 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   instance. Port reuse, ambiguous producers/connectors, insufficient or unknown
   capacity, or transformed endpoints that do not satisfy the native straight-
   belt alignment threshold fail before file generation. Split/merge balancing
-  and non-solid flow also fail closed. Splitters,
-  mergers, lifts, fluids, power, and external I/O remain named follow-on work;
-  operational readiness remains false until those systems and game readback are
-  proven.
+  and non-solid flow also fail closed at that conveyor adapter. Splitters,
+  mergers, lifts, multi-leg routing, and external I/O remain named follow-on
+  work; operational readiness remains false until those systems and game
+  readback are proven.
 - Began the fail-closed **AI Architect A3 native-promotion adapter**. The exact
   stored revision is deterministically recompiled against the current complete
   graph, must still pass manifest/design-family/unlock fingerprints, and must be

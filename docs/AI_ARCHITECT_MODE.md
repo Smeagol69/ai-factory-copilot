@@ -225,6 +225,27 @@ Internal-power checkpoint (2026-09-03):
   reserved external link is not called connected, so operational readiness
   remains false.
 
+Direct-fluid checkpoint (2026-09-03):
+
+- the exact item form partitions every retained internal dependency into a
+  solid conveyor edge or a liquid/gas pipeline edge. An unknown form refuses
+  promotion, and the combined compilers must account for every edge exactly
+  once;
+- a fluid edge compiles only for equal fully utilised producer/consumer groups
+  whose per-lane rates match in m³/min and whose selected recipes each expose
+  exactly one matching fluid product/input. This prevents a multi-fluid recipe
+  from being assigned to a pipe port by position or guesswork;
+- both machine classes must expose one usable captured native producer/consumer
+  pipe connector with an exact component name, class, default location, and
+  normal. The selected unlocked pipeline must expose its class-default
+  `GetFlowLimit()` plus native hologram minimum and maximum length;
+- transformed endpoints must fit that captured length range and the native
+  straight-route alignment threshold. Accepted links compile through generated
+  Blueprint v3 and still require Satisfactory's reciprocal isolated-world pipe
+  readback. Pumps, head lift, junctions/manifolds, bends, and external fluid I/O
+  remain blocked, so internal pipe generation is not a commissioned fluid
+  system.
+
 Acceptance:
 
 - every requested output and commissioning phase re-solves exactly;

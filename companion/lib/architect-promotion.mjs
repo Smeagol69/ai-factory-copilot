@@ -16,6 +16,10 @@
  */
 
 import { parsePieceDimensions } from "./architecture.mjs";
+import {
+  compileArchitectPipelines,
+  partitionArchitectMaterialEdges,
+} from "./architect-fluid-topology.mjs";
 import { compileArchitectConveyors } from "./architect-topology.mjs";
 import { fingerprintArchitectManifest } from "./architect-revisions.mjs";
 import { compileGeneratedBlueprint, generatedBlueprintAction } from "./generated-blueprints.mjs";
@@ -782,7 +786,7 @@ export function compileArchitectPromotion(graph, manifest, {
     operational_readiness: {
       ready: false,
       internal_material_topology: "not_evaluated",
-      reason: "Native generation is not yet a commissioned factory. A4 can compile the proven direct solid-material and internal power-distribution subsets, while split/merge balancing, lifts, fluids, power generation/external feeds, circulation, commissioning isolation, resource/external material I/O, and destination hookups remain fail-closed.",
+      reason: "Native generation is not yet a commissioned factory. A4 can compile proven direct solid conveyor lanes, direct liquid/gas pipelines, and internal power distribution, while split/merge balancing, lifts, pumps/head lift, fluid junctions, power generation/external feeds, circulation, commissioning isolation, resource/external material I/O, and destination hookups remain fail-closed.",
     },
     authority:
       "The companion may compile only proven native parts. Satisfactory remains responsible for staging, native save/load readback, active descriptor registration, Build Gun hologram cost/snap/collision, and final construction.",
@@ -911,9 +915,29 @@ export function compileArchitectPromotion(graph, manifest, {
     ...bridges.actions,
     ...landmarks.actions,
   ];
+  const materialPartition = partitionArchitectMaterialEdges(graph, manifest);
+  if (!materialPartition.partitioned) {
+    return {
+      ...base,
+      compiled: false,
+      ready_for_native_generation: false,
+      blockers: [`architect_material_topology_partition_refused:${materialPartition.reason}`],
+      material_partition: materialPartition,
+      operational_readiness: {
+        ...base.operational_readiness,
+        internal_material_topology: "blocked",
+        internal_material_topology_reason: materialPartition.reason,
+      },
+      effect: "No native Blueprint action was produced; a material edge with unknown transport semantics was not omitted.",
+    };
+  }
+  const manifestWithEdges = (materialEdges) => ({
+    ...manifest,
+    program: { ...manifest.program, material_edges: materialEdges },
+  });
   const internalConveyors = compileArchitectConveyors(
     graph,
-    manifest,
+    manifestWithEdges(materialPartition.solid_edges),
     buildingActions,
   );
   if (!internalConveyors.compiled) {
@@ -929,6 +953,40 @@ export function compileArchitectPromotion(graph, manifest, {
         internal_material_topology_reason: internalConveyors.reason,
       },
       effect: "No native Blueprint action was produced; incomplete internal material topology was not omitted.",
+    };
+  }
+  const internalPipelines = compileArchitectPipelines(
+    graph,
+    manifestWithEdges(materialPartition.fluid_edges),
+    buildingActions,
+  );
+  if (!internalPipelines.compiled) {
+    return {
+      ...base,
+      compiled: false,
+      ready_for_native_generation: false,
+      blockers: [`architect_internal_pipeline_compiler_refused:${internalPipelines.reason}`],
+      internal_conveyors: internalConveyors,
+      internal_pipelines: internalPipelines,
+      operational_readiness: {
+        ...base.operational_readiness,
+        internal_material_topology: "blocked",
+        internal_material_topology_reason: internalPipelines.reason,
+      },
+      effect: "No native Blueprint action was produced; incomplete internal fluid topology was not omitted.",
+    };
+  }
+  if (internalConveyors.evidence.length + internalPipelines.evidence.length !==
+      materialPartition.total_edges) {
+    return {
+      ...base,
+      compiled: false,
+      ready_for_native_generation: false,
+      blockers: ["architect_material_topology_did_not_compile_every_edge_exactly_once"],
+      material_partition: materialPartition,
+      internal_conveyors: internalConveyors,
+      internal_pipelines: internalPipelines,
+      effect: "No native Blueprint action was produced; one or more exact material dependencies were not represented.",
     };
   }
   const topologyActions = [...buildingActions, ...internalConveyors.actions];
@@ -954,22 +1012,29 @@ export function compileArchitectPromotion(graph, manifest, {
       ready_for_native_generation: false,
       blockers: [`architect_internal_power_compiler_refused:${internalPower.reason}`],
       internal_conveyors: internalConveyors,
+      internal_pipelines: internalPipelines,
       internal_power: internalPower,
       operational_readiness: {
         ...base.operational_readiness,
-        internal_material_topology: internalConveyors.actions.length > 0
+        internal_material_topology: internalConveyors.actions.length > 0 ||
+            internalPipelines.pipeline_connections.length > 0
           ? "compiled_pending_native_game_readback"
           : "no_internal_material_edges_in_manifest",
+        compiled_internal_material_edges:
+          internalConveyors.evidence.length + internalPipelines.evidence.length,
+        compiled_internal_conveyor_segments: internalConveyors.actions.length,
+        compiled_internal_pipeline_segments: internalPipelines.pipeline_connections.length,
         internal_power_topology: "blocked",
         internal_power_topology_reason: internalPower.reason,
       },
       effect: "No native Blueprint action was produced; powered production machines were not emitted without authoritative circuit topology.",
     };
   }
-  const topologySchema = internalConveyors.actions.length > 0 ||
-      internalPower.power_connections.length > 0
-    ? "aifactory.generated-blueprint/v2"
-    : "aifactory.generated-blueprint/v1";
+  const topologySchema = internalPipelines.pipeline_connections.length > 0
+    ? "aifactory.generated-blueprint/v3"
+    : internalConveyors.actions.length > 0 || internalPower.power_connections.length > 0
+      ? "aifactory.generated-blueprint/v2"
+      : "aifactory.generated-blueprint/v1";
   const native = compileGeneratedBlueprint({
     blueprint_name: name,
     description: cleanText(description, 1_000) ??
@@ -978,6 +1043,7 @@ export function compileArchitectPromotion(graph, manifest, {
     origin_cm: manifest.anchor_cm,
     schema: topologySchema,
     power_connections: internalPower.power_connections,
+    pipeline_connections: internalPipelines.pipeline_connections,
   });
   if (!native.compiled) {
     return {
@@ -985,6 +1051,9 @@ export function compileArchitectPromotion(graph, manifest, {
       compiled: false,
       ready_for_native_generation: false,
       blockers: [`existing_generated_blueprint_compiler_refused:${native.reason}`],
+      internal_conveyors: internalConveyors,
+      internal_pipelines: internalPipelines,
+      internal_power: internalPower,
       native_compiler: native,
     };
   }
@@ -1004,14 +1073,18 @@ export function compileArchitectPromotion(graph, manifest, {
         `preview blueprint ${native.blueprint_name}`,
     },
     internal_conveyors: internalConveyors,
+    internal_pipelines: internalPipelines,
     internal_power: internalPower,
     operational_readiness: {
       ...base.operational_readiness,
-      internal_material_topology: internalConveyors.actions.length > 0
+      internal_material_topology: internalConveyors.actions.length > 0 ||
+          internalPipelines.pipeline_connections.length > 0
         ? "compiled_pending_native_game_readback"
         : "no_internal_material_edges_in_manifest",
-      compiled_internal_material_edges: internalConveyors.evidence.length,
+      compiled_internal_material_edges:
+        internalConveyors.evidence.length + internalPipelines.evidence.length,
       compiled_internal_conveyor_segments: internalConveyors.actions.length,
+      compiled_internal_pipeline_segments: internalPipelines.pipeline_connections.length,
       internal_power_topology: internalPower.wires > 0
         ? "compiled_pending_native_game_readback_and_external_grid_connection"
         : internalPower.machines > 0

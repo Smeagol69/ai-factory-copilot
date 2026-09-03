@@ -100,11 +100,14 @@ because a miner cannot be placed on either.
 
 Architect promotion now preserves exact production-step provenance, rates, and
 internal material dependencies in the immutable manifest. Its first A4 topology
-slice compiles only direct one-to-one solid conveyor lanes when machine counts
-and per-lane rates match, each endpoint class has one captured native connector,
-and an unlocked conveyor has a capacity observed in the live snapshot. Any edge
-that needs a splitter, merger, lift, fluid path, guessed port, or unproved
-capacity blocks the whole native Blueprint instead of disappearing from it.
+slice compiles direct one-to-one solid conveyor lanes and direct one-to-one
+liquid/gas pipelines when machine counts and per-lane rates match. Conveyor
+endpoints require one captured native factory connector plus observed unlocked
+belt capacity. Fluid endpoints require one captured native pipe connector,
+unambiguous recipe-to-fluid identity, and an unlocked pipe with captured flow
+and hologram length limits. Any edge that needs a splitter, merger, lift,
+junction, pump/head lift, bent route, guessed port, or unproved capacity blocks
+the whole native Blueprint instead of disappearing from it.
 
 Powered Architect machine sets also pass through the existing deterministic
 generated-Blueprint power planner. It accepts only one captured visible circuit

@@ -40,6 +40,14 @@ const POWER_WIRE_ITEM = "/Game/FactoryGame/Buildable/Factory/PowerLine/Desc_Powe
 const POWER_CIRCUIT = "/Script/FactoryGame.FGPowerCircuit";
 const POWER_POLE_RECIPE = "/Game/FactoryGame/Recipes/Buildings/Recipe_PowerPoleMk1.Recipe_PowerPoleMk1_C";
 const POWER_POLE_ITEM = "/Game/FactoryGame/Buildable/Factory/PowerPoleMk1/Desc_PowerPoleMk1.Desc_PowerPoleMk1_C";
+const FLUID_MACHINE_BUILD_RECIPE = "/Game/Test/Recipe_ArchitectFluidMachine.Recipe_ArchitectFluidMachine_C";
+const FLUID_MACHINE_ITEM = "/Game/Test/Desc_ArchitectFluidMachine.Desc_ArchitectFluidMachine_C";
+const FLUID_MACHINE_CLASS = "/Game/Test/Build_ArchitectFluidMachine.Build_ArchitectFluidMachine_C";
+const FLUID_PRODUCER_RECIPE = "/Game/Test/Recipe_ArchitectWaterProducer.Recipe_ArchitectWaterProducer_C";
+const FLUID_CONSUMER_RECIPE = "/Game/Test/Recipe_ArchitectWaterConsumer.Recipe_ArchitectWaterConsumer_C";
+const WATER_ITEM = "/Game/Test/Desc_ArchitectWater.Desc_ArchitectWater_C";
+const PIPELINE_RECIPE = "/Game/Test/Recipe_ArchitectPipelineMk1.Recipe_ArchitectPipelineMk1_C";
+const PIPELINE_ITEM = "/Game/Test/Desc_ArchitectPipelineMk1.Desc_ArchitectPipelineMk1_C";
 
 function promotionGraph() {
   const snapshot = buildFactorySnapshot();
@@ -228,6 +236,109 @@ function promotionGraph() {
   return buildGraph(snapshot);
 }
 
+function fluidPromotionGraph() {
+  const snapshot = structuredClone(promotionGraph().snapshot);
+  snapshot.content.items.push(
+    {
+      class_path: FLUID_MACHINE_ITEM,
+      name: "Architect Fluid Machine",
+      form: "RF_SOLID",
+      available: true,
+      building: {
+        class_path: FLUID_MACHINE_CLASS,
+        native_pipe_connections: [
+          {
+            component_name: "PipeInput",
+            component_class_path: "/Script/FactoryGame.FGPipeConnectionComponent",
+            pipe_connection_type: "PCT_CONSUMER",
+            connector_clearance_cm: 100,
+            snapping_disallowed: false,
+            native_default_location_cm: { x: 0, y: -400, z: 100 },
+            native_default_normal: { x: 0, y: -1, z: 0 },
+          },
+          {
+            component_name: "PipeOutput",
+            component_class_path: "/Script/FactoryGame.FGPipeConnectionComponent",
+            pipe_connection_type: "PCT_PRODUCER",
+            connector_clearance_cm: 100,
+            snapping_disallowed: false,
+            native_default_location_cm: { x: 0, y: 400, z: 100 },
+            native_default_normal: { x: 0, y: 1, z: 0 },
+          },
+        ],
+        native_circuit_connections: [
+          {
+            component_name: "PowerConnection",
+            component_class_path: "/Script/FactoryGame.FGPowerConnectionComponent",
+            hidden: false,
+            max_links: 2,
+            circuit_type_class_path: POWER_CIRCUIT,
+            native_default_location_cm: { x: 0, y: 0, z: 300 },
+          },
+        ],
+      },
+    },
+    { class_path: WATER_ITEM, name: "Architect Water", form: "RF_LIQUID", available: true },
+    {
+      class_path: PIPELINE_ITEM,
+      name: "Architect Pipeline Mk.1",
+      form: "RF_SOLID",
+      available: true,
+      building: {
+        class_path: "/Game/Test/Build_ArchitectPipelineMk1.Build_ArchitectPipelineMk1_C",
+        native_topology_kind: "pipeline",
+        pipeline_flow_limit_m3_s: 5,
+        pipeline_min_length_cm: 200,
+        pipeline_max_length_cm: 5_600.1,
+        pipeline_max_length_source: "native_pipeline_hologram_cdo_property",
+      },
+    },
+  );
+  snapshot.content.recipes.push(
+    {
+      class_path: FLUID_MACHINE_BUILD_RECIPE,
+      name: "Architect Fluid Machine",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: FLUID_MACHINE_ITEM, item_name: "Architect Fluid Machine", amount: 1 }],
+      produced_in: ["/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C"],
+    },
+    {
+      class_path: FLUID_PRODUCER_RECIPE,
+      name: "Architect Water Production",
+      available: true,
+      duration_seconds: 4,
+      ingredients: [],
+      products: [{ item_class: WATER_ITEM, item_name: "Architect Water", amount: 8_000 }],
+      produced_in: [FLUID_MACHINE_CLASS],
+    },
+    {
+      class_path: FLUID_CONSUMER_RECIPE,
+      name: "Architect Water Consumption",
+      available: true,
+      duration_seconds: 4,
+      ingredients: [{ item_class: WATER_ITEM, item_name: "Architect Water", amount: 8_000 }],
+      products: [{ item_class: FINAL_ITEM, item_name: "Final Part", amount: 1 }],
+      produced_in: [FLUID_MACHINE_CLASS],
+    },
+    {
+      class_path: PIPELINE_RECIPE,
+      name: "Architect Pipeline Mk.1",
+      available: true,
+      ingredients: [],
+      products: [{ item_class: PIPELINE_ITEM, item_name: "Architect Pipeline Mk.1", amount: 1 }],
+      produced_in: ["/Game/FactoryGame/Equipment/BuildGun/BP_BuildGun.BP_BuildGun_C"],
+    },
+  );
+  snapshot.content.available_item_count = snapshot.content.items.filter(
+    (item) => item.available === true,
+  ).length;
+  snapshot.content.available_recipe_count = snapshot.content.recipes.filter(
+    (recipe) => recipe.available === true,
+  ).length;
+  return buildGraph(snapshot);
+}
+
 function platformAndMachinesManifest(graph) {
   const manifest = platformManifest(graph);
   const productionZone = {
@@ -367,6 +478,76 @@ function directTopologyManifest(graph) {
     item_class: "Desc_IronIngot",
     item_name: "Iron Ingot",
     rate_per_minute: 15,
+  });
+  manifest.validation = validateMegabaseManifest(manifest);
+  return manifest;
+}
+
+function directFluidTopologyManifest(graph) {
+  const manifest = platformManifest(graph);
+  for (const [index, specification] of [
+    {
+      groupId: "production-1",
+      local: { x: -1, y: 2, z: 1 },
+      recipe: FLUID_PRODUCER_RECIPE,
+      produces: "Architect Water",
+      itemClass: WATER_ITEM,
+      rate: 120,
+      inputs: [],
+      chain: [FLUID_CONSUMER_RECIPE],
+    },
+    {
+      groupId: "production-2",
+      local: { x: -1, y: 6, z: 1 },
+      recipe: FLUID_CONSUMER_RECIPE,
+      produces: "Final Part",
+      itemClass: FINAL_ITEM,
+      rate: 15,
+      inputs: [{ item_class: WATER_ITEM, item_name: "Architect Water", rate_per_minute: 120 }],
+      chain: [],
+    },
+  ].entries()) {
+    const element = {
+      id: `production-zone-${index + 1}`,
+      kind: "production_zone",
+      local: specification.local,
+      size_cells: { x: 3, y: 3, z: 2 },
+      world_origin_cm: gridPointToWorld(specification.local, manifest.grid, manifest.anchor_cm),
+      world_size_cm: { x: 2_400, y: 2_400, z: 800 },
+      world_yaw_degrees: 90,
+      requires_roles: [],
+      program_group: specification.groupId,
+      produces: specification.produces,
+    };
+    manifest.elements.push(element);
+    manifest.program.groups.push({
+      id: specification.groupId,
+      production_step: index + 1,
+      produces: specification.produces,
+      produces_item_class: specification.itemClass,
+      produces_rate_per_minute: specification.rate,
+      machines: 1,
+      machines_exact: 1,
+      per_machine_output_rate_per_minute: specification.rate,
+      inputs_required: specification.inputs,
+      production_chain: specification.chain,
+      building_class: FLUID_MACHINE_CLASS,
+      build_recipe_class: FLUID_MACHINE_BUILD_RECIPE,
+      production_recipe_class: specification.recipe,
+      machine_footprint_cm: { width: 800, depth: 800, height: 900 },
+      machine_footprint_cells: { x: 1, y: 1 },
+      hall_size_cells: { x: 3, y: 3 },
+      measurement_source: "captured fluid-machine bounds",
+    });
+  }
+  manifest.program.material_edges.push({
+    id: "material-edge-fluid-1",
+    from_program_group: "production-1",
+    to_program_group: "production-2",
+    item_class: WATER_ITEM,
+    item_name: "Architect Water",
+    required_rate_per_minute: 120,
+    evidence: "exact production-chain provenance and matching item class",
   });
   manifest.validation = validateMegabaseManifest(manifest);
   return manifest;
@@ -677,6 +858,22 @@ test("a diagonal machine pair is not mislabeled as a native straight conveyor", 
   assert.equal(refused.action, undefined);
 });
 
+test("an unknown material form cannot disappear between Architect transport compilers", () => {
+  const graph = promotionGraph();
+  graph.itemsByClass.get("Desc_IronRod").form = "RF_INVALID";
+  const refused = compileArchitectPromotion(graph, directTopologyManifest(graph), {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Unknown Transport",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_material_topology_partition_refused:architect_material_edge_transport_form_is_not_proven",
+  ]);
+  assert.equal(refused.material_partition.edge_id, "material-edge-1");
+  assert.equal(refused.action, undefined);
+});
+
 test("powered Architect machines without a proven wire block native promotion", () => {
   const graph = promotionGraph();
   graph.recipesByClass.delete(POWER_WIRE_RECIPE);
@@ -716,4 +913,98 @@ test("single-link Architect machines receive a capacity-safe pole with an extern
   const independentlyValidated = validateAction(graph, promoted.action);
   assert.equal(independentlyValidated.valid, true, JSON.stringify(independentlyValidated));
   assert.equal(independentlyValidated.checks.captured_power_capacity_checked_endpoints, 3);
+});
+
+test("one-to-one rate-matched fluid dependencies compile through native v3 pipelines", () => {
+  const graph = fluidPromotionGraph();
+  const promoted = compileArchitectPromotion(graph, directFluidTopologyManifest(graph), {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Direct Fluid Lane",
+    commit: true,
+  });
+  assert.equal(promoted.compiled, true, JSON.stringify(promoted));
+  assert.equal(promoted.native_blueprint.schema, "aifactory.generated-blueprint/v3");
+  assert.equal(promoted.native_blueprint.counts.pipelines, 1);
+  assert.equal(promoted.native_blueprint.counts.conveyors, 0);
+  assert.equal(promoted.internal_pipelines.compiled, true);
+  assert.equal(promoted.internal_pipelines.evidence[0].lane_rate_m3_per_minute, 120);
+  assert.equal(promoted.internal_pipelines.evidence[0].pipeline_capacity_m3_per_minute, 300);
+  assert.equal(promoted.internal_pipelines.evidence[0].captured_flow_limit_m3_s, 5);
+  assert.equal(promoted.operational_readiness.compiled_internal_material_edges, 1);
+  assert.equal(promoted.operational_readiness.compiled_internal_pipeline_segments, 1);
+  assert.equal(promoted.action.pipelines[0].from_connector_name, "PipeOutput");
+  assert.equal(promoted.action.pipelines[0].to_connector_name, "PipeInput");
+
+  const independentlyValidated = validateAction(graph, promoted.action);
+  assert.equal(independentlyValidated.valid, true, JSON.stringify(independentlyValidated));
+  assert.equal(independentlyValidated.checks.captured_pipe_connector_checked_endpoints, 2);
+  assert.equal(independentlyValidated.checks.captured_pipe_length_checked_links, 1);
+});
+
+test("Architect fluid promotion refuses insufficient captured pipe capacity", () => {
+  const graph = fluidPromotionGraph();
+  graph.itemsByClass.get(PIPELINE_ITEM).building.pipeline_flow_limit_m3_s = 1;
+  const refused = compileArchitectPromotion(graph, directFluidTopologyManifest(graph), {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Undersized Fluid Lane",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_internal_pipeline_compiler_refused:architect_fluid_edge_has_no_unlocked_pipeline_with_captured_capacity",
+  ]);
+  assert.equal(refused.internal_pipelines.required_m3_per_minute, 120);
+  assert.equal(refused.action, undefined);
+});
+
+test("Architect fluid promotion refuses diagonal routes that need explicit bends", () => {
+  const graph = fluidPromotionGraph();
+  const manifest = directFluidTopologyManifest(graph);
+  const consumerZone = manifest.elements.find(
+    (element) => element.program_group === "production-2",
+  );
+  consumerZone.local.x += 1;
+  consumerZone.world_origin_cm = gridPointToWorld(
+    consumerZone.local,
+    manifest.grid,
+    manifest.anchor_cm,
+  );
+  manifest.validation = validateMegabaseManifest(manifest);
+  const refused = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Bent Fluid Route",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_internal_pipeline_compiler_refused:architect_fluid_edge_requires_explicit_multi_leg_route",
+  ]);
+  assert.ok(refused.internal_pipelines.direct_route_diagnostic.from_alignment < 0.995);
+  assert.equal(refused.action, undefined);
+});
+
+test("Architect fluid promotion refuses ambiguous recipe-to-port identity", () => {
+  const graph = fluidPromotionGraph();
+  graph.itemsByClass.set("Desc_ArchitectByproductFluid", {
+    class_path: "Desc_ArchitectByproductFluid",
+    name: "Byproduct Fluid",
+    form: "RF_LIQUID",
+    available: true,
+  });
+  graph.recipesByClass.get(FLUID_PRODUCER_RECIPE).products.push({
+    item_class: "Desc_ArchitectByproductFluid",
+    item_name: "Byproduct Fluid",
+    amount: 1_000,
+  });
+  const refused = compileArchitectPromotion(graph, directFluidTopologyManifest(graph), {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Ambiguous Fluid Port",
+  });
+  assert.equal(refused.compiled, false);
+  assert.deepEqual(refused.blockers, [
+    "architect_internal_pipeline_compiler_refused:architect_fluid_edge_recipe_to_port_identity_is_ambiguous",
+  ]);
+  assert.equal(refused.action, undefined);
 });

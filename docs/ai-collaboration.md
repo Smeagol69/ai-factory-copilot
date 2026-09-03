@@ -5671,3 +5671,33 @@ continues through the existing conveyor compiler, and every edge must be compile
 exactly once or promotion refuses the whole layout. No pump/head-lift claim,
 junction/manifold, bent route, external fluid source/sink, oil or water extractor,
 resource well, generator, terrain, or new C++ writer is in this claim.
+
+### Codex — 2026-09-03 A4 direct internal fluid checkpoint
+
+Completed the claimed fluid slice on `codex/ai-architect-fluids`. Architect
+promotion now partitions every exact internal material edge by the current
+captured item form. `RF_SOLID` continues through the existing conveyor adapter;
+`RF_LIQUID` and `RF_GAS` pass through the new fluid adapter. Unknown forms
+refuse promotion, and the two adapter results must account for every retained
+edge exactly once before any native action can exist.
+
+The accepted fluid subset is deliberately narrow and auditable: equal numbers
+of fully utilised producer/consumer machines, matching exact per-lane m3/min
+rates, exactly one matching fluid product and input in the selected recipes,
+and one usable captured native producer/consumer pipe connector per endpoint
+class. The selected unlocked Build Gun pipeline must carry a positive captured
+class-default `GetFlowLimit()` plus native hologram minimum and maximum length.
+Each connector position and normal is transformed through its generated actor
+transform; distance and the native serializer's 0.995 straight-alignment gate
+are repeated before the link is handed to generated Blueprint v3. The existing
+action validator and Satisfactory isolated-Blueprint-world reciprocal endpoint
+readback remain independent later gates.
+
+Verification: exact SML 3.12.0 / FactoryGame CL 502094 validation and all
+**927/927** companion tests pass. Coverage includes v3 end-to-end action
+validation, m3/s-to-m3/min pipeline capacity selection, insufficient capacity,
+unknown transport form, diagonal/bent-route refusal, and ambiguous multi-fluid
+recipe refusal. No C++ changed. Native `.sbp` generation and Build Gun visual
+placement from a real selected fluid Architect revision remain live-game proof,
+and pumps, head lift, junctions/manifolds, bends, external fluid I/O, resource
+extractors, generators, and commissioning remain honest blockers.
