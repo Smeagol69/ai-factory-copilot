@@ -5701,3 +5701,8 @@ recipe refusal. No C++ changed. Native `.sbp` generation and Build Gun visual
 placement from a real selected fluid Architect revision remain live-game proof,
 and pumps, head lift, junctions/manifolds, bends, external fluid I/O, resource
 extractors, generators, and commissioning remain honest blockers.
+
+Deployment note: the clean companion install now verifies **45** runtime file
+hashes and is healthy on port 8142 with the hybrid provider ready. Repository
+and installed `architect-fluid-topology.mjs` hashes match. No DLL/package update
+was needed because this checkpoint changes only the companion and documentation.
