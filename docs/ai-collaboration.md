@@ -5761,3 +5761,17 @@ copies match: `megabase.mjs` SHA-256
 `AAA5F4EB35E3F0DBA6F273F6E9FF7F9377863BEA204980DC509EC78B79EAA8E4` and
 `architect-promotion.mjs` SHA-256
 `63AAE4B72BB466CDFB8DFD767A4D4A55EF13750F5A619C23BA3AFD809B13B44F`.
+
+### Active claim — Codex — 2026-09-03 A4 native routed conveyor primitive
+
+Working on `codex/ai-architect-splitters` after accounting deployment
+`013fe00`. This is the prerequisite for honest Architect splitter/merger
+networks: add a new generated-Blueprint schema revision whose non-collinear
+conveyors are routed by FactoryGame's exported native spline strategy using the
+selected belt hologram's captured bend radius and maximum length, then require
+native endpoint and saved-Blueprint topology readback exactly as before. The
+companion may request native autorouting only from exact captured connector
+positions/normals and exact unlocked belt metadata. Existing v1-v4 semantics
+stay unchanged. This claim does not yet invent a splitter/merger placement,
+terrain route, conveyor lift, crossing, or obstruction bypass; an unsupported
+route still blocks the whole Architect promotion.
