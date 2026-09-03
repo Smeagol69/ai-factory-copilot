@@ -5657,3 +5657,17 @@ reserved external-grid link is not generation, so operational readiness remains
 false. Split/merge conveyors, multi-leg belts/lifts, fluids, external material
 I/O, generation/source planning, circulation, commissioning, and terrain remain
 separate follow-on claims.
+
+### Active claim — Codex — 2026-09-03 A4 direct internal fluid topology
+
+Working on `codex/ai-architect-fluids` after power checkpoint `8e64410`. Scope
+is one deliberately narrow fluid slice: classify internal material edges by the
+captured item form, compile only equal-count fully utilised liquid/gas lanes
+between one exact producer and consumer pipe port, require the captured native
+pipe recipe, flow limit, hologram min/max length, transformed endpoint alignment,
+and unused compatible connector names, then feed those links into the existing
+generated-Blueprint v3 validator and native serializer/readback. Every solid edge
+continues through the existing conveyor compiler, and every edge must be compiled
+exactly once or promotion refuses the whole layout. No pump/head-lift claim,
+junction/manifold, bent route, external fluid source/sink, oil or water extractor,
+resource well, generator, terrain, or new C++ writer is in this claim.
