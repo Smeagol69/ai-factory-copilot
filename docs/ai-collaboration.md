@@ -5753,3 +5753,11 @@ accounting, the existing-base-surplus regression, and fail-closed promotion for
 partial internal plus external feeds. No C++ changed, so no DLL/package rebuild
 is required. Clean companion installation and hash/readiness verification are
 the remaining deployment step for this checkpoint.
+
+Deployment note: commit `f9a5aa8` is on `master`. The clean companion install
+verifies **45** runtime hashes and `/health` is ready on port 8142 with both the
+local cheap tier and Anthropic strong tier available. Repository and installed
+copies match: `megabase.mjs` SHA-256
+`AAA5F4EB35E3F0DBA6F273F6E9FF7F9377863BEA204980DC509EC78B79EAA8E4` and
+`architect-promotion.mjs` SHA-256
+`63AAE4B72BB466CDFB8DFD767A4D4A55EF13750F5A619C23BA3AFD809B13B44F`.
