@@ -5610,3 +5610,18 @@ Build Gun visual placement remain pending, so operational readiness stays
 false. Splitter/merger networks, lifts, fluids, power, resource/external I/O,
 circulation, commissioning, and destination terrain remain separate follow-on
 claims.
+
+### Active claim — Codex — 2026-09-03 A4 internal power topology
+
+Working on `codex/ai-architect-power` after direct-conveyor hardening commit
+`988d267`. Scope is the next fail-closed A4 slice: pass the exact compiled
+Architect machine actions through the existing generated-Blueprint power
+planner; require captured native circuit connector identity/capacity, compatible
+circuit types, an unlocked native wire with captured maximum length, and a
+capacity-safe direct chain or captured compatible pole trunk that reserves one
+external-grid link. Feed only those proven building/wire edges into the existing
+generated-Blueprint v2 validator and native serializer/readback. Production
+machines without authoritative power evidence block the whole promotion; a
+semantic plan is never called powered merely because machines exist. No new C++
+writer, guessed Mk.1 capacity, generator/source selection, external world wire,
+splitter, fluid, lift, terrain, or commissioning work is in this claim.
