@@ -5880,3 +5880,24 @@ it needs a packaged game and a look, which this checkpoint has not had.
 
 Not done: arcs and rings as footprints, tapers and setbacks, mirroring,
 sweep-along-path.
+
+### Active claim — Codex — 2026-09-05 native solid-node visual parity
+
+Paused the unfinished generated-Blueprint v5 routed-conveyor work on
+`codex/ai-architect-splitters` in the recoverable stash
+`WIP Architect native routed conveyor v5` at the owner's request. No partial v5
+code is being mixed into this lane.
+
+Working on `codex/native-resource-node-visuals` from current `origin/master`.
+Scope is the owner-requested visual correction for Copilot-spawned ordinary
+solid resource nodes: use the authoritative vanilla full resource-node rock
+presentation instead of the descriptor's small hand-mineable deposit mesh.
+Preserve the already live-verified ordinary-node actor identity, Miner snapping,
+resource descriptor, purity, node type, occupation, replication, save/load,
+clone/remove workflows, mod-resource compatibility, and all fluid/gas/geyser
+paths. The implementation must be grounded in the exact CL 502094 headers and
+available native class/component defaults; it must not mutate a vanilla map
+node or pretend a deposit mesh is a node mesh. Expected files are the creative
+ordinary-node visual/configuration path, focused source-contract tests, changelog,
+and this append-only handoff, followed by exact validation, Shipping/Editor
+builds, package, and deployment if the game DLL is not locked.
