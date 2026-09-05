@@ -1,0 +1,4683 @@
+{
+  "available": true,
+  "name": "[ARCH] Miner Wrap [1x2][v1]",
+  "decoded_with": {
+    "package": "@etothepii/satisfactory-file-parser",
+    "mode": "read_only"
+  },
+  "header": {
+    "blueprint_header_version": 2,
+    "factory_save_custom_version": 42,
+    "game_changelist": 273254,
+    "designer_dimensions": {
+      "x": 8,
+      "y": 8,
+      "z": 8
+    },
+    "description": "Compact wrap for the any miner.",
+    "build_cost": [
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Cement/Desc_Cement.Desc_Cement_C",
+        "item_level_name": "",
+        "item_name": "Cement",
+        "amount": 153
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/IronRod/Desc_IronRod.Desc_IronRod_C",
+        "item_level_name": "",
+        "item_name": "IronRod",
+        "amount": 54
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Cable/Desc_Cable.Desc_Cable_C",
+        "item_level_name": "",
+        "item_name": "Cable",
+        "amount": 27
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/QuartzCrystal/Desc_QuartzCrystal.Desc_QuartzCrystal_C",
+        "item_level_name": "",
+        "item_name": "QuartzCrystal",
+        "amount": 155
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/IronPlate/Desc_IronPlate.Desc_IronPlate_C",
+        "item_level_name": "",
+        "item_name": "IronPlate",
+        "amount": 140
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/SteelPlateReinforced/Desc_SteelPlateReinforced.Desc_SteelPlateReinforced_C",
+        "item_level_name": "",
+        "item_name": "SteelPlateReinforced",
+        "amount": 12
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/SteelPlate/Desc_SteelPlate.Desc_SteelPlate_C",
+        "item_level_name": "",
+        "item_name": "SteelPlate",
+        "amount": 192
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Wire/Desc_Wire.Desc_Wire_C",
+        "item_level_name": "",
+        "item_name": "Wire",
+        "amount": 39
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/IronPlateReinforced/Desc_IronPlateReinforced.Desc_IronPlateReinforced_C",
+        "item_level_name": "",
+        "item_name": "IronPlateReinforced",
+        "amount": 15
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Silica/Desc_Silica.Desc_Silica_C",
+        "item_level_name": "",
+        "item_name": "Silica",
+        "amount": 8
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/CopperSheet/Desc_CopperSheet.Desc_CopperSheet_C",
+        "item_level_name": "",
+        "item_name": "CopperSheet",
+        "amount": 20
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/CrystalOscillator/Desc_CrystalOscillator.Desc_CrystalOscillator_C",
+        "item_level_name": "",
+        "item_name": "CrystalOscillator",
+        "amount": 5
+      }
+    ]
+  },
+  "declared_io": {
+    "raw_description": "Compact wrap for the any miner.",
+    "inputs": [],
+    "outputs": [],
+    "evidence": "author_supplied_description_text",
+    "caveat": "Parsed from the blueprint author's own description. It is a claim about the design, not a decoded or simulated rate. Verify against content.recipes before planning to it."
+  },
+  "totals": {
+    "saved_objects": 190,
+    "saved_entities": 178,
+    "buildings": 178,
+    "buildings_with_position": 178,
+    "distinct_classes": 32,
+    "distinct_yaw_degrees": [
+      0,
+      2.41,
+      27.66,
+      90,
+      156.93,
+      180,
+      219.89,
+      225,
+      270,
+      310.79,
+      314.43,
+      336.04,
+      336.31,
+      353.82
+    ],
+    "non_yaw_only_buildings": 50
+  },
+  "pivot_extent": {
+    "min_cm": {
+      "x": 750,
+      "y": -800,
+      "z": -1
+    },
+    "max_cm": {
+      "x": 1950,
+      "y": 2035.4,
+      "z": 3052.3
+    }
+  },
+  "class_paths": {
+    "Pillar_Small_Concrete": "/Game/FactoryGame/Buildable/Building/Pillars/Build_Pillar_Small_Concrete.Build_Pillar_Small_Concrete_C",
+    "CatwalkCross": "/Game/FactoryGame/Buildable/Building/Catwalk/Build_CatwalkCross.Build_CatwalkCross_C",
+    "CatwalkStairs": "/Game/FactoryGame/Buildable/Building/Catwalk/Build_CatwalkStairs.Build_CatwalkStairs_C",
+    "Railing_01": "/Game/FactoryGame/Buildable/Building/Fence/Build_Railing_01.Build_Railing_01_C",
+    "Wall_Concrete_8x4": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_8x4.Build_Wall_Concrete_8x4_C",
+    "Beam_Painted": "/Game/FactoryGame/Prototype/Buildable/Beams/Build_Beam_Painted.Build_Beam_Painted_C",
+    "Wall_Concrete_8x1": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_8x1.Build_Wall_Concrete_8x1_C",
+    "Wall_Window_Thin_8x4_02": "/Game/FactoryGame/Buildable/Building/Wall/Build_Wall_Window_Thin_8x4_02.Build_Wall_Window_Thin_8x4_02_C",
+    "Wall_Concrete_SDoor_8x4": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_SDoor_8x4.Build_Wall_Concrete_SDoor_8x4_C",
+    "Beam": "/Game/FactoryGame/Prototype/Buildable/Beams/Build_Beam.Build_Beam_C",
+    "Gate_Automated_8x4": "/Game/FactoryGame/Buildable/Building/Doors/Build_Gate_Automated_8x4.Build_Gate_Automated_8x4_C",
+    "Beam_Connector": "/Game/FactoryGame/Prototype/Buildable/Beams/Build_Beam_Connector.Build_Beam_Connector_C",
+    "Beam_Connector_Double": "/Game/FactoryGame/Prototype/Buildable/Beams/Build_Beam_Connector_Double.Build_Beam_Connector_Double_C",
+    "ConveyorPoleWall": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleWall/Build_ConveyorPoleWall.Build_ConveyorPoleWall_C",
+    "CatwalkCorner": "/Game/FactoryGame/Buildable/Building/Catwalk/Build_CatwalkCorner.Build_CatwalkCorner_C",
+    "CatwalkStraight": "/Game/FactoryGame/Buildable/Building/Catwalk/Build_CatwalkStraight.Build_CatwalkStraight_C",
+    "CatwalkT": "/Game/FactoryGame/Buildable/Building/Catwalk/Build_CatwalkT.Build_CatwalkT_C",
+    "Wall_Concrete_Tris_8x8": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_Tris_8x8.Build_Wall_Concrete_Tris_8x8_C",
+    "StandaloneWidgetSign_SmallVeryWide": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_SmallVeryWide.Build_StandaloneWidgetSign_SmallVeryWide_C",
+    "StandaloneWidgetSign_Portrait": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Portrait.Build_StandaloneWidgetSign_Portrait_C",
+    "StandaloneWidgetSign_Square_Tiny": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Square_Tiny.Build_StandaloneWidgetSign_Square_Tiny_C",
+    "StandaloneWidgetSign_Small": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Small.Build_StandaloneWidgetSign_Small_C",
+    "StandaloneWidgetSign_Square": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Square.Build_StandaloneWidgetSign_Square_C",
+    "Wall_Concrete_Angular_8x8": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_Angular_8x8.Build_Wall_Concrete_Angular_8x8_C",
+    "StandaloneWidgetSign_SmallWide": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_SmallWide.Build_StandaloneWidgetSign_SmallWide_C",
+    "PowerPoleMk1": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk1/Build_PowerPoleMk1.Build_PowerPoleMk1_C",
+    "PowerPoleWall": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+    "PowerLine": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+    "StandaloneWidgetSign_Huge": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Huge.Build_StandaloneWidgetSign_Huge_C",
+    "ConveyorCeilingAttachment": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleWall/Build_ConveyorCeilingAttachment.Build_ConveyorCeilingAttachment_C",
+    "Wall_Frame_01": "/Game/FactoryGame/Buildable/Building/Wall/Build_Wall_Frame_01.Build_Wall_Frame_01_C",
+    "Wall_Window_Thin_8x4_01": "/Game/FactoryGame/Buildable/Building/Wall/Build_Wall_Window_Thin_8x4_01.Build_Wall_Window_Thin_8x4_01_C"
+  },
+  "machine_groups": [],
+  "throughput_check": {
+    "status": "not_attempted",
+    "reason": "the author declared no single output",
+    "declared_outputs": [],
+    "machine_groups": []
+  },
+  "connection_topology": {
+    "status": "decoded",
+    "scope": "reciprocal_conveyor_and_pipe_component_references",
+    "connection_component_count": 2,
+    "m_connected_component_record_count": 0,
+    "supported_connection_reference_record_count": 0,
+    "unsupported_connection_component_record_count": 0,
+    "reciprocal_connection_reference_count": 0,
+    "reciprocal_connection_pair_count": 0,
+    "reciprocal_connection_pairs_by_kind": {
+      "conveyor": 0,
+      "pipe": 0,
+      "mixed": 0
+    },
+    "endpoint_owner_resolution": {
+      "both": 0,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_component_reference_count": 0,
+    "unresolved_component_reference_count": 0,
+    "ambiguous_component_reference_count": 0,
+    "nonreciprocal_component_reference_count": 0,
+    "unsupported_target_component_reference_count": 0,
+    "self_component_reference_count": 0,
+    "connections": [],
+    "connections_returned": 0,
+    "connections_truncated": 0,
+    "power_wire_property_records_not_interpreted": 10,
+    "flow_direction": "not_inferred_from_component_references",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact reciprocal mConnectedComponent links on native conveyor/pipe connection components are decoded. This does not prove item/fluid flow direction, rate, power wiring, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_blueprint_component_references",
+    "certainty": "authoritative_for_decoded_reciprocal_component_links"
+  },
+  "power_wire_topology": {
+    "status": "decoded",
+    "scope": "native_power_wire_edges_inverted_from_exact_m_wires_membership",
+    "native_power_connection_component_count": 10,
+    "m_wires_property_record_count": 10,
+    "supported_m_wires_property_record_count": 10,
+    "unsupported_m_wires_property_record_count": 0,
+    "power_wire_entity_count": 9,
+    "referenced_power_wire_entity_count": 9,
+    "saved_power_wire_reference_count": 18,
+    "verified_power_wire_count": 9,
+    "endpoint_owner_resolution": {
+      "both": 9,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_power_wire_entity_record_count": 0,
+    "malformed_power_connection_component_record_count": 0,
+    "ambiguous_power_connection_component_record_count": 0,
+    "malformed_m_wires_property_count": 0,
+    "malformed_m_wires_reference_count": 0,
+    "duplicate_m_wires_reference_count": 0,
+    "unresolved_power_wire_reference_count": 0,
+    "ambiguous_power_wire_reference_count": 0,
+    "unsupported_power_wire_target_count": 0,
+    "duplicate_power_wire_entity_name_count": 0,
+    "duplicate_power_wire_endpoint_reference_count": 0,
+    "incomplete_power_wire_endpoint_count": 0,
+    "overconnected_power_wire_endpoint_count": 0,
+    "unreferenced_power_wire_entity_count": 0,
+    "unresolved_power_wire_endpoint_owner_count": 0,
+    "power_wires": [
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142285423",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142299396.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142299396",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143016883.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143016883",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142290171",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142299396.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142299396",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143056044.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143056044",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142299402",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142299396.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142299396",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143061149.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143061149",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142850883",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142850877.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142850877",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142864287.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142864287",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142864293",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142864287.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142864287",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142874253.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142874253",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142874259",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142874253.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142874253",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142897739.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142897739",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142889146",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk1_C_2143071371.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk1_C_2143071371",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk1/Build_PowerPoleMk1.Build_PowerPoleMk1_C",
+          "owner_entity_class_name": "PowerPoleMk1",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142897739.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142897739",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142897745",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142897739.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142897739",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142947424.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142947424",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2142947430",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142947424.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2142947424",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143016883.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2143016883",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      }
+    ],
+    "power_wires_returned": 9,
+    "power_wires_truncated": 0,
+    "electricity_direction": "not_inferred_from_saved_power_wire_edges",
+    "voltage_load_and_capacity": "not_inferred_from_saved_power_wire_edges",
+    "hidden_circuit_connections": "not_counted_as_physical_power_wires",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact mWires membership on native FGPowerConnectionComponent records is inverted into physical native power-wire edges. This does not prove electricity direction, voltage, load, capacity, live circuit state, wire length, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_blueprint_power_connection_m_wires",
+    "certainty": "authoritative_for_verified_native_power_wire_edges"
+  },
+  "buildings": [
+    {
+      "index": 33,
+      "class_name": "Beam",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 850,
+        "y": 1200,
+        "z": -1
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 1.5
+      },
+      "height_m": -0.01,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0,
+        "z": 0.707107,
+        "w": 0
+      }
+    },
+    {
+      "index": 35,
+      "class_name": "Beam",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1200,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 1.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": -0.707107,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 135,
+      "class_name": "Beam",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 850,
+        "y": 1900,
+        "z": 799
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2.375
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 180,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.612373,
+        "y": 0.353553,
+        "z": -0.612373,
+        "w": 0.353553
+      }
+    },
+    {
+      "index": 39,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 800,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 40,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 41,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1300,
+        "y": 1600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.625,
+        "y": 2
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0,
+        "z": -0.707107,
+        "w": 0
+      }
+    },
+    {
+      "index": 68,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 69,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 90,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": 0.5,
+        "z": 0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 75,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 44.4,
+        "z": 796.7
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.055
+      },
+      "height_m": 7.97,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.270598,
+        "y": 0.270598,
+        "z": -0.653282,
+        "w": 0.653281
+      }
+    },
+    {
+      "index": 76,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 44.4,
+        "z": 796.7
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.055
+      },
+      "height_m": 7.97,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.270598,
+        "y": 0.270598,
+        "z": -0.653281,
+        "w": 0.653282
+      }
+    },
+    {
+      "index": 113,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 159,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 163,
+      "class_name": "Beam_Connector",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 42,
+      "class_name": "Beam_Connector_Double",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1150,
+        "y": 1600,
+        "z": 601.3
+      },
+      "grid_cells": {
+        "x": 1.437,
+        "y": 2
+      },
+      "height_m": 6.01,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Connector_Double",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 14,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 800,
+        "z": 799
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 1
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": 0.707107,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 15,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 0,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 16,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": 0.5,
+        "z": 0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 17,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 24,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1400,
+        "y": 1900,
+        "z": 300
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": 2.375
+      },
+      "height_m": 3,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 26,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 1200,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 1.5
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": 0.707107,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 29,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 2000,
+        "z": 850
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2.5
+      },
+      "height_m": 8.5,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": 0.707107,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 30,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 2000,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": -0.707107,
+        "y": 0,
+        "z": -0.707107,
+        "w": 0
+      }
+    },
+    {
+      "index": 31,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1000,
+        "y": 2000,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": 2.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 38,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": 0.270598,
+        "y": 0.270598,
+        "z": -0.653282,
+        "w": 0.653281
+      }
+    },
+    {
+      "index": 44,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 45,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 0,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 56,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 750,
+        "y": 1600,
+        "z": 1199
+      },
+      "grid_cells": {
+        "x": 0.937,
+        "y": 2
+      },
+      "height_m": 11.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 58,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1100,
+        "y": 2000,
+        "z": 1600
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 2.5
+      },
+      "height_m": 16,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 59,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1300,
+        "y": 1600,
+        "z": 1600
+      },
+      "grid_cells": {
+        "x": 1.625,
+        "y": 2
+      },
+      "height_m": 16,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 60,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1050,
+        "y": 2000,
+        "z": 1599
+      },
+      "grid_cells": {
+        "x": 1.312,
+        "y": 2.5
+      },
+      "height_m": 15.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 70,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 71,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": 0.5,
+        "z": 0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 73,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1300,
+        "y": 1600,
+        "z": 1600
+      },
+      "grid_cells": {
+        "x": 1.625,
+        "y": 2
+      },
+      "height_m": 16,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 77,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": 0.270598,
+        "y": 0.270598,
+        "z": -0.653281,
+        "w": 0.653282
+      }
+    },
+    {
+      "index": 78,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": 0.270598,
+        "y": 0.270598,
+        "z": -0.653282,
+        "w": 0.653281
+      }
+    },
+    {
+      "index": 79,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1300,
+        "y": 1600,
+        "z": 1600
+      },
+      "grid_cells": {
+        "x": 1.625,
+        "y": 2
+      },
+      "height_m": 16,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 80,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 1200,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 1.5
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": -0.707107,
+        "y": 0,
+        "z": -0.707107,
+        "w": 0
+      }
+    },
+    {
+      "index": 81,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 1200,
+        "z": 699
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 1.5
+      },
+      "height_m": 6.99,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 84,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 950,
+        "y": 1600,
+        "z": 801.3
+      },
+      "grid_cells": {
+        "x": 1.187,
+        "y": 2
+      },
+      "height_m": 8.01,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 98,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1650,
+        "y": -800,
+        "z": 799
+      },
+      "grid_cells": {
+        "x": 2.062,
+        "y": -1
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 100,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1200,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 1.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 101,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1200,
+        "z": 750
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 1.5
+      },
+      "height_m": 7.5,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 105,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 468.6,
+        "z": 1220.9
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.586
+      },
+      "height_m": 12.21,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": -0.382683,
+        "y": 0,
+        "z": 0,
+        "w": 0.92388
+      }
+    },
+    {
+      "index": 107,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 751.5,
+        "z": 1503.8
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.939
+      },
+      "height_m": 15.04,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 108,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 751.5,
+        "z": 1503.8
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.939
+      },
+      "height_m": 15.04,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": -0.382683,
+        "y": 0,
+        "z": 0,
+        "w": 0.92388
+      }
+    },
+    {
+      "index": 109,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 800,
+        "z": 1502.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1
+      },
+      "height_m": 15.02,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 114,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 116,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1600,
+        "z": 750
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 2
+      },
+      "height_m": 7.5,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 117,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1000,
+        "y": 2000,
+        "z": 700
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": 2.5
+      },
+      "height_m": 7,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 136,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1200,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 1.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 137,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1200,
+        "z": 750
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 1.5
+      },
+      "height_m": 7.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 157,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1100,
+        "y": 1600,
+        "z": 1600
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 2
+      },
+      "height_m": 16,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 160,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": 0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 164,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": 0.5,
+        "z": 0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 165,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 400,
+        "z": 150
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.5
+      },
+      "height_m": 1.5,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": -0.707107,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 166,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 400,
+        "z": 150
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.5
+      },
+      "height_m": 1.5,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0,
+        "z": -0.707107,
+        "w": 0
+      }
+    },
+    {
+      "index": 174,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 350
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 3.5,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 175,
+      "class_name": "Beam_Painted",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 350
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 3.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Beam_Painted",
+      "clock_percent": null,
+      "color_slot": 255,
+      "swatch": "SwatchDesc_Custom"
+    },
+    {
+      "index": 46,
+      "class_name": "CatwalkCorner",
+      "role": "access",
+      "position_cm": {
+        "x": 1000,
+        "y": -600,
+        "z": 802.2
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": -0.75
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Turn",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 47,
+      "class_name": "CatwalkCorner",
+      "role": "access",
+      "position_cm": {
+        "x": 1400,
+        "y": -600,
+        "z": 802.2
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": -0.75
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Turn",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 99,
+      "class_name": "CatwalkCorner",
+      "role": "access",
+      "position_cm": {
+        "x": 1000,
+        "y": 200,
+        "z": 802.2
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": 0.25
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Turn",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 3,
+      "class_name": "CatwalkCross",
+      "role": "access",
+      "position_cm": {
+        "x": 1350,
+        "y": 1800,
+        "z": 803.2
+      },
+      "grid_cells": {
+        "x": 1.687,
+        "y": 2.25
+      },
+      "height_m": 8.03,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Cross",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 4,
+      "class_name": "CatwalkCross",
+      "role": "access",
+      "position_cm": {
+        "x": 1750,
+        "y": 1800,
+        "z": 803.2
+      },
+      "grid_cells": {
+        "x": 2.187,
+        "y": 2.25
+      },
+      "height_m": 8.03,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Cross",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 5,
+      "class_name": "CatwalkCross",
+      "role": "access",
+      "position_cm": {
+        "x": 1200,
+        "y": 1700,
+        "z": 798.2
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.125
+      },
+      "height_m": 7.98,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Cross",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 6,
+      "class_name": "CatwalkCross",
+      "role": "access",
+      "position_cm": {
+        "x": 1200,
+        "y": 1450,
+        "z": 799.2
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1.812
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Cross",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 7,
+      "class_name": "CatwalkStairs",
+      "role": "access",
+      "position_cm": {
+        "x": 1750,
+        "y": 1000,
+        "z": 3.2
+      },
+      "grid_cells": {
+        "x": 2.187,
+        "y": 1.25
+      },
+      "height_m": 0.03,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Stairs",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 27,
+      "class_name": "CatwalkStairs",
+      "role": "access",
+      "position_cm": {
+        "x": 1750,
+        "y": 1400,
+        "z": 403.2
+      },
+      "grid_cells": {
+        "x": 2.187,
+        "y": 1.75
+      },
+      "height_m": 4.03,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Stairs",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 48,
+      "class_name": "CatwalkStraight",
+      "role": "access",
+      "position_cm": {
+        "x": 1400,
+        "y": 600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": 0.75
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Straight",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 62,
+      "class_name": "CatwalkStraight",
+      "role": "access",
+      "position_cm": {
+        "x": 1400,
+        "y": 1000,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": 1.25
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_Straight",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 49,
+      "class_name": "CatwalkT",
+      "role": "access",
+      "position_cm": {
+        "x": 1400,
+        "y": -200,
+        "z": 802.2
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": -0.25
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_T",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 50,
+      "class_name": "CatwalkT",
+      "role": "access",
+      "position_cm": {
+        "x": 1000,
+        "y": -200,
+        "z": 802.2
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": -0.25
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_T",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 51,
+      "class_name": "CatwalkT",
+      "role": "access",
+      "position_cm": {
+        "x": 1400,
+        "y": 200,
+        "z": 802.2
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": 0.25
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_T",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 63,
+      "class_name": "CatwalkT",
+      "role": "access",
+      "position_cm": {
+        "x": 1400,
+        "y": 1400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": 1.75
+      },
+      "height_m": 8,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Catwalk_T",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 173,
+      "class_name": "ConveyorCeilingAttachment",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 300
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 3,
+      "yaw_degrees": 90,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorCeilingAttachment",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0.707107,
+        "z": 0,
+        "w": 0
+      }
+    },
+    {
+      "index": 43,
+      "class_name": "ConveyorPoleWall",
+      "role": "logistics",
+      "position_cm": {
+        "x": 800,
+        "y": 380,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 0.475
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 34,
+      "class_name": "Gate_Automated_8x4",
+      "role": "access",
+      "position_cm": {
+        "x": 850,
+        "y": 800,
+        "z": -1
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 1
+      },
+      "height_m": -0.01,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Gate_Automated_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 0,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1500,
+        "y": 1900,
+        "z": 200
+      },
+      "grid_cells": {
+        "x": 1.875,
+        "y": 2.375
+      },
+      "height_m": 2,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 1,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1900,
+        "z": 200
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 2.375
+      },
+      "height_m": 2,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 2,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1500,
+        "y": 1900,
+        "z": 600
+      },
+      "grid_cells": {
+        "x": 1.875,
+        "y": 2.375
+      },
+      "height_m": 6,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 18,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1900,
+        "z": 600
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 2.375
+      },
+      "height_m": 6,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 52,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1500,
+        "y": 1500,
+        "z": 1802.3
+      },
+      "grid_cells": {
+        "x": 1.875,
+        "y": 1.875
+      },
+      "height_m": 18.02,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 53,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1400,
+        "y": 1500,
+        "z": 1802.3
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": 1.875
+      },
+      "height_m": 18.02,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 54,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1300,
+        "y": 1500,
+        "z": 1802.3
+      },
+      "grid_cells": {
+        "x": 1.625,
+        "y": 1.875
+      },
+      "height_m": 18.02,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 55,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1500,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1.875
+      },
+      "height_m": 18,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 57,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1800,
+        "z": 1700
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.25
+      },
+      "height_m": 17,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 61,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1800,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.25
+      },
+      "height_m": 18,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete",
+      "rotation_quaternion": {
+        "x": -0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 154,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1100,
+        "y": 1500,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 1.875
+      },
+      "height_m": 18,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 155,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1000,
+        "y": 1500,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": 1.875
+      },
+      "height_m": 18,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 156,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 900,
+        "y": 1500,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 1.875
+      },
+      "height_m": 18,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 172,
+      "class_name": "Pillar_Small_Concrete",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1800,
+        "z": 1949.2
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.25
+      },
+      "height_m": 19.49,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Pillar_Small_Concrete",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 142,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1130,
+        "y": 1500,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.413,
+        "y": 1.875
+      },
+      "height_m": 18,
+      "yaw_degrees": 314.43,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 144,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 1570
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 15.7,
+      "yaw_degrees": 2.41,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 146,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 3052.3
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 30.52,
+      "yaw_degrees": 336.31,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 147,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 820
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 8.2,
+      "yaw_degrees": 353.82,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 149,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 850,
+        "y": 1600,
+        "z": 499
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2
+      },
+      "height_m": 4.99,
+      "yaw_degrees": 156.93,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 151,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 850,
+        "y": 1600,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 27.66,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 168,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1200,
+        "y": 1700,
+        "z": 1920
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.125
+      },
+      "height_m": 19.2,
+      "yaw_degrees": 219.89,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 170,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1350,
+        "y": 1700,
+        "z": 1949.2
+      },
+      "grid_cells": {
+        "x": 1.688,
+        "y": 2.125
+      },
+      "height_m": 19.49,
+      "yaw_degrees": 310.79,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 171,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1200,
+        "y": 1650,
+        "z": 1900
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.063
+      },
+      "height_m": 19,
+      "yaw_degrees": 336.04,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 138,
+      "class_name": "PowerPoleMk1",
+      "role": "power",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 2352.3
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 23.52,
+      "yaw_degrees": 225,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleMk1",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 139,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 1130,
+        "y": 1700,
+        "z": 1949.2
+      },
+      "grid_cells": {
+        "x": 1.413,
+        "y": 2.125
+      },
+      "height_m": 19.49,
+      "yaw_degrees": 180,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": 0.92388,
+        "z": -0.382683,
+        "w": 0
+      }
+    },
+    {
+      "index": 140,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 1270,
+        "y": 1700,
+        "z": 1949.2
+      },
+      "grid_cells": {
+        "x": 1.588,
+        "y": 2.125
+      },
+      "height_m": 19.49,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.382683,
+        "y": 0,
+        "z": 0,
+        "w": 0.92388
+      }
+    },
+    {
+      "index": 141,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 1200,
+        "y": 1570,
+        "z": 1900
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1.963
+      },
+      "height_m": 19,
+      "yaw_degrees": 90,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.653282,
+        "y": 0.653282,
+        "z": 0.270598,
+        "w": 0.270598
+      }
+    },
+    {
+      "index": 143,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 1130,
+        "y": 1500,
+        "z": 1800
+      },
+      "grid_cells": {
+        "x": 1.413,
+        "y": 1.875
+      },
+      "height_m": 18,
+      "yaw_degrees": 180,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": -0.92388,
+        "z": -0.382683,
+        "w": 0
+      }
+    },
+    {
+      "index": 145,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 1570
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 15.7,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": -0.707107,
+        "z": 0,
+        "w": 0.707107
+      }
+    },
+    {
+      "index": 148,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 800,
+        "y": 1600,
+        "z": 820
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 2
+      },
+      "height_m": 8.2,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": 0.5,
+        "z": 0.5,
+        "w": -0.5
+      }
+    },
+    {
+      "index": 150,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 850,
+        "y": 1600,
+        "z": 499
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2
+      },
+      "height_m": 4.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 152,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 850,
+        "y": 1600,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 169,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 1200,
+        "y": 1700,
+        "z": 1920
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.125
+      },
+      "height_m": 19.2,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": -0.5,
+        "z": 0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 8,
+      "class_name": "Railing_01",
+      "role": "access",
+      "position_cm": {
+        "x": 1950,
+        "y": 1800,
+        "z": 803.3
+      },
+      "grid_cells": {
+        "x": 2.437,
+        "y": 2.25
+      },
+      "height_m": 8.03,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Railing_01",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 9,
+      "class_name": "Railing_01",
+      "role": "access",
+      "position_cm": {
+        "x": 1750,
+        "y": 2000,
+        "z": 803.3
+      },
+      "grid_cells": {
+        "x": 2.187,
+        "y": 2.5
+      },
+      "height_m": 8.03,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Railing_01",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 10,
+      "class_name": "Railing_01",
+      "role": "access",
+      "position_cm": {
+        "x": 1350,
+        "y": 2000,
+        "z": 803.3
+      },
+      "grid_cells": {
+        "x": 1.687,
+        "y": 2.5
+      },
+      "height_m": 8.03,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Railing_01",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 102,
+      "class_name": "Railing_01",
+      "role": "access",
+      "position_cm": {
+        "x": 1000,
+        "y": 1200,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": 1.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Railing_01",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 103,
+      "class_name": "Railing_01",
+      "role": "access",
+      "position_cm": {
+        "x": 800,
+        "y": 1400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 1.75
+      },
+      "height_m": 8,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Railing_01",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 161,
+      "class_name": "StandaloneWidgetSign_Huge",
+      "role": "signage",
+      "position_cm": {
+        "x": 1200,
+        "y": 976.8,
+        "z": 1799.8
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1.221
+      },
+      "height_m": 18,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Huge",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": -0.270598,
+        "y": 0.653282,
+        "z": -0.270598,
+        "w": 0.653282
+      }
+    },
+    {
+      "index": 85,
+      "class_name": "StandaloneWidgetSign_Portrait",
+      "role": "signage",
+      "position_cm": {
+        "x": 1300,
+        "y": 1850,
+        "z": 1849.2
+      },
+      "grid_cells": {
+        "x": 1.625,
+        "y": 2.313
+      },
+      "height_m": 18.49,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Portrait",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 89,
+      "class_name": "StandaloneWidgetSign_Portrait",
+      "role": "signage",
+      "position_cm": {
+        "x": 1200,
+        "y": 1850,
+        "z": 200
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.313
+      },
+      "height_m": 2,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Portrait",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.707107,
+        "y": 0,
+        "z": -0.707107,
+        "w": 0
+      }
+    },
+    {
+      "index": 97,
+      "class_name": "StandaloneWidgetSign_Portrait",
+      "role": "signage",
+      "position_cm": {
+        "x": 1100,
+        "y": 1850,
+        "z": 1850
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 2.313
+      },
+      "height_m": 18.5,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Portrait",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 88,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 1275,
+        "y": 2035.4,
+        "z": 765.3
+      },
+      "grid_cells": {
+        "x": 1.594,
+        "y": 2.544
+      },
+      "height_m": 7.65,
+      "yaw_degrees": 180,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": 0.92388,
+        "z": -0.382683,
+        "w": 0
+      }
+    },
+    {
+      "index": 91,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 800,
+        "y": 1400,
+        "z": 349
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 1.75
+      },
+      "height_m": 3.49,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 96,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 1600,
+        "y": 600,
+        "z": 299
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.75
+      },
+      "height_m": 2.99,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 134,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": 1400,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": 1.75
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 167,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 1425,
+        "y": 2035.4,
+        "z": 765.3
+      },
+      "grid_cells": {
+        "x": 1.781,
+        "y": 2.544
+      },
+      "height_m": 7.65,
+      "yaw_degrees": 180,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0,
+        "y": 0.92388,
+        "z": -0.382683,
+        "w": 0
+      }
+    },
+    {
+      "index": 82,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1350,
+        "y": 1250,
+        "z": 699
+      },
+      "grid_cells": {
+        "x": 1.688,
+        "y": 1.563
+      },
+      "height_m": 6.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 83,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1050,
+        "y": 1250,
+        "z": 699
+      },
+      "grid_cells": {
+        "x": 1.313,
+        "y": 1.563
+      },
+      "height_m": 6.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 92,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": 600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": 0.75
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 93,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": 950,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": 1.188
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 94,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1375,
+        "y": 1400,
+        "z": 1652.3
+      },
+      "grid_cells": {
+        "x": 1.719,
+        "y": 1.75
+      },
+      "height_m": 16.52,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": -1,
+        "y": 0,
+        "z": 0,
+        "w": 0
+      }
+    },
+    {
+      "index": 95,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1025,
+        "y": 1400,
+        "z": 1652.3
+      },
+      "grid_cells": {
+        "x": 1.281,
+        "y": 1.75
+      },
+      "height_m": 16.52,
+      "yaw_degrees": 0,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": -1,
+        "y": 0,
+        "z": 0,
+        "w": 0
+      }
+    },
+    {
+      "index": 110,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1600,
+        "y": 1352.5,
+        "z": 625.5
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1.691
+      },
+      "height_m": 6.26,
+      "yaw_degrees": 90,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.653282,
+        "y": 0.270598,
+        "z": 0.653281,
+        "w": 0.270598
+      }
+    },
+    {
+      "index": 111,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1600,
+        "y": 1140.4,
+        "z": 413.4
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1.425
+      },
+      "height_m": 4.13,
+      "yaw_degrees": 90,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.653282,
+        "y": 0.270598,
+        "z": 0.653281,
+        "w": 0.270598
+      }
+    },
+    {
+      "index": 112,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1600,
+        "y": 928.2,
+        "z": 201.2
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1.16
+      },
+      "height_m": 2.01,
+      "yaw_degrees": 90,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.653282,
+        "y": 0.270598,
+        "z": 0.653281,
+        "w": 0.270598
+      }
+    },
+    {
+      "index": 118,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 900,
+        "y": 1800,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 2.25
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 119,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": 1775,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": 2.219
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 120,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": 300,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": 0.375
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 121,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": 0,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": 0
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 122,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": -300,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": -0.375
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 123,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 850,
+        "y": -600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.063,
+        "y": -0.75
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 124,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 950,
+        "y": -750,
+        "z": 799
+      },
+      "grid_cells": {
+        "x": 1.187,
+        "y": -0.937
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 125,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1150,
+        "y": -750,
+        "z": 799
+      },
+      "grid_cells": {
+        "x": 1.437,
+        "y": -0.937
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 126,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1350,
+        "y": -750,
+        "z": 799
+      },
+      "grid_cells": {
+        "x": 1.687,
+        "y": -0.937
+      },
+      "height_m": 7.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 127,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": -600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": -0.75
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 128,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": -300,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": -0.375
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 129,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": 0,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": 0
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 130,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": 300,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": 0.375
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 131,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": 600,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": 0.75
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 132,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": 900,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": 1.125
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 133,
+      "class_name": "StandaloneWidgetSign_SmallVeryWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1550,
+        "y": 1200,
+        "z": 802.3
+      },
+      "grid_cells": {
+        "x": 1.937,
+        "y": 1.5
+      },
+      "height_m": 8.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallVeryWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 115,
+      "class_name": "StandaloneWidgetSign_SmallWide",
+      "role": "signage",
+      "position_cm": {
+        "x": 1600,
+        "y": 600,
+        "z": 50
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.75
+      },
+      "height_m": 0.5,
+      "yaw_degrees": 270,
+      "yaw_only": false,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_SmallWide",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0",
+      "rotation_quaternion": {
+        "x": 0.5,
+        "y": -0.5,
+        "z": -0.5,
+        "w": 0.5
+      }
+    },
+    {
+      "index": 104,
+      "class_name": "StandaloneWidgetSign_Square",
+      "role": "signage",
+      "position_cm": {
+        "x": 1600,
+        "y": 600,
+        "z": 424
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.75
+      },
+      "height_m": 4.24,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Square",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 86,
+      "class_name": "StandaloneWidgetSign_Square_Tiny",
+      "role": "signage",
+      "position_cm": {
+        "x": 900,
+        "y": 1550,
+        "z": 1101.3
+      },
+      "grid_cells": {
+        "x": 1.125,
+        "y": 1.937
+      },
+      "height_m": 11.01,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Square_Tiny",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 87,
+      "class_name": "StandaloneWidgetSign_Square_Tiny",
+      "role": "signage",
+      "position_cm": {
+        "x": 950,
+        "y": 1550,
+        "z": 1101.3
+      },
+      "grid_cells": {
+        "x": 1.187,
+        "y": 1.937
+      },
+      "height_m": 11.01,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Square_Tiny",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 19,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1900,
+        "z": 700
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.375
+      },
+      "height_m": 7,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 21,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1900,
+        "z": 200
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.375
+      },
+      "height_m": 2,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 22,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1900,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.375
+      },
+      "height_m": 1,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 23,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1900,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.375
+      },
+      "height_m": 0,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 74,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1600,
+        "z": 2002.3
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2
+      },
+      "height_m": 20.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 11,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 1600,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 2
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 12,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 800,
+        "z": -1
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 1
+      },
+      "height_m": -0.01,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 13,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 800,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 1
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 36,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1250,
+        "y": 1600,
+        "z": 1.3
+      },
+      "grid_cells": {
+        "x": 1.562,
+        "y": 2
+      },
+      "height_m": 0.01,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 66,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1200,
+        "z": 752.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1.5
+      },
+      "height_m": 7.52,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 67,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1200,
+        "z": 1152.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1.5
+      },
+      "height_m": 11.52,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 72,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1250,
+        "y": 1600,
+        "z": 1201.3
+      },
+      "grid_cells": {
+        "x": 1.562,
+        "y": 2
+      },
+      "height_m": 12.01,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 90,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1550,
+        "y": 1600,
+        "z": -1
+      },
+      "grid_cells": {
+        "x": 1.938,
+        "y": 2
+      },
+      "height_m": -0.01,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 153,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 850,
+        "y": 1600,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 162,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1250,
+        "y": 1600,
+        "z": 401.3
+      },
+      "grid_cells": {
+        "x": 1.562,
+        "y": 2
+      },
+      "height_m": 4.01,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 106,
+      "class_name": "Wall_Concrete_Angular_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 800,
+        "z": 1502.3
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1
+      },
+      "height_m": 15.02,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_Angular_8x8",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 25,
+      "class_name": "Wall_Concrete_SDoor_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 850,
+        "y": 1600,
+        "z": -1
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 2
+      },
+      "height_m": -0.01,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_SDoor_8x4",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 37,
+      "class_name": "Wall_Concrete_SDoor_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1250,
+        "y": 1600,
+        "z": 801.3
+      },
+      "grid_cells": {
+        "x": 1.562,
+        "y": 2
+      },
+      "height_m": 8.01,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_SDoor_8x4",
+      "clock_percent": null,
+      "color_slot": 4,
+      "swatch": "SwatchDesc_Slot4"
+    },
+    {
+      "index": 64,
+      "class_name": "Wall_Concrete_Tris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 1200,
+        "z": 1552.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 1.5
+      },
+      "height_m": 15.52,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_Tris_8x8",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 65,
+      "class_name": "Wall_Concrete_Tris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1600,
+        "y": 400,
+        "z": 752.3
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.5
+      },
+      "height_m": 7.52,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_Tris_8x8",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 158,
+      "class_name": "Wall_Concrete_Tris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 800,
+        "y": 1200,
+        "z": 1552.3
+      },
+      "grid_cells": {
+        "x": 1,
+        "y": 1.5
+      },
+      "height_m": 15.52,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_Tris_8x8",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Concrete"
+    },
+    {
+      "index": 176,
+      "class_name": "Wall_Frame_01",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Frame_01",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 177,
+      "class_name": "Wall_Window_Thin_8x4_01",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Window_Thin_8x4_01",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 20,
+      "class_name": "Wall_Window_Thin_8x4_02",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1900,
+        "z": 300
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2.375
+      },
+      "height_m": 3,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Window_Thin_8x4_02",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 28,
+      "class_name": "Wall_Window_Thin_8x4_02",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Window_Thin_8x4_02",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 32,
+      "class_name": "Wall_Window_Thin_8x4_02",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 850,
+        "y": 800,
+        "z": 399
+      },
+      "grid_cells": {
+        "x": 1.062,
+        "y": 1
+      },
+      "height_m": 3.99,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Window_Thin_8x4_02",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    }
+  ],
+  "coordinate_note": "Positions are blueprint-local, taken from the saved pivot of each buildable. They are not world coordinates and are not collision or visual extents. grid_cells is position_cm divided by the 800 cm foundation cell.",
+  "source": "decoded_from_saved_native_blueprint",
+  "certainty": "authoritative_for_decoded_entities"
+}

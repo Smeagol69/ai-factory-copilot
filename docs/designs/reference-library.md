@@ -140,3 +140,55 @@ re-run the ingest to reproduce the catalog byte-for-byte
 
 The six production modules are credited to **Skyskiner** in their own `.sbpcfg`
 metadata.
+
+## Complete decodes — what to read when you need the design itself
+
+The catalog above is a census: proportions and vocabulary. It deliberately drops
+every coordinate, which makes it useless for reproducing anything. The decodes
+are the other half.
+
+For each source, `scripts/ingest-blueprint-reference.mjs` writes two committed
+artifacts into `reference/blueprints/decoded/`:
+
+- **`<id>.json`** — the complete record. Every buildable with its blueprint-local
+  position in centimetres, its derived 8 m grid cell, its yaw in degrees, and its
+  scale; each machine's `mCurrentRecipe`, `mBuiltWithRecipe` and
+  `mPendingPotential` clock; colour slot and swatch; the conveyor/pipe connection
+  topology and power wires. Designer blueprints are never truncated.
+- **`<id>.md`** — the same decode as a sheet: what it makes, the throughput
+  check, the role census, build cost, a per-floor ASCII plan view, and a table of
+  every building.
+
+Both agents read the same files. That is the point — a supplied blueprint stops
+being something each of us re-derives from the binary and becomes shared evidence.
+
+### The clock is the missing piece
+
+`mPendingPotential` is what turns an author's claim into something checkable. The
+`120 Screw` module contains four Constructors set to `Recipe_Screw` at **75%**.
+Four machines at 75% producing a declared 120/min credits each machine with
+**40/min at 100%** — which is the vanilla Screw rate. The author's description,
+the machine count, and the saved clock all agree.
+
+That check is arithmetic on the author's own numbers, not a recipe lookup. It
+gives the claim something to be wrong against, and every sheet carries it.
+
+### The plan view
+
+One character per 8 m cell, one map per 4 m floor, highest first. It is a
+projection of decoded pivots — nothing is redrawn or idealised. `120 Screw`
+reads as machines and belts on the ground floor, a walled floor above carrying
+the power poles, and a roof:
+
+```
+Level 2   ####·      Level 1   #··##      Level 0   s===#
+          ####·                #···#                sMM·#
+          #####                #++·#                ===·#
+```
+
+For the home base the same projection resolves the octagonal hall at 52 m. A
+list of six thousand coordinates does not convey a spatial object; this does, for
+a few hundred tokens.
+
+Maps are refused rather than truncated when a footprint exceeds 80 cells, because
+a cropped map would be read as the whole design.

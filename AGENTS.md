@@ -172,7 +172,10 @@ exist. `AIFACTORY_PAYLOAD=full` restores the old behaviour.
 | `companion/lib/solvers.mjs` | Every deterministic answer. One exported `solveX` per tool |
 | `companion/lib/tools.mjs` | Tool schemas + dispatch. **Three different shapes**: flat (Responses), nested under `function` (Chat Completions), `input_schema` (Messages) |
 | `companion/lib/sources.mjs` | Outside-reference policy and the official-source allowlist |
-| `companion/lib/blueprints.mjs` | `.sbp` / `.sbpcfg` parsing |
+| `companion/lib/blueprints.mjs` | `.sbp` / `.sbpcfg` parsing, and the **bounded** live structural read (`inspectBlueprintStructure`) through the pinned serializer |
+| `companion/lib/blueprint-decode.mjs` | The **unbounded offline** decode: every transform, each machine's `mCurrentRecipe` and clock, `.cbp` world exports |
+| `companion/lib/blueprint-sheet.mjs` | A decode rendered as a readable sheet with an ASCII plan view |
+| `companion/lib/blueprint-reference.mjs` | Role classification and the aggregate reference catalog |
 | `companion/lib/actions.mjs` | Action validation. Refuses a bad plan whole rather than half-emitting it |
 | `companion/lib/designer.mjs` | Layout design. Every spatial constant is measured off the player's own base |
 | `companion/lib/snapshot.mjs` | `buildLeanPayload` (what the model sees) and the legacy compactor |
@@ -311,8 +314,12 @@ compass, and correct that single constant if it is wrong.
 
 ## State of play
 
-Done: the read-only scanner; sixteen tools (twelve solvers plus four action
-tools); terrain probing; site selection; production planning against the live
+Done: the read-only scanner; thirty tools (twenty-seven solvers plus
+`perform_actions`, `highlight`, and `clear_highlight`); terrain probing; site
+selection; complete offline blueprint decoding — every buildable transform, the
+recipe each machine is set to and its clock, `.cbp` world exports, committed
+decodes and readable sheets under `reference/blueprints/decoded/`, and the
+`find_reference_designs` catalog; production planning against the live
 base; the layout designer; server-authoritative writes; in-world overlays;
 official-source web search; adaptive thinking; multi-line in-game chat;
 blueprint header/cost/contents reading and placement; stale-snapshot enforcement;
@@ -410,21 +417,42 @@ Open, in rough order:
    of captured components. It is not compiled or live-tested yet. Obstacle-aware
    multi-leg paths, conveyor poles, pipes, and power remain open. The designer's
    aisle leaves that work somewhere to go.
-3. **Blueprint transforms for *analysis*.** Placement does not need these — the
-   game's loader handles it. Reading where things sit *inside* a `.sbp`, to
-   answer "what is in this blueprint and how is it arranged", still needs
-   Satisfactory's save serialiser;
+3. ~~**Blueprint transforms for *analysis*.**~~ **Done — do not re-implement.**
+   The zero-dependency property was deliberately given up for this:
    [`satisfactory-file-parser`](https://github.com/etothepii4/satisfactory-file-parser)
-   implements it. The companion has zero dependencies, a deliberate property —
-   decide consciously before breaking it.
+   is pinned at `4.1.2` in `companion/package.json` and is the only runtime
+   dependency. It is read-only and never writes a save.
+
+   Two views sit on it, and the difference matters. `inspectBlueprintStructure`
+   is the **live tool** path and is deliberately bounded so a large blueprint
+   cannot overflow a provider context — those limits are load-bearing, leave them
+   alone. `companion/lib/blueprint-decode.mjs` is the **offline** path, is
+   unbounded on purpose, and is what you read when you need to actually
+   understand or reproduce a design: every buildable's blueprint-local position,
+   derived 8 m cell, yaw, and scale; each machine's `mCurrentRecipe`,
+   `mBuiltWithRecipe` and `mPendingPotential` clock; colour slot and swatch;
+   conveyor/pipe and power topology.
+
+   **Before reasoning about any supplied blueprint, read its decode** —
+   `reference/blueprints/decoded/<id>.md` for the sheet and plan view,
+   `<id>.json` for the complete record. Both are committed, so both agents work
+   from identical evidence rather than each re-deriving it. Add a new one with
+   `node scripts/ingest-blueprint-reference.mjs` after dropping the files into
+   `reference/blueprints/sources/` (gitignored; the binaries are other people's
+   work and this repo is public).
 4. **Live construction test matrix.** Both building and blueprint writes compile
    through their real holograms, but must be exercised in a packaged game for:
    valid/blocked/unaffordable placement, rotation snapping, no-build-cost,
    multi-action rollback, undo refunds, blueprint proxies, and modded recipes.
    Do not claim production-ready placement until those exact outcomes are saved
    in `latest-bridge-response.json` and checked against the world.
-5. **Writing a `.sbp` file.** Saving a generated layout *as* a blueprint, rather
-   than placing it directly. Needs (3).
+5. **Writing a `.sbp` file *from the companion*.** Generated blueprints are
+   already serialized **game-side** — the generated-Blueprint pipeline stages
+   actors in a transient Designer and requires reciprocal readback from the
+   game's own isolated Blueprint world. What still does not exist is the
+   companion authoring `.sbp` bytes itself. The pinned parser can write, but it
+   is used read-only here on purpose; changing that is a deliberate decision, not
+   a detail.
 
 ## Superseding verified checkpoint (2026-08-03)
 

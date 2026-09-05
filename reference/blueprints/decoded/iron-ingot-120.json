@@ -1,0 +1,3214 @@
+{
+  "available": true,
+  "name": "120 Iron ingot per-min",
+  "decoded_with": {
+    "package": "@etothepii/satisfactory-file-parser",
+    "mode": "read_only"
+  },
+  "header": {
+    "blueprint_header_version": 2,
+    "factory_save_custom_version": 52,
+    "game_changelist": 424353,
+    "designer_dimensions": {
+      "x": 6,
+      "y": 6,
+      "z": 6
+    },
+    "description": "Input:    120 Iron ore\r\nOutput: 120 Iron Ingot",
+    "build_cost": [
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/IronRod/Desc_IronRod.Desc_IronRod_C",
+        "item_level_name": "",
+        "item_name": "IronRod",
+        "amount": 38
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Wire/Desc_Wire.Desc_Wire_C",
+        "item_level_name": "",
+        "item_name": "Wire",
+        "amount": 36
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Cable/Desc_Cable.Desc_Cable_C",
+        "item_level_name": "",
+        "item_name": "Cable",
+        "amount": 21
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/IronPlate/Desc_IronPlate.Desc_IronPlate_C",
+        "item_level_name": "",
+        "item_name": "IronPlate",
+        "amount": 24
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Cement/Desc_Cement.Desc_Cement_C",
+        "item_level_name": "",
+        "item_name": "Cement",
+        "amount": 275
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/IronPlateReinforced/Desc_IronPlateReinforced.Desc_IronPlateReinforced_C",
+        "item_level_name": "",
+        "item_name": "IronPlateReinforced",
+        "amount": 55
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/QuartzCrystal/Desc_QuartzCrystal.Desc_QuartzCrystal_C",
+        "item_level_name": "",
+        "item_name": "QuartzCrystal",
+        "amount": 11
+      },
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/HighSpeedWire/Desc_HighSpeedWire.Desc_HighSpeedWire_C",
+        "item_level_name": "",
+        "item_name": "HighSpeedWire",
+        "amount": 6
+      }
+    ]
+  },
+  "declared_io": {
+    "raw_description": "Input:    120 Iron ore\r\nOutput: 120 Iron Ingot",
+    "inputs": [
+      {
+        "amount_per_minute": 120,
+        "item_label": "Iron ore"
+      }
+    ],
+    "outputs": [
+      {
+        "amount_per_minute": 120,
+        "item_label": "Iron Ingot"
+      }
+    ],
+    "evidence": "author_supplied_description_text",
+    "caveat": "Parsed from the blueprint author's own description. It is a claim about the design, not a decoded or simulated rate. Verify against content.recipes before planning to it."
+  },
+  "totals": {
+    "saved_objects": 215,
+    "saved_entities": 99,
+    "buildings": 99,
+    "buildings_with_position": 99,
+    "distinct_classes": 18,
+    "distinct_yaw_degrees": [
+      0,
+      6.89,
+      58.95,
+      70,
+      71.2,
+      90,
+      98.07,
+      135,
+      180,
+      270,
+      338.99
+    ],
+    "non_yaw_only_buildings": 0
+  },
+  "pivot_extent": {
+    "min_cm": {
+      "x": 0,
+      "y": -2400,
+      "z": 0
+    },
+    "max_cm": {
+      "x": 2400,
+      "y": 1600,
+      "z": 1150
+    }
+  },
+  "class_paths": {
+    "SmelterMk1": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+    "ConveyorAttachmentSplitter": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+    "ConveyorAttachmentMerger": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+    "Wall_Concrete_8x4_ConveyorHole_01": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_8x4_ConveyorHole_01.Build_Wall_Concrete_8x4_ConveyorHole_01_C",
+    "PowerPoleMk2": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk2/Build_PowerPoleMk2.Build_PowerPoleMk2_C",
+    "PowerLine": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+    "PowerPoleWall": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+    "StandaloneWidgetSign_Small": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Small.Build_StandaloneWidgetSign_Small_C",
+    "Wall_Concrete_8x4": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_8x4.Build_Wall_Concrete_8x4_C",
+    "Foundation_Concrete_8x1": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x1.Build_Foundation_Concrete_8x1_C",
+    "Wall_Concrete_8x1": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_8x1.Build_Wall_Concrete_8x1_C",
+    "ConveyorBeltMk2": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+    "StandaloneWidgetSign_Square_Small": "/Game/FactoryGame/Buildable/Factory/SignDigital/Build_StandaloneWidgetSign_Square_Small.Build_StandaloneWidgetSign_Square_Small_C",
+    "SignPole_Medium": "/Game/FactoryGame/Buildable/Factory/SignPole/Build_SignPole_Medium.Build_SignPole_Medium_C",
+    "Wall_Concrete_SDoor_8x4": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_SDoor_8x4.Build_Wall_Concrete_SDoor_8x4_C",
+    "Wall_Concrete_FlipTris_8x8": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_FlipTris_8x8.Build_Wall_Concrete_FlipTris_8x8_C",
+    "Wall_Concrete_FlipTris_8x4": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_FlipTris_8x4.Build_Wall_Concrete_FlipTris_8x4_C",
+    "Wall_Concrete_Tris_8x4": "/Game/FactoryGame/Buildable/Building/Wall/ConcreteWallSet/Build_Wall_Concrete_Tris_8x4.Build_Wall_Concrete_Tris_8x4_C"
+  },
+  "machine_groups": [
+    {
+      "class_name": "SmelterMk1",
+      "recipe": "Recipe_IngotIron",
+      "clock_percent": null,
+      "count": 4
+    }
+  ],
+  "throughput_check": {
+    "status": "not_attempted",
+    "reason": "no saved clock on the producing machines",
+    "declared_outputs": [
+      {
+        "amount_per_minute": 120,
+        "item_label": "Iron Ingot"
+      }
+    ],
+    "machine_groups": [
+      {
+        "class_name": "SmelterMk1",
+        "recipe": "Recipe_IngotIron",
+        "clock_percent": null,
+        "count": 4
+      }
+    ]
+  },
+  "connection_topology": {
+    "status": "decoded",
+    "scope": "reciprocal_conveyor_and_pipe_component_references",
+    "connection_component_count": 81,
+    "m_connected_component_record_count": 64,
+    "supported_connection_reference_record_count": 64,
+    "unsupported_connection_component_record_count": 0,
+    "reciprocal_connection_reference_count": 64,
+    "reciprocal_connection_pair_count": 32,
+    "reciprocal_connection_pairs_by_kind": {
+      "conveyor": 32,
+      "pipe": 0,
+      "mixed": 0
+    },
+    "endpoint_owner_resolution": {
+      "both": 32,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_component_reference_count": 0,
+    "unresolved_component_reference_count": 0,
+    "ambiguous_component_reference_count": 0,
+    "nonreciprocal_component_reference_count": 0,
+    "unsupported_target_component_reference_count": 0,
+    "self_component_reference_count": 0,
+    "connections": [
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765445.Input1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765445",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765444.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765444",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765445.Input3",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765445",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765443.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765443",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765445.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765445",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765441.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765441",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765468.Input3",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765468",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765467.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765467",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765468.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765468",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765444.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765444",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765469.Input2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765469",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765464.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765464",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765469.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765469",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765466.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765466",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765470.Input1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765470",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765466.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765466",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765470.Input2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765470",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765465.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765465",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765470.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765470",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765443.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765443",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765520.Input1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765520",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765455.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765455",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765520.Input3",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765520",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765457.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765457",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765520.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765520",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765467.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765467",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765524.Input3",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765524",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765456.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765456",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765524.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentMerger_C_2145765524",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Merger/Build_ConveyorAttachmentMerger.Build_ConveyorAttachmentMerger_C",
+          "owner_entity_class_name": "ConveyorAttachmentMerger",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765455.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765455",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765518.Input1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765518",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765462.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765462",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765518.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765518",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765463.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765463",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765522.Input1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765522",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765440.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765440",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765522.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765522",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765458.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765458",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765522.Output3",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765522",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765459.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765459",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526.Input1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765463.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765463",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526.Output1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765440.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765440",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765461.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765461",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526.Output3",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorAttachmentSplitter_C_2145765526",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/CA_Splitter/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+          "owner_entity_class_name": "ConveyorAttachmentSplitter",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765460.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765460",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765456.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765456",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765527.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765527",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765457.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765457",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765523.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765523",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765458.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765458",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765523.Input0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765523",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765459.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765459",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765521.Input0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765521",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765460.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765460",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765525.Input0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765525",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765461.ConveyorAny1",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765461",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765527.Input0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765527",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765464.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765464",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765525.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765525",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "connection_kind": "conveyor",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765465.ConveyorAny0",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_ConveyorBeltMk2_C_2145765465",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk2/Build_ConveyorBeltMk2.Build_ConveyorBeltMk2_C",
+          "owner_entity_class_name": "ConveyorBeltMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765521.Output2",
+          "component_class_path": "/Script/FactoryGame.FGFactoryConnectionComponent",
+          "component_class_name": "FGFactoryConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765521",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      }
+    ],
+    "connections_returned": 32,
+    "connections_truncated": 0,
+    "power_wire_property_records_not_interpreted": 6,
+    "flow_direction": "not_inferred_from_component_references",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact reciprocal mConnectedComponent links on native conveyor/pipe connection components are decoded. This does not prove item/fluid flow direction, rate, power wiring, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_blueprint_component_references",
+    "certainty": "authoritative_for_decoded_reciprocal_component_links"
+  },
+  "power_wire_topology": {
+    "status": "decoded",
+    "scope": "native_power_wire_edges_inverted_from_exact_m_wires_membership",
+    "native_power_connection_component_count": 6,
+    "m_wires_property_record_count": 6,
+    "supported_m_wires_property_record_count": 6,
+    "unsupported_m_wires_property_record_count": 0,
+    "power_wire_entity_count": 5,
+    "referenced_power_wire_entity_count": 5,
+    "saved_power_wire_reference_count": 10,
+    "verified_power_wire_count": 5,
+    "endpoint_owner_resolution": {
+      "both": 5,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_power_wire_entity_record_count": 0,
+    "malformed_power_connection_component_record_count": 0,
+    "ambiguous_power_connection_component_record_count": 0,
+    "malformed_m_wires_property_count": 0,
+    "malformed_m_wires_reference_count": 0,
+    "duplicate_m_wires_reference_count": 0,
+    "unresolved_power_wire_reference_count": 0,
+    "ambiguous_power_wire_reference_count": 0,
+    "unsupported_power_wire_target_count": 0,
+    "duplicate_power_wire_entity_name_count": 0,
+    "duplicate_power_wire_endpoint_reference_count": 0,
+    "incomplete_power_wire_endpoint_count": 0,
+    "overconnected_power_wire_endpoint_count": 0,
+    "unreferenced_power_wire_entity_count": 0,
+    "unresolved_power_wire_endpoint_owner_count": 0,
+    "power_wires": [
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2145765510",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk2/Build_PowerPoleMk2.Build_PowerPoleMk2_C",
+          "owner_entity_class_name": "PowerPoleMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2145765511.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleWall_C_2145765511",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "owner_entity_class_name": "PowerPoleWall",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2145765513",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk2/Build_PowerPoleMk2.Build_PowerPoleMk2_C",
+          "owner_entity_class_name": "PowerPoleMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765521.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765521",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2145765514",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk2/Build_PowerPoleMk2.Build_PowerPoleMk2_C",
+          "owner_entity_class_name": "PowerPoleMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765525.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765525",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2145765515",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk2/Build_PowerPoleMk2.Build_PowerPoleMk2_C",
+          "owner_entity_class_name": "PowerPoleMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765523.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765523",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      },
+      {
+        "power_wire_instance_name": "Persistent_Level:PersistentLevel.Build_PowerLine_C_2145765516",
+        "power_wire_class_path": "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+        "power_wire_class_name": "PowerLine",
+        "endpoint_a": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_PowerPoleMk2_C_2145765517",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/PowerPoleMk2/Build_PowerPoleMk2.Build_PowerPoleMk2_C",
+          "owner_entity_class_name": "PowerPoleMk2",
+          "owner_entity_resolved": true
+        },
+        "endpoint_b": {
+          "component_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765527.PowerConnection",
+          "component_class_path": "/Script/FactoryGame.FGPowerConnectionComponent",
+          "component_class_name": "FGPowerConnectionComponent",
+          "owner_entity_instance_name": "Persistent_Level:PersistentLevel.Build_SmelterMk1_C_2145765527",
+          "owner_entity_class_path": "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C",
+          "owner_entity_class_name": "SmelterMk1",
+          "owner_entity_resolved": true
+        }
+      }
+    ],
+    "power_wires_returned": 5,
+    "power_wires_truncated": 0,
+    "electricity_direction": "not_inferred_from_saved_power_wire_edges",
+    "voltage_load_and_capacity": "not_inferred_from_saved_power_wire_edges",
+    "hidden_circuit_connections": "not_counted_as_physical_power_wires",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact mWires membership on native FGPowerConnectionComponent records is inverted into physical native power-wire edges. This does not prove electricity direction, voltage, load, capacity, live circuit state, wire length, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_blueprint_power_connection_m_wires",
+    "certainty": "authoritative_for_verified_native_power_wire_edges"
+  },
+  "buildings": [
+    {
+      "index": 3,
+      "class_name": "ConveyorAttachmentMerger",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": -1900,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": -2.375
+      },
+      "height_m": 1,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentMerger",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 7,
+      "class_name": "ConveyorAttachmentMerger",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": -1900,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": -2.375
+      },
+      "height_m": 1,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentMerger",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 35,
+      "class_name": "ConveyorAttachmentMerger",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": 700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentMerger",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 36,
+      "class_name": "ConveyorAttachmentMerger",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": 700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentMerger",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 37,
+      "class_name": "ConveyorAttachmentMerger",
+      "role": "logistics",
+      "position_cm": {
+        "x": 600,
+        "y": -1900,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 0.75,
+        "y": -2.375
+      },
+      "height_m": 1,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentMerger",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 60,
+      "class_name": "ConveyorAttachmentMerger",
+      "role": "logistics",
+      "position_cm": {
+        "x": 600,
+        "y": 700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 0.75,
+        "y": 0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentMerger",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 1,
+      "class_name": "ConveyorAttachmentSplitter",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": -600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": -0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentSplitter",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 5,
+      "class_name": "ConveyorAttachmentSplitter",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": -600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": -0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentSplitter",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 9,
+      "class_name": "ConveyorAttachmentSplitter",
+      "role": "logistics",
+      "position_cm": {
+        "x": 2100,
+        "y": -600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2.625,
+        "y": -0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorAttachmentSplitter",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 38,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1000,
+        "y": -1900,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": -2.375
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 39,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1500,
+        "y": 700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.875,
+        "y": 0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 40,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": 600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 41,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": 600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 42,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 2000,
+        "y": -600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 43,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 2000,
+        "y": -2400,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -3
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 44,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": -700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": -0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 45,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": -500,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": -0.625
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 46,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": -500,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": -0.625
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 47,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": -700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": -0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 48,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1100,
+        "y": -1800,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": -2.25
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 49,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1600,
+        "y": -1800,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": -2.25
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 50,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1500,
+        "y": -1900,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.875,
+        "y": -2.375
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 61,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 600,
+        "y": -1800,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 0.75,
+        "y": -2.25
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 62,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1000,
+        "y": 700,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.25,
+        "y": 0.875
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 64,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 600,
+        "y": 800,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 0.75,
+        "y": 1
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 65,
+      "class_name": "ConveyorBeltMk2",
+      "role": "logistics",
+      "position_cm": {
+        "x": 1500,
+        "y": -600,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.875,
+        "y": -0.75
+      },
+      "height_m": 1,
+      "yaw_degrees": 70,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_ConveyorBeltMk2",
+      "clock_percent": null,
+      "color_slot": 19,
+      "swatch": "PaintFinishDesc_CarbonSteel"
+    },
+    {
+      "index": 25,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": -2000,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -2.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 26,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": -1200,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -1.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 27,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": -400,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -0.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 28,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": 400,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": 0.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 29,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": 1200,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": 1.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 30,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": -2000,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": -2.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 31,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -2000,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -2.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 32,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -400,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -0.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 33,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": -400,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": -0.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 69,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1200,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 70,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": 1200,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": 1.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 71,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": 400,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 72,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": -1200,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": -1.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 73,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 400,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 0.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 74,
+      "class_name": "Foundation_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -1200,
+        "z": 1150
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -1.5
+      },
+      "height_m": 11.5,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Foundation_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 11,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1400,
+        "y": -800,
+        "z": 760
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": -1
+      },
+      "height_m": 7.6,
+      "yaw_degrees": 6.89,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 12,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 880,
+        "y": -990,
+        "z": 480
+      },
+      "grid_cells": {
+        "x": 1.1,
+        "y": -1.238
+      },
+      "height_m": 4.8,
+      "yaw_degrees": 338.99,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 13,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1820,
+        "y": -210,
+        "z": 480
+      },
+      "grid_cells": {
+        "x": 2.275,
+        "y": -0.262
+      },
+      "height_m": 4.8,
+      "yaw_degrees": 58.95,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 14,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1320,
+        "y": -210,
+        "z": 480
+      },
+      "grid_cells": {
+        "x": 1.65,
+        "y": -0.262
+      },
+      "height_m": 4.8,
+      "yaw_degrees": 98.07,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 17,
+      "class_name": "PowerLine",
+      "role": "power",
+      "position_cm": {
+        "x": 1400,
+        "y": -800,
+        "z": 760
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": -1
+      },
+      "height_m": 7.6,
+      "yaw_degrees": 71.2,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerLine",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 10,
+      "class_name": "PowerPoleMk2",
+      "role": "power",
+      "position_cm": {
+        "x": 1400,
+        "y": -800,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.75,
+        "y": -1
+      },
+      "height_m": 0,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleMk2",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 16,
+      "class_name": "PowerPoleWall",
+      "role": "power",
+      "position_cm": {
+        "x": 1200,
+        "y": -2400,
+        "z": 100
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -3
+      },
+      "height_m": 1,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_PowerPoleWall",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 57,
+      "class_name": "SignPole_Medium",
+      "role": "signage",
+      "position_cm": {
+        "x": 500,
+        "y": -1500,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0.625,
+        "y": -1.875
+      },
+      "height_m": 0,
+      "yaw_degrees": 135,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_SignPole_Medium",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 0,
+      "class_name": "SmelterMk1",
+      "role": "production",
+      "position_cm": {
+        "x": 1600,
+        "y": -1300,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": -1.625
+      },
+      "height_m": 0,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": "Recipe_IngotIron",
+      "built_with_recipe": "Recipe_SmelterBasicMk1",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 2,
+      "class_name": "SmelterMk1",
+      "role": "production",
+      "position_cm": {
+        "x": 1600,
+        "y": 100,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2,
+        "y": 0.125
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": "Recipe_IngotIron",
+      "built_with_recipe": "Recipe_SmelterBasicMk1",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 4,
+      "class_name": "SmelterMk1",
+      "role": "production",
+      "position_cm": {
+        "x": 1100,
+        "y": -1300,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": -1.625
+      },
+      "height_m": 0,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": "Recipe_IngotIron",
+      "built_with_recipe": "Recipe_SmelterBasicMk1",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 6,
+      "class_name": "SmelterMk1",
+      "role": "production",
+      "position_cm": {
+        "x": 1100,
+        "y": 100,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.375,
+        "y": 0.125
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": "Recipe_IngotIron",
+      "built_with_recipe": "Recipe_SmelterBasicMk1",
+      "clock_percent": null,
+      "color_slot": 22,
+      "swatch": "PaintFinishDesc_Copper"
+    },
+    {
+      "index": 18,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 1200,
+        "y": -2311,
+        "z": 250
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -2.889
+      },
+      "height_m": 2.5,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 19,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 2000,
+        "y": -2311,
+        "z": 250
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -2.889
+      },
+      "height_m": 2.5,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 66,
+      "class_name": "StandaloneWidgetSign_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 1200,
+        "y": 1511,
+        "z": 250
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 1.889
+      },
+      "height_m": 2.5,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 56,
+      "class_name": "StandaloneWidgetSign_Square_Small",
+      "role": "signage",
+      "position_cm": {
+        "x": 492.2,
+        "y": -1507.8,
+        "z": 350
+      },
+      "grid_cells": {
+        "x": 0.615,
+        "y": -1.885
+      },
+      "height_m": 3.5,
+      "yaw_degrees": 135,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_StandaloneWidgetSign_Square_Small",
+      "clock_percent": null,
+      "color_slot": null,
+      "swatch": "SwatchDesc_Slot0"
+    },
+    {
+      "index": 34,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -2400,
+        "z": 1100
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -3
+      },
+      "height_m": 11,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 68,
+      "class_name": "Wall_Concrete_8x1",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1600,
+        "z": 1100
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2
+      },
+      "height_m": 11,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x1",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 20,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": -2000,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": -2.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 21,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": -1200,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": -1.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 22,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": -400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": -0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 23,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 24,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": 1200,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": 1.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 51,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": 1600,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": 2
+      },
+      "height_m": 0,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 52,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": 1200,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": 1.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 53,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": 400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": 0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 54,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": -400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": -0.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 55,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": -1200,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": -1.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 67,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": -2000,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": -2.5
+      },
+      "height_m": 0,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 75,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": -2000,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": -2.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 76,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": -2000,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": -2.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 78,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": 1200,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": 1.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 79,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": 1200,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": 1.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 81,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": -2400,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": -3
+      },
+      "height_m": 4,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 82,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": -2400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": -3
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 83,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": -2400,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -3
+      },
+      "height_m": 4,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 84,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": -2400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -3
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 87,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": -2000,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": -2.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 88,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": -2000,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": -2.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 89,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": 1200,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": 1.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 90,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": 1200,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": 1.5
+      },
+      "height_m": 8,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 93,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": 1600,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": 2
+      },
+      "height_m": 4,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 94,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": 1600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": 2
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 95,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": 1600,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": 2
+      },
+      "height_m": 4,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 96,
+      "class_name": "Wall_Concrete_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": 1600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": 2
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 8,
+      "class_name": "Wall_Concrete_8x4_ConveyorHole_01",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2000,
+        "y": -2400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 2.5,
+        "y": -3
+      },
+      "height_m": 0,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4_ConveyorHole_01",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 15,
+      "class_name": "Wall_Concrete_8x4_ConveyorHole_01",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -2400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -3
+      },
+      "height_m": 0,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4_ConveyorHole_01",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 63,
+      "class_name": "Wall_Concrete_8x4_ConveyorHole_01",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1600,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2
+      },
+      "height_m": 0,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_8x4_ConveyorHole_01",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 85,
+      "class_name": "Wall_Concrete_FlipTris_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -2400,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -3
+      },
+      "height_m": 4,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_FlipTris_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 97,
+      "class_name": "Wall_Concrete_FlipTris_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1600,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2
+      },
+      "height_m": 4,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_FlipTris_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 77,
+      "class_name": "Wall_Concrete_FlipTris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": -1200,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": -1.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_FlipTris_8x8",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 80,
+      "class_name": "Wall_Concrete_FlipTris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 0,
+        "y": 400,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 0,
+        "y": 0.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_FlipTris_8x8",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 91,
+      "class_name": "Wall_Concrete_FlipTris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": -1200,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": -1.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 0,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_FlipTris_8x8",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 92,
+      "class_name": "Wall_Concrete_FlipTris_8x8",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 2400,
+        "y": 400,
+        "z": 400
+      },
+      "grid_cells": {
+        "x": 3,
+        "y": 0.5
+      },
+      "height_m": 4,
+      "yaw_degrees": 180,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_FlipTris_8x8",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 58,
+      "class_name": "Wall_Concrete_SDoor_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": 1600,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": 2
+      },
+      "height_m": 0,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_SDoor_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 59,
+      "class_name": "Wall_Concrete_SDoor_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 400,
+        "y": -2400,
+        "z": 0
+      },
+      "grid_cells": {
+        "x": 0.5,
+        "y": -3
+      },
+      "height_m": 0,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_SDoor_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 86,
+      "class_name": "Wall_Concrete_Tris_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": -2400,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": -3
+      },
+      "height_m": 8,
+      "yaw_degrees": 90,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_Tris_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    },
+    {
+      "index": 98,
+      "class_name": "Wall_Concrete_Tris_8x4",
+      "role": "enclosure",
+      "position_cm": {
+        "x": 1200,
+        "y": 1600,
+        "z": 800
+      },
+      "grid_cells": {
+        "x": 1.5,
+        "y": 2
+      },
+      "height_m": 8,
+      "yaw_degrees": 270,
+      "yaw_only": true,
+      "recipe": null,
+      "built_with_recipe": "Recipe_Wall_Concrete_Tris_8x4",
+      "clock_percent": null,
+      "color_slot": 21,
+      "swatch": "PaintFinishDesc_Chrome"
+    }
+  ],
+  "coordinate_note": "Positions are blueprint-local, taken from the saved pivot of each buildable. They are not world coordinates and are not collision or visual extents. grid_cells is position_cm divided by the 800 cm foundation cell.",
+  "source": "decoded_from_saved_native_blueprint",
+  "certainty": "authoritative_for_decoded_entities"
+}

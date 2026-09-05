@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Complete blueprint decode, so both agents see exactly what a supplied blueprint is.** Yesterday's reference catalog keeps only aggregate class counts and a role census; it discards every transform, so neither agent can actually reconstruct a supplied design. Add a full-fidelity, unbounded offline decode over the same pinned read-only parser: every buildable with its blueprint-local translation, derived 8 m grid cell, derived yaw, and scale; per-machine `mCurrentRecipe`, `mBuiltWithRecipe`, and `mPendingPotential` clock; per-building colour slot and swatch; the decoded conveyor/pipe connection graph and power wires; and a derived throughput check that tests the author's declared I/O against machine count x clock rather than repeating it. Emit one complete JSON decode plus one readable Markdown sheet per blueprint into `reference/blueprints/decoded/`, both committed, so Codex and Claude read identical evidence. Also add `.cbp` interactive-map world exports to the same pipeline, and correct `AGENTS.md`, which still tells a fresh agent that blueprint transform analysis is unimplemented and that the companion is dependency-free. Scope is companion `lib/`, `scripts/`, `reference/`, `docs/`, and tests. No C++, no world mutation, no change to the bounded live-tool limits that protect provider context. | claimed |
+| 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Complete blueprint decode, so both agents see exactly what a supplied blueprint is.** Yesterday's reference catalog keeps only aggregate class counts and a role census; it discards every transform, so neither agent can actually reconstruct a supplied design. Add a full-fidelity, unbounded offline decode over the same pinned read-only parser: every buildable with its blueprint-local translation, derived 8 m grid cell, derived yaw, and scale; per-machine `mCurrentRecipe`, `mBuiltWithRecipe`, and `mPendingPotential` clock; per-building colour slot and swatch; the decoded conveyor/pipe connection graph and power wires; and a derived throughput check that tests the author's declared I/O against machine count x clock rather than repeating it. Emit one complete JSON decode plus one readable Markdown sheet per blueprint into `reference/blueprints/decoded/`, both committed, so Codex and Claude read identical evidence. Also add `.cbp` interactive-map world exports to the same pipeline, and correct `AGENTS.md`, which still tells a fresh agent that blueprint transform analysis is unimplemented and that the companion is dependency-free. Scope is companion `lib/`, `scripts/`, `reference/`, `docs/`, and tests. No C++, no world mutation, no change to the bounded live-tool limits that protect provider context. | complete |
 | 2026-09-01 | Codex | `codex/ai-architect-promotion` | Continue AI Architect milestone A3 with a bounded selected-revision promotion adapter. Recompile and verify only the selected immutable `megabase.design/v1` revision against the current full snapshot; resolve its exact semantic parts into the existing `aifactory.generated-blueprint/v1..v4` contract only where captured unlocked Build Gun recipes, relative transforms, roles, bounds, and all required topology are proved; then submit the unchanged native Designer/serializer/readback action and arm the exact registered descriptor through the existing native Build Gun preview handoff. Fail closed with exact readiness blockers; never turn a semantic preview volume into guessed buildables, never bypass selection/staleness/write gates, never create a file before explicit commit, and never disturb `codex/generated-blueprint-two-stage-wire`, the A1 overlay, or the proven native generator/C++ path. Initial expected files are a separate companion adapter, `manage_architect_revisions` promotion operations/schema, focused tests, provider/docs/changelog, and append-only handoff; C++ changes are out of scope unless a verified missing game seam is found and separately announced. | claimed; auditing selected-revision, semantic part-resolution, and generated Blueprint contracts before implementation |
 | 2026-08-31 | Codex | `codex/ai-architect-revisions` | Implement AI Architect milestone A2's companion-side persistence contract without touching Claude's selected-manifest -> native Blueprint/Build Gun lane or the existing game overlay. Scope immutable, content-addressed Architect briefs and manifest revisions to the exact save/session, persist them outside the repository, expose bounded list/get/compare/select/rollback/delete-draft operations, make option/parent relationships explicit, and fail closed when current save/unlock evidence no longer matches promotion requirements. Deleting a draft must affect only Architect metadata and never native Blueprint files or placed actors. Expected files: a zero-dependency store, focused solver/tool/provider/server contracts and restart/corruption/isolation/staleness tests, roadmap/changelog, and append-only handoff. | complete and companion-installed; 907/907 tests and exact CL 502094 validation pass; bridge health reports disk persistence and the new tool ready; no C++ or game DLL changed |
 | 2026-08-30 | Codex | `codex/ai-architect-mode` | Make **AI Architect Mode** the primary published roadmap and deliver its first safe visible vertical slice: a bounded, non-mutating, game-rendered architectural preview compiled from the existing authoritative `megabase.design/v1` manifest. Preserve all existing generated/native Blueprint, node, placement, selection, topology, and write paths. The preview must carry exact manifest/revision/style/family provenance, use only solver-produced world transforms, render semantic zones/floors/bridges/tower as clearly differentiated Shipping-safe overlays, expire/clear cleanly, and never imply hologram validation or construction. Expected files: `docs/GOALS.md`, a focused Architect Mode contract/roadmap, companion preview compiler/action validation/tests, game overlay/action execution/readback, changelog, and this append-only handoff. **Claude lane request:** take the separate selected-manifest -> generated native Blueprint -> active-save descriptor -> Build Gun hologram compilation path after reading this claim; do not edit the overlay compiler. The existing `codex/generated-blueprint-two-stage-wire` production/topology lane remains untouched. | complete and deployed; 897/897 tests, exact CL 502094 validation, Shipping + Editor builds, UAT package/deploy, and clean companion install passed; live visual confirmation remains pending |
@@ -5962,3 +5962,95 @@ and the tool exist, but `megabase.mjs` and the promotion adapters still emit the
 same machine-and-belt mix they did before. Turning 2.7% into a generation
 constraint — an enclosure/access/signage budget the Architect has to satisfy — is
 the actual payoff and is unclaimed.
+
+---
+
+## Claude — complete blueprint decode (2026-09-05)
+
+The owner's ask: *"I just want both of you to be able to see exactly what's going
+on and understand it completely when I send a blueprint, this way you can create
+your own in game for the AI Architect."*
+
+Yesterday's catalog could not do that. It kept aggregate class counts and a role
+census and **threw away every transform**, so neither agent could reconstruct a
+supplied design — only describe its proportions. This closes that.
+
+### What is now committed for every supplied blueprint
+
+`reference/blueprints/decoded/<id>.json` — the complete record. Every buildable
+with blueprint-local position in cm, derived 8 m cell, yaw in degrees, and scale.
+Each machine's `mCurrentRecipe`, `mBuiltWithRecipe`, and `mPendingPotential`
+clock. Colour slot and swatch. Conveyor/pipe and power topology. **Designer
+blueprints are never truncated.**
+
+`reference/blueprints/decoded/<id>.md` — the same decode as a sheet: machines,
+throughput check, role census, build cost, a per-floor ASCII plan view, and a
+table of every building.
+
+Both are committed so **we read identical evidence**. Do not re-derive a supplied
+blueprint from the binary; read its decode.
+
+### The clock changes what we can say
+
+`mPendingPotential` was the missing field. `120 Screw` is four Constructors on
+`Recipe_Screw` at **75%**. Four machines at 75% against a declared 120/min credits
+each with **40/min at 100%** — the vanilla Screw rate. The description, the
+machine count, and the saved clock agree.
+
+That is arithmetic on the author's own claim, not a recipe lookup, and it is
+labelled that way. It gives the claim something to be wrong against. Every sheet
+carries it; `content.recipes` still owns real rates.
+
+### The plan view
+
+One character per 8 m cell, one map per 4 m floor, highest first, projected from
+decoded pivots. `120 Screw` reads as machines and belts on the ground floor, a
+walled floor above carrying the power poles, then a roof. The home base's
+octagonal hall at 52 m is legible the same way. Maps are **refused** past an
+80-cell footprint rather than cropped — a truncated map reads as the whole design.
+
+### Boundaries kept
+
+`inspectBlueprintStructure` and its bounds are **untouched**. Those limits protect
+provider context and are load-bearing. The new decode is a separate offline path
+in `blueprint-decode.mjs` that runs file-to-artifact, where truncation would be
+the defect rather than the protection.
+
+The one place the offline path does bound itself is a `.cbp` world export: the
+committed list keeps every production and utility building plus the first 1500 of
+the rest, states the truncation in the file, and still computes every aggregate
+and the plan view from the complete set. A designer blueprint — the thing the
+owner actually hands us — is never capped.
+
+### AGENTS.md was lying to you
+
+Item 3 of "not done" told a fresh agent that blueprint transform analysis *"still
+needs Satisfactory's save serialiser"* and that *"the companion has zero
+dependencies"*. Both false since the parser was pinned at `4.1.2`. It also claimed
+*"sixteen tools (twelve solvers plus four action tools)"* against a real 30. That
+is a re-implementation trap and it is now corrected, including a pointer to read
+the decode before reasoning about any supplied blueprint.
+
+### Adding one
+
+Drop the files into `reference/blueprints/sources/` and run
+`node scripts/ingest-blueprint-reference.mjs`. Files present without a manifest
+entry are still ingested — a supplied blueprint is never ignored for want of
+metadata. `--check` fails when any artifact is stale.
+
+### A bug the tests caught
+
+Yaw was normalised into [0, 360) and *then* rounded, so a value a hair below zero
+became exactly 360. Seventeen buildings in the Miner Wrap carried it. Rounding now
+happens before the final wrap.
+
+Verification: **960 companion tests, 959 pass.** The single failure is the same
+pre-existing C++ source-shape assertion (`creative-node configuration readback
+refuses every actor the mod does not own`); no C++ changed in this lane.
+
+**Still open, and the actual payoff:** nothing consumes any of this yet. The
+Architect can now *see* that a real module is 6x6x6 with four machines at 75% and
+63% enclosure, but `megabase.mjs` and the promotion adapters still emit the same
+machine-and-belt mix. Turning a decode into a generation constraint — envelope,
+clock, enclosure budget, part vocabulary — is unclaimed and is what the owner is
+actually asking for.
