@@ -155,6 +155,16 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   assert.match(node, /GetPlacementLocation\(/);
   assert.match(node, /GetDisplayNameTextByValue/);
   assert.match(node, /CreativeNodeLookAtDescription/);
+  assert.match(node, /UAssetManager::GetIfInitialized\(\)/);
+  assert.match(node, /FPrimaryAssetType\(TEXT\("FGResourceNodeData"\)\)/);
+  assert.match(node, /GetPrimaryAssetPathList\(/);
+  assert.match(node, /Cast<UFGResourceNodeData>\(NodeDataPath\.TryLoad\(\)\)/);
+  assert.match(node, /NodeData->mResourceDescriptor != Resource/);
+  assert.match(node, /NodeData->mNodeMeshOverrides\.Find\(/);
+  assert.match(node, /ENodeMeshType::MT_Node/);
+  assert.match(node, /NodePresentation->mMesh/);
+  assert.match(node, /NodePresentation->mMaterials/);
+  assert.match(node, /SetRelativeLocation\(NodePresentation->mPositionOffset\)/);
   assert.match(node, /UFGResourceDescriptor::GetDepositMesh\(Resource\)/);
   assert.match(node, /InitResource\(Resource, RA_Infinite, Purity\)/);
   assert.match(node, /SetResourceClassOverride\(Resource\)/);
@@ -166,7 +176,6 @@ test("creative resource nodes use the native non-buildable Build Gun path and ke
   for (const forbidden of [
     /SetActorLocation\(/,
     /SetActorRotation\(/,
-    /AFGResourceNodeManager/,
     /AssignScannableData/,
     /\bDestroy\(/,
   ]) {

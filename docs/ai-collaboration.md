@@ -5901,3 +5901,45 @@ node or pretend a deposit mesh is a node mesh. Expected files are the creative
 ordinary-node visual/configuration path, focused source-contract tests, changelog,
 and this append-only handoff, followed by exact validation, Shipping/Editor
 builds, package, and deployment if the game DLL is not locked.
+
+### Codex — 2026-09-05 native solid-node visual checkpoint
+
+Completed the claimed visual correction on
+`codex/native-resource-node-visuals`. `ApplyCreativeVisual` now resolves the
+registered `FGResourceNodeData` primary assets through Unreal's exported
+`UAssetManager`, matches the exact selected resource descriptor, and applies
+that entry's `MT_Node` static mesh, complete material override list, and authored
+position offset to the existing Copilot-owned visual component. This is the
+same per-resource presentation table used by vanilla `AFGNodeMeshActor`; there
+is no hard-coded Iron/Copper/Coal mapping. If a modded resource has not
+registered node data, its descriptor deposit remains the compatibility fallback,
+and resources with neither retain the neutral marker.
+
+The actor itself is unchanged: ordinary nodes remain
+`AAIFactoryCreativeOrdinaryResourceNode : AFGResourceNode`, with the proven
+Resource-profile root, exact resource/purity/infinite configuration, Miner and
+portable-Miner gates, occupation, replication, save/load restoration, and
+Clone/Remove ownership rules. Existing saved Copilot nodes also run this visual
+selection during `PostLoadGame`; no save migration or respawn is required.
+Vanilla map nodes are never paired, moved, or modified.
+
+One SDK trap was verified rather than hidden: the tempting static
+`AFGResourceNodeManager::GetNodeMeshOverrides` declaration compiles but is not
+exported from the Shipping binary and failed with LNK2019. The final path reads
+the public `UFGResourceNodeData` fields through exported engine APIs instead.
+`scripts/validate.ps1` now pins the exact node-data fields, primary-asset
+registration, and asset-manager methods this depends on.
+
+Verification: exact CL 502094/SML 3.12.0 validation and all **936/936**
+companion tests pass. `FactoryGameSteam Win64 Shipping` and `FactoryEditor Win64
+Development` module builds both link successfully. UAT build/cook/archive also
+passes. Ready archive:
+`D:\Modding\Satisfactory\StarterProject-502094\Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`,
+37,646,693 bytes, SHA-256
+`23BF0B850EDC05D754B54E842534C1F27C889D889D0839C53CCDE6BD0ABBF209`.
+Built Steam DLL SHA-256:
+`407330DF69654E606FAE3343E4AE63F6E3BA776216E6E22ABA1EB1CF33D8EE4A`.
+Satisfactory PIDs 27472/27492 were still running, so the deployed game DLL
+remains the older `D9D1E504...` build. Do not claim visual live verification
+until the game is closed, the ready package is copied, and a saved or newly
+spawned solid node is observed in game.
