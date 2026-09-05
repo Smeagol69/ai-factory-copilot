@@ -5964,3 +5964,51 @@ local X is anchor forward, local Y is anchor right, local Z is world up, and
 target yaw is anchor yaw plus the requested offset. Existing Blueprint export,
 Architect, creative-node, chat, action, and selection behavior stays intact.
 Exact CL 502094 headers will be checked before touching Build Gun state.
+
+### Codex — 2026-09-05 precision reference frame checkpoint
+
+Completed the claimed manual symmetry aid on
+`codex/precision-reference-frame`. The Insert panel now has a Precision Frame
+section that captures any aimed `AFGBuildable` as an inert local origin. Exact
+metre fields define X forward, Y right, and Z world-up from the anchor's yaw;
+the yaw field is a relative whole-degree offset because FactoryGame serializes
+that state as an `int32`. Mirror X/Y and ±90° controls update the same exact
+transform. The panel reports the anchor yaw, computed world target, actual
+hologram position/yaw error, and native valid/blocked result.
+
+The owner must separately click **Snap Build Gun**. A Shipping-only SML hook
+runs around `UFGBuildGunStateBuild::TickState_Implementation`: before the
+native tick it corrects the hologram's public serialized scroll-rotation value;
+after the tick it uses only `LockHologramPosition` and `SetNudgeOffset`, then
+reruns `ValidatePlacementAndCost` against the Build Gun inventory. It refuses
+to touch non-local holograms and leaves any hologram without native lock+nudge
+support untouched. It never calls PrimaryFire, Construct, an RPC, or any raw
+actor-transform setter. Release clears the native nudge and unlocks placement.
+The selected anchor and offsets are session-local and do not alter the save.
+
+Verification: exact CL 502094/SML 3.12.0 source validation and all **941/941**
+companion tests pass. The focused contract covers yaw-local/no-scale transform
+math, inert selection, explicit activation, local-player gating, native
+rotation/lock/nudge/validation, no direct transform or construction path, hook
+ordering, and release. `FactoryGameSteam Win64 Shipping` and `FactoryEditor
+Win64 Development` both compile and link. The first parallel Shipping attempt
+hit Windows paging-file error 1455 before source compilation; retrying with one
+compile action succeeded. UAT build/cook/stage/archive/deploy succeeded.
+
+Ready archive:
+`D:\Modding\Satisfactory\StarterProject-502094\Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`,
+20,344,861 bytes, SHA-256
+`A2B007EAF8B1CF23C35957CC84D34F258851153A5B4AA64B73A221C3285A02A1`.
+Built and deployed Steam DLL SHA-256:
+`10CC6A0D344D5200A5024E25DA6EE12D5FA0A38E9F1084F3CBA78E1F813114E8`.
+This same deployed build includes the preceding native full-node visual work.
+
+Still needs one packaged-game visual test before either behavior is called
+live-verified. For Precision Frame: aim at a placed Miner, capture it, set a
+nonzero X/Y target and optional +90°, select a normal machine or foundation in
+the Build Gun, enable Snap, close the panel, and compare the reported error to
+the visible hologram. Build once only if the panel reports native valid, then
+release and confirm ordinary mouse movement returns. Specifically verify that
+FactoryGame interprets the public nudge offset as the expected world-space
+delta and that the Shipping detour remains stable. For node visuals, inspect a
+saved or newly spawned solid node. No live result has been invented here.

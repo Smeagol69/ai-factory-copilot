@@ -1,6 +1,7 @@
 #include "AIFactoryCopilotUISubsystem.h"
 #include "AIFactoryUpgrade.h"
 #include "Hologram/FGHologram.h"
+#include "Equipment/FGBuildGunBuild.h"
 #include "Equipment/FGBuildGunDismantle.h"
 #include "Equipment/FGBuildGun.h"
 #include "AIFactoryCompanion.h"
@@ -146,6 +147,9 @@ void UAIFactoryCopilotUISubsystem::Initialize(FSubsystemCollectionBase& Collecti
 
 void UAIFactoryCopilotUISubsystem::Deinitialize()
 {
+    ReleasePrecisionHologram();
+    bPrecisionFrameEnabled = false;
+    PrecisionFrameAnchor.Reset();
     HidePanel();
 
     if (BoundSubsystem.IsValid() && BridgeResultHandle.IsValid())
@@ -174,6 +178,11 @@ void UAIFactoryCopilotUISubsystem::Deinitialize()
     NodeSpawnerRows.Reset();
     NodeSpawnerFilterBox.Reset();
     NodeSpawnerStatusText.Reset();
+    PrecisionFrameStatusText.Reset();
+    PrecisionXEntry.Reset();
+    PrecisionYEntry.Reset();
+    PrecisionZEntry.Reset();
+    PrecisionYawEntry.Reset();
 
     Super::Deinitialize();
 }
@@ -369,6 +378,19 @@ void UAIFactoryCopilotUISubsystem::BuildPanel()
                         {
                             return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
                         })
+                    ]
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+                    [
+                        SNew(SBox)
+                        .Visibility_Lambda([this]()
+                        {
+                            return bNodeSpawnerTab ? EVisibility::Collapsed : EVisibility::Visible;
+                        })
+                        [
+                            BuildPrecisionFrameSection()
+                        ]
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -1184,6 +1206,7 @@ bool UAIFactoryCopilotUISubsystem::Tick(const float DeltaTime)
             bFocusInputOnNextTick = false;
         }
         UpdateLiveStatus();
+        RefreshPrecisionFrameStatus();
 
         // A grounded answer can involve solver calls and a wiki search, so show
         // that the request is still alive rather than appearing to hang.
@@ -1922,6 +1945,477 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
             TEXT("The export did not complete: %s"),
             Result.Reason.IsEmpty() ? TEXT("the game gave no reason") : *Result.Reason));
     }
+}
+
+bool UAIFactoryCopilotUISubsystem::GetPrecisionTarget(
+    FVector& OutLocation,
+    float& OutYawDegrees) const
+{
+    const AFGBuildable* const Anchor = PrecisionFrameAnchor.Get();
+    if (!IsValid(Anchor))
+    {
+        return false;
+    }
+
+    // Satisfactory factories are yaw-planar even when a mesh has an authored
+    // pitch or roll. Keeping Z in world-up prevents a tilted decorative anchor
+    // from turning "up 4 m" into a diagonal move. Scale is deliberately absent.
+    const float AnchorYaw = Anchor->GetActorRotation().Yaw;
+    const FRotator YawFrame(0.0f, AnchorYaw, 0.0f);
+    OutLocation = Anchor->GetActorLocation() + YawFrame.RotateVector(PrecisionLocalOffsetCm);
+    OutYawDegrees = FRotator::NormalizeAxis(AnchorYaw + PrecisionYawOffsetDegrees);
+    return true;
+}
+
+FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const
+{
+    const AFGBuildable* const Anchor = PrecisionFrameAnchor.Get();
+    if (!IsValid(Anchor))
+    {
+        return TEXT("No origin selected. Aim at a built object, then use it as the local frame.");
+    }
+
+    FVector Target;
+    float TargetYaw = 0.0f;
+    if (!GetPrecisionTarget(Target, TargetYaw))
+    {
+        return TEXT("The selected origin no longer exists; the Build Gun lock is off.");
+    }
+
+    FString AnchorName = Anchor->GetClass()->GetName();
+    if (const TSubclassOf<UFGItemDescriptor> Descriptor = Anchor->GetBuiltWithDescriptor())
+    {
+        const FString DisplayName = UFGItemDescriptor::GetItemName(Descriptor).ToString().TrimStartAndEnd();
+        if (!DisplayName.IsEmpty())
+        {
+            AnchorName = DisplayName;
+        }
+    }
+
+    FString NativeState = bPrecisionFrameEnabled
+        ? TEXT("LOCK ON | choose something in the Build Gun")
+        : TEXT("LOCK OFF");
+    if (bPrecisionFrameEnabled)
+    {
+        if (const AFGHologram* const Hologram = PrecisionHologram.Get(); IsValid(Hologram))
+        {
+            if (!Hologram->CanLockHologram() || !Hologram->CanNudgeHologram())
+            {
+                NativeState = TEXT("LOCK ON | this hologram does not support native lock+nudge");
+            }
+            else
+            {
+                const float PositionErrorCm = FVector::Distance(Hologram->GetActorLocation(), Target);
+                const float YawError = FMath::Abs(FMath::FindDeltaAngleDegrees(
+                    Hologram->GetActorRotation().Yaw, TargetYaw));
+                NativeState = FString::Printf(
+                    TEXT("LOCK ON | native %s | error %.1f cm / %.1f deg"),
+                    Hologram->CanConstruct() ? TEXT("valid") : TEXT("blocked"),
+                    PositionErrorCm,
+                    YawError);
+            }
+        }
+    }
+
+    return FString::Printf(
+        TEXT("%s | origin %s @ yaw %.1f | target X %.2f Y %.2f Z %.2f m, yaw %.1f | %s"),
+        *NativeState,
+        *AnchorName,
+        Anchor->GetActorRotation().Yaw,
+        Target.X / 100.0f,
+        Target.Y / 100.0f,
+        Target.Z / 100.0f,
+        TargetYaw,
+        bPrecisionFrameEnabled
+            ? TEXT("Satisfactory still decides whether it can be built")
+            : TEXT("set offsets, then enable"));
+}
+
+void UAIFactoryCopilotUISubsystem::RefreshPrecisionFrameStatus()
+{
+    if (PrecisionFrameStatusText.IsValid())
+    {
+        PrecisionFrameStatusText->SetText(FText::FromString(GetPrecisionFrameStatus()));
+    }
+}
+
+void UAIFactoryCopilotUISubsystem::SyncPrecisionEntries()
+{
+    const auto SetNumber = [](const TSharedPtr<SEditableTextBox>& Entry, const float Value)
+    {
+        if (Entry.IsValid())
+        {
+            Entry->SetText(FText::FromString(FString::Printf(TEXT("%.2f"), Value)));
+        }
+    };
+    SetNumber(PrecisionXEntry, PrecisionLocalOffsetCm.X / 100.0f);
+    SetNumber(PrecisionYEntry, PrecisionLocalOffsetCm.Y / 100.0f);
+    SetNumber(PrecisionZEntry, PrecisionLocalOffsetCm.Z / 100.0f);
+    SetNumber(PrecisionYawEntry, PrecisionYawOffsetDegrees);
+}
+
+void UAIFactoryCopilotUISubsystem::ApplyPrecisionValue(
+    const int32 Axis,
+    const FString& Value)
+{
+    float Parsed = 0.0f;
+    if (!LexTryParseString(Parsed, *Value.TrimStartAndEnd()) || !FMath::IsFinite(Parsed))
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("That precision value is not a finite number."));
+        SyncPrecisionEntries();
+        return;
+    }
+
+    if (Axis >= 0 && Axis <= 2)
+    {
+        if (FMath::Abs(Parsed) > 100000.0f)
+        {
+            AppendTranscript(TEXT("COPILOT"), TEXT("Precision offsets are limited to 100 km from the origin."));
+            SyncPrecisionEntries();
+            return;
+        }
+        PrecisionLocalOffsetCm[Axis] = Parsed * 100.0f;
+    }
+    else
+    {
+        // FactoryGame serializes hologram scroll rotation as an int32. Say that
+        // through the field value instead of displaying a precision it cannot keep.
+        PrecisionYawOffsetDegrees = FRotator::NormalizeAxis(
+            static_cast<float>(FMath::RoundToInt(Parsed)));
+    }
+
+    ++PrecisionFrameGeneration;
+    SyncPrecisionEntries();
+    RefreshPrecisionFrameStatus();
+}
+
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::MakePrecisionEntry(
+    const int32 Axis,
+    const FString& Label)
+{
+    TSharedPtr<SEditableTextBox>* Entry = nullptr;
+    switch (Axis)
+    {
+    case 0: Entry = &PrecisionXEntry; break;
+    case 1: Entry = &PrecisionYEntry; break;
+    case 2: Entry = &PrecisionZEntry; break;
+    default: Entry = &PrecisionYawEntry; break;
+    }
+
+    const TSharedRef<SEditableTextBox> TextEntry =
+        SNew(SEditableTextBox)
+        .Text(FText::FromString(TEXT("0.00")))
+        .SelectAllTextWhenFocused(true)
+        .OnTextCommitted_Lambda([this, Axis](const FText& Text, ETextCommit::Type)
+        {
+            ApplyPrecisionValue(Axis, Text.ToString());
+        });
+    *Entry = TextEntry;
+
+    return SNew(SHorizontalBox)
+        + SHorizontalBox::Slot()
+        .AutoWidth()
+        .VAlign(VAlign_Center)
+        .Padding(0.0f, 0.0f, 3.0f, 0.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(Label))
+            .ColorAndOpacity(AIFactoryPalette::TextMuted)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+        ]
+        + SHorizontalBox::Slot()
+        .AutoWidth()
+        [
+            SNew(SBox)
+            .WidthOverride(66.0f)
+            [
+                TextEntry
+            ]
+        ];
+}
+
+void UAIFactoryCopilotUISubsystem::SetPrecisionFrameFromAim()
+{
+    AFGBuildable* const Buildable = Cast<AFGBuildable>(GetAimedActor(true));
+    if (!IsValid(Buildable))
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT(
+            "No built object is under the crosshair. Aim at a Miner, machine, foundation, or other buildable."));
+        return;
+    }
+
+    PrecisionFrameAnchor = Buildable;
+    ++PrecisionFrameGeneration;
+    RefreshPrecisionFrameStatus();
+    AppendTranscript(TEXT("COPILOT"), FString::Printf(
+        TEXT("Precision origin is now **%s** at X %.2f, Y %.2f, Z %.2f m, yaw %.1f. ")
+        TEXT("Offsets use its forward/right axes; selecting it did not move the Build Gun."),
+        *Buildable->GetName(),
+        Buildable->GetActorLocation().X / 100.0f,
+        Buildable->GetActorLocation().Y / 100.0f,
+        Buildable->GetActorLocation().Z / 100.0f,
+        Buildable->GetActorRotation().Yaw));
+}
+
+void UAIFactoryCopilotUISubsystem::ReleasePrecisionHologram()
+{
+    if (AFGHologram* const Hologram = PrecisionHologram.Get(); IsValid(Hologram))
+    {
+        Hologram->SetNudgeOffset(FVector::ZeroVector);
+        if (Hologram->IsHologramLocked())
+        {
+            Hologram->LockHologramPosition(false);
+        }
+    }
+    PrecisionHologram.Reset();
+    PrecisionRotationGeneration = 0;
+}
+
+void UAIFactoryCopilotUISubsystem::SetPrecisionFrameEnabled(const bool bEnabled)
+{
+    if (bEnabled && !PrecisionFrameAnchor.IsValid())
+    {
+        AppendTranscript(TEXT("COPILOT"), TEXT("Select a built object as the precision origin first."));
+        bPrecisionFrameEnabled = false;
+        RefreshPrecisionFrameStatus();
+        return;
+    }
+
+    if (!bEnabled)
+    {
+        ReleasePrecisionHologram();
+    }
+    bPrecisionFrameEnabled = bEnabled;
+    ++PrecisionFrameGeneration;
+    RefreshPrecisionFrameStatus();
+}
+
+void UAIFactoryCopilotUISubsystem::ClearPrecisionFrame()
+{
+    SetPrecisionFrameEnabled(false);
+    PrecisionFrameAnchor.Reset();
+    PrecisionLocalOffsetCm = FVector::ZeroVector;
+    PrecisionYawOffsetDegrees = 0.0f;
+    ++PrecisionFrameGeneration;
+    SyncPrecisionEntries();
+    RefreshPrecisionFrameStatus();
+}
+
+void UAIFactoryCopilotUISubsystem::MirrorPrecisionAxis(const int32 Axis)
+{
+    if (Axis == 0 || Axis == 1)
+    {
+        PrecisionLocalOffsetCm[Axis] *= -1.0f;
+        ++PrecisionFrameGeneration;
+        SyncPrecisionEntries();
+        RefreshPrecisionFrameStatus();
+    }
+}
+
+void UAIFactoryCopilotUISubsystem::RotatePrecisionFrame(const float DeltaYawDegrees)
+{
+    PrecisionYawOffsetDegrees = FRotator::NormalizeAxis(
+        PrecisionYawOffsetDegrees + DeltaYawDegrees);
+    ++PrecisionFrameGeneration;
+    SyncPrecisionEntries();
+    RefreshPrecisionFrameStatus();
+}
+
+void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
+    UFGBuildGunStateBuild* const BuildState,
+    const bool bBeforeNativeTick)
+{
+    if (!bPrecisionFrameEnabled || !IsValid(BuildState))
+    {
+        return;
+    }
+    if (!PrecisionFrameAnchor.IsValid())
+    {
+        SetPrecisionFrameEnabled(false);
+        return;
+    }
+
+    AFGHologram* const Hologram = BuildState->GetHologram();
+    if (!IsValid(Hologram))
+    {
+        PrecisionHologram.Reset();
+        PrecisionRotationGeneration = 0;
+        RefreshPrecisionFrameStatus();
+        return;
+    }
+    if (const APawn* const Instigator = Hologram->GetConstructionInstigator();
+        !IsValid(Instigator) || !Instigator->IsLocallyControlled())
+    {
+        return;
+    }
+
+    if (PrecisionHologram.Get() != Hologram)
+    {
+        ReleasePrecisionHologram();
+        PrecisionHologram = Hologram;
+        PrecisionRotationGeneration = 0;
+    }
+
+    FVector TargetLocation;
+    float TargetYaw = 0.0f;
+    if (!GetPrecisionTarget(TargetLocation, TargetYaw))
+    {
+        SetPrecisionFrameEnabled(false);
+        return;
+    }
+
+    if (bBeforeNativeTick)
+    {
+        if (PrecisionRotationGeneration != PrecisionFrameGeneration)
+        {
+            // mScrollRotation is FactoryGame's serialized, whole-degree user
+            // rotation. Correct it by the measured actor-yaw delta, then let
+            // the original tick derive the hologram transform normally.
+            const int32 DeltaYaw = FMath::RoundToInt(FMath::FindDeltaAngleDegrees(
+                Hologram->GetActorRotation().Yaw, TargetYaw));
+            Hologram->SetScrollRotateValue(Hologram->GetScrollRotateValue() + DeltaYaw);
+            PrecisionRotationGeneration = PrecisionFrameGeneration;
+        }
+        return;
+    }
+
+    if (!Hologram->CanLockHologram() || !Hologram->CanNudgeHologram())
+    {
+        RefreshPrecisionFrameStatus();
+        return;
+    }
+
+    if (!Hologram->IsHologramLocked())
+    {
+        Hologram->LockHologramPosition(true);
+    }
+    Hologram->SetNudgeOffset(TargetLocation - Hologram->GetHologramLockLocation());
+
+    // Position changed after the original Build Gun tick, so repeat only the
+    // game's public validation/cost pass. PrimaryFire then consumes this same
+    // native hologram state; no construction call is replaced or fabricated.
+    if (AFGBuildGun* const BuildGun = BuildState->GetBuildGun(); IsValid(BuildGun))
+    {
+        Hologram->ValidatePlacementAndCost(BuildGun->GetInventory());
+    }
+    RefreshPrecisionFrameStatus();
+}
+
+TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildPrecisionFrameSection()
+{
+    return SNew(SVerticalBox)
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 4.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(TEXT("PRECISION FRAME")))
+            .ColorAndOpacity(AIFactoryPalette::Orange)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), 9))
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+        [
+            SNew(SBorder)
+            .Padding(FMargin(0.0f, 1.0f))
+            .BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")))
+            .BorderBackgroundColor(AIFactoryPalette::OrangeRule)
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
+            [ MakePrecisionEntry(0, TEXT("X forward m")) ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
+            [ MakePrecisionEntry(1, TEXT("Y right m")) ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)
+            [ MakePrecisionEntry(2, TEXT("Z up m")) ]
+            + SHorizontalBox::Slot().AutoWidth()
+            [ MakePrecisionEntry(3, TEXT("Yaw deg")) ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 6.0f, 0.0f, 0.0f)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot().AutoWidth()
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Use aimed as origin")))
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .ToolTipText(FText::FromString(TEXT(
+                    "Capture this built object's exact transform. Local X follows its front, Y its right, Z world up.")))
+                .OnClicked_Lambda([this]()
+                {
+                    SetPrecisionFrameFromAim();
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text_Lambda([this]()
+                {
+                    return FText::FromString(bPrecisionFrameEnabled
+                        ? TEXT("Release Build Gun")
+                        : TEXT("Snap Build Gun"));
+                })
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .ToolTipText(FText::FromString(TEXT(
+                    "Explicitly enable or release the native hologram lock. Construction still happens only when you click.")))
+                .OnClicked_Lambda([this]()
+                {
+                    SetPrecisionFrameEnabled(!bPrecisionFrameEnabled);
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Mirror X")))
+                .ToolTipText(FText::FromString(TEXT("Negate the forward offset for exact symmetry across the origin.")))
+                .OnClicked_Lambda([this]() { MirrorPrecisionAxis(0); return FReply::Handled(); })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Mirror Y")))
+                .ToolTipText(FText::FromString(TEXT("Negate the right offset for exact symmetry across the origin.")))
+                .OnClicked_Lambda([this]() { MirrorPrecisionAxis(1); return FReply::Handled(); })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("-90")))
+                .OnClicked_Lambda([this]() { RotatePrecisionFrame(-90.0f); return FReply::Handled(); })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("+90")))
+                .OnClicked_Lambda([this]() { RotatePrecisionFrame(90.0f); return FReply::Handled(); })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Clear")))
+                .OnClicked_Lambda([this]() { ClearPrecisionFrame(); return FReply::Handled(); })
+            ]
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0.0f, 5.0f, 0.0f, 0.0f)
+        [
+            SAssignNew(PrecisionFrameStatusText, STextBlock)
+            .Text(FText::FromString(GetPrecisionFrameStatus()))
+            .ColorAndOpacity(AIFactoryPalette::TextMuted)
+            .Font(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 9))
+            .AutoWrapText(true)
+        ];
 }
 
 /**
