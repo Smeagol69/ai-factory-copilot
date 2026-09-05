@@ -5943,3 +5943,24 @@ Satisfactory PIDs 27472/27492 were still running, so the deployed game DLL
 remains the older `D9D1E504...` build. Do not claim visual live verification
 until the game is closed, the ready package is copied, and a saved or newly
 spawned solid node is observed in game.
+
+### Active claim — Codex — 2026-09-05 precision reference frame
+
+Working on `codex/precision-reference-frame` from current `origin/master`.
+Scope is an owner-requested symmetry aid for manual native construction: aim
+at any existing buildable (a Miner Mk.1 is the motivating example), save its
+authoritative world transform as a local construction frame, and drive the
+current Build Gun hologram to an exact forward/right/up offset and relative yaw
+from that frame. The first slice will expose exact X/Y/Z and yaw fields plus
+mirror and quarter-turn controls in the existing in-game panel, clearly show
+the anchor and computed target, and provide an explicit on/off lock.
+
+This feature must not move or copy the anchor, silently commit a construction,
+or bypass the native hologram, cost, clearance, snapping, multiplayer, or
+server-authority paths. Satisfactory remains free to display a red hologram and
+refuse an invalid target. The lock must fail closed when the anchor or active
+Build Gun hologram disappears. The transform is yaw-local and scale-free:
+local X is anchor forward, local Y is anchor right, local Z is world up, and
+target yaw is anchor yaw plus the requested offset. Existing Blueprint export,
+Architect, creative-node, chat, action, and selection behavior stays intact.
+Exact CL 502094 headers will be checked before touching Build Gun state.
