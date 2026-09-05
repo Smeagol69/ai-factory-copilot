@@ -5775,3 +5775,54 @@ positions/normals and exact unlocked belt metadata. Existing v1-v4 semantics
 stay unchanged. This claim does not yet invent a splitter/merger placement,
 terrain route, conveyor lift, crossing, or obstruction bypass; an unsupported
 route still blocks the whole Architect promotion.
+
+### Active claim — Claude — 2026-09-03 Architect geometry vocabulary: per-element yaw and radial arrays
+
+Working on `claude/architect-geometry` in `megabase.mjs`, `architect-preview.mjs`
+and the manifest validator. **Not touching `architect-promotion.mjs` topology,
+conveyors, fluids or power** — Codex's routed-conveyor lane at `79db5ce` is
+untouched by this.
+
+**Why.** The owner's standing goal is an assistant that designs "super creative
+advanced structures, not basic boxes". The limit today is vocabulary, not model
+quality. The compiler emits exactly one primitive — an axis-aligned rectangular
+volume snapped to integer cells — and a single campus-wide yaw. Even
+`curvilinear_future_campus` is not curved; it offsets rectangular halls along a
+sine wave and rounds to whole cells:
+
+```js
+x += Math.round(Math.sin(phase) * parameters.curve_amplitude_cells);
+```
+
+So a stronger model cannot produce a more interesting building: boxes are the
+only shape the manifest can express. This also matters for cost. Anything
+striking currently requires the model to invent hundreds of exact coordinates,
+which is what a small local model does badly and what solver grounding
+correctly refuses. A vocabulary of parameterised primitives moves that work to
+the solvers: the model picks "radial hall x7, radius 48 m, 12 degrees off-axis"
+and every transform is computed. That is the existing division of labour, just
+with something worth composing.
+
+**Scope of this claim.**
+
+1. Per-element yaw in the semantic manifest. `architect-preview.mjs:80` already
+   reads `element.world_yaw_degrees` per element; the compiler simply assigns
+   the one grid yaw to every element. Emitting a real per-element value makes
+   rotated massing visible in preview with no preview change.
+2. A radial placement operator: N elements arrayed about a centre at computed
+   angle and radius, each rotated to face in or out.
+3. Manifest validation for both, inside the existing immutable fingerprint.
+
+**Fail-closed guard, and the reason for it.** Every adapter in
+`architect-promotion.mjs` reads `manifest.grid.yaw_degrees`, not the element's
+own yaw (lines 293, 383, 443, 498 and onward). If rotated elements reached
+promotion unchanged the adapters would place them at the campus yaw — visibly
+correct in preview and silently wrong in the world, which is the exact class of
+failure this project keeps refusing. So this claim also adds a guard that
+refuses promotion of any element whose yaw differs from the grid yaw, naming
+the element. Rotated massing is preview-only until the adapters honour element
+yaw, which is a separate and larger piece of work touching every adapter, and
+is Codex's to sequence against the conveyor lane.
+
+Not in scope: arcs and rings as footprints, tapers and setbacks, mirroring,
+sweep-along-path, and native promotion of anything rotated.
