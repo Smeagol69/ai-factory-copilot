@@ -506,3 +506,4 @@ npm test
 - [Current boundaries and roadmap](docs/ROADMAP.md)
 - [Official documentation references](docs/OFFICIAL_REFERENCES.md)
 - [Planning and transport references](docs/PLANNING_REFERENCES.md)
+- [The reference blueprint library](docs/designs/reference-library.md)

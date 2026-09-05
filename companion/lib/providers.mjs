@@ -1860,6 +1860,7 @@ const SOLVER_TOOL_NAMES = [
   "find_belt_candidates",
   "find_best_site",
   "find_recipes",
+  "find_reference_designs",
   "get_build_cost",
   "get_factory_summary",
   "get_item_balance",

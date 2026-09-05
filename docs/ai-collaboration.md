@@ -5880,3 +5880,84 @@ it needs a packaged game and a look, which this checkpoint has not had.
 
 Not done: arcs and rings as footprints, tapers and setbacks, mirroring,
 sweep-along-path.
+
+---
+
+## Claude — reference blueprint library (measured, not recalled)
+
+The player supplied eight human-authored builds: Skyskiner's matched six-module
+iron set, an `[ARCH] Miner Wrap`, and a finished `The HUB Home Base` exported
+from the interactive map. They are decoded, measured, and shipped as a catalog.
+
+**The finding, which is the point of the lane.** Across the seven designer
+blueprints — 890 placed buildings — production machines are **24, or 2.7%**.
+Enclosure is **567, or 63.7%**. Logistics 16.1%, signage 8.1%, power 7.1%,
+access 2.4%. Include the home base and it is 34 machines in 7,347 buildings.
+
+That is the measurement behind "basic boxes". A planner emitting machines and
+belts is not producing a simplified reference design; it stops where the human
+work begins. On this measure it reaches about a fifth of one.
+
+**Two shells, six modules.** `80 Iron plate` and `120 Screw` are census-identical
+(107 buildings, 4 machines, 70 enclosure, 27 belt pairs). So are
+`10 Reinforced Iron Plate` and `8 Rotor` (122/2/92/19). The author built a
+four-constructor shell and a two-assembler shell and re-dressed them. Every
+module is 6x6x6 — uniform envelope is what makes a set tile.
+
+**Vocabulary the generator cannot currently emit.** 67 triangular wall pieces
+(`Wall_Concrete_Tris_8x8` / `FlipTris_8x8`) closing gables; belts crossing walls
+through `Wall_Concrete_8x4_ConveyorHole_01` rather than stopping short; catwalk
+runs for service access; 72 signs. The Miner Wrap is 178 buildings and **zero
+machines** — proof that a purely architectural blueprint is its own category.
+
+### What landed
+
+- `companion/lib/blueprint-reference.mjs` — role classifier, censuses, declared-IO
+  parser, world-export summarizer, catalog builder and query.
+- `companion/lib/blueprint-reference-catalog.mjs` — **generated**, do not hand-edit.
+- `companion/lib/reference-designs.mjs` + the `find_reference_designs` tool.
+- `scripts/ingest-blueprint-reference.mjs` (`--check` fails when stale).
+- `docs/designs/reference-library.md`.
+
+Two registry guards caught the new tool and were updated rather than worked
+around: the exact tool list in `tools.test.mjs`, and the duplicated
+`SOLVER_TOOL_NAMES` de-escalation list in `providers.mjs`.
+
+### Deliberate constraints
+
+**The binaries are not committed.** They are other people's creative work and
+this repo is public, so `reference/blueprints/sources/` is gitignored and only
+the derived measurements ship. `reference/blueprints/sources.json` records
+provenance; drop the files back in and the ingest reproduces the catalog exactly.
+Flip the ignore if we decide otherwise — nothing else changes.
+
+**The catalog is a `.mjs`, not a `.json`.** `install-companion.ps1` stages
+`lib/*.mjs` only, so JSON beside the sources would never reach an install.
+
+**Declared rates stay author claims.** "Input: 120 Iron ore" is parsed and
+carried, labelled `author_supplied_description_text`, never promoted to a
+planning constant. Rates still come from `content.recipes`.
+
+### A measurement that was nearly wrong
+
+Naive min/max over every actor in the `.cbp` gives a 250x384 cell footprint. It
+is an artifact: two `FGDroneStationInfo` markers sit at world origin while the
+base is at roughly (-183907, 281043), stretching the extent tenfold. The ingest
+counts only actors carrying the native `/Build_` convention — the same test the
+blueprint reader uses — and reports proxies and non-buildables separately. True
+footprint is **29.0 x 44.3 cells over ~19 levels, 6,457 buildings**, plus 2,936
+blueprint proxies: roughly a third of that base was placed as pre-made units,
+which is the compose-from-modules workflow the Architect should be emitting.
+Known undercount of one: a `BP_ElevatorCabin` lacks the `/Build_` convention.
+
+Verification: **948 companion tests, 947 pass.** The single failure,
+`creative-node configuration readback refuses every actor the mod does not own`,
+is the same pre-existing C++ source-shape assertion as last checkpoint; this lane
+changed no C++ at all. No DLL or package rebuild needed; the bridge needs a
+restart to pick up the companion.
+
+**Open for whoever takes it:** nothing consumes the role census yet. The catalog
+and the tool exist, but `megabase.mjs` and the promotion adapters still emit the
+same machine-and-belt mix they did before. Turning 2.7% into a generation
+constraint — an enclosure/access/signage budget the Architect has to satisfy — is
+the actual payoff and is unclaimed.

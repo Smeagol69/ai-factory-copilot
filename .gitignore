@@ -13,3 +13,8 @@ DerivedDataCache/
 *.VC.db
 *.opensdf
 *.sdf
+
+# Reference blueprint binaries are other people's creative work and this
+# repository is public. Only the derived catalog is committed; regenerate it
+# with scripts/ingest-blueprint-reference.mjs.
+reference/blueprints/sources/

@@ -1,0 +1,62 @@
+{
+  "note": "Provenance for the reference blueprint library. The binaries themselves live in ./sources/ and are deliberately not committed - they are other people's creative work, and this repository is public. Only the measured facts derived from them are committed, as the generated module companion/lib/blueprint-reference-catalog.mjs. Run scripts/ingest-blueprint-reference.mjs to rebuild that module from a local ./sources/ folder.",
+  "cell_size_cm": 800,
+  "entries": [
+    {
+      "id": "arch-miner-wrap-1x2",
+      "kind": "architectural_wrap",
+      "author": null,
+      "files": { "sbp": "[ARCH] Miner Wrap [1x2][v1].sbp", "sbpcfg": "[ARCH] Miner Wrap [1x2][v1].sbpcfg" },
+      "notes": "Pure architecture: dresses an existing miner with no production machine of its own. The clearest example in the library of enclosure-and-detail work as a standalone, reusable unit."
+    },
+    {
+      "id": "iron-ingot-120",
+      "kind": "production_module",
+      "author": "Skyskiner",
+      "files": { "sbp": "120 Iron ingot per-min.sbp", "sbpcfg": "120 Iron ingot per-min.sbpcfg" },
+      "notes": "First stage of a matched 6x6x6 module set. Smelters."
+    },
+    {
+      "id": "iron-plate-80",
+      "kind": "production_module",
+      "author": "Skyskiner",
+      "files": { "sbp": "80 Iron plate per-min.sbp", "sbpcfg": "80 Iron plate per-min.sbpcfg" },
+      "notes": "Constructor stage of the matched set."
+    },
+    {
+      "id": "iron-rod-120",
+      "kind": "production_module",
+      "author": "Skyskiner",
+      "files": { "sbp": "120 Iron Rod per-min.sbp", "sbpcfg": "120 Iron Rod per-min.sbpcfg" },
+      "notes": "Constructor stage of the matched set. Densest belt topology of the six."
+    },
+    {
+      "id": "screw-120",
+      "kind": "production_module",
+      "author": "Skyskiner",
+      "files": { "sbp": "120 Screw per-min.sbp", "sbpcfg": "120 Screw per-min.sbpcfg" },
+      "notes": "Constructor stage of the matched set."
+    },
+    {
+      "id": "reinforced-iron-plate-10",
+      "kind": "production_module",
+      "author": "Skyskiner",
+      "files": { "sbp": "10 Reinforced Iron Plate per-min.sbp", "sbpcfg": "10 Reinforced Iron Plate per-min.sbpcfg" },
+      "notes": "Assembler stage: two inputs, so the module has to solve merging inside the same 6x6x6 envelope."
+    },
+    {
+      "id": "rotor-8",
+      "kind": "production_module",
+      "author": "Skyskiner",
+      "files": { "sbp": "8 Rotor per-min.sbp", "sbpcfg": "8 Rotor per-min.sbpcfg" },
+      "notes": "Assembler stage, second two-input module. Compare with reinforced-iron-plate-10: same envelope, same machine, different internal routing."
+    },
+    {
+      "id": "hub-home-base",
+      "kind": "base_build",
+      "author": null,
+      "files": { "cbp": "The HUB Home Base 1.0.1 (v1.2).cbp" },
+      "notes": "A finished, decorated home base exported from the Satisfactory Calculator interactive map, not a blueprint-designer blueprint. Included as the large-scale architectural exemplar: what the vocabulary looks like at nine thousand buildings rather than one hundred."
+    }
+  ]
+}

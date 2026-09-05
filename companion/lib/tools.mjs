@@ -19,6 +19,7 @@ import { compositionActions, planComposition, stageComposition } from "./composi
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
+import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -376,6 +377,47 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args, services) => solveBlueprintComparison(graph, args, services ?? {}),
+  },
+  {
+    name: "find_reference_designs",
+    description:
+      "A shipped library of human-authored blueprints, measured. Returns matching reference designs with their designer envelope, occupied span, decoded buildable-class counts grouped into roles (production, logistics, power, enclosure, access, signage, ambience, utility), reciprocal conveyor-pair counts, exact build cost, and the author's declared inputs and outputs, plus the library-wide role census and the architectural vocabulary ranked by how many separate designs use each part. Use this before designing anything the player wants to look built rather than assembled: it is the evidence for how much structure, walkway, and signage a finished design actually carries relative to its machines. It describes other people's builds, not this save. It proves nothing about the current world, terrain fit, hologram validity, unlocks, or achievable rates, and the declared inputs and outputs are author claims parsed from description text rather than decoded or simulated throughput.",
+    parameters: {
+      type: "object",
+      properties: {
+        produces: {
+          type: "string",
+          description: "Case-insensitive substring of an author-declared output item, for example 'rod' or 'Reinforced'.",
+        },
+        consumes: {
+          type: "string",
+          description: "Case-insensitive substring of an author-declared input item.",
+        },
+        kind: {
+          type: "string",
+          description: "Restrict to one reference kind: production_module, architectural_wrap, or base_build.",
+        },
+        uses_class: {
+          type: "string",
+          description: "Case-insensitive substring of a buildable class name, for example 'Catwalk' or 'Tris'. Use this to find designs that demonstrate a specific part.",
+        },
+        max_cells: {
+          type: "number",
+          description: "Only designer blueprints whose x and y designer dimensions are both at most this many 8 m cells.",
+        },
+        limit: { type: "number", description: "Maximum references to return, from 1 through 20. Defaults to 5." },
+        include_vocabulary: {
+          type: "boolean",
+          description: "Include the library-wide part vocabulary. Defaults to true.",
+        },
+        vocabulary_rows: {
+          type: "number",
+          description: "Maximum vocabulary rows to return, from 1 through 60. Defaults to 25.",
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (graph, args, services) => solveReferenceDesigns(graph, args ?? {}, services ?? {}),
   },
   {
     name: "audit_blueprint_placement",
