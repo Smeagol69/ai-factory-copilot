@@ -693,3 +693,82 @@ test("the model-facing solver is action-free by default and can emit one draw-on
   assert.equal(emitted[0].commit, true);
   assert.equal(emitted[0].elements.length, parsed.elements.length);
 });
+
+test("radial_hub_campus rotates each hall to face the hub", () => {
+  const radial = compile("radial_hub_campus");
+  assert.equal(radial.compiled, true, radial.reason ?? "");
+
+  const zones = radial.elements.filter((element) => element.kind === "production_zone");
+  assert.ok(zones.length >= 2, "needs at least two halls to form a ring");
+
+  // The point of the family: halls are not parallel to each other or to the
+  // campus grid. Every other style emits the one grid yaw for everything.
+  const yaws = new Set(zones.map((zone) => zone.world_yaw_degrees));
+  assert.ok(yaws.size > 1, `expected distinct hall rotations, got ${[...yaws].join(",")}`);
+  for (const zone of zones) {
+    assert.ok(zone.world_yaw_degrees >= 0 && zone.world_yaw_degrees < 360);
+    assert.ok(Number.isFinite(zone.yaw_offset_degrees));
+  }
+});
+
+test("a rotated hall carries its facade, roof and pylons with it", () => {
+  const radial = compile("radial_hub_campus");
+  const zone = radial.elements.find((element) => element.id === "production-zone-1");
+  assert.ok(zone);
+
+  // A facade left square while its hall turns would read as a bug, and would
+  // only ever be caught by eye in the preview.
+  for (const id of ["platform-1", "facade-1", "roof-1"]) {
+    const part = radial.elements.find((element) => element.id === id);
+    assert.ok(part, `${id} missing`);
+    assert.equal(part.world_yaw_degrees, zone.world_yaw_degrees, `${id} did not rotate with its hall`);
+  }
+});
+
+test("the ring is sized so neighbouring halls cannot touch", () => {
+  const radial = compile("radial_hub_campus");
+  const zones = radial.elements.filter((element) => element.kind === "production_zone");
+
+  // Centres a chord apart, and the chord must clear the widest hall. This is
+  // the property the radius is solved for, so it is worth asserting directly
+  // rather than trusting the derivation.
+  const centres = zones.map((zone) => ({
+    x: zone.world_origin_cm.x + (zone.world_size_cm.x / 2),
+    y: zone.world_origin_cm.y + (zone.world_size_cm.y / 2),
+  }));
+  const widest = Math.max(...zones.map((zone) => zone.world_size_cm.x));
+  for (let left = 0; left < centres.length; left += 1) {
+    for (let right = left + 1; right < centres.length; right += 1) {
+      const separation = Math.hypot(centres[left].x - centres[right].x, centres[left].y - centres[right].y);
+      assert.ok(separation >= widest, `halls ${left} and ${right} are ${separation}cm apart, narrower than a hall`);
+    }
+  }
+});
+
+test("the other families keep emitting exactly one campus yaw", () => {
+  // Guards the compatibility claim: adding rotation must not perturb a manifest
+  // that never asked for it, because revision fingerprints are content-addressed.
+  for (const style of ["elevated_industrial_campus", "terraced_megafactory", "curvilinear_future_campus"]) {
+    const result = compile(style);
+    assert.equal(result.compiled, true, `${style}: ${result.reason ?? ""}`);
+    const gridYaw = result.grid.yaw_degrees;
+    for (const element of result.elements) {
+      assert.equal(element.world_yaw_degrees, gridYaw, `${style} element ${element.id} was rotated`);
+      assert.equal(element.yaw_offset_degrees, undefined, `${style} element ${element.id} gained an offset`);
+    }
+  }
+});
+
+test("validation recomputes element rotation instead of trusting it", () => {
+  const radial = compile("radial_hub_campus");
+  assert.equal(validateMegabaseManifest(radial).valid, true);
+
+  const tampered = structuredClone(radial);
+  const rotated = tampered.elements.find((element) => element.yaw_offset_degrees);
+  assert.ok(rotated, "expected at least one rotated element");
+  rotated.world_yaw_degrees = (rotated.world_yaw_degrees + 37) % 360;
+
+  const check = validateMegabaseManifest(tampered);
+  assert.equal(check.valid, false);
+  assert.ok(check.issues.some((issue) => issue.startsWith("world_yaw_mismatch:")), check.issues.join(","));
+});

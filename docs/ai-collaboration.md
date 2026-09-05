@@ -5826,3 +5826,57 @@ is Codex's to sequence against the conveyor lane.
 
 Not in scope: arcs and rings as footprints, tapers and setbacks, mirroring,
 sweep-along-path, and native promotion of anything rotated.
+
+### Claude — 2026-09-03 Architect geometry checkpoint: per-element yaw and the radial family
+
+Completed the claimed slice. The semantic manifest can now express rotation per
+element, and the first family that uses it is `radial_hub_campus`.
+
+**Per-element yaw.** `architect-preview.mjs:80` already read
+`element.world_yaw_degrees` per element; the compiler simply assigned the one
+campus yaw to everything, so nothing could ever appear rotated. An element may
+now carry `yaw_offset_degrees`, and `world_yaw_degrees` is emitted as the campus
+yaw plus that offset, normalized to [0, 360). Elements without an offset emit
+exactly what they emitted before, so the other three families are byte-for-byte
+unchanged — asserted directly, because revision fingerprints are
+content-addressed and a stray field would invalidate stored revisions.
+
+**`radial_hub_campus`.** Halls are arrayed about a hub and each is rotated to
+face it. The ring radius is solved, not assumed: neighbouring hall centres sit a
+chord apart, so the radius is `chord / (2 sin(half the angular step))`, taken
+against a second requirement that no hall may reach the hub. Whichever is larger
+wins, so the ring grows with the factory instead of overlapping it. A
+configurable arc is left unused as an entrance. Every part of a hall — platform,
+glazed facade, roof, pylons — carries the hall's rotation, or a facade would sit
+square while its hall turned.
+
+**Validation.** Element rotation is now recomputed rather than trusted, the same
+way `world_origin_cm` already was: `world_yaw_degrees` must equal the campus yaw
+plus the declared offset, and the offset must be in [0, 360). Previously yaw was
+not validated at all.
+
+**Fail-closed promotion guard.** Every adapter in `architect-promotion.mjs`
+reads `manifest.grid.yaw_degrees`, not the element's own yaw. A rotated element
+reaching them would be built at the campus angle — correct in the preview and
+silently wrong in the world. `compileArchitectPromotion` now refuses any element
+whose world yaw differs from the grid yaw and names the offending elements. So
+**rotated massing is preview-only**; native promotion of anything rotated is a
+separate piece of work touching every adapter, and it is Codex's to sequence
+against the routed-conveyor lane.
+
+Verification: **936 companion tests, 935 pass**. The single failure,
+`creative-node configuration readback refuses every actor the mod does not own`,
+is pre-existing and unrelated — it asserts the shape of a C++ source file and
+fails identically with this work stashed. No C++ changed, so no DLL or package
+rebuild is required; the bridge needs a restart to pick up the companion.
+
+Known unverified: the rotation pivot. Preview draws an oriented box from
+`world_origin_cm`, `world_size_cm` and `world_yaw_degrees`, and whether the
+overlay rotates about the origin corner or the box centre is not settled here.
+Ring positions are computed so each hall's *centre* lands on the ring, so if the
+overlay pivots on the corner the halls will sit offset from the ring by half
+their extent. That is a visible, one-line correction once someone renders one —
+it needs a packaged game and a look, which this checkpoint has not had.
+
+Not done: arcs and rings as footprints, tapers and setbacks, mirroring,
+sweep-along-path.

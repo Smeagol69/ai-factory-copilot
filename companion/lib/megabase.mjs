@@ -24,6 +24,7 @@ export const MEGABASE_STYLES = Object.freeze([
   "elevated_industrial_campus",
   "terraced_megafactory",
   "curvilinear_future_campus",
+  "radial_hub_campus",
 ]);
 
 const STYLE_DEFAULTS = Object.freeze({
@@ -56,6 +57,29 @@ const STYLE_DEFAULTS = Object.freeze({
     tower_width_cells: 9,
     tower_depth_cells: 9,
     tower_floors: 5,
+  }),
+  // The first family whose halls are not parallel to the campus grid.
+  //
+  // Every other style arranges axis-aligned boxes; even curvilinear_future_campus
+  // only offsets boxes along a sine wave and rounds to whole cells. Here the
+  // halls are arrayed about a centre and each one is rotated to face it, so the
+  // composition reads as a rotunda rather than a row of sheds. The ring radius
+  // is derived from the halls themselves rather than assumed, so the ring grows
+  // with the factory instead of overlapping it.
+  radial_hub_campus: Object.freeze({
+    deck_floor: 2,
+    hall_floors: 2,
+    hall_gap_cells: 3,
+    service_margin_cells: 3,
+    // Extra breathing room between neighbouring halls on the ring, in cells.
+    ring_clearance_cells: 2,
+    // Degrees of arc the ring may not use, kept clear as an entrance.
+    ring_entrance_degrees: 40,
+    // 1 turns each hall's front toward the hub, -1 turns it outward.
+    hall_facing: 1,
+    tower_width_cells: 9,
+    tower_depth_cells: 9,
+    tower_floors: 8,
   }),
 });
 
@@ -830,6 +854,26 @@ export function validateMegabaseManifest(manifest) {
     if (!expected || JSON.stringify(expected) !== JSON.stringify(element.world_origin_cm)) {
       issues.push(`world_transform_mismatch:${element?.id ?? ""}`);
     }
+
+    // Rotation is checked the same way the origin is: recomputed, not trusted.
+    // An element may carry its own yaw offset, but its world yaw must still be
+    // exactly the campus yaw plus that offset, so a manifest cannot claim a
+    // rotation the compiler did not derive.
+    const gridYaw = finite(manifest?.grid?.yaw_degrees);
+    const offset = element?.yaw_offset_degrees === undefined
+      ? 0
+      : finite(element.yaw_offset_degrees);
+    const worldYaw = finite(element?.world_yaw_degrees);
+    if (offset === null || worldYaw === null || gridYaw === null) {
+      issues.push(`non_finite_yaw:${element?.id ?? ""}`);
+    } else if (offset < 0 || offset >= 360) {
+      issues.push(`yaw_offset_must_be_0_to_under_360:${element?.id ?? ""}`);
+    } else {
+      const expectedYaw = offset ? normalizeDegrees(gridYaw + offset) : gridYaw;
+      if (round(worldYaw) !== round(expectedYaw)) {
+        issues.push(`world_yaw_mismatch:${element?.id ?? ""}`);
+      }
+    }
   }
 
   const zones = (manifest?.elements ?? []).filter((element) => element.kind === "production_zone");
@@ -982,12 +1026,19 @@ export function validateMegabaseManifest(manifest) {
 function zonePlacements(groups, style, parameters) {
   const placements = [];
   let cursorY = 0;
+  // Ring geometry is derived from the halls, not assumed, so the ring grows
+  // with the factory rather than overlapping it. Adjacent hall centres are a
+  // chord apart; solving the chord for the radius is what guarantees the gap
+  // actually exists at the ring rather than only at the hub.
+  const ring = style === "radial_hub_campus" ? ringGeometry(groups, parameters) : null;
+
   for (const [index, group] of groups.entries()) {
     const width = group.hall_size_cells.x;
     const depth = group.hall_size_cells.y;
     let x = -Math.floor(width / 2);
     let y = cursorY;
     let z = parameters.deck_floor;
+    let yawOffset = 0;
 
     if (style === "elevated_industrial_campus") {
       const side = index % 2 === 0 ? -1 : 1;
@@ -999,12 +1050,75 @@ function zonePlacements(groups, style, parameters) {
       const denominator = Math.max(1, groups.length - 1);
       const phase = (index / denominator) * Math.PI;
       x += Math.round(Math.sin(phase) * parameters.curve_amplitude_cells);
+    } else if (ring) {
+      const degrees = ring.start_degrees + index * ring.step_degrees;
+      const radians = (degrees * Math.PI) / 180;
+      // The hall's centre lands on the ring; its origin is the corner, which is
+      // why the half-extents come off here rather than at emission.
+      const centreX = Math.round(ring.radius_cells * Math.cos(radians));
+      const centreY = Math.round(ring.radius_cells * Math.sin(radians));
+      x = centreX - Math.floor(width / 2);
+      y = centreY - Math.floor(depth / 2);
+      // Local +Y is the hall's depth axis. Rotating by the ring angle plus a
+      // quarter turn points that axis radially; facing 1 then turns the front
+      // toward the hub, -1 leaves it looking outward.
+      yawOffset = degrees + 90 + (parameters.hall_facing >= 0 ? 180 : 0);
     }
 
-    placements.push({ group, local: { x, y, z }, size: { x: width, y: depth, z: parameters.hall_floors } });
+    placements.push({
+      group,
+      local: { x, y, z },
+      size: { x: width, y: depth, z: parameters.hall_floors },
+      ...(yawOffset ? { yaw_offset_degrees: normalizeDegrees(yawOffset) } : {}),
+    });
+    if (ring) continue;
     if (style !== "terraced_megafactory") cursorY += depth + parameters.hall_gap_cells;
   }
   return placements;
+}
+
+/** Degrees folded into [0, 360) so a manifest never carries 450 or -90. */
+function normalizeDegrees(degrees) {
+  const wrapped = degrees % 360;
+  return round(wrapped < 0 ? wrapped + 360 : wrapped);
+}
+
+/**
+ * Where the halls sit on the ring, and how big the ring has to be.
+ *
+ * The radius is whichever is larger of two independent requirements, because
+ * satisfying one does not satisfy the other:
+ *
+ *   - neighbouring halls must not touch. Their centres are a chord apart, so
+ *     radius = chord / (2 sin(half the angular step));
+ *   - no hall may reach the hub, or the ring closes into a disc and the
+ *     entrance and service margin have nothing to open onto.
+ *
+ * A single hall has no neighbour and no meaningful ring, so it is placed at the
+ * hub radius and the caller still gets a valid, if unexciting, ring of one.
+ */
+function ringGeometry(groups, parameters) {
+  const count = Math.max(1, groups.length);
+  const widest = Math.max(...groups.map((group) => group.hall_size_cells.x), 1);
+  const deepest = Math.max(...groups.map((group) => group.hall_size_cells.y), 1);
+
+  const entrance = Math.min(180, Math.max(0, parameters.ring_entrance_degrees ?? 0));
+  const usable = 360 - entrance;
+  // With one hall the step is the whole usable arc; it is never zero, so the
+  // sine below cannot divide by zero.
+  const step = count > 1 ? usable / count : usable;
+
+  const chord = widest + Math.max(0, parameters.ring_clearance_cells ?? 0);
+  const halfStep = (step * Math.PI) / 360;
+  const spacingRadius = count > 1 ? chord / (2 * Math.sin(halfStep)) : 0;
+  const hubRadius = deepest + (parameters.service_margin_cells ?? 0);
+
+  return {
+    radius_cells: Math.max(Math.ceil(spacingRadius), hubRadius),
+    step_degrees: step,
+    // Centre the used arc so the entrance gap sits opposite the ring's middle.
+    start_degrees: entrance / 2 + step / 2,
+  };
 }
 
 function bridgeSegments(from, to, index) {
@@ -1088,6 +1202,14 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
   };
 
   for (const [index, zone] of zones.entries()) {
+    // Every piece of one hall carries the hall's rotation. A facade or roof
+    // left at the campus yaw while its zone turns would read as a bug, not a
+    // design, and would be invisible until someone looked at the preview.
+    const addPart = (id, kind, local, size, requires = [], extra = {}) =>
+      add(id, kind, local, size, requires,
+        zone.yaw_offset_degrees
+          ? { ...extra, yaw_offset_degrees: zone.yaw_offset_degrees }
+          : extra);
     const number = index + 1;
     const phaseMachineAllocation = commissioning.phases.map((phase) => ({
       phase_id: phase.id,
@@ -1095,7 +1217,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
         (entry) => entry.program_group === zone.group.id,
       )?.machines ?? 0,
     }));
-    add(
+    addPart(
       `production-zone-${number}`,
       "production_zone",
       zone.local,
@@ -1108,21 +1230,21 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
         optional_roles: ["lighting"],
       },
     );
-    add(
+    addPart(
       `platform-${number}`,
       "structural_platform",
       { x: zone.local.x - 1, y: zone.local.y - 1, z: Math.max(0, zone.local.z - 1) },
       { x: zone.size.x + 2, y: zone.size.y + 2, z: 1 },
       ["foundation"],
     );
-    add(
+    addPart(
       `facade-${number}`,
       "glazed_facade",
       { x: zone.local.x, y: zone.local.y - 1, z: zone.local.z },
       { x: zone.size.x, y: 1, z: zone.size.z },
       ["window", "wall"],
     );
-    add(
+    addPart(
       `roof-${number}`,
       "sloped_roof_intent",
       { x: zone.local.x, y: zone.local.y, z: zone.local.z + zone.size.z },
@@ -1139,7 +1261,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
         [zone.local.x + zone.size.x, zone.local.y + zone.size.y],
       ];
       for (const [corner, [x, y]] of corners.entries()) {
-        add(
+        addPart(
           `support-${number}-${corner + 1}`,
           "support_pylon",
           { x, y, z: 0 },
@@ -1190,7 +1312,14 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       y: element.size.y * unitCm,
       z: element.size.z * floorHeightCm,
     },
-    world_yaw_degrees: yaw,
+    // The campus yaw plus this element's own rotation. Every previous style
+    // left the offset undefined, so those manifests are byte-for-byte unchanged.
+    world_yaw_degrees: element.yaw_offset_degrees
+      ? normalizeDegrees(yaw + element.yaw_offset_degrees)
+      : yaw,
+    ...(element.yaw_offset_degrees
+      ? { yaw_offset_degrees: element.yaw_offset_degrees }
+      : {}),
     requires_roles: element.requires,
     ...(element.program_group ? { program_group: element.program_group } : {}),
     ...(element.produces ? { produces: element.produces } : {}),

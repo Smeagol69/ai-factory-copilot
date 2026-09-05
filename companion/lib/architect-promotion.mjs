@@ -743,6 +743,26 @@ export function compileArchitectPromotion(graph, manifest, {
   }
 
   const elements = Array.isArray(manifest?.elements) ? manifest.elements : [];
+
+  // Every adapter below takes its rotation from manifest.grid.yaw_degrees, not
+  // from the element. An element carrying its own yaw would therefore be built
+  // at the campus angle: correct in the preview, silently wrong in the world,
+  // and only discoverable by looking at it. Refuse instead, and name the
+  // elements, until the adapters honour element yaw.
+  const gridYaw = Number(manifest?.grid?.yaw_degrees);
+  const rotated = elements.filter((element) => {
+    const own = Number(element?.world_yaw_degrees);
+    return Number.isFinite(own) && Number.isFinite(gridYaw) && Math.abs(own - gridYaw) > 1e-6;
+  });
+  if (rotated.length > 0) {
+    blockers.push(
+      `architect_rotated_elements_have_no_native_adapter:${rotated
+        .slice(0, 8)
+        .map((element) => element?.id ?? "unknown")
+        .join(",")}`,
+    );
+  }
+
   const groupsById = new Map(
     (manifest?.program?.groups ?? []).map((group) => [String(group?.id ?? ""), group]),
   );

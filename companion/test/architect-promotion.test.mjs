@@ -1071,3 +1071,50 @@ test("Architect fluid promotion refuses ambiguous recipe-to-port identity", () =
   ]);
   assert.equal(refused.action, undefined);
 });
+
+test("promotion refuses rotated elements instead of building them square", () => {
+  // Every promotion adapter takes its rotation from manifest.grid.yaw_degrees,
+  // never from the element. A rotated element reaching them would be built at
+  // the campus angle: correct in the preview, silently wrong in the world, and
+  // discoverable only by looking at it. So it must be refused by name.
+  const graph = promotionGraph();
+  const manifest = platformManifest(graph);
+
+  const target = manifest.elements[0];
+  target.yaw_offset_degrees = 41.5;
+  target.world_yaw_degrees = ((Number(manifest.grid.yaw_degrees) + 41.5) % 360 + 360) % 360;
+
+  const refused = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Rotated Hall",
+    commit: true,
+  });
+
+  assert.equal(refused.compiled, false);
+  assert.ok(
+    refused.blockers.some((blocker) =>
+      blocker.startsWith("architect_rotated_elements_have_no_native_adapter:")),
+    refused.blockers.join(","),
+  );
+  // Naming the element matters: "something is rotated" is not actionable.
+  assert.ok(
+    refused.blockers.some((blocker) => blocker.includes(target.id)),
+    refused.blockers.join(","),
+  );
+});
+
+test("an unrotated manifest still promotes, so the guard is not blanket", () => {
+  const graph = promotionGraph();
+  const promoted = compileArchitectPromotion(graph, platformManifest(graph), {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Unrotated Control",
+    commit: true,
+  });
+  assert.equal(promoted.compiled, true, JSON.stringify(promoted.blockers));
+  assert.ok(
+    !promoted.blockers.some((blocker) => blocker.includes("rotated")),
+    promoted.blockers.join(","),
+  );
+});
