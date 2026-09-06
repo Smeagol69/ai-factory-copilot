@@ -192,3 +192,16 @@ a few hundred tokens.
 
 Maps are refused rather than truncated when a footprint exceeds 80 cells, because
 a cropped map would be read as the whole design.
+
+### Adding one
+
+Drop the files into `reference/blueprints/sources/` and run
+`node scripts/ingest-blueprint-reference.mjs`. Files present without a manifest
+entry are still ingested — a supplied blueprint is never ignored for want of
+metadata, and `sources.json` can be filled in afterwards.
+
+`scripts/add-blueprint.cmd` does the same thing as a drag target: dropping
+`.sbp` + `.sbpcfg` pairs (or a `.cbp`) onto it copies them in, decodes, and opens
+the decoded folder. Double-clicked with nothing dropped it opens the sources
+folder and re-decodes what is already there. The owner has a desktop shortcut to
+it.
