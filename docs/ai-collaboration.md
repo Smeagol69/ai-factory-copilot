@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Hand the Precision Frame back to the native Build Gun.** Owner reports the +/-90 controls work but the X/Y/Z move does not, and would rather nudge with the native arrow keys anyway. Root cause is in `ApplyPrecisionFrameToBuildState`: rotation is seeded once behind a generation guard, but position calls `SetNudgeOffset` on **every** post-tick, and `SetNudgeOffset` replaces the offset that native `NudgeHologram`/`AddNudgeOffset` accumulate into - so the mod overwrites the player's arrow keys one frame after every press. Change position to the same one-shot seed as rotation: lock, seed the offset once per generation, then stop writing so native nudge owns it. Also route lock/nudge through `GetNudgeHologramTarget()` per the CL 502094 header contract, since compound holograms (wire -> pole) nudge a child. Add a re-snap control and correct the status copy. Anchor capture, yaw, mirror, and +/-90 are preserved; the X/Y/Z fields are kept and become the initial seed rather than a continuous override. No new native call is introduced, nothing constructs, and the hook ordering is unchanged. Scope is the precision-frame path in the UI subsystem, its contract test, changelog, and this handoff, then validate/build/package/deploy with the game closed. | claimed |
+| 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Hand the Precision Frame back to the native Build Gun.** Owner reports the +/-90 controls work but the X/Y/Z move does not, and would rather nudge with the native arrow keys anyway. Root cause is in `ApplyPrecisionFrameToBuildState`: rotation is seeded once behind a generation guard, but position calls `SetNudgeOffset` on **every** post-tick, and `SetNudgeOffset` replaces the offset that native `NudgeHologram`/`AddNudgeOffset` accumulate into - so the mod overwrites the player's arrow keys one frame after every press. Change position to the same one-shot seed as rotation: lock, seed the offset once per generation, then stop writing so native nudge owns it. Also route lock/nudge through `GetNudgeHologramTarget()` per the CL 502094 header contract, since compound holograms (wire -> pole) nudge a child. Add a re-snap control and correct the status copy. Anchor capture, yaw, mirror, and +/-90 are preserved; the X/Y/Z fields are kept and become the initial seed rather than a continuous override. No new native call is introduced, nothing constructs, and the hook ordering is unchanged. Scope is the precision-frame path in the UI subsystem, its contract test, changelog, and this handoff, then validate/build/package/deploy with the game closed. | complete |
 | 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Complete blueprint decode, so both agents see exactly what a supplied blueprint is.** Yesterday's reference catalog keeps only aggregate class counts and a role census; it discards every transform, so neither agent can actually reconstruct a supplied design. Add a full-fidelity, unbounded offline decode over the same pinned read-only parser: every buildable with its blueprint-local translation, derived 8 m grid cell, derived yaw, and scale; per-machine `mCurrentRecipe`, `mBuiltWithRecipe`, and `mPendingPotential` clock; per-building colour slot and swatch; the decoded conveyor/pipe connection graph and power wires; and a derived throughput check that tests the author's declared I/O against machine count x clock rather than repeating it. Emit one complete JSON decode plus one readable Markdown sheet per blueprint into `reference/blueprints/decoded/`, both committed, so Codex and Claude read identical evidence. Also add `.cbp` interactive-map world exports to the same pipeline, and correct `AGENTS.md`, which still tells a fresh agent that blueprint transform analysis is unimplemented and that the companion is dependency-free. Scope is companion `lib/`, `scripts/`, `reference/`, `docs/`, and tests. No C++, no world mutation, no change to the bounded live-tool limits that protect provider context. | complete |
 | 2026-09-01 | Codex | `codex/ai-architect-promotion` | Continue AI Architect milestone A3 with a bounded selected-revision promotion adapter. Recompile and verify only the selected immutable `megabase.design/v1` revision against the current full snapshot; resolve its exact semantic parts into the existing `aifactory.generated-blueprint/v1..v4` contract only where captured unlocked Build Gun recipes, relative transforms, roles, bounds, and all required topology are proved; then submit the unchanged native Designer/serializer/readback action and arm the exact registered descriptor through the existing native Build Gun preview handoff. Fail closed with exact readiness blockers; never turn a semantic preview volume into guessed buildables, never bypass selection/staleness/write gates, never create a file before explicit commit, and never disturb `codex/generated-blueprint-two-stage-wire`, the A1 overlay, or the proven native generator/C++ path. Initial expected files are a separate companion adapter, `manage_architect_revisions` promotion operations/schema, focused tests, provider/docs/changelog, and append-only handoff; C++ changes are out of scope unless a verified missing game seam is found and separately announced. | claimed; auditing selected-revision, semantic part-resolution, and generated Blueprint contracts before implementation |
 | 2026-08-31 | Codex | `codex/ai-architect-revisions` | Implement AI Architect milestone A2's companion-side persistence contract without touching Claude's selected-manifest -> native Blueprint/Build Gun lane or the existing game overlay. Scope immutable, content-addressed Architect briefs and manifest revisions to the exact save/session, persist them outside the repository, expose bounded list/get/compare/select/rollback/delete-draft operations, make option/parent relationships explicit, and fail closed when current save/unlock evidence no longer matches promotion requirements. Deleting a draft must affect only Architect metadata and never native Blueprint files or placed actors. Expected files: a zero-dependency store, focused solver/tool/provider/server contracts and restart/corruption/isolation/staleness tests, roadmap/changelog, and append-only handoff. | complete and companion-installed; 907/907 tests and exact CL 502094 validation pass; bridge health reports disk persistence and the new tool ready; no C++ or game DLL changed |
@@ -6186,3 +6186,82 @@ release and confirm ordinary mouse movement returns. Specifically verify that
 FactoryGame interprets the public nudge offset as the expected world-space
 delta and that the Shipping detour remains stable. For node visuals, inspect a
 saved or newly spawned solid node. No live result has been invented here.
+
+---
+
+## Claude — precision frame hands placement back to the Build Gun (2026-09-05)
+
+Owner report: the ±90° controls worked, the X/Y/Z move did not, and they would
+rather nudge with the native arrow keys anyway.
+
+### Root cause
+
+`ApplyPrecisionFrameToBuildState` seeded **rotation** once behind
+`PrecisionRotationGeneration`, but wrote **position** on every post-tick:
+
+```cpp
+Hologram->SetNudgeOffset(TargetLocation - Hologram->GetHologramLockLocation());
+```
+
+Per the CL 502094 header, `SetNudgeOffset` *replaces* `mHologramNudgeOffset`,
+while the player's arrow keys reach the same field through
+`NudgeHologram` → `AddNudgeOffset`, which *accumulate*. So the mod overwrote the
+player's nudge one frame after every key press. The asymmetry the owner saw was
+the tell: **the control that worked was the one that was already one-shot.**
+
+### Fix
+
+Position is now seeded exactly once per generation behind
+`PrecisionPositionGeneration` and then left alone, so native nudging owns the
+hologram from the chosen origin. Every path that resets the rotation generation
+resets position too, so a fresh hologram re-seeds. A **Re-snap** button bumps the
+generation to return the hologram to the frame.
+
+Every setting change already bumped the generation, so the X/Y/Z fields now
+re-seed as one-shot moves rather than being dead — an unasked-for consequence of
+the same fix.
+
+Lock, nudge, and release now act on `GetNudgeHologramTarget()`. The header names
+that as the hologram to nudge, and a compound hologram (wire → automatic pole)
+nudges a child rather than its root. The previous code always used the root.
+
+`validate.ps1` now pins `GetNudgeHologramTarget` and `AddNudgeOffset`, since the
+one-shot handoff depends on both.
+
+### The session-long "pre-existing C++ failure" was line endings
+
+`creative-node configuration readback refuses every actor the mod does not own`
+has failed here all session. It is not a C++ problem. The assertion searches for
+a multi-line literal containing `\n` newlines, while Git checks these files out
+with **CRLF** on this machine — so `indexOf` could never match. Codex's checkout
+must use LF, which is why Codex reports the suite green.
+
+Normalising at the read fixes it: **967/967 companion tests and
+`scripts/validate.ps1` now pass**, the first fully clean gate in this branch.
+Nine other contract tests read C++ the same raw way and are the same latent trap;
+they pass today only because their literals happen to be single-line.
+
+### Built and deployed
+
+`FactoryGameSteam Win64 Shipping` compiled and linked, UAT build/cook/stage/
+archive/deploy succeeded with the game closed.
+
+- Archive: `AIFactoryCopilot-Windows.zip`, 20,350,682 bytes, SHA-256
+  `C28614CABDFB80BF91768BE37A573E78CD95D707DF2E15B47FD52673E03FB785`
+- Deployed Steam DLL SHA-256
+  `756D17A4E4B8AB91E66B1FF663A385929CF599EFC648E52EFA2A28393FF868A4`
+  (replaces `10CC6A0D…`)
+
+### Known unverified — one number settles it
+
+Whether `SetNudgeOffset` is interpreted in **world** space is still unproven, and
+the header hints it is not: `NudgeTowardsWorldDirection` exists as a *separate*
+API, which would be redundant if the base offset were already world-space. If it
+is hologram-local, a rotated anchor makes the seed land off-target — the likely
+original reason X/Y/Z "did not work".
+
+The panel now reports **`N cm from frame`**. Snap with a nonzero X and a rotated
+anchor: `~0 cm` means world-space and the feature is exact; a large number means
+local-space, and the fix is one line — take the offset through
+`Hologram->GetActorRotation().UnrotateVector(...)` before seeding. Arrow-key
+nudging works either way, which is what the owner actually asked for.

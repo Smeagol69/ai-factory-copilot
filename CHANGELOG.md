@@ -5,6 +5,21 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Changed the **Precision Frame** to seed the hologram once and then hand
+  placement back to Satisfactory's own Build Gun. Position was previously
+  rewritten on every Build Gun tick, and because `SetNudgeOffset` replaces the
+  offset that the game's arrow-key nudge accumulates into, the mod overwrote
+  the player's input one frame after each key press - which is why the +/-90
+  rotation worked while the X/Y/Z move did not. Snapping now locks the
+  hologram, applies the frame offset once, and stops writing, so the native
+  arrow keys nudge normally from the chosen origin. A **Re-snap** control
+  returns the hologram to the frame. Lock, nudge, and release now act on
+  `GetNudgeHologramTarget()`, so a compound hologram such as a wire nudges its
+  automatic pole rather than its root.
+- Fixed a source-shape test that could never pass on a Windows checkout: it
+  searched the C++ for a multi-line literal using LF newlines while Git checks
+  those files out with CRLF. The read now normalises line endings, so the
+  assertion describes the source rather than a checkout setting.
 - Added a native **Precision Frame** for perfectly symmetrical manual building.
   Aim at any existing buildable, capture its exact transform as a local origin,
   enter forward/right/up offsets in metres plus a relative whole-degree yaw,
