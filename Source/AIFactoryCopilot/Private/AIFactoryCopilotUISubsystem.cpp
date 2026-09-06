@@ -2005,14 +2005,17 @@ FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const
             }
             else
             {
-                const float PositionErrorCm = FVector::Distance(Hologram->GetActorLocation(), Target);
-                const float YawError = FMath::Abs(FMath::FindDeltaAngleDegrees(
+                // Distance from the frame, not an error: once seeded, the
+                // player's own arrow keys are expected to move the hologram
+                // away from it, and that reading is how far they have gone.
+                const float DistanceFromFrameCm = FVector::Distance(Hologram->GetActorLocation(), Target);
+                const float YawFromFrame = FMath::Abs(FMath::FindDeltaAngleDegrees(
                     Hologram->GetActorRotation().Yaw, TargetYaw));
                 NativeState = FString::Printf(
-                    TEXT("LOCK ON | native %s | error %.1f cm / %.1f deg"),
+                    TEXT("LOCK ON | native %s | %.1f cm / %.1f deg from frame | arrow keys nudge"),
                     Hologram->CanConstruct() ? TEXT("valid") : TEXT("blocked"),
-                    PositionErrorCm,
-                    YawError);
+                    DistanceFromFrameCm,
+                    YawFromFrame);
             }
         }
     }
@@ -2027,7 +2030,7 @@ FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const
         Target.Z / 100.0f,
         TargetYaw,
         bPrecisionFrameEnabled
-            ? TEXT("Satisfactory still decides whether it can be built")
+            ? TEXT("snapped once; nudge natively, Re-snap to return. Satisfactory still decides whether it can be built")
             : TEXT("set offsets, then enable"));
 }
 
@@ -2161,14 +2164,19 @@ void UAIFactoryCopilotUISubsystem::ReleasePrecisionHologram()
 {
     if (AFGHologram* const Hologram = PrecisionHologram.Get(); IsValid(Hologram))
     {
-        Hologram->SetNudgeOffset(FVector::ZeroVector);
-        if (Hologram->IsHologramLocked())
+        // Release whatever was actually locked and nudged, which for a compound
+        // hologram is the child the game nominated, not the root.
+        AFGHologram* const NudgeTarget = Hologram->GetNudgeHologramTarget();
+        AFGHologram* const PlacementTarget = IsValid(NudgeTarget) ? NudgeTarget : Hologram;
+        PlacementTarget->SetNudgeOffset(FVector::ZeroVector);
+        if (PlacementTarget->IsHologramLocked())
         {
-            Hologram->LockHologramPosition(false);
+            PlacementTarget->LockHologramPosition(false);
         }
     }
     PrecisionHologram.Reset();
     PrecisionRotationGeneration = 0;
+    PrecisionPositionGeneration = 0;
 }
 
 void UAIFactoryCopilotUISubsystem::SetPrecisionFrameEnabled(const bool bEnabled)
@@ -2240,6 +2248,7 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
     {
         PrecisionHologram.Reset();
         PrecisionRotationGeneration = 0;
+        PrecisionPositionGeneration = 0;
         RefreshPrecisionFrameStatus();
         return;
     }
@@ -2254,6 +2263,7 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
         ReleasePrecisionHologram();
         PrecisionHologram = Hologram;
         PrecisionRotationGeneration = 0;
+        PrecisionPositionGeneration = 0;
     }
 
     FVector TargetLocation;
@@ -2279,24 +2289,45 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
         return;
     }
 
-    if (!Hologram->CanLockHologram() || !Hologram->CanNudgeHologram())
+    // A compound hologram nudges a child - a wire nudges its automatic pole -
+    // so the lock and offset belong on whatever the game names as the target,
+    // not unconditionally on the root.
+    AFGHologram* const NudgeTarget = Hologram->GetNudgeHologramTarget();
+    AFGHologram* const PlacementTarget = IsValid(NudgeTarget) ? NudgeTarget : Hologram;
+
+    if (!PlacementTarget->CanLockHologram() || !PlacementTarget->CanNudgeHologram())
     {
         RefreshPrecisionFrameStatus();
         return;
     }
 
-    if (!Hologram->IsHologramLocked())
+    // Seed once per generation, then stop writing.
+    //
+    // SetNudgeOffset *replaces* mHologramNudgeOffset, while FactoryGame's own
+    // arrow-key path (NudgeHologram -> AddNudgeOffset) *accumulates* into it.
+    // Driving it every post-tick therefore overwrote the player's nudge one
+    // frame after every key press, which is why the axis controls appeared
+    // dead while the one-shot rotation seed worked. Seeding once puts the
+    // hologram on the frame and leaves native nudging in charge from there.
+    if (PrecisionPositionGeneration == PrecisionFrameGeneration)
     {
-        Hologram->LockHologramPosition(true);
+        RefreshPrecisionFrameStatus();
+        return;
     }
-    Hologram->SetNudgeOffset(TargetLocation - Hologram->GetHologramLockLocation());
+
+    if (!PlacementTarget->IsHologramLocked())
+    {
+        PlacementTarget->LockHologramPosition(true);
+    }
+    PlacementTarget->SetNudgeOffset(TargetLocation - PlacementTarget->GetHologramLockLocation());
+    PrecisionPositionGeneration = PrecisionFrameGeneration;
 
     // Position changed after the original Build Gun tick, so repeat only the
     // game's public validation/cost pass. PrimaryFire then consumes this same
     // native hologram state; no construction call is replaced or fabricated.
     if (AFGBuildGun* const BuildGun = BuildState->GetBuildGun(); IsValid(BuildGun))
     {
-        Hologram->ValidatePlacementAndCost(BuildGun->GetInventory());
+        PlacementTarget->ValidatePlacementAndCost(BuildGun->GetInventory());
     }
     RefreshPrecisionFrameStatus();
 }
@@ -2366,10 +2397,29 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildPrecisionFrameSection()
                 .ButtonColorAndOpacity(AIFactoryPalette::Button)
                 .ForegroundColor(AIFactoryPalette::Orange)
                 .ToolTipText(FText::FromString(TEXT(
-                    "Explicitly enable or release the native hologram lock. Construction still happens only when you click.")))
+                    "Snap the hologram onto the frame once and lock it, then nudge with the game's own arrow keys. Release to hand aiming back to the mouse. Construction still happens only when you click.")))
                 .OnClicked_Lambda([this]()
                 {
                     SetPrecisionFrameEnabled(!bPrecisionFrameEnabled);
+                    return FReply::Handled();
+                })
+            ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(6.0f, 0.0f, 0.0f, 0.0f)
+            [
+                // The seed is applied once per generation, so re-snapping is
+                // just a generation bump: it returns the hologram to the frame
+                // after the native arrow keys have moved it.
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Re-snap")))
+                .ButtonColorAndOpacity(AIFactoryPalette::Button)
+                .ForegroundColor(AIFactoryPalette::Orange)
+                .IsEnabled_Lambda([this]() { return bPrecisionFrameEnabled; })
+                .ToolTipText(FText::FromString(TEXT(
+                    "Put the hologram back on the frame, discarding any native nudging you have done since the last snap.")))
+                .OnClicked_Lambda([this]()
+                {
+                    ++PrecisionFrameGeneration;
+                    RefreshPrecisionFrameStatus();
                     return FReply::Handled();
                 })
             ]

@@ -161,6 +161,12 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'void SetNudgeOffset' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'virtual bool CanNudgeHologram' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetHologramLockLocation' },
+        # The precision frame seeds the offset onto the game's nominated nudge
+        # target, and relies on AddNudgeOffset being the accumulating path the
+        # player's arrow keys use. If either disappears, the one-shot seed
+        # stops handing control back correctly and must be revisited.
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'virtual AFGHologram\* GetNudgeHologramTarget' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'ENudgeFailReason AddNudgeOffset' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGBuildDescriptor.h'; Pattern = 'TSubclassOf< AActor > GetBuildClassInternal' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNode.h'; Pattern = 'void InitResource' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNode.h'; Pattern = 'void SetResourcePurityOverride' },

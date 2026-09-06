@@ -93,6 +93,17 @@ private:
     uint32 PrecisionFrameGeneration = 1;
     /** Generation whose scroll rotation was applied to PrecisionHologram. */
     uint32 PrecisionRotationGeneration = 0;
+    /**
+     * Generation whose nudge offset was seeded onto PrecisionHologram.
+     *
+     * Position is seeded exactly once per generation and then left alone, the
+     * same way rotation already was. FactoryGame's own arrow-key nudge path
+     * accumulates into the same offset through AddNudgeOffset, so writing it
+     * every tick silently overwrote the player's input one frame after each
+     * press. Seeding once puts the hologram on the frame and hands the nudge
+     * back to the native Build Gun.
+     */
+    uint32 PrecisionPositionGeneration = 0;
     TSharedPtr<STextBlock> PrecisionFrameStatusText;
     TSharedPtr<SEditableTextBox> PrecisionXEntry;
     TSharedPtr<SEditableTextBox> PrecisionYEntry;

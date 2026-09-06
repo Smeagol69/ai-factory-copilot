@@ -56,6 +56,7 @@ test("selecting an origin is inert until the owner explicitly enables snapping",
   assert.match(section, /Use aimed as origin/);
   assert.match(section, /Snap Build Gun/);
   assert.match(section, /Release Build Gun/);
+  assert.match(section, /Re-snap/);
   assert.match(section, /Mirror X/);
   assert.match(section, /Mirror Y/);
   assert.match(section, /RotatePrecisionFrame\(-90\.0f\)/);
@@ -74,7 +75,13 @@ test("the native Build Gun owns placement, validation, and construction", () => 
   assert.match(apply, /CanNudgeHologram\(\)/);
   assert.match(apply, /SetScrollRotateValue\(/);
   assert.match(apply, /LockHologramPosition\(true\)/);
-  assert.match(apply, /SetNudgeOffset\(TargetLocation - Hologram->GetHologramLockLocation\(\)\)/);
+  // The offset is seeded onto whatever the game nominates as the nudge target,
+  // because a compound hologram nudges a child rather than its root.
+  assert.match(apply, /GetNudgeHologramTarget\(\)/);
+  assert.match(
+    apply,
+    /SetNudgeOffset\(TargetLocation - PlacementTarget->GetHologramLockLocation\(\)\)/,
+  );
   assert.match(apply, /ValidatePlacementAndCost\(BuildGun->GetInventory\(\)\)/);
   assert.doesNotMatch(apply, /SetActorLocation|SetActorRotation|SetActorTransform/);
   assert.doesNotMatch(
@@ -100,4 +107,46 @@ test("releasing precision restores the native movable hologram", () => {
   assert.match(release, /SetNudgeOffset\(FVector::ZeroVector\)/);
   assert.match(release, /LockHologramPosition\(false\)/);
   assert.match(release, /PrecisionHologram\.Reset\(\)/);
+});
+
+test("position is seeded once so the native arrow keys keep their nudge", () => {
+  const apply = slice(
+    "void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(",
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildPrecisionFrameSection()",
+  );
+
+  // FactoryGame's own arrow-key path accumulates through AddNudgeOffset, while
+  // SetNudgeOffset replaces. Writing the offset on every post-tick therefore
+  // overwrote the player's input one frame after each key press. Position must
+  // be seeded behind a generation guard, exactly as rotation already is.
+  assert.match(apply, /PrecisionPositionGeneration == PrecisionFrameGeneration/);
+  assert.match(apply, /PrecisionPositionGeneration = PrecisionFrameGeneration;/);
+
+  // The guard has to short-circuit before the offset is written, or it is not a
+  // guard at all.
+  const guardAt = apply.indexOf("PrecisionPositionGeneration == PrecisionFrameGeneration");
+  const seedAt = apply.indexOf("SetNudgeOffset(TargetLocation");
+  assert.ok(guardAt > 0 && seedAt > guardAt, "the seed must sit behind the generation check");
+
+  // The mod must never reach for the accumulating native input path itself;
+  // that belongs to the player.
+  // Lookbehind so the capability probe CanNudgeHologram() and the accessor
+  // GetNudgeHologramTarget() are not mistaken for the input path itself.
+  assert.doesNotMatch(
+    apply,
+    /(?<![A-Za-z])(?:AddNudgeOffset|NudgeHologram|NudgeTowardsWorldDirection)\(/,
+  );
+});
+
+test("a fresh or released hologram re-seeds instead of staying stale", () => {
+  // Every place that resets the rotation generation must reset position too,
+  // or a new hologram would skip its seed and sit wherever the mouse points.
+  const rotationResets = ui.match(/PrecisionRotationGeneration = 0;/g) ?? [];
+  const positionResets = ui.match(/PrecisionPositionGeneration = 0;/g) ?? [];
+  assert.ok(rotationResets.length >= 3, "rotation generation is reset on the known paths");
+  assert.equal(
+    positionResets.length,
+    rotationResets.length,
+    "position generation resets wherever rotation generation does",
+  );
 });

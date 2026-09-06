@@ -2,18 +2,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const header = fs.readFileSync(
-  new URL("../../Source/AIFactoryCopilot/Public/AIFactoryNodeEdit.h", import.meta.url),
-  "utf8",
-);
-const nodeEdit = fs.readFileSync(
-  new URL("../../Source/AIFactoryCopilot/Private/AIFactoryNodeEdit.cpp", import.meta.url),
-  "utf8",
-);
-const chat = fs.readFileSync(
-  new URL("../../Source/AIFactoryCopilot/Private/AIFactoryChatCommand.cpp", import.meta.url),
-  "utf8",
-);
+// Source-shape assertions search for multi-line literals. Git checks these
+// files out with CRLF on Windows, so reading them raw makes the ordering
+// checks pass or fail on a checkout setting rather than on the code. Normalise
+// once, here, so the assertions describe the source and nothing else.
+const readSource = (relative) =>
+  fs.readFileSync(new URL(relative, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+
+const header = readSource("../../Source/AIFactoryCopilot/Public/AIFactoryNodeEdit.h");
+const nodeEdit = readSource("../../Source/AIFactoryCopilot/Private/AIFactoryNodeEdit.cpp");
+const chat = readSource("../../Source/AIFactoryCopilot/Private/AIFactoryChatCommand.cpp");
 
 function functionSlice(source, start, next) {
   const startIndex = source.indexOf(start);
