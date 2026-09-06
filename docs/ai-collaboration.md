@@ -6054,3 +6054,134 @@ Architect can now *see* that a real module is 6x6x6 with four machines at 75% an
 machine-and-belt mix. Turning a decode into a generation constraint — envelope,
 clock, enclosure budget, part vocabulary — is unclaimed and is what the owner is
 actually asking for.
+### Active claim — Codex — 2026-09-05 native solid-node visual parity
+
+Paused the unfinished generated-Blueprint v5 routed-conveyor work on
+`codex/ai-architect-splitters` in the recoverable stash
+`WIP Architect native routed conveyor v5` at the owner's request. No partial v5
+code is being mixed into this lane.
+
+Working on `codex/native-resource-node-visuals` from current `origin/master`.
+Scope is the owner-requested visual correction for Copilot-spawned ordinary
+solid resource nodes: use the authoritative vanilla full resource-node rock
+presentation instead of the descriptor's small hand-mineable deposit mesh.
+Preserve the already live-verified ordinary-node actor identity, Miner snapping,
+resource descriptor, purity, node type, occupation, replication, save/load,
+clone/remove workflows, mod-resource compatibility, and all fluid/gas/geyser
+paths. The implementation must be grounded in the exact CL 502094 headers and
+available native class/component defaults; it must not mutate a vanilla map
+node or pretend a deposit mesh is a node mesh. Expected files are the creative
+ordinary-node visual/configuration path, focused source-contract tests, changelog,
+and this append-only handoff, followed by exact validation, Shipping/Editor
+builds, package, and deployment if the game DLL is not locked.
+
+### Codex — 2026-09-05 native solid-node visual checkpoint
+
+Completed the claimed visual correction on
+`codex/native-resource-node-visuals`. `ApplyCreativeVisual` now resolves the
+registered `FGResourceNodeData` primary assets through Unreal's exported
+`UAssetManager`, matches the exact selected resource descriptor, and applies
+that entry's `MT_Node` static mesh, complete material override list, and authored
+position offset to the existing Copilot-owned visual component. This is the
+same per-resource presentation table used by vanilla `AFGNodeMeshActor`; there
+is no hard-coded Iron/Copper/Coal mapping. If a modded resource has not
+registered node data, its descriptor deposit remains the compatibility fallback,
+and resources with neither retain the neutral marker.
+
+The actor itself is unchanged: ordinary nodes remain
+`AAIFactoryCreativeOrdinaryResourceNode : AFGResourceNode`, with the proven
+Resource-profile root, exact resource/purity/infinite configuration, Miner and
+portable-Miner gates, occupation, replication, save/load restoration, and
+Clone/Remove ownership rules. Existing saved Copilot nodes also run this visual
+selection during `PostLoadGame`; no save migration or respawn is required.
+Vanilla map nodes are never paired, moved, or modified.
+
+One SDK trap was verified rather than hidden: the tempting static
+`AFGResourceNodeManager::GetNodeMeshOverrides` declaration compiles but is not
+exported from the Shipping binary and failed with LNK2019. The final path reads
+the public `UFGResourceNodeData` fields through exported engine APIs instead.
+`scripts/validate.ps1` now pins the exact node-data fields, primary-asset
+registration, and asset-manager methods this depends on.
+
+Verification: exact CL 502094/SML 3.12.0 validation and all **936/936**
+companion tests pass. `FactoryGameSteam Win64 Shipping` and `FactoryEditor Win64
+Development` module builds both link successfully. UAT build/cook/archive also
+passes. Ready archive:
+`D:\Modding\Satisfactory\StarterProject-502094\Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`,
+37,646,693 bytes, SHA-256
+`23BF0B850EDC05D754B54E842534C1F27C889D889D0839C53CCDE6BD0ABBF209`.
+Built Steam DLL SHA-256:
+`407330DF69654E606FAE3343E4AE63F6E3BA776216E6E22ABA1EB1CF33D8EE4A`.
+Satisfactory PIDs 27472/27492 were still running, so the deployed game DLL
+remains the older `D9D1E504...` build. Do not claim visual live verification
+until the game is closed, the ready package is copied, and a saved or newly
+spawned solid node is observed in game.
+
+### Active claim — Codex — 2026-09-05 precision reference frame
+
+Working on `codex/precision-reference-frame` from current `origin/master`.
+Scope is an owner-requested symmetry aid for manual native construction: aim
+at any existing buildable (a Miner Mk.1 is the motivating example), save its
+authoritative world transform as a local construction frame, and drive the
+current Build Gun hologram to an exact forward/right/up offset and relative yaw
+from that frame. The first slice will expose exact X/Y/Z and yaw fields plus
+mirror and quarter-turn controls in the existing in-game panel, clearly show
+the anchor and computed target, and provide an explicit on/off lock.
+
+This feature must not move or copy the anchor, silently commit a construction,
+or bypass the native hologram, cost, clearance, snapping, multiplayer, or
+server-authority paths. Satisfactory remains free to display a red hologram and
+refuse an invalid target. The lock must fail closed when the anchor or active
+Build Gun hologram disappears. The transform is yaw-local and scale-free:
+local X is anchor forward, local Y is anchor right, local Z is world up, and
+target yaw is anchor yaw plus the requested offset. Existing Blueprint export,
+Architect, creative-node, chat, action, and selection behavior stays intact.
+Exact CL 502094 headers will be checked before touching Build Gun state.
+
+### Codex — 2026-09-05 precision reference frame checkpoint
+
+Completed the claimed manual symmetry aid on
+`codex/precision-reference-frame`. The Insert panel now has a Precision Frame
+section that captures any aimed `AFGBuildable` as an inert local origin. Exact
+metre fields define X forward, Y right, and Z world-up from the anchor's yaw;
+the yaw field is a relative whole-degree offset because FactoryGame serializes
+that state as an `int32`. Mirror X/Y and ±90° controls update the same exact
+transform. The panel reports the anchor yaw, computed world target, actual
+hologram position/yaw error, and native valid/blocked result.
+
+The owner must separately click **Snap Build Gun**. A Shipping-only SML hook
+runs around `UFGBuildGunStateBuild::TickState_Implementation`: before the
+native tick it corrects the hologram's public serialized scroll-rotation value;
+after the tick it uses only `LockHologramPosition` and `SetNudgeOffset`, then
+reruns `ValidatePlacementAndCost` against the Build Gun inventory. It refuses
+to touch non-local holograms and leaves any hologram without native lock+nudge
+support untouched. It never calls PrimaryFire, Construct, an RPC, or any raw
+actor-transform setter. Release clears the native nudge and unlocks placement.
+The selected anchor and offsets are session-local and do not alter the save.
+
+Verification: exact CL 502094/SML 3.12.0 source validation and all **941/941**
+companion tests pass. The focused contract covers yaw-local/no-scale transform
+math, inert selection, explicit activation, local-player gating, native
+rotation/lock/nudge/validation, no direct transform or construction path, hook
+ordering, and release. `FactoryGameSteam Win64 Shipping` and `FactoryEditor
+Win64 Development` both compile and link. The first parallel Shipping attempt
+hit Windows paging-file error 1455 before source compilation; retrying with one
+compile action succeeded. UAT build/cook/stage/archive/deploy succeeded.
+
+Ready archive:
+`D:\Modding\Satisfactory\StarterProject-502094\Saved\ArchivedPlugins\AIFactoryCopilot\AIFactoryCopilot-Windows.zip`,
+20,344,861 bytes, SHA-256
+`A2B007EAF8B1CF23C35957CC84D34F258851153A5B4AA64B73A221C3285A02A1`.
+Built and deployed Steam DLL SHA-256:
+`10CC6A0D344D5200A5024E25DA6EE12D5FA0A38E9F1084F3CBA78E1F813114E8`.
+This same deployed build includes the preceding native full-node visual work.
+
+Still needs one packaged-game visual test before either behavior is called
+live-verified. For Precision Frame: aim at a placed Miner, capture it, set a
+nonzero X/Y target and optional +90°, select a normal machine or foundation in
+the Build Gun, enable Snap, close the panel, and compare the reported error to
+the visible hologram. Build once only if the panel reports native valid, then
+release and confirm ordinary mouse movement returns. Specifically verify that
+FactoryGame interprets the public nudge offset as the expected world-space
+delta and that the Shipping detour remains stable. For node visuals, inspect a
+saved or newly spawned solid node. No live result has been invented here.

@@ -124,9 +124,11 @@ public:
         FString& OutReason);
 
     /**
-     * Applies the selected resource's own ore/deposit presentation to a
-     * mod-owned visual component. It deliberately does not attempt to pair a
-     * new actor with the private vanilla ResourceNodeManager mesh system.
+     * Applies FactoryGame's registered full node mesh, materials, and offset
+     * when that authoritative presentation exists. A descriptor deposit mesh
+     * remains the compatibility fallback for mod resources that register no
+     * node data; liquid/gas markers without either use the existing neutral
+     * fallback. This never pairs with or mutates a vanilla map node actor.
      */
     static void ApplyCreativeVisual(
         UStaticMeshComponent* Visual,

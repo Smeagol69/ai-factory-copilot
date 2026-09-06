@@ -272,6 +272,24 @@ Examples:
 
 The longer `/aifactory ask ...` syntax remains available for compatibility.
 
+### Precision Frame for symmetrical building
+
+The Insert panel can use any placed buildable as an exact local coordinate
+frame. Aim at a Miner, machine, foundation, or other buildable and click **Use
+aimed as origin**. Enter offsets as **X forward**, **Y right**, and **Z up** in
+metres, plus yaw relative to the selected object's yaw. Click **Snap Build Gun**
+only after the target is correct; the current native hologram locks to that
+coordinate and stays there after the panel closes. **Mirror X**, **Mirror Y**,
+and **±90** make matching opposite or quarter-turned modules without eyeballing
+them. **Release Build Gun** returns the hologram to ordinary mouse placement.
+
+Selecting an origin is inert and never moves an object. Precision Frame does
+not construct anything for you or bypass a red hologram: Satisfactory still
+performs its normal snapping, range, clearance, cost, multiplayer, and server
+construction checks. The panel shows the requested world coordinate, actual
+position/yaw error, and native valid/blocked result. A hologram that does not
+support FactoryGame's lock-and-nudge contract is reported and left untouched.
+
 ### Experimental Blueprint Designer miners
 
 Stock Blueprint Designers have no resource node inside their volume, so a

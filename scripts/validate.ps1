@@ -156,10 +156,20 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'virtual AActor\* Construct' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'CustomSerialization' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetIsPendingToBeConstructed' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'void SetScrollRotateValue' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'void LockHologramPosition' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'void SetNudgeOffset' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'virtual bool CanNudgeHologram' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetHologramLockLocation' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGBuildDescriptor.h'; Pattern = 'TSubclassOf< AActor > GetBuildClassInternal' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNode.h'; Pattern = 'void InitResource' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNode.h'; Pattern = 'void SetResourcePurityOverride' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceDescriptor.h'; Pattern = 'GetDepositMesh' },
+        @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeManager.h'; Pattern = 'GetNodeMeshOverrides' },
+        @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeManager.h'; Pattern = 'TObjectPtr< UStaticMesh > mMesh' },
+        @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeManager.h'; Pattern = 'TArray<TObjectPtr< UMaterialInterface >> mMaterials' },
+        @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeManager.h'; Pattern = 'FVector mPositionOffset' },
+        @{ Path = 'Config\DefaultGame.ini'; Pattern = 'PrimaryAssetType="FGResourceNodeData"' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeBase.h'; Pattern = 'SetResourceClassOverride' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeBase.h'; Pattern = 'EResourceNodeType GetResourceNodeType' },
         @{ Path = 'Source\FactoryGame\Public\Resources\FGResourceNodeBase.h'; Pattern = 'FrackingSatellite' },
@@ -170,6 +180,7 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'mOnStateChanged' },
         @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'mOnRecipeChanged' },
         @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGunBuild.h'; Pattern = 'GetHologram' },
+        @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGunBuild.h'; Pattern = 'TickState_Implementation' },
         @{ Path = 'Source\FactoryGame\Public\FGPlayerState.h'; Pattern = 'IsServerAdmin' },
         @{ Path = 'Source\FactoryGame\Public\Equipment\FGBuildGun.h'; Pattern = 'void SetDesiredBlueprint' },
         @{ Path = 'Source\FactoryGame\Public\FGRemoteCallObject.h'; Pattern = 'GetOwnerPlayerCharacter' },
@@ -207,6 +218,8 @@ if ($upstream) {
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\UMG\Public\Components\TextBlock.h'; Pattern = 'FText GetText' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Core\Public\Math\Transform.h'; Pattern = 'GetTypeHash\(const TTransform' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Json\Public\Dom\JsonObject.h'; Pattern = 'TryGetNumberField\(FStringView FieldName, int32& OutNumber\)' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Engine\AssetManager.h'; Pattern = 'GetIfInitialized' }
+        @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Engine\AssetManager.h'; Pattern = 'GetPrimaryAssetPathList' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Components\LineBatchComponent.h'; Pattern = 'void DrawLines\(TArrayView<FBatchedLine> InLines\)' }
         @{ Path = '..\UnrealEngine-CSS\Engine\Source\Runtime\Engine\Classes\Components\LineBatchComponent.h'; Pattern = 'ClearBatch\(uint32 InBatchID\)' }
         @{ Path = 'Mods\SML\Source\SML\Private\ModLoading\ModLoadingLibrary.cpp'; Pattern = 'Resources/Icon128.png' }

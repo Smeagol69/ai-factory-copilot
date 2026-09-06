@@ -4,11 +4,13 @@
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/AssetManager.h"
 #include "Materials/MaterialInstance.h"
 #include "Net/UnrealNetwork.h"
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "Resources/FGResourceDescriptorGeyser.h"
+#include "Resources/FGResourceNodeManager.h"
 #include "UObject/UObjectGlobals.h"
 
 namespace
@@ -34,6 +36,78 @@ namespace
                 nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
         }
         return Cached.Get();
+    }
+
+    bool ApplyRegisteredNodePresentation(
+        UStaticMeshComponent* const Visual,
+        const TSubclassOf<UFGResourceDescriptor> Resource)
+    {
+        if (!IsValid(Visual) || !IsValid(Resource))
+        {
+            return false;
+        }
+
+        // This is the same authoritative per-resource data used by
+        // AFGNodeMeshActor when FactoryGame presents the full, permanent node
+        // rock in the world. It is deliberately different from
+        // UFGResourceDescriptor::GetDepositMesh(), which is the small
+        // hand-mineable deposit shown by the previous creative-node visual.
+        const UAssetManager* const AssetManager = UAssetManager::GetIfInitialized();
+        if (!IsValid(AssetManager))
+        {
+            return false;
+        }
+
+        // GetNodeMeshOverrides is declared by FactoryGame but is not exported
+        // from its Shipping binary. The underlying UFGResourceNodeData fields
+        // are public and the data assets are registered primary assets, so read
+        // that exact authoritative table through Unreal's exported asset
+        // manager instead of duplicating a resource-to-mesh mapping.
+        TArray<FSoftObjectPath> NodeDataPaths;
+        if (!AssetManager->GetPrimaryAssetPathList(
+                FPrimaryAssetType(TEXT("FGResourceNodeData")),
+                NodeDataPaths))
+        {
+            return false;
+        }
+
+        const FNodeMeshOverrides* NodePresentation = nullptr;
+        for (const FSoftObjectPath& NodeDataPath : NodeDataPaths)
+        {
+            UFGResourceNodeData* NodeData =
+                Cast<UFGResourceNodeData>(NodeDataPath.ResolveObject());
+            if (!IsValid(NodeData))
+            {
+                NodeData = Cast<UFGResourceNodeData>(NodeDataPath.TryLoad());
+            }
+            if (!IsValid(NodeData) || NodeData->mResourceDescriptor != Resource)
+            {
+                continue;
+            }
+
+            NodePresentation = NodeData->mNodeMeshOverrides.Find(
+                ENodeMeshType::MT_Node);
+            break;
+        }
+        if (NodePresentation == nullptr || !IsValid(NodePresentation->mMesh))
+        {
+            return false;
+        }
+
+        Visual->SetStaticMesh(NodePresentation->mMesh.Get());
+        Visual->EmptyOverrideMaterials();
+        for (int32 MaterialIndex = 0;
+             MaterialIndex < NodePresentation->mMaterials.Num();
+             ++MaterialIndex)
+        {
+            Visual->SetMaterial(
+                MaterialIndex,
+                NodePresentation->mMaterials[MaterialIndex].Get());
+        }
+        Visual->SetRelativeLocation(NodePresentation->mPositionOffset);
+        Visual->SetRelativeRotation(FRotator::ZeroRotator);
+        Visual->SetRelativeScale3D(FVector::OneVector);
+        return true;
     }
 
     bool IsSupportedNodeType(const EResourceNodeType NodeType)
@@ -378,17 +452,27 @@ void AAIFactoryCreativeResourceNode::ApplyCreativeVisual(
         return;
     }
 
+    if (ApplyRegisteredNodePresentation(Visual, Resource))
+    {
+        return;
+    }
+
     UStaticMesh* const DescriptorMesh = IsValid(Resource)
         ? UFGResourceDescriptor::GetDepositMesh(Resource)
         : nullptr;
+    Visual->EmptyOverrideMaterials();
     Visual->SetStaticMesh(IsValid(DescriptorMesh) ? DescriptorMesh : CreativeFallbackMesh());
     Visual->SetMaterial(0, IsValid(Resource)
         ? UFGResourceDescriptor::GetDepositMaterial(Resource)
         : nullptr);
+    Visual->SetRelativeLocation(FVector::ZeroVector);
+    Visual->SetRelativeRotation(FRotator::ZeroRotator);
 
-    // A deposit mesh is already authored at the correct scale. The fallback
-    // cylinder is intentionally smaller and flatter so a liquid/gas/geyser
-    // marker reads as a source point rather than a giant ore boulder.
+    // A descriptor deposit is only a compatibility fallback for resources
+    // that did not register full node data. It is authored at the correct
+    // scale. The final neutral cylinder is intentionally smaller and flatter
+    // so a liquid/gas/geyser marker reads as a source point rather than a giant
+    // ore boulder.
     const EResourceForm Form = IsValid(Resource)
         ? UFGItemDescriptor::GetForm(Resource)
         : EResourceForm::RF_INVALID;

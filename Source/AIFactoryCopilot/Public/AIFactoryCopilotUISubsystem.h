@@ -8,6 +8,8 @@
 
 class AAIFactorySubsystem;
 class AActor;
+class AFGBuildable;
+class AFGHologram;
 class AFGPlayerController;
 class IInputProcessor;
 class SEditableTextBox;
@@ -15,6 +17,7 @@ class SMultiLineEditableTextBox;
 class STextBlock;
 class SWidget;
 class UCommandSender;
+class UFGBuildGunStateBuild;
 
 /**
  * Local, screenshot-free conversation panel. Insert toggles the panel and the
@@ -33,6 +36,15 @@ public:
 
     void HidePanel();
     bool IsPanelVisible() const { return bPanelVisible; }
+
+    /**
+     * Called immediately before and after FactoryGame updates the local Build
+     * Gun hologram. The two phases keep the native scroll rotation and native
+     * locked/nudge placement in the same frame without replacing construction.
+     */
+    void ApplyPrecisionFrameToBuildState(
+        UFGBuildGunStateBuild* BuildState,
+        bool bBeforeNativeTick);
 
 private:
     TSharedPtr<IInputProcessor> InputProcessor;
@@ -64,6 +76,42 @@ private:
      */
     bool bBridgeEverTried = false;
     bool bBridgeAnswered = false;
+
+    /* ---------------------- Precision construction frame ---------------------- */
+
+    /** Existing world buildable whose yaw defines local forward/right. */
+    TWeakObjectPtr<AFGBuildable> PrecisionFrameAnchor;
+    /** Centimetres: X forward, Y right, Z world-up relative to the anchor. */
+    FVector PrecisionLocalOffsetCm = FVector::ZeroVector;
+    /** Whole-degree yaw added to the anchor's authoritative world yaw. */
+    float PrecisionYawOffsetDegrees = 0.0f;
+    /** Explicit master switch. Selecting an anchor alone never moves a hologram. */
+    bool bPrecisionFrameEnabled = false;
+    /** The native hologram currently owned by the precision lock. */
+    TWeakObjectPtr<AFGHologram> PrecisionHologram;
+    /** Changes whenever the requested transform changes. */
+    uint32 PrecisionFrameGeneration = 1;
+    /** Generation whose scroll rotation was applied to PrecisionHologram. */
+    uint32 PrecisionRotationGeneration = 0;
+    TSharedPtr<STextBlock> PrecisionFrameStatusText;
+    TSharedPtr<SEditableTextBox> PrecisionXEntry;
+    TSharedPtr<SEditableTextBox> PrecisionYEntry;
+    TSharedPtr<SEditableTextBox> PrecisionZEntry;
+    TSharedPtr<SEditableTextBox> PrecisionYawEntry;
+
+    TSharedRef<SWidget> BuildPrecisionFrameSection();
+    TSharedRef<SWidget> MakePrecisionEntry(int32 Axis, const FString& Label);
+    void SetPrecisionFrameFromAim();
+    void SetPrecisionFrameEnabled(bool bEnabled);
+    void ClearPrecisionFrame();
+    void ApplyPrecisionValue(int32 Axis, const FString& Value);
+    void SyncPrecisionEntries();
+    void MirrorPrecisionAxis(int32 Axis);
+    void RotatePrecisionFrame(float DeltaYawDegrees);
+    void ReleasePrecisionHologram();
+    bool GetPrecisionTarget(FVector& OutLocation, float& OutYawDegrees) const;
+    FString GetPrecisionFrameStatus() const;
+    void RefreshPrecisionFrameStatus();
 
     /**
      * The box selection, as a panel rather than as a sentence.

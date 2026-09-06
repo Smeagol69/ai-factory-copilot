@@ -5,6 +5,23 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added a native **Precision Frame** for perfectly symmetrical manual building.
+  Aim at any existing buildable, capture its exact transform as a local origin,
+  enter forward/right/up offsets in metres plus a relative whole-degree yaw,
+  then explicitly snap the active Build Gun hologram to that target. Mirror-X,
+  Mirror-Y, and ±90° controls make opposite wings and rotated modules exact even
+  when the reference machine is not world-aligned. The feature uses
+  FactoryGame's serialized scroll rotation and native hologram lock/nudge APIs,
+  reruns native placement and cost validation after every move, never clicks or
+  constructs for the player, and reports the live position/yaw error and the
+  game's valid/blocked result. Unsupported hologram types remain untouched.
+- Changed Copilot-spawned ordinary resource nodes to use FactoryGame's
+  registered full resource-node rock mesh, material set, and authored position
+  offset—the same per-resource presentation data used by vanilla node mesh
+  actors—instead of displaying the small hand-mineable deposit mesh. Modded
+  resources without registered node data retain the descriptor-deposit
+  compatibility fallback. Miner snapping, node identity, purity, occupation,
+  replication, save/load, and the fluid/gas/geyser paths are unchanged.
 - Added exact **AI Architect material I/O accounting**. The semantic compiler
   now allocates each provenance-matched producer only up to its planned output
   rate instead of assuming it satisfies an entire downstream demand. Any
