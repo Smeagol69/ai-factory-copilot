@@ -6012,3 +6012,15 @@ release and confirm ordinary mouse movement returns. Specifically verify that
 FactoryGame interprets the public nudge offset as the expected world-space
 delta and that the Shipping detour remains stable. For node visuals, inspect a
 saved or newly spawned solid node. No live result has been invented here.
+
+### Active claim — Codex — 2026-09-06 precision crash and usability follow-up
+
+Continuing the precision-frame lane after the owner reported the Shipping
+startup assertion in SML: the plain method hook targeted a virtual override
+without an instance. Removing that detour in favor of Unreal world tick
+delegates. The owner also requests lightweight foundations as valid origins
+and automatic snap release after placement. Scope remains the UI subsystem,
+module hook removal, focused validation/tests, and docs. Preserve native
+construction and exact lightweight identity; do not promote foundations into
+persistent actors or treat a failed build click as a successful placement.
+Rebuild, package, and install the combined correction for the owner's test.
