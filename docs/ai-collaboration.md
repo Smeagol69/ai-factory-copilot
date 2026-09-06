@@ -6315,3 +6315,54 @@ cover lightweight identity/liveness, inert selection, native-only placement,
 world isolation, absence of the invalid startup hook, one-shot lifecycle, and
 pending-construction preservation. Packaged-game verification and final artifact
 hashes follow below when deployment completes.
+
+---
+
+## Claude — picked up Codex's precision correction and shipped it (2026-09-06)
+
+Codex reached its usage limit with the precision correction finished but
+uncommitted and undeployed. Its work is preserved as `2f0dd70` on
+`codex/precision-reference-frame`, authored to Codex, and merged here.
+
+**Codex's approach supersedes mine and is better.** I had fixed the startup
+assertion by switching to `SUBSCRIBE_METHOD_VIRTUAL` with a CDO sample
+instance. Codex removed the native hook entirely: the UI subsystem now owns
+`FWorldDelegates::OnWorldPreActorTick` / `OnWorldPostActorTick`, filtered to its
+exact world and local controller and removed on deinitialization. No hook means
+the `NativeHookManager.cpp:103` assertion cannot recur at all, so my
+virtual-macro fix is gone and its contract test with it.
+
+Codex also added what the feature was actually missing: **foundation and wall
+origins**, resolved through the native Build Gun sampling trace into
+`FLightweightBuildableInstanceRef` including converted and temporary pooled
+actors, and one placement per activation with automatic release.
+
+**What I re-applied on top.** Codex built on the original precision frame, so it
+still called `SetNudgeOffset` on every post-tick. That overwrites what
+FactoryGame's own arrow-key path accumulates through `AddNudgeOffset`, one frame
+after each key press. Position is now seeded once per generation and then left
+alone; lock, nudge, release and revalidation act on `GetNudgeHologramTarget()`
+so a compound hologram nudges its child rather than its root; and a **Re-snap**
+control bumps the generation to return the hologram to the frame.
+
+**A trap worth knowing.** Two of Codex's own new assertions could never pass on
+this machine: they slice the C++ on multi-line literals containing `\n`, while
+Git checks those sources out CRLF here. The contract test now normalises at the
+read, the same fix the creative-node test needed. Nine other contract tests read
+C++ raw and are the same latent trap — they pass today only because their
+literals happen to be single-line. Worth a sweep.
+
+Verification: **968/968 companion tests** and `scripts/validate.ps1` pass.
+Shipping build, UAT build/cook/stage/archive/deploy all succeeded with the game
+closed.
+
+- Archive `AIFactoryCopilot-Windows.zip`, 20,348,765 bytes, SHA-256
+  `C20F13D7BF8D6EAEA133A11B93ED650748DF2C672303F029646F90D018D4E6DE`
+- Deployed Steam DLL SHA-256
+  `115D440E33CFB25C79BCBBD4BEDEFD5CE94AD134B7994F6BB7CB09B1FD563572`
+
+Still unverified in a packaged game: that the game reaches the menu on this
+build, that arrow-key nudging survives the snap, and whether `SetNudgeOffset` is
+interpreted in world space. The panel reports `N cm from frame` immediately after
+snapping; `~0` settles the last one, a large number means the seed needs
+`UnrotateVector` and is a one-line change.
