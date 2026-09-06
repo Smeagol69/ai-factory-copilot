@@ -124,8 +124,16 @@ void FAIFactoryCopilotModule::StartupModule()
     // Rotation has to be written before FactoryGame derives the actor transform
     // from mScrollRotation. Position follows the native update so the game's
     // own locked-hologram/nudge state is what PrimaryFire serializes.
-    mPrecisionFrameBeforeBuildTickHook = SUBSCRIBE_METHOD(
+    // TickState_Implementation is declared `virtual ... override` in
+    // FGBuildGunBuild.h, so SML cannot resolve the real implementation from the
+    // member-function pointer alone: plain SUBSCRIBE_METHOD asserts
+    // "Attempt to hook virtual function override without providing object
+    // instance" inside RegisterHookFunction and takes the game down at startup.
+    // The virtual variant needs a sample instance to read the vtable from, and
+    // the class default object is the only one that exists this early.
+    mPrecisionFrameBeforeBuildTickHook = SUBSCRIBE_METHOD_VIRTUAL(
         UFGBuildGunStateBuild::TickState_Implementation,
+        GetMutableDefault<UFGBuildGunStateBuild>(),
         [](auto& Scope,
            UFGBuildGunStateBuild* const BuildState,
            const float DeltaTime)
@@ -137,8 +145,9 @@ void FAIFactoryCopilotModule::StartupModule()
             }
         });
 
-    mPrecisionFrameAfterBuildTickHook = SUBSCRIBE_METHOD_AFTER(
+    mPrecisionFrameAfterBuildTickHook = SUBSCRIBE_METHOD_VIRTUAL_AFTER(
         UFGBuildGunStateBuild::TickState_Implementation,
+        GetMutableDefault<UFGBuildGunStateBuild>(),
         [](UFGBuildGunStateBuild* const BuildState, const float DeltaTime)
         {
             if (UAIFactoryCopilotUISubsystem* const UI =

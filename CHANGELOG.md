@@ -5,6 +5,15 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed a startup crash that made the game unlaunchable. The Precision Frame
+  hooked `UFGBuildGunStateBuild::TickState_Implementation` with SML's
+  non-virtual `SUBSCRIBE_METHOD` macros, but that function is declared
+  `virtual ... override`. SML cannot resolve a virtual override's real
+  implementation from a member-function pointer alone, so it asserted
+  "Attempt to hook virtual function override without providing object instance"
+  during module startup and took the game down before the main menu. Both
+  registrations now use `SUBSCRIBE_METHOD_VIRTUAL` / `SUBSCRIBE_METHOD_VIRTUAL_AFTER`
+  with a class-default sample instance, matching SML's own hook of `UWorld`.
 - Changed the **Precision Frame** to seed the hologram once and then hand
   placement back to Satisfactory's own Build Gun. Position was previously
   rewritten on every Build Gun tick, and because `SetNudgeOffset` replaces the

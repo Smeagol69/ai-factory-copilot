@@ -91,9 +91,28 @@ test("the native Build Gun owns placement, validation, and construction", () => 
 });
 
 test("precision rotation runs before the native hologram tick and nudge runs after", () => {
-  const before = moduleSource.indexOf("mPrecisionFrameBeforeBuildTickHook = SUBSCRIBE_METHOD(");
-  const after = moduleSource.indexOf("mPrecisionFrameAfterBuildTickHook = SUBSCRIBE_METHOD_AFTER(");
+  // TickState_Implementation is `virtual ... override`. SML cannot resolve a
+  // virtual's implementation from a member-function pointer alone, so the
+  // non-virtual macros assert "Attempt to hook virtual function override
+  // without providing object instance" and take the game down at startup. The
+  // virtual variants plus a sample instance are mandatory here, not stylistic.
+  const before = moduleSource.indexOf(
+    "mPrecisionFrameBeforeBuildTickHook = SUBSCRIBE_METHOD_VIRTUAL(",
+  );
+  const after = moduleSource.indexOf(
+    "mPrecisionFrameAfterBuildTickHook = SUBSCRIBE_METHOD_VIRTUAL_AFTER(",
+  );
   assert.ok(before >= 0 && after > before);
+  assert.doesNotMatch(
+    moduleSource,
+    /(?:mPrecisionFrameBeforeBuildTickHook|mPrecisionFrameAfterBuildTickHook) = SUBSCRIBE_METHOD(?:_AFTER)?\(/,
+    "the non-virtual macros crash on this virtual override",
+  );
+  // Both registrations must hand SML something to read the vtable from.
+  const sampleInstances = moduleSource.match(
+    /GetMutableDefault<UFGBuildGunStateBuild>\(\)/g,
+  );
+  assert.equal(sampleInstances?.length, 2, "both hooks pass a sample object instance");
   assert.match(moduleSource, /ApplyPrecisionFrameToBuildState\(BuildState, true\)/);
   assert.match(moduleSource, /ApplyPrecisionFrameToBuildState\(BuildState, false\)/);
   assert.match(moduleSource, /UNSUBSCRIBE_METHOD\([\s\S]*TickState_Implementation/);
