@@ -7,6 +7,8 @@
 #include "AIFactoryCompanion.h"
 #include "FGDismantleInterface.h"
 #include "FGLightweightBuildableSubsystem.h"
+#include "FGLightweightBuildableBlueprintLibrary.h"
+#include "AbstractInstanceManager.h"
 #include "Buildables/FGBuildableFactory.h"
 #include "Buildables/FGBuildableFactoryBuilding.h"
 #include "Buildables/FGBuildableConveyorBase.h"
@@ -33,6 +35,7 @@
 #include "Engine/World.h"
 #include "FGCharacterPlayer.h"
 #include "FGPlayerController.h"
+#include "FGPlayerState.h"
 #include "FGUseableInterface.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
@@ -143,13 +146,21 @@ void UAIFactoryCopilotUISubsystem::Initialize(FSubsystemCollectionBase& Collecti
     TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
         FTickerDelegate::CreateUObject(this, &UAIFactoryCopilotUISubsystem::Tick),
         0.2f);
+    PrecisionPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(
+        this,
+        &UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPreActorTick);
+    PrecisionPostActorTickHandle = FWorldDelegates::OnWorldPostActorTick.AddUObject(
+        this,
+        &UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPostActorTick);
 }
 
 void UAIFactoryCopilotUISubsystem::Deinitialize()
 {
+    UnbindPrecisionConstruction();
     ReleasePrecisionHologram();
     bPrecisionFrameEnabled = false;
     PrecisionFrameAnchor.Reset();
+    PrecisionLightweightAnchor = FLightweightBuildableInstanceRef();
     HidePanel();
 
     if (BoundSubsystem.IsValid() && BridgeResultHandle.IsValid())
@@ -163,6 +174,16 @@ void UAIFactoryCopilotUISubsystem::Deinitialize()
     {
         FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
         TickerHandle.Reset();
+    }
+    if (PrecisionPreActorTickHandle.IsValid())
+    {
+        FWorldDelegates::OnWorldPreActorTick.Remove(PrecisionPreActorTickHandle);
+        PrecisionPreActorTickHandle.Reset();
+    }
+    if (PrecisionPostActorTickHandle.IsValid())
+    {
+        FWorldDelegates::OnWorldPostActorTick.Remove(PrecisionPostActorTickHandle);
+        PrecisionPostActorTickHandle.Reset();
     }
 
     if (InputProcessor.IsValid() && FSlateApplication::IsInitialized())
@@ -1947,12 +1968,36 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
     }
 }
 
+bool UAIFactoryCopilotUISubsystem::GetPrecisionAnchorTransform(FTransform& OutTransform) const
+{
+    if (bPrecisionAnchorIsLightweight)
+    {
+        const FRuntimeBuildableInstanceData* const Instance =
+            PrecisionLightweightAnchor.ResolveBuildableInstanceData();
+        if (!Instance || PrecisionLightweightAnchor.GetOwnerSubsystem() == nullptr ||
+            PrecisionLightweightAnchor.GetOwnerSubsystem()->GetWorld() != GetWorld())
+        {
+            return false;
+        }
+        OutTransform = Instance->Transform;
+        return true;
+    }
+
+    const AFGBuildable* const Anchor = PrecisionFrameAnchor.Get();
+    if (!IsValid(Anchor) || Anchor->GetWorld() != GetWorld())
+    {
+        return false;
+    }
+    OutTransform = Anchor->GetActorTransform();
+    return true;
+}
+
 bool UAIFactoryCopilotUISubsystem::GetPrecisionTarget(
     FVector& OutLocation,
     float& OutYawDegrees) const
 {
-    const AFGBuildable* const Anchor = PrecisionFrameAnchor.Get();
-    if (!IsValid(Anchor))
+    FTransform AnchorTransform;
+    if (!GetPrecisionAnchorTransform(AnchorTransform))
     {
         return false;
     }
@@ -1960,19 +2005,19 @@ bool UAIFactoryCopilotUISubsystem::GetPrecisionTarget(
     // Satisfactory factories are yaw-planar even when a mesh has an authored
     // pitch or roll. Keeping Z in world-up prevents a tilted decorative anchor
     // from turning "up 4 m" into a diagonal move. Scale is deliberately absent.
-    const float AnchorYaw = Anchor->GetActorRotation().Yaw;
+    const float AnchorYaw = AnchorTransform.Rotator().Yaw;
     const FRotator YawFrame(0.0f, AnchorYaw, 0.0f);
-    OutLocation = Anchor->GetActorLocation() + YawFrame.RotateVector(PrecisionLocalOffsetCm);
+    OutLocation = AnchorTransform.GetLocation() + YawFrame.RotateVector(PrecisionLocalOffsetCm);
     OutYawDegrees = FRotator::NormalizeAxis(AnchorYaw + PrecisionYawOffsetDegrees);
     return true;
 }
 
 FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const
 {
-    const AFGBuildable* const Anchor = PrecisionFrameAnchor.Get();
-    if (!IsValid(Anchor))
+    FTransform AnchorTransform;
+    if (!GetPrecisionAnchorTransform(AnchorTransform))
     {
-        return TEXT("No origin selected. Aim at a built object, then use it as the local frame.");
+        return TEXT("No valid origin. Aim at a built machine, foundation, or wall, then use it as the local frame.");
     }
 
     FVector Target;
@@ -1980,16 +2025,6 @@ FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const
     if (!GetPrecisionTarget(Target, TargetYaw))
     {
         return TEXT("The selected origin no longer exists; the Build Gun lock is off.");
-    }
-
-    FString AnchorName = Anchor->GetClass()->GetName();
-    if (const TSubclassOf<UFGItemDescriptor> Descriptor = Anchor->GetBuiltWithDescriptor())
-    {
-        const FString DisplayName = UFGItemDescriptor::GetItemName(Descriptor).ToString().TrimStartAndEnd();
-        if (!DisplayName.IsEmpty())
-        {
-            AnchorName = DisplayName;
-        }
     }
 
     FString NativeState = bPrecisionFrameEnabled
@@ -2020,15 +2055,15 @@ FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const
     return FString::Printf(
         TEXT("%s | origin %s @ yaw %.1f | target X %.2f Y %.2f Z %.2f m, yaw %.1f | %s"),
         *NativeState,
-        *AnchorName,
-        Anchor->GetActorRotation().Yaw,
+        *PrecisionAnchorName,
+        AnchorTransform.Rotator().Yaw,
         Target.X / 100.0f,
         Target.Y / 100.0f,
         Target.Z / 100.0f,
         TargetYaw,
         bPrecisionFrameEnabled
-            ? TEXT("Satisfactory still decides whether it can be built")
-            : TEXT("set offsets, then enable"));
+            ? TEXT("one placement only; releases automatically")
+            : TEXT("origin retained for symmetry; click Snap for the next placement"));
 }
 
 void UAIFactoryCopilotUISubsystem::RefreshPrecisionFrameStatus()
@@ -2081,7 +2116,7 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionValue(
         // FactoryGame serializes hologram scroll rotation as an int32. Say that
         // through the field value instead of displaying a precision it cannot keep.
         PrecisionYawOffsetDegrees = FRotator::NormalizeAxis(
-            static_cast<float>(FMath::RoundToInt(Parsed)));
+            static_cast<float>(FMath::RoundToInt(FRotator::NormalizeAxis(Parsed))));
     }
 
     ++PrecisionFrameGeneration;
@@ -2136,30 +2171,161 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::MakePrecisionEntry(
 
 void UAIFactoryCopilotUISubsystem::SetPrecisionFrameFromAim()
 {
-    AFGBuildable* const Buildable = Cast<AFGBuildable>(GetAimedActor(true));
-    if (!IsValid(Buildable))
+    AFGPlayerController* const Controller = GetLocalPlayerController();
+    AFGCharacterPlayer* const Character = IsValid(Controller)
+        ? Cast<AFGCharacterPlayer>(Controller->GetControlledCharacter()) : nullptr;
+    UWorld* const World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
+    if (!IsValid(World) || !IsValid(Character))
+    {
+        return;
+    }
+
+    AFGBuildable* SelectedActor = nullptr;
+    FLightweightBuildableInstanceRef SelectedInstance;
+    const auto ResolveHit = [&](const FHitResult& Hit)
+    {
+        AActor* Actor = Hit.GetActor();
+        // Static foundation meshes are owned by AbstractInstance, not by an
+        // AFGBuildable. Resolve exactly the hit instance, never a nearby actor.
+        if (AAbstractInstanceManager* const Manager =
+                AAbstractInstanceManager::GetInstanceManager(World); IsValid(Manager))
+        {
+            FInstanceHandle Handle;
+            if (Manager->ResolveHit(Hit, Handle))
+            {
+                if (AFGLightweightBuildableSubsystem::ResolveLightweightInstance(Handle, SelectedInstance)
+                    && SelectedInstance.IsValid())
+                {
+                    return true;
+                }
+                Actor = AAbstractInstanceManager::GetOwnerByHandle(Handle);
+            }
+        }
+        AFGBuildable* const Buildable = Cast<AFGBuildable>(Actor);
+        if (!IsValid(Buildable) || Buildable->GetWorld() != World)
+        {
+            return false;
+        }
+        if (UFGLightweightBuildableBlueprintLibrary::GetLightweightBuildableInstanceFromConvertedBuildableOrTemporary(
+                Buildable, SelectedInstance))
+        {
+            return SelectedInstance.IsValid();
+        }
+        if (Buildable->GetIsLightweightTemporary())
+        {
+            // Pooled buildables can be reused for a different foundation. Keep
+            // the native stable ref instead of following that temporary actor.
+            SelectedInstance.InitializeFromTemporary(Buildable);
+            return SelectedInstance.IsValid();
+        }
+        SelectedActor = Buildable;
+        return true;
+    };
+
+    bool bResolved = false;
+    // The native sampler uses the game's build trace channels and preserves
+    // instance metadata. Prefer it; visibility is a fallback without a gun.
+    AFGBuildGun* const Gun = Character->GetBuildGun();
+    FHitResult SampleHit;
+    if (IsValid(Gun))
+    {
+        Gun->TraceForBuildingSample(Character, SampleHit);
+        bResolved = ResolveHit(SampleHit);
+    }
+    FVector ViewLocation;
+    FRotator ViewRotation;
+    Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
+    FHitResult Hit;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(AIFactoryPrecisionOriginTrace), true, Character);
+    if (IsValid(Gun))
+    {
+        Params.AddIgnoredActor(Gun);
+        if (const UFGBuildGunStateBuild* const State = Cast<UFGBuildGunStateBuild>(Gun->GetCurrentState());
+            IsValid(State) && IsValid(State->GetHologram()))
+        {
+            Params.AddIgnoredActor(State->GetHologram());
+        }
+    }
+    if (!bResolved && World->LineTraceSingleByChannel(Hit, ViewLocation,
+            ViewLocation + ViewRotation.Vector() * 25000.0, ECC_Visibility, Params))
+    {
+        bResolved = ResolveHit(Hit);
+    }
+    else if (const FUseState* const UseState = Character->GetCachedUseState();
+        !bResolved && !Hit.bBlockingHit && !SampleHit.bBlockingHit && UseState && UseState->bIsTraceHit)
+    {
+        bResolved = ResolveHit(UseState->UseHitResult);
+    }
+
+    if (!bResolved)
     {
         AppendTranscript(TEXT("COPILOT"), TEXT(
             "No built object is under the crosshair. Aim at a Miner, machine, foundation, or other buildable."));
         return;
     }
 
-    PrecisionFrameAnchor = Buildable;
+    SetPrecisionFrameEnabled(false);
+    PrecisionFrameAnchor = SelectedActor;
+    PrecisionLightweightAnchor = SelectedInstance;
+    bPrecisionAnchorIsLightweight = SelectedInstance.IsValid();
+    const TSubclassOf<UFGRecipe> Recipe = bPrecisionAnchorIsLightweight
+        ? SelectedInstance.GetBuiltWithRecipe() : SelectedActor->GetBuiltWithRecipe();
+    PrecisionAnchorName = Recipe ? UFGRecipe::GetRecipeName(Recipe).ToString() : FString();
+    if (PrecisionAnchorName.IsEmpty())
+    {
+        PrecisionAnchorName = bPrecisionAnchorIsLightweight
+            ? SelectedInstance.GetBuildableClass()->GetName() : SelectedActor->GetName();
+    }
+    FTransform Origin;
+    if (!GetPrecisionAnchorTransform(Origin))
+    {
+        ClearPrecisionFrame();
+        return;
+    }
     ++PrecisionFrameGeneration;
     RefreshPrecisionFrameStatus();
     AppendTranscript(TEXT("COPILOT"), FString::Printf(
         TEXT("Precision origin is now **%s** at X %.2f, Y %.2f, Z %.2f m, yaw %.1f. ")
         TEXT("Offsets use its forward/right axes; selecting it did not move the Build Gun."),
-        *Buildable->GetName(),
-        Buildable->GetActorLocation().X / 100.0f,
-        Buildable->GetActorLocation().Y / 100.0f,
-        Buildable->GetActorLocation().Z / 100.0f,
-        Buildable->GetActorRotation().Yaw));
+        *PrecisionAnchorName,
+        Origin.GetLocation().X / 100.0f,
+        Origin.GetLocation().Y / 100.0f,
+        Origin.GetLocation().Z / 100.0f,
+        Origin.Rotator().Yaw));
+}
+
+void UAIFactoryCopilotUISubsystem::UnbindPrecisionConstruction()
+{
+    if (AFGPlayerState* const PlayerState = PrecisionPlayerState.Get(); IsValid(PlayerState))
+    {
+        PlayerState->BuildableConstructedDelegate.RemoveDynamic(
+            this, &UAIFactoryCopilotUISubsystem::OnPrecisionBuildableConstructed);
+    }
+    PrecisionPlayerState.Reset();
+    bPrecisionReleasePending = false;
+}
+
+void UAIFactoryCopilotUISubsystem::OnPrecisionBuildableConstructed(
+    const TSubclassOf<UFGItemDescriptor> ItemDescriptor)
+{
+    if (bPrecisionFrameEnabled && bPrecisionHasBoundHologram)
+    {
+        if (const AFGHologram* const Hologram = PrecisionHologram.Get();
+            IsValid(Hologram) && Hologram->GetItemDescriptor() &&
+            Hologram->GetItemDescriptor() != ItemDescriptor)
+        {
+            return;
+        }
+        // This is the local player's native success event. Defer unlocking
+        // until outside the construction callback/serialization stack.
+        bPrecisionReleasePending = true;
+    }
 }
 
 void UAIFactoryCopilotUISubsystem::ReleasePrecisionHologram()
 {
-    if (AFGHologram* const Hologram = PrecisionHologram.Get(); IsValid(Hologram))
+    if (AFGHologram* const Hologram = PrecisionHologram.Get();
+        IsValid(Hologram) && !Hologram->GetIsPendingToBeConstructed())
     {
         Hologram->SetNudgeOffset(FVector::ZeroVector);
         if (Hologram->IsHologramLocked())
@@ -2168,14 +2334,18 @@ void UAIFactoryCopilotUISubsystem::ReleasePrecisionHologram()
         }
     }
     PrecisionHologram.Reset();
+    bPrecisionHasBoundHologram = false;
     PrecisionRotationGeneration = 0;
 }
 
 void UAIFactoryCopilotUISubsystem::SetPrecisionFrameEnabled(const bool bEnabled)
 {
-    if (bEnabled && !PrecisionFrameAnchor.IsValid())
+    FTransform AnchorTransform;
+    if (bEnabled && !GetPrecisionAnchorTransform(AnchorTransform))
     {
         AppendTranscript(TEXT("COPILOT"), TEXT("Select a built object as the precision origin first."));
+        UnbindPrecisionConstruction();
+        ReleasePrecisionHologram();
         bPrecisionFrameEnabled = false;
         RefreshPrecisionFrameStatus();
         return;
@@ -2183,7 +2353,21 @@ void UAIFactoryCopilotUISubsystem::SetPrecisionFrameEnabled(const bool bEnabled)
 
     if (!bEnabled)
     {
+        UnbindPrecisionConstruction();
         ReleasePrecisionHologram();
+    }
+    else
+    {
+        UnbindPrecisionConstruction();
+        AFGPlayerController* const Controller = GetLocalPlayerController();
+        AFGPlayerState* const PlayerState = IsValid(Controller)
+            ? Controller->GetPlayerState<AFGPlayerState>() : nullptr;
+        if (IsValid(PlayerState))
+        {
+            PlayerState->BuildableConstructedDelegate.AddUniqueDynamic(
+                this, &UAIFactoryCopilotUISubsystem::OnPrecisionBuildableConstructed);
+            PrecisionPlayerState = PlayerState;
+        }
     }
     bPrecisionFrameEnabled = bEnabled;
     ++PrecisionFrameGeneration;
@@ -2194,6 +2378,9 @@ void UAIFactoryCopilotUISubsystem::ClearPrecisionFrame()
 {
     SetPrecisionFrameEnabled(false);
     PrecisionFrameAnchor.Reset();
+    PrecisionLightweightAnchor = FLightweightBuildableInstanceRef();
+    bPrecisionAnchorIsLightweight = false;
+    PrecisionAnchorName.Reset();
     PrecisionLocalOffsetCm = FVector::ZeroVector;
     PrecisionYawOffsetDegrees = 0.0f;
     ++PrecisionFrameGeneration;
@@ -2229,17 +2416,27 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
     {
         return;
     }
-    if (!PrecisionFrameAnchor.IsValid())
+    FTransform AnchorTransform;
+    if (!GetPrecisionAnchorTransform(AnchorTransform) || bPrecisionReleasePending)
     {
         SetPrecisionFrameEnabled(false);
         return;
     }
 
     AFGHologram* const Hologram = BuildState->GetHologram();
+    if (bPrecisionHasBoundHologram && PrecisionHologram.Get() != Hologram)
+    {
+        // A completed/cancelled hologram must never arm its replacement. This
+        // also covers native Blueprint placement and changing the recipe.
+        SetPrecisionFrameEnabled(false);
+        return;
+    }
     if (!IsValid(Hologram))
     {
-        PrecisionHologram.Reset();
-        PrecisionRotationGeneration = 0;
+        if (bPrecisionHasBoundHologram)
+        {
+            SetPrecisionFrameEnabled(false);
+        }
         RefreshPrecisionFrameStatus();
         return;
     }
@@ -2249,10 +2446,19 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
         return;
     }
 
+    if (Hologram->GetIsPendingToBeConstructed())
+    {
+        // Native construction owns this retired preview until the server
+        // responds. Leave its serialized lock/nudge untouched and stop driving it.
+        SetPrecisionFrameEnabled(false);
+        return;
+    }
+
     if (PrecisionHologram.Get() != Hologram)
     {
         ReleasePrecisionHologram();
         PrecisionHologram = Hologram;
+        bPrecisionHasBoundHologram = true;
         PrecisionRotationGeneration = 0;
     }
 
@@ -2261,6 +2467,12 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
     if (!GetPrecisionTarget(TargetLocation, TargetYaw))
     {
         SetPrecisionFrameEnabled(false);
+        return;
+    }
+
+    if (!Hologram->CanLockHologram() || !Hologram->CanNudgeHologram())
+    {
+        RefreshPrecisionFrameStatus();
         return;
     }
 
@@ -2279,12 +2491,6 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
         return;
     }
 
-    if (!Hologram->CanLockHologram() || !Hologram->CanNudgeHologram())
-    {
-        RefreshPrecisionFrameStatus();
-        return;
-    }
-
     if (!Hologram->IsHologramLocked())
     {
         Hologram->LockHologramPosition(true);
@@ -2299,6 +2505,68 @@ void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(
         Hologram->ValidatePlacementAndCost(BuildGun->GetInventory());
     }
     RefreshPrecisionFrameStatus();
+}
+
+UFGBuildGunStateBuild* UAIFactoryCopilotUISubsystem::GetPrecisionBuildStateForWorld(
+    UWorld* const World) const
+{
+    AFGPlayerController* const Controller = GetLocalPlayerController();
+    if (!IsValid(World) || !IsValid(Controller) || Controller->GetWorld() != World)
+    {
+        return nullptr;
+    }
+
+    AFGCharacterPlayer* const Character = IsValid(Controller)
+        ? Cast<AFGCharacterPlayer>(Controller->GetControlledCharacter())
+        : nullptr;
+    AFGBuildGun* const BuildGun = IsValid(Character) ? Character->GetBuildGun() : nullptr;
+    return IsValid(BuildGun)
+        ? Cast<UFGBuildGunStateBuild>(BuildGun->GetCurrentState())
+        : nullptr;
+}
+
+void UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPreActorTick(
+    UWorld* const World,
+    const ELevelTick TickType,
+    const float DeltaTime)
+{
+    // The old plain-method hook on a virtual TickState_Implementation asserted
+    // in SML at startup. Engine delegates supply before/after actor ordering.
+    // Other worlds also broadcast here; they must not release this world's lock.
+    if (World != GetWorld() || !bPrecisionFrameEnabled)
+    {
+        return;
+    }
+
+    UFGBuildGunStateBuild* const BuildState = GetPrecisionBuildStateForWorld(World);
+    if (!IsValid(BuildState))
+    {
+        if (bPrecisionHasBoundHologram)
+        {
+            SetPrecisionFrameEnabled(false);
+        }
+        RefreshPrecisionFrameStatus();
+        return;
+    }
+
+    ApplyPrecisionFrameToBuildState(BuildState, true);
+}
+
+void UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPostActorTick(
+    UWorld* const World,
+    const ELevelTick TickType,
+    const float DeltaTime)
+{
+    if (World != GetWorld() || !bPrecisionFrameEnabled)
+    {
+        return;
+    }
+
+    if (UFGBuildGunStateBuild* const BuildState = GetPrecisionBuildStateForWorld(World);
+        IsValid(BuildState))
+    {
+        ApplyPrecisionFrameToBuildState(BuildState, false);
+    }
 }
 
 TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildPrecisionFrameSection()
@@ -2361,12 +2629,12 @@ TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildPrecisionFrameSection()
                 {
                     return FText::FromString(bPrecisionFrameEnabled
                         ? TEXT("Release Build Gun")
-                        : TEXT("Snap Build Gun"));
+                        : TEXT("Snap Build Gun (once)"));
                 })
                 .ButtonColorAndOpacity(AIFactoryPalette::Button)
                 .ForegroundColor(AIFactoryPalette::Orange)
                 .ToolTipText(FText::FromString(TEXT(
-                    "Explicitly enable or release the native hologram lock. Construction still happens only when you click.")))
+                    "Snap one placement, then release automatically. The origin and offsets stay ready for your next symmetry step.")))
                 .OnClicked_Lambda([this]()
                 {
                     SetPrecisionFrameEnabled(!bPrecisionFrameEnabled);

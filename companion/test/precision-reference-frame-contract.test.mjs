@@ -22,7 +22,7 @@ function slice(start, end) {
   return ui.slice(first, last);
 }
 
-test("precision frame is anchored to a real buildable and uses yaw-local coordinates", () => {
+test("precision frame resolves live actor or stable lightweight identity before using yaw-local coordinates", () => {
   assert.match(header, /TWeakObjectPtr<AFGBuildable> PrecisionFrameAnchor/);
   assert.match(header, /FVector PrecisionLocalOffsetCm/);
   assert.match(header, /float PrecisionYawOffsetDegrees/);
@@ -31,10 +31,18 @@ test("precision frame is anchored to a real buildable and uses yaw-local coordin
     "bool UAIFactoryCopilotUISubsystem::GetPrecisionTarget(",
     "FString UAIFactoryCopilotUISubsystem::GetPrecisionFrameStatus() const",
   );
-  assert.match(target, /Anchor->GetActorRotation\(\)\.Yaw/);
+  const resolve = slice(
+    "bool UAIFactoryCopilotUISubsystem::GetPrecisionAnchorTransform(",
+    "bool UAIFactoryCopilotUISubsystem::GetPrecisionTarget(",
+  );
+  assert.match(resolve, /ResolveBuildableInstanceData\(\)/);
+  assert.match(resolve, /OutTransform = Instance->Transform/);
+  assert.match(resolve, /Anchor->GetWorld\(\) != GetWorld\(\)/);
+  assert.match(target, /GetPrecisionAnchorTransform\(AnchorTransform\)/);
+  assert.match(target, /AnchorTransform.Rotator\(\)\.Yaw/);
   assert.match(target, /FRotator YawFrame\(0\.0f, AnchorYaw, 0\.0f\)/);
   assert.match(target, /YawFrame\.RotateVector\(PrecisionLocalOffsetCm\)/);
-  assert.match(target, /Anchor->GetActorLocation\(\)/);
+  assert.match(target, /AnchorTransform.GetLocation\(\)/);
   assert.match(target, /NormalizeAxis\(AnchorYaw \+ PrecisionYawOffsetDegrees\)/);
   assert.doesNotMatch(target, /GetActorScale|GetActorTransform\(\)\.TransformPosition/);
 });
@@ -44,8 +52,16 @@ test("selecting an origin is inert until the owner explicitly enables snapping",
     "void UAIFactoryCopilotUISubsystem::SetPrecisionFrameFromAim()",
     "void UAIFactoryCopilotUISubsystem::ReleasePrecisionHologram()",
   );
-  assert.match(select, /Cast<AFGBuildable>\(GetAimedActor\(true\)\)/);
-  assert.match(select, /PrecisionFrameAnchor = Buildable/);
+  assert.match(select, /Manager->ResolveHit\(Hit, Handle\)/);
+  assert.match(select, /ResolveLightweightInstance\(Handle, SelectedInstance\)/);
+  assert.match(select, /GetIsLightweightTemporary\(\)/);
+  assert.match(select, /SelectedInstance.InitializeFromTemporary\(Buildable\)/);
+  assert.match(select, /GetLightweightBuildableInstanceFromConvertedBuildableOrTemporary/);
+  assert.match(select, /Gun->TraceForBuildingSample\(Character, SampleHit\)/);
+  assert.match(select, /PrecisionFrameAnchor = SelectedActor/);
+  assert.match(select, /PrecisionLightweightAnchor = SelectedInstance/);
+  assert.match(select, /SetPrecisionFrameEnabled\(false\)/);
+  assert.doesNotMatch(select, /SpawnTemporaryBuildable|FindOrSpawnBuildable|TActorIterator/);
   assert.doesNotMatch(select, /bPrecisionFrameEnabled = true/);
   assert.doesNotMatch(select, /SetNudgeOffset|LockHologramPosition|Construct\(/);
 
@@ -83,13 +99,47 @@ test("the native Build Gun owns placement, validation, and construction", () => 
   );
 });
 
-test("precision rotation runs before the native hologram tick and nudge runs after", () => {
-  const before = moduleSource.indexOf("mPrecisionFrameBeforeBuildTickHook = SUBSCRIBE_METHOD(");
-  const after = moduleSource.indexOf("mPrecisionFrameAfterBuildTickHook = SUBSCRIBE_METHOD_AFTER(");
-  assert.ok(before >= 0 && after > before);
-  assert.match(moduleSource, /ApplyPrecisionFrameToBuildState\(BuildState, true\)/);
-  assert.match(moduleSource, /ApplyPrecisionFrameToBuildState\(BuildState, false\)/);
-  assert.match(moduleSource, /UNSUBSCRIBE_METHOD\([\s\S]*TickState_Implementation/);
+test("precision uses world tick delegates and never startup-hooks the virtual Build Gun override", () => {
+  assert.doesNotMatch(moduleSource, /TickState_Implementation/);
+  assert.doesNotMatch(moduleSource, /mPrecisionFrameBeforeBuildTickHook/);
+  assert.doesNotMatch(moduleSource, /mPrecisionFrameAfterBuildTickHook/);
+
+  const worldTick = slice(
+    "UFGBuildGunStateBuild* UAIFactoryCopilotUISubsystem::GetPrecisionBuildStateForWorld(",
+    "TSharedRef<SWidget> UAIFactoryCopilotUISubsystem::BuildPrecisionFrameSection()",
+  );
+  assert.match(header, /FDelegateHandle PrecisionPreActorTickHandle/);
+  assert.match(header, /FDelegateHandle PrecisionPostActorTickHandle/);
+  assert.match(ui, /FWorldDelegates::OnWorldPreActorTick\.AddUObject/);
+  assert.match(ui, /FWorldDelegates::OnWorldPostActorTick\.AddUObject/);
+  assert.match(ui, /FWorldDelegates::OnWorldPreActorTick\.Remove/);
+  assert.match(ui, /FWorldDelegates::OnWorldPostActorTick\.Remove/);
+  assert.match(worldTick, /Controller->GetWorld\(\) != World/);
+  assert.equal((worldTick.match(/World != GetWorld\(\)/g) ?? []).length, 2);
+  assert.match(worldTick, /BuildGun->GetCurrentState\(\)/);
+  assert.match(worldTick, /ApplyPrecisionFrameToBuildState\(BuildState, true\)/);
+  assert.match(worldTick, /ApplyPrecisionFrameToBuildState\(BuildState, false\)/);
+});
+
+test("one-shot snapping releases on native success or hologram replacement without constructing anything", () => {
+  const success = slice(
+    "void UAIFactoryCopilotUISubsystem::OnPrecisionBuildableConstructed(",
+    "void UAIFactoryCopilotUISubsystem::ReleasePrecisionHologram()",
+  );
+  assert.match(success, /bPrecisionFrameEnabled && bPrecisionHasBoundHologram/);
+  assert.match(success, /bPrecisionReleasePending = true/);
+  assert.doesNotMatch(success, /SetNudgeOffset|LockHologramPosition/);
+  assert.match(ui, /BuildableConstructedDelegate.AddUniqueDynamic/);
+  assert.match(ui, /BuildableConstructedDelegate.RemoveDynamic/);
+  assert.match(ui, /Controller->GetPlayerState<AFGPlayerState>\(\)/);
+  const apply = slice(
+    "void UAIFactoryCopilotUISubsystem::ApplyPrecisionFrameToBuildState(",
+    "UFGBuildGunStateBuild* UAIFactoryCopilotUISubsystem::GetPrecisionBuildStateForWorld(",
+  );
+  const replacementGuard = apply.indexOf("bPrecisionHasBoundHologram && PrecisionHologram.Get() != Hologram");
+  assert.ok(replacementGuard >= 0 && replacementGuard < apply.indexOf("PrecisionHologram = Hologram"));
+  assert.match(apply, /bPrecisionReleasePending\)[\s\S]*?SetPrecisionFrameEnabled\(false\)/);
+  assert.match(apply.slice(replacementGuard), /SetPrecisionFrameEnabled\(false\);\s*return;/);
 });
 
 test("releasing precision restores the native movable hologram", () => {
@@ -100,4 +150,5 @@ test("releasing precision restores the native movable hologram", () => {
   assert.match(release, /SetNudgeOffset\(FVector::ZeroVector\)/);
   assert.match(release, /LockHologramPosition\(false\)/);
   assert.match(release, /PrecisionHologram\.Reset\(\)/);
+  assert.match(release, /!Hologram->GetIsPendingToBeConstructed\(\)/);
 });
