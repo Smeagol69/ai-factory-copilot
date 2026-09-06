@@ -18,6 +18,7 @@ public class AIFactoryCopilot : ModuleRules
 
         PrivateDependencyModuleNames.AddRange(new[]
         {
+            "AbstractInstance",
             "HTTP",
             "InputCore",
             "Json",

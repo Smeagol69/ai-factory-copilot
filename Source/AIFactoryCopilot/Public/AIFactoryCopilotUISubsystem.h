@@ -11,6 +11,7 @@ class AActor;
 class AFGBuildable;
 class AFGHologram;
 class AFGPlayerController;
+class AFGPlayerState;
 class IInputProcessor;
 class SEditableTextBox;
 class SMultiLineEditableTextBox;
@@ -18,6 +19,7 @@ class STextBlock;
 class SWidget;
 class UCommandSender;
 class UFGBuildGunStateBuild;
+class UFGItemDescriptor;
 
 /**
  * Local, screenshot-free conversation panel. Insert toggles the panel and the
@@ -38,8 +40,8 @@ public:
     bool IsPanelVisible() const { return bPanelVisible; }
 
     /**
-     * Called immediately before and after FactoryGame updates the local Build
-     * Gun hologram. The two phases keep the native scroll rotation and native
+     * Called before and after the local world's actor updates. The two phases
+     * keep the native scroll rotation and native
      * locked/nudge placement in the same frame without replacing construction.
      */
     void ApplyPrecisionFrameToBuildState(
@@ -55,6 +57,9 @@ private:
     TSharedPtr<STextBlock> LiveStatusText;
     TSharedPtr<STextBlock> RequestStatusText;
     FTSTicker::FDelegateHandle TickerHandle;
+    /** Deterministic before/after-actor timing without detouring a virtual function. */
+    FDelegateHandle PrecisionPreActorTickHandle;
+    FDelegateHandle PrecisionPostActorTickHandle;
     FDelegateHandle BridgeResultHandle;
     TWeakObjectPtr<AAIFactorySubsystem> BoundSubsystem;
     TWeakObjectPtr<UCommandSender> PendingSender;
@@ -81,6 +86,11 @@ private:
 
     /** Existing world buildable whose yaw defines local forward/right. */
     TWeakObjectPtr<AFGBuildable> PrecisionFrameAnchor;
+    /** Foundations/walls may be instances or pooled actors; retain stable identity. */
+    UPROPERTY(Transient)
+    FLightweightBuildableInstanceRef PrecisionLightweightAnchor;
+    bool bPrecisionAnchorIsLightweight = false;
+    FString PrecisionAnchorName;
     /** Centimetres: X forward, Y right, Z world-up relative to the anchor. */
     FVector PrecisionLocalOffsetCm = FVector::ZeroVector;
     /** Whole-degree yaw added to the anchor's authoritative world yaw. */
@@ -89,6 +99,9 @@ private:
     bool bPrecisionFrameEnabled = false;
     /** The native hologram currently owned by the precision lock. */
     TWeakObjectPtr<AFGHologram> PrecisionHologram;
+    bool bPrecisionHasBoundHologram = false;
+    bool bPrecisionReleasePending = false;
+    TWeakObjectPtr<AFGPlayerState> PrecisionPlayerState;
     /** Changes whenever the requested transform changes. */
     uint32 PrecisionFrameGeneration = 1;
     /** Generation whose scroll rotation was applied to PrecisionHologram. */
@@ -120,9 +133,16 @@ private:
     void MirrorPrecisionAxis(int32 Axis);
     void RotatePrecisionFrame(float DeltaYawDegrees);
     void ReleasePrecisionHologram();
+    void UnbindPrecisionConstruction();
+    UFUNCTION()
+    void OnPrecisionBuildableConstructed(TSubclassOf<UFGItemDescriptor> ItemDescriptor);
+    bool GetPrecisionAnchorTransform(FTransform& OutTransform) const;
     bool GetPrecisionTarget(FVector& OutLocation, float& OutYawDegrees) const;
     FString GetPrecisionFrameStatus() const;
     void RefreshPrecisionFrameStatus();
+    UFGBuildGunStateBuild* GetPrecisionBuildStateForWorld(UWorld* World) const;
+    void HandlePrecisionWorldPreActorTick(UWorld* World, ELevelTick TickType, float DeltaTime);
+    void HandlePrecisionWorldPostActorTick(UWorld* World, ELevelTick TickType, float DeltaTime);
 
     /**
      * The box selection, as a panel rather than as a sentence.

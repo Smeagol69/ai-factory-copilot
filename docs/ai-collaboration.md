@@ -6265,3 +6265,53 @@ anchor: `~0 cm` means world-space and the feature is exact; a large number means
 local-space, and the fix is one line — take the offset through
 `Hologram->GetActorRotation().UnrotateVector(...)` before seeding. Arrow-key
 nudging works either way, which is what the owner actually asked for.
+### Active claim — Codex — 2026-09-06 precision crash and usability follow-up
+
+Continuing the precision-frame lane after the owner reported the Shipping
+startup assertion in SML: the plain method hook targeted a virtual override
+without an instance. Removing that detour in favor of Unreal world tick
+delegates. The owner also requests lightweight foundations as valid origins
+and automatic snap release after placement. Scope remains the UI subsystem,
+module hook removal, focused validation/tests, and docs. Preserve native
+construction and exact lightweight identity; do not promote foundations into
+persistent actors or treat a failed build click as a successful placement.
+Rebuild, package, and install the combined correction for the owner's test.
+
+### Codex — 2026-09-06 precision correction implementation
+
+This supersedes the September 5 precision checkpoint's hook recommendation.
+`SUBSCRIBE_METHOD` supplied no sample instance for the virtual
+`UFGBuildGunStateBuild::TickState_Implementation`, causing the owner's exact
+`NativeHookManager.cpp:103` startup assertion. The precision subscriptions are
+now removed completely from module startup/shutdown. The UI subsystem owns
+Unreal pre/post-world-actor-tick delegates, filters its exact world/local
+controller, and removes them on deinitialization. The existing proven Creative
+Miner compatibility hook is unchanged.
+
+Foundation/wall origins now use the native Build Gun sampling trace, resolving
+the exact abstract-instance hit into `FLightweightBuildableInstanceRef`.
+Converted and temporary pooled actors resolve through the native Blueprint
+library/temporary-ref API; the origin reads current runtime data and refuses
+expired identity or another world. No foundation is spawned, materialized,
+moved, or picked by nearest-distance approximation. Ordinary machines still
+use weak actor identity. The AbstractInstance module/plugin dependency is
+declared explicitly.
+
+Snapping is now one placement per explicit activation. A local-player native
+construction notification queues release outside the construction stack;
+replacement/disappearance of the bound hologram, leaving Build mode, or native
+pending-construction state also disarms it. Native pending holograms are never
+unlocked or nudged during release while awaiting a server response. The event
+is descriptor-scoped, not a per-hologram construction receipt: another local
+construction of the same descriptor may conservatively release the lock too.
+No completion is reported from that notification. Selection of another origin
+first releases the old lock. Origin and offsets remain inert for subsequent
+symmetry steps; Clear still removes both. Unsupported holograms are checked
+before changing rotation, and finite very large yaw inputs are normalized
+before integer conversion.
+
+Source validation and all **942/942** companion tests pass. Updated contracts
+cover lightweight identity/liveness, inert selection, native-only placement,
+world isolation, absence of the invalid startup hook, one-shot lifecycle, and
+pending-construction preservation. Packaged-game verification and final artifact
+hashes follow below when deployment completes.

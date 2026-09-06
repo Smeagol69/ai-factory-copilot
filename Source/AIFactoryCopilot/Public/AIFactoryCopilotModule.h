@@ -18,8 +18,4 @@ private:
      * extractor compatibility check back to FactoryGame.
      */
     FDelegateHandle mCreativeNodeExtractorCompatibilityHook;
-    /** Per-frame precision-frame rotation, applied before FactoryGame's update. */
-    FDelegateHandle mPrecisionFrameBeforeBuildTickHook;
-    /** Native lock/nudge placement, applied after FactoryGame's update. */
-    FDelegateHandle mPrecisionFrameAfterBuildTickHook;
 };

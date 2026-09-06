@@ -29,6 +29,14 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   searched the C++ for a multi-line literal using LF newlines while Git checks
   those files out with CRLF. The read now normalises line endings, so the
   assertion describes the source rather than a checkout setting.
+- Fixed the Precision Frame startup crash caused by registering a virtual
+  Build Gun override as a plain SML method hook. Frame updates now use Unreal's
+  world tick delegates with local-world filtering and lifecycle cleanup.
+- Precision origins now resolve foundations and walls through native lightweight
+  instance handles, including temporary pooled actors. Snapping applies to one
+  placement and releases automatically on native construction confirmation,
+  cancellation, or changing the hologram. The origin and offsets remain inert
+  for the next symmetry step. Choosing another origin also releases the lock.
 - Added a native **Precision Frame** for perfectly symmetrical manual building.
   Aim at any existing buildable, capture its exact transform as a local origin,
   enter forward/right/up offsets in metres plus a relative whole-degree yaw,

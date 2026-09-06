@@ -1,33 +1,12 @@
 #include "AIFactoryCopilotModule.h"
 
 #include "AIFactoryCreativeResourceNode.h"
-#include "AIFactoryCopilotUISubsystem.h"
 #include "Buildables/FGBuildableResourceExtractorBase.h"
-#include "Engine/GameInstance.h"
-#include "Equipment/FGBuildGunBuild.h"
 #include "Patching/NativeHookManager.h"
 #include "Resources/FGExtractableResourceInterface.h"
 #include "UObject/UnrealType.h"
 
 DEFINE_LOG_CATEGORY(LogAIFactoryCopilot);
-
-namespace
-{
-    UAIFactoryCopilotUISubsystem* AIFactoryGetPrecisionFrameUI(
-        UFGBuildGunStateBuild* const BuildState)
-    {
-        if (!IsInGameThread() || !IsValid(BuildState))
-        {
-            return nullptr;
-        }
-
-        UWorld* const World = BuildState->GetWorld();
-        UGameInstance* const GameInstance = IsValid(World) ? World->GetGameInstance() : nullptr;
-        return IsValid(GameInstance)
-            ? GameInstance->GetSubsystem<UAIFactoryCopilotUISubsystem>()
-            : nullptr;
-    }
-}
 
 void FAIFactoryCopilotModule::StartupModule()
 {
@@ -121,64 +100,14 @@ void FAIFactoryCopilotModule::StartupModule()
             Scope.Override(bAllowedByRemainingNativeChecks);
         });
 
-    // Rotation has to be written before FactoryGame derives the actor transform
-    // from mScrollRotation. Position follows the native update so the game's
-    // own locked-hologram/nudge state is what PrimaryFire serializes.
-    // TickState_Implementation is declared `virtual ... override` in
-    // FGBuildGunBuild.h, so SML cannot resolve the real implementation from the
-    // member-function pointer alone: plain SUBSCRIBE_METHOD asserts
-    // "Attempt to hook virtual function override without providing object
-    // instance" inside RegisterHookFunction and takes the game down at startup.
-    // The virtual variant needs a sample instance to read the vtable from, and
-    // the class default object is the only one that exists this early.
-    mPrecisionFrameBeforeBuildTickHook = SUBSCRIBE_METHOD_VIRTUAL(
-        UFGBuildGunStateBuild::TickState_Implementation,
-        GetMutableDefault<UFGBuildGunStateBuild>(),
-        [](auto& Scope,
-           UFGBuildGunStateBuild* const BuildState,
-           const float DeltaTime)
-        {
-            if (UAIFactoryCopilotUISubsystem* const UI =
-                    AIFactoryGetPrecisionFrameUI(BuildState))
-            {
-                UI->ApplyPrecisionFrameToBuildState(BuildState, true);
-            }
-        });
-
-    mPrecisionFrameAfterBuildTickHook = SUBSCRIBE_METHOD_VIRTUAL_AFTER(
-        UFGBuildGunStateBuild::TickState_Implementation,
-        GetMutableDefault<UFGBuildGunStateBuild>(),
-        [](UFGBuildGunStateBuild* const BuildState, const float DeltaTime)
-        {
-            if (UAIFactoryCopilotUISubsystem* const UI =
-                    AIFactoryGetPrecisionFrameUI(BuildState))
-            {
-                UI->ApplyPrecisionFrameToBuildState(BuildState, false);
-            }
-        });
-
     UE_LOG(LogAIFactoryCopilot, Display,
-        TEXT("AI Factory Copilot module loaded; Creative Miner compatibility and precision frame installed"));
+        TEXT("AI Factory Copilot module loaded; scoped Creative Miner compatibility installed"));
 #endif
 }
 
 void FAIFactoryCopilotModule::ShutdownModule()
 {
 #if !WITH_EDITOR
-    if (mPrecisionFrameBeforeBuildTickHook.IsValid())
-    {
-        UNSUBSCRIBE_METHOD(
-            UFGBuildGunStateBuild::TickState_Implementation,
-            mPrecisionFrameBeforeBuildTickHook);
-        mPrecisionFrameBeforeBuildTickHook.Reset();
-    }
-    if (mPrecisionFrameAfterBuildTickHook.IsValid())
-    {
-        UNSUBSCRIBE_METHOD(
-            UFGBuildGunStateBuild::TickState_Implementation,
-            mPrecisionFrameAfterBuildTickHook);
-        mPrecisionFrameAfterBuildTickHook.Reset();
-    }
     if (mCreativeNodeExtractorCompatibilityHook.IsValid())
     {
         UNSUBSCRIBE_METHOD(
