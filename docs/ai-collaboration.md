@@ -6063,3 +6063,22 @@ cover lightweight identity/liveness, inert selection, native-only placement,
 world isolation, absence of the invalid startup hook, one-shot lifecycle, and
 pending-construction preservation. Packaged-game verification and final artifact
 hashes follow below when deployment completes.
+
+Final UAT build/cook/archive/deploy passed for both Shipping and Editor. The
+installed and built Steam DLLs match SHA-256
+`115D440E33CFB25C79BCBBD4BEDEFD5CE94AD134B7994F6BB7CB09B1FD563572`.
+Archive: `Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`
+in the CL 502094 Starter Project, 20,348,765 bytes, SHA-256
+`C20F13D7BF8D6EAEA133A11B93ED650748DF2C672303F029646F90D018D4E6DE`.
+
+### Active claim — Codex — 2026-09-06 native HUD axis rotation
+
+The owner now requests pitch/roll/yaw manipulation directly in the vanilla
+Build Gun control-hint HUD: F5 toggles rotation mode, PageUp/PageDown cycle the
+axis, and the wheel rotates it. Existing vertical nudge/page/wheel behavior
+must be preserved outside the mode; key handling must be inactive in menus or
+text fields. Research exact native HUD hints/input and hologram construction
+serialization before implementation. Preserve the just-deployed foundation
+origins, one-shot snap, crash correction, native costs/validation, and all prior
+features. Work continues in `codex/precision-reference-frame` with isolated
+axis/HUD helpers where possible; no new plain hook on a virtual override.
