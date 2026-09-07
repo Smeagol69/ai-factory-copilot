@@ -6366,3 +6366,67 @@ build, that arrow-key nudging survives the snap, and whether `SetNudgeOffset` is
 interpreted in world space. The panel reports `N cm from frame` immediately after
 snapping; `~0` settles the last one, a large number means the seed needs
 `UnrotateVector` and is a one-line change.
+
+---
+
+## Claude — finished Codex's native HUD axis rotation (2026-09-06)
+
+Codex reached its usage limit mid-lane in
+`C:/Users/roesl/Documents/satisfactory-hud-axis-rotation`. Its five files were
+untracked and **not wired in**: `AIFactoryAxisRotationState.h`,
+`AIFactoryBuildGunRotation.{h,cpp}`, `AIFactoryAxisRotationTests.cpp`, and
+`Config/AccessTransformers.ini`. Nothing referenced them, and
+`AIFactoryBuildGunRotation.cpp` included a header that did not exist.
+
+### What I added
+
+**`AIFactoryBuildGunHints.{h,cpp}`** — the missing piece the whole lane was for.
+It puts the mod's keys in FactoryGame's own `UFGButtonHintBar` through the
+public `InsertButtonHint`/`RemoveButtonHintAtIndex`, finds the on-screen
+gameplay bar (in viewport, visible, not `mHintBarIsAlwaysHidden`), re-asserts
+each frame because that bar rebuilds from focus changes, and removes **only**
+rows matching text it inserted, so a native hint is never eaten.
+
+**Wiring** — the subsystem already owned a Slate preprocessor and the world tick
+delegates, so rotation hangs off both rather than adding new machinery.
+`HandleMouseWheelOrGestureEvent` was added to the existing preprocessor. Both
+tick handlers call rotation **before** their `bPrecisionFrameEnabled` early
+return, because rotation is independent of the precision frame.
+
+**`EnhancedInput`** in Build.cs: `FGButtonHintBar.h` pulls `InputAction.h` for
+`FFGButtonHintDescription`.
+
+### The access transformer does not work — do not restore it
+
+Codex's `Config/AccessTransformers.ini` requested friendship on
+`FGHologram` so it could call the protected `OnHologramTransformUpdated()`.
+UHT rejects that entry outright:
+
+    AccessTransformers.ini(2): Error: Unused friend access transformer
+    /Script/FactoryGame.FGHologram -> FAIFactoryBuildGunRotation
+
+and removing the file proves the member is genuinely unreachable:
+
+    AIFactoryBuildGunRotation.cpp(78,13): error C2248:
+    'AFGHologram::OnHologramTransformUpdated': cannot access protected member
+
+Both were measured, not assumed. The file is deleted and the call replaced with
+the **public** `UpdateRotationValuesFromTransform()` — *"Take the current
+transform and apply it to the scroll rotation value."* That is the one that
+matters for the owner's actual goal: `mScrollRotation` is what construction
+serializes, so without it a built actor flattens back to yaw and loses the pitch
+and roll. The protected callback resyncs sub-holograms and snapping instead, and
+`SupportsRotation()` already refuses child, parent-owning and spline holograms,
+while `ValidatePlacementAndCost` still runs every frame.
+
+### Verification
+
+**976/976 companion tests** and `scripts/validate.ps1` pass, including eight new
+axis-rotation contracts. `FactoryGameSteam Win64 Shipping` compiles and links
+(38.7 s, Result: Succeeded). `validate.ps1` now pins
+`UpdateRotationValuesFromTransform`, `GetParentHologram`, and the three hint-bar
+members this depends on.
+
+**Not deployed.** Packaging refuses while Satisfactory is running (PID 25864 —
+the owner is testing the previous build), which is correct. The next
+install/package run ships it; no source change is pending.

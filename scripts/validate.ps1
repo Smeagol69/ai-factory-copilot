@@ -162,6 +162,15 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetIsPendingToBeConstructed' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'virtual bool CanNudgeHologram' },
         @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'GetHologramLockLocation' },
+        # Build Gun axis rotation. UpdateRotationValuesFromTransform is the
+        # public resync that makes native construction carry the edited pitch
+        # and roll; OnHologramTransformUpdated is protected and deliberately
+        # not used. The hint bar API is how the mod reaches the vanilla HUD.
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'virtual void UpdateRotationValuesFromTransform' },
+        @{ Path = 'Source\FactoryGame\Public\Hologram\FGHologram.h'; Pattern = 'FORCEINLINE AFGHologram\* GetParentHologram' },
+        @{ Path = 'Source\FactoryGame\Public\UI\FGButtonHintBar.h'; Pattern = 'void InsertButtonHint' },
+        @{ Path = 'Source\FactoryGame\Public\UI\FGButtonHintBar.h'; Pattern = 'bool RemoveButtonHintAtIndex' },
+        @{ Path = 'Source\FactoryGame\Public\UI\FGButtonHintBar.h'; Pattern = 'TArray<FFGButtonHintDescription> mButtonHints' },
         # The precision frame seeds the offset onto the game's nominated nudge
         # target, and relies on AddNudgeOffset being the accumulating path the
         # player's arrow keys use. If either disappears, the one-shot seed

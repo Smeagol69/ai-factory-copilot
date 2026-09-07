@@ -19,6 +19,7 @@ public class AIFactoryCopilot : ModuleRules
         PrivateDependencyModuleNames.AddRange(new[]
         {
             "AbstractInstance",
+            "EnhancedInput",
             "HTTP",
             "InputCore",
             "Json",

@@ -13,6 +13,7 @@ class AFGHologram;
 class AFGPlayerController;
 class AFGPlayerState;
 class IInputProcessor;
+class FAIFactoryBuildGunRotation;
 class SEditableTextBox;
 class SMultiLineEditableTextBox;
 class STextBlock;
@@ -40,6 +41,14 @@ public:
     bool IsPanelVisible() const { return bPanelVisible; }
 
     /**
+     * Build Gun axis rotation, called from this subsystem's Slate
+     * preprocessor. Both return false unless rotation mode owns the input, so
+     * every native Build Gun binding behaves exactly as it does in vanilla.
+     */
+    bool HandleBuildGunRotationKey(const FKeyEvent& KeyEvent);
+    bool HandleBuildGunRotationWheel(const FPointerEvent& WheelEvent);
+
+    /**
      * Called before and after the local world's actor updates. The two phases
      * keep the native scroll rotation and native
      * locked/nudge placement in the same frame without replacing construction.
@@ -50,6 +59,12 @@ public:
 
 private:
     TSharedPtr<IInputProcessor> InputProcessor;
+    /**
+     * Build Gun pitch/roll/yaw editing, driven from the same Slate
+     * preprocessor and world tick delegates this subsystem already owns. It is
+     * independent of the precision frame: either can be used without the other.
+     */
+    TSharedPtr<FAIFactoryBuildGunRotation> BuildGunRotation;
     TSharedPtr<SWidget> RootWidget;
     /** Multi-line so a question can be typed the way the player would say it. */
     TSharedPtr<SMultiLineEditableTextBox> InputBox;

@@ -5,6 +5,26 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added **Build Gun axis rotation**: pitch, roll and yaw on the preview you are
+  about to place, driven from Satisfactory's own control-hint bar. **F5** enters
+  and leaves rotation mode, **PageUp/PageDown** cycle the local axis, and the
+  **mouse wheel** turns it - 15 degrees a step, 1 degree with Ctrl, 45 with
+  Shift. The hints appear in the vanilla hint row alongside every other Build
+  Gun control, and are removed again when the mode ends.
+
+  Rotation is stored as a quaternion about the object's own axes, so a part
+  already tilted 90 degrees keeps turning predictably instead of gimbal-locking.
+  After each change the hologram's serialized scroll rotation is resynced from
+  the transform, which is what makes native construction carry the full pose
+  rather than flattening it back to yaw.
+
+  Only a single rigid local preview is edited: child, parent-owning and spline
+  holograms are refused so native endpoint routing is never fought, pending
+  previews awaiting a server response are never touched, and the native
+  placement and cost validation still runs every frame. Leaving the mode, the
+  preview being replaced, or building restores whatever was borrowed. Keys are
+  ignored while a menu, the pause screen or any text field has focus, so every
+  vanilla binding behaves exactly as before outside the mode.
 - Fixed a startup crash that made the game unlaunchable. The Precision Frame
   hooked `UFGBuildGunStateBuild::TickState_Implementation` with SML's
   non-virtual `SUBSCRIBE_METHOD` macros, but that function is declared

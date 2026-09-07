@@ -1,4 +1,5 @@
 #include "AIFactoryCopilotUISubsystem.h"
+#include "AIFactoryBuildGunRotation.h"
 #include "AIFactoryUpgrade.h"
 #include "Hologram/FGHologram.h"
 #include "Equipment/FGBuildGunBuild.h"
@@ -96,7 +97,25 @@ namespace
                 Owner->HidePanel();
                 return true;
             }
-            return false;
+            // Axis rotation owns F5 and PageUp/PageDown only while a rotatable
+            // native preview is aimed and no menu or text field has focus. It
+            // returns false otherwise, so the vertical page/nudge bindings keep
+            // working exactly as they do in vanilla.
+            return Owner->HandleBuildGunRotationKey(InKeyEvent);
+        }
+
+        virtual bool HandleMouseWheelOrGestureEvent(
+            FSlateApplication& SlateApplication,
+            const FPointerEvent& InWheelEvent,
+            const FPointerEvent* InGestureEvent) override
+        {
+            if (!Owner.IsValid() || InGestureEvent != nullptr)
+            {
+                return false;
+            }
+            // Only consumed while rotation mode is active; the Build Gun's own
+            // scroll-to-rotate and hotbar scrolling are untouched otherwise.
+            return Owner->HandleBuildGunRotationWheel(InWheelEvent);
         }
 
     private:
@@ -137,6 +156,10 @@ void UAIFactoryCopilotUISubsystem::Initialize(FSubsystemCollectionBase& Collecti
 {
     Super::Initialize(Collection);
 
+    // Owned before the preprocessor is registered, so the very first key event
+    // cannot reach a null editor.
+    BuildGunRotation = MakeShared<FAIFactoryBuildGunRotation>();
+
     if (FSlateApplication::IsInitialized())
     {
         InputProcessor = MakeShared<FAIFactoryInputProcessor>(this);
@@ -156,6 +179,13 @@ void UAIFactoryCopilotUISubsystem::Initialize(FSubsystemCollectionBase& Collecti
 
 void UAIFactoryCopilotUISubsystem::Deinitialize()
 {
+    if (BuildGunRotation.IsValid())
+    {
+        // Restores any edited preview and drops the HUD hints before the
+        // subsystem's world goes away.
+        BuildGunRotation->Shutdown();
+        BuildGunRotation.Reset();
+    }
     UnbindPrecisionConstruction();
     ReleasePrecisionHologram();
     bPrecisionFrameEnabled = false;
@@ -2552,6 +2582,18 @@ UFGBuildGunStateBuild* UAIFactoryCopilotUISubsystem::GetPrecisionBuildStateForWo
         : nullptr;
 }
 
+bool UAIFactoryCopilotUISubsystem::HandleBuildGunRotationKey(const FKeyEvent& KeyEvent)
+{
+    return BuildGunRotation.IsValid() &&
+        BuildGunRotation->HandleKeyDown(GetLocalPlayerController(), bPanelVisible, KeyEvent);
+}
+
+bool UAIFactoryCopilotUISubsystem::HandleBuildGunRotationWheel(const FPointerEvent& WheelEvent)
+{
+    return BuildGunRotation.IsValid() &&
+        BuildGunRotation->HandleWheel(GetLocalPlayerController(), bPanelVisible, WheelEvent);
+}
+
 void UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPreActorTick(
     UWorld* const World,
     const ELevelTick TickType,
@@ -2560,7 +2602,18 @@ void UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPreActorTick(
     // The old plain-method hook on a virtual TickState_Implementation asserted
     // in SML at startup. Engine delegates supply before/after actor ordering.
     // Other worlds also broadcast here; they must not release this world's lock.
-    if (World != GetWorld() || !bPrecisionFrameEnabled)
+    if (World != GetWorld())
+    {
+        return;
+    }
+
+    // Independent of the precision frame, so it runs before that early return.
+    if (BuildGunRotation.IsValid())
+    {
+        BuildGunRotation->BeforeWorldTick(GetLocalPlayerController());
+    }
+
+    if (!bPrecisionFrameEnabled)
     {
         return;
     }
@@ -2584,7 +2637,19 @@ void UAIFactoryCopilotUISubsystem::HandlePrecisionWorldPostActorTick(
     const ELevelTick TickType,
     const float DeltaTime)
 {
-    if (World != GetWorld() || !bPrecisionFrameEnabled)
+    if (World != GetWorld())
+    {
+        return;
+    }
+
+    // Applies the edited pose and refreshes the native hint bar every frame,
+    // whether or not the precision frame is in use.
+    if (BuildGunRotation.IsValid())
+    {
+        BuildGunRotation->AfterWorldTick(GetLocalPlayerController(), bPanelVisible);
+    }
+
+    if (!bPrecisionFrameEnabled)
     {
         return;
     }
