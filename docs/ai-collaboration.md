@@ -6427,6 +6427,15 @@ axis-rotation contracts. `FactoryGameSteam Win64 Shipping` compiles and links
 `UpdateRotationValuesFromTransform`, `GetParentHologram`, and the three hint-bar
 members this depends on.
 
-**Not deployed.** Packaging refuses while Satisfactory is running (PID 25864 —
-the owner is testing the previous build), which is correct. The next
-install/package run ships it; no source change is pending.
+**Deployed.** The owner closed the game and UAT build/cook/stage/archive/deploy
+succeeded.
+
+- Archive `AIFactoryCopilot-Windows.zip`, 20,460,135 bytes, SHA-256
+  `66C5504294D8041CE69267292796D41733C2E28CF1D7460DDCE0F2B1B852E93D`
+- Deployed Steam DLL SHA-256
+  `4C2D6A98569C2F894D22679F82E72916BBDEAAF70A6E2616DE4A0DD35AF53EAE`
+  (replaces `115D440E…`)
+
+Unverified in a packaged game: that the hints actually appear in the vanilla
+bar (the widget is found by viewport visibility, which no test can prove), and
+that a rotated preview constructs with its pitch and roll intact.
