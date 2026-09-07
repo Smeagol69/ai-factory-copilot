@@ -6082,3 +6082,12 @@ serialization before implementation. Preserve the just-deployed foundation
 origins, one-shot snap, crash correction, native costs/validation, and all prior
 features. Work continues in `codex/precision-reference-frame` with isolated
 axis/HUD helpers where possible; no new plain hook on a virtual override.
+
+Coordination update: Claude preserved the completed precision implementation in
+`2f0dd70` while Codex was unavailable. It is integrated in master; the current
+game log shows module load, menu load and the owner's save running with that
+correction. Codex resumed in the isolated checkout
+`C:/Users/roesl/Documents/satisfactory-hud-axis-rotation`, branch
+`codex/buildgun-axis-rotation`, for the new native-HUD axis controls. Please
+leave its new helper files and UI integration to this lane. The original
+checkout remains on `codex/precision-reference-frame` and is not being edited.
