@@ -1,5 +1,6 @@
 #include "AIFactoryBuildGunRotation.h"
 #include "AIFactoryBuildGunHints.h"
+#include "AIFactoryCopilotModule.h"
 
 #include "Engine/World.h"
 #include "Equipment/FGBuildGun.h"
@@ -10,6 +11,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Hologram/FGBuildableHologram.h"
 #include "Hologram/FGSplineHologram.h"
+#include "Hologram/FGWireHologram.h"
 #include "Input/Events.h"
 #include "InputCoreTypes.h"
 #include "UI/FGGameUI.h"
@@ -53,10 +55,28 @@ bool FAIFactoryBuildGunRotation::SupportsRotation(AFGHologram* Target)
 {
     // This editor rotates a single rigid native preview. Multi-endpoint spline
     // tools must keep their native endpoint routing, not rotate connected ports.
+    // Two conditions were removed here, both because their real bodies ship
+    // only in the game binary and neither could be checked before use.
+    //
+    // CanNudgeHologram() is a non-inline virtual whose body is not readable.
+    // The flag it is named after defaults to true on AFGBuildableHologram, so
+    // it may well have been passing - this is NOT a claim that it returned
+    // false. It is dropped because it is simply the wrong question: rotation
+    // never nudges. It sets the actor transform and resyncs the scroll
+    // rotation, and touches no nudge API at all. Only the *lock* matters, and
+    // CanLockHologram() is inline and readable.
+    //
+    // GetNudgeHologramTarget() == Target was the same kind of unverifiable
+    // gate, and an equality test turns an unexpected return into a silent dead
+    // feature. Its only real job here is excluding the wire hologram: of the
+    // four classes that override it, conveyor belt and pipeline are already
+    // refused as splines and the standalone sign would only be refused
+    // needlessly. So exclude the wire directly, which is readable and cannot
+    // fail quietly.
     return IsValid(Target) && !Target->GetIsPendingToBeConstructed() &&
         !IsValid(Target->GetParentHologram()) && Target->IsA<AFGBuildableHologram>() &&
-        !Target->IsA<AFGSplineHologram>() && Target->CanLockHologram() &&
-        Target->CanNudgeHologram() && Target->GetNudgeHologramTarget() == Target;
+        !Target->IsA<AFGSplineHologram>() && !Target->IsA<AFGWireHologram>() &&
+        Target->CanLockHologram();
 }
 
 bool FAIFactoryBuildGunRotation::CanStart(AFGPlayerController* Controller, const bool bPanelVisible) const
@@ -113,8 +133,11 @@ bool FAIFactoryBuildGunRotation::HandleKeyDown(AFGPlayerController* Controller,
         State.Begin(NativeRotation);
         return true;
     }
-    if (!State.bEnabled || (Key != EKeys::PageUp && Key != EKeys::PageDown)) return false;
-    if (!Event.IsRepeat()) State.Cycle(Key == EKeys::PageUp ? 1 : -1);
+    // Bracket keys, not PageUp/PageDown: those are the vanilla vertical
+    // raise/lower bindings, and you want to keep raising an object while you
+    // rotate it. The Build Gun does not bind [ or ].
+    if (!State.bEnabled || (Key != EKeys::RightBracket && Key != EKeys::LeftBracket)) return false;
+    if (!Event.IsRepeat()) State.Cycle(Key == EKeys::RightBracket ? 1 : -1);
     return true;
 }
 
@@ -169,8 +192,64 @@ void FAIFactoryBuildGunRotation::AfterWorldTick(AFGPlayerController* Controller,
             if (IsValid(Gun)) Target->ValidatePlacementAndCost(Gun->GetInventory());
         }
     }
-    Hints->Update(Controller, CanStart(Controller, bPanelVisible), State.bEnabled,
+    const bool bCanStart = CanStart(Controller, bPanelVisible);
+    LogGate(Controller, bPanelVisible, bCanStart);
+    Hints->Update(Controller, bCanStart, State.bEnabled,
         State.Axis, State.Rotation.Rotator());
+}
+
+void FAIFactoryBuildGunRotation::LogGate(
+    AFGPlayerController* const Controller,
+    const bool bPanelVisible,
+    const bool bCanStart)
+{
+    // Every condition, individually, so a "nothing happens" report can be
+    // answered from the log instead of guessed at. Emitted only when the
+    // combination changes, so holding the Build Gun does not flood the file.
+    const UFGBuildGunStateBuild* const Build = GetBuildState(Controller);
+    AFGHologram* const Target = IsValid(Build) ? Build->GetHologram() : nullptr;
+
+    FString Focused = TEXT("none");
+    if (FSlateApplication::IsInitialized())
+    {
+        if (const TSharedPtr<SWidget> Widget = FSlateApplication::Get().GetUserFocusedWidget(0);
+            Widget.IsValid())
+        {
+            Focused = Widget->GetType().ToString();
+        }
+    }
+
+    const FString Line = FString::Printf(
+        TEXT("Axis rotation gate: canStart=%d enabled=%d buildState=%d hologram=%s ")
+        TEXT("input=%d panel=%d cursor=%d focus=%s ")
+        TEXT("pending=%d parent=%d buildable=%d spline=%d canLock=%d canNudge=%d ")
+        TEXT("locked=%d nudgeTargetIsSelf=%d sameWorld=%d instigatorMatch=%d"),
+        bCanStart ? 1 : 0,
+        State.bEnabled ? 1 : 0,
+        IsValid(Build) ? 1 : 0,
+        IsValid(Target) ? *Target->GetClass()->GetName() : TEXT("none"),
+        CanHandleInput(Controller, bPanelVisible) ? 1 : 0,
+        bPanelVisible ? 1 : 0,
+        IsValid(Controller) && Controller->bShowMouseCursor ? 1 : 0,
+        *Focused,
+        IsValid(Target) && Target->GetIsPendingToBeConstructed() ? 1 : 0,
+        IsValid(Target) && IsValid(Target->GetParentHologram()) ? 1 : 0,
+        IsValid(Target) && Target->IsA<AFGBuildableHologram>() ? 1 : 0,
+        IsValid(Target) && Target->IsA<AFGSplineHologram>() ? 1 : 0,
+        IsValid(Target) && Target->CanLockHologram() ? 1 : 0,
+        IsValid(Target) && Target->CanNudgeHologram() ? 1 : 0,
+        IsValid(Target) && Target->IsHologramLocked() ? 1 : 0,
+        IsValid(Target) && Target->GetNudgeHologramTarget() == Target ? 1 : 0,
+        IsValid(Target) && IsValid(Controller) && Target->GetWorld() == Controller->GetWorld() ? 1 : 0,
+        IsValid(Target) && IsValid(Controller) &&
+            Target->GetConstructionInstigator() == Controller->GetControlledCharacter() ? 1 : 0);
+
+    if (Line == LastGateLine)
+    {
+        return;
+    }
+    LastGateLine = Line;
+    UE_LOG(LogAIFactoryCopilot, Display, TEXT("%s"), *Line);
 }
 
 void FAIFactoryBuildGunRotation::Reset(const bool bRestore)

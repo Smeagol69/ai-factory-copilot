@@ -2,7 +2,9 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "FGHUD.h"
 #include "FGPlayerController.h"
+#include "UI/FGGameUI.h"
 #include "InputCoreTypes.h"
 #include "UI/FGButtonHintBar.h"
 #include "UI/FGUserWidget.h"
@@ -39,25 +41,47 @@ UFGButtonHintBar* FAIFactoryBuildGunHints::FindGameplayHintBar(AFGPlayerControll
         return nullptr;
     }
 
+    AFGHUD* const HUD = Cast<AFGHUD>(Controller->GetHUD());
+    UFGGameUI* const GameUI = IsValid(HUD) ? HUD->GetGameUI() : nullptr;
+
     TArray<UUserWidget*> Found;
     UWidgetBlueprintLibrary::GetAllWidgetsOfClass(
         Controller, Found, UFGButtonHintBar::StaticClass(), false);
 
+    UFGButtonHintBar* Fallback = nullptr;
     for (UUserWidget* const Widget : Found)
     {
         UFGButtonHintBar* const Candidate = Cast<UFGButtonHintBar>(Widget);
-        if (!IsValid(Candidate) || Candidate->mHintBarIsAlwaysHidden)
+        if (!IsValid(Candidate) || Candidate->mHintBarIsAlwaysHidden || !Candidate->IsVisible())
         {
             continue;
         }
-        // Only the on-screen gameplay bar is in the viewport and visible while
-        // the Build Gun is out; menu bars live inside their own windows.
-        if (Candidate->IsInViewport() && Candidate->IsVisible())
+
+        // NOT IsInViewport(). That is only true for a widget added directly
+        // through AddToViewport/AddToPlayerScreen, and every hint bar is a
+        // nested child of another widget's tree - so it is false for all of
+        // them, the search returned nullptr every frame, and no hint was ever
+        // inserted. That was the whole reason nothing appeared on screen.
+        //
+        // The real question is whether this bar belongs to the on-screen game
+        // UI rather than a menu window, so walk the outer chain to the HUD's
+        // UFGGameUI. Any other visible bar is kept only as a fallback.
+        if (IsValid(GameUI))
         {
-            return Candidate;
+            for (UObject* Outer = Candidate->GetOuter(); IsValid(Outer); Outer = Outer->GetOuter())
+            {
+                if (Outer == GameUI)
+                {
+                    return Candidate;
+                }
+            }
+        }
+        if (Fallback == nullptr)
+        {
+            Fallback = Candidate;
         }
     }
-    return nullptr;
+    return Fallback;
 }
 
 void FAIFactoryBuildGunHints::RemoveOwnedHints(UFGButtonHintBar* const Target)
@@ -156,7 +180,7 @@ void FAIFactoryBuildGunHints::Update(
 
     static const TArray<TPair<FKey, FKey>> Keys = {
         { EKeys::F5, FKey() },
-        { EKeys::PageUp, EKeys::PageDown },
+        { EKeys::RightBracket, EKeys::LeftBracket },
         { EKeys::MouseScrollUp, FKey() },
     };
     for (int32 Index = 0; Index < Desired.Num(); ++Index)
@@ -166,6 +190,15 @@ void FAIFactoryBuildGunHints::Update(
             MakeHint(Binding.Key, Binding.Value, Desired[Index]), Index);
         OwnedHintTexts.Add(Desired[Index]);
     }
+
+    // mButtonHints is the authored list; the rows actually drawn are
+    // mCurrentKeyHints, which the bar rebuilds through its own mode-driven
+    // paths. Hand the list back through the game's own setter so that rebuild
+    // runs, rather than assuming an insert alone repaints. Copied first: passing
+    // the member into a call that reassigns it would alias.
+    TArray<FFGButtonHintDescription> Refreshed = Target->mButtonHints;
+    Target->UpdateButtonHints(Refreshed);
+
     LastSignature = Signature;
 }
 

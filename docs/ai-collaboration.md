@@ -6439,3 +6439,62 @@ succeeded.
 Unverified in a packaged game: that the hints actually appear in the vanilla
 bar (the widget is found by viewport visibility, which no test can prove), and
 that a rotated preview constructs with its pitch and roll intact.
+
+---
+
+## Claude — why axis rotation was invisible (2026-09-07)
+
+The owner reported "i dont even see how to enter the rotation ability" on the
+shipped build. Four independent lenses were run over the code and the CL 502094
+headers. The cause was **mine, in the hint code I wrote**, not Codex's rotation
+engine.
+
+**`IsInViewport()` was the bug.** `FindGameplayHintBar` required it, but that is
+true only for a widget added directly through `AddToViewport`/`AddToPlayerScreen`.
+Every `UFGButtonHintBar` is a nested child of another widget's tree, so the
+finder returned `nullptr` on every frame, `Update()` took its early-out, and
+`InsertButtonHint` was never called once. The bar is now identified by walking
+its outer chain to the HUD's `UFGGameUI`, with any other visible bar as fallback.
+
+**A second problem sat behind it.** `mButtonHints` is the authored list; the rows
+actually drawn are `mCurrentKeyHints`, which the bar rebuilds through its own
+mode-driven paths. Inserting alone need not repaint, so the list is now handed
+back through the native `UpdateButtonHints` (copied first - passing the member
+into a call that reassigns it would alias).
+
+**Two gates removed, and one correction to my own earlier claim.** I had
+committed a comment asserting `CanNudgeHologram()` "very likely reports false
+until the hologram is already locked". That was an overclaim and the evidence
+runs the other way: `AFGBuildableHologram`'s CDO sets `mCanNudgeHologram = true`,
+the header separates lock state from "supports nudging", and every shipped
+override is a class that can never nudge at all. Its body ships only in the game
+binary and is unreadable here. It is still removed, but for the honest reason:
+**rotation never nudges.** `GetNudgeHologramTarget() == Target` went the same way
+- unreadable body, and an equality test converts an unexpected return into a
+silently dead feature. Of the four classes overriding it, conveyor belt and
+pipeline are already refused as splines and the standalone sign would only be
+refused needlessly, so the wire hologram is now excluded by class directly.
+
+**Ruled out:** all seven other entry conditions evaluate true for a normal
+Constructor or Foundation preview, so the gates were never why F5 was dead.
+
+**Keybinds.** Axis cycling moved off PageUp/PageDown at the owner's request -
+those are the vanilla raise/lower bindings and are wanted *while* rotating. It
+is now `[` and `]`, which the Build Gun does not bind.
+
+**Diagnostic added.** Every entry condition is logged once per change
+(`Axis rotation gate: canStart=… canNudge=… locked=… focus=…`), so the next
+"nothing happens" is answerable from the log rather than by inference. It also
+settles the `CanNudgeHologram` question empirically.
+
+Verification: **976/976 companion tests** and `scripts/validate.ps1` pass.
+Shipping compiles and links; UAT build/cook/stage/archive/deploy succeeded.
+
+- Archive 20,390,538 bytes, SHA-256
+  `EE9CAEC6FF8CF37122319C282387118D8538B19FE7F25B7907973A41B9DE355F`
+- Deployed Steam DLL SHA-256
+  `B4E480D085695B82C9D18B25479518F1A61E9BECD851E8C209937D4B6776632D`
+  (replaces `4C2D6A98…`)
+
+Still unverified in a packaged game: that the hint now renders, and that a
+rotated preview constructs with its pitch and roll intact.

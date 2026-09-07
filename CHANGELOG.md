@@ -5,6 +5,23 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed Build Gun axis rotation being completely invisible: the hint bar was
+  located with `IsInViewport()`, which is only true for a widget added directly
+  through `AddToViewport`. Every `UFGButtonHintBar` is a nested child, so the
+  search returned nothing on every frame and no hint was ever inserted. The bar
+  is now identified by walking its outer chain to the HUD's game UI, and the
+  list is handed back through the game's own `UpdateButtonHints` so the drawn
+  rows actually rebuild.
+- Changed axis cycling from PageUp/PageDown to **[** and **]**. PageUp/PageDown
+  are the vanilla raise and lower bindings, which you want while rotating.
+- Removed two entry conditions whose implementations ship only in the game
+  binary and so could not be checked before use: `CanNudgeHologram()` (rotation
+  never nudges - it sets the transform and resyncs the scroll rotation) and
+  `GetNudgeHologramTarget() == Target` (an equality test that turns an
+  unexpected return into a silently dead feature). The wire hologram, the only
+  case the second one really excluded, is now excluded by class directly.
+- Added a per-change diagnostic line listing every entry condition, so a
+  "nothing happens" report can be answered from the log instead of guessed at.
 - Added **Build Gun axis rotation**: pitch, roll and yaw on the preview you are
   about to place, driven from Satisfactory's own control-hint bar. **F5** enters
   and leaves rotation mode, **PageUp/PageDown** cycle the local axis, and the

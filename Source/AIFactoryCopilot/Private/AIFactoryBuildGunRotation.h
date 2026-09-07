@@ -30,10 +30,13 @@ private:
     bool bAppliedRotation = false;
     bool bOwnsPositionLock = false;
     TUniquePtr<FAIFactoryBuildGunHints> Hints;
+    FString LastGateLine;
 
     static UFGBuildGunStateBuild* GetBuildState(AFGPlayerController* Controller);
     static bool CanHandleInput(AFGPlayerController* Controller, bool bPanelVisible);
     static bool SupportsRotation(AFGHologram* Target);
     static void ApplyNativeRotation(AFGHologram* Target, const FQuat& Rotation);
     void Reset(bool bRestore);
+    /** Logs every gate condition, once per change, so "nothing happens" is answerable. */
+    void LogGate(AFGPlayerController* Controller, bool bPanelVisible, bool bCanStart);
 };
