@@ -70,6 +70,26 @@ test("entering rotation does not depend on a lock that has not happened yet", ()
   assert.match(supports, /!Target->IsA<AFGSplineHologram>\(\)/);
 });
 
+test("a wall can be pitched to sit flush on a ramp", () => {
+  // The whole point of the feature: a vanilla ramp rises its thickness over
+  // one 8 m cell, so its pitch is atan(rise / 8 m). None of the 15/1/45 degree
+  // steps can reach 26.565, so without an exact ramp increment a wall can only
+  // ever be placed near the slope, never flush on it.
+  assert.match(state, /RampDegrees8x4 = 26\.565051177077994/);
+  assert.match(state, /RampDegrees8x2 = 14\.036243467926479/);
+  assert.match(state, /RampDegrees8x1 = 7\.125016348901798/);
+  assert.match(state, /bRamp \? RampAngle\(\)/);
+
+  // Alt selects that increment, and the ramp choice cycles with Period.
+  assert.match(rotation, /Event\.IsAltDown\(\)/);
+  assert.match(rotation, /Key == EKeys::Period/);
+  assert.match(rotation, /State\.CycleRamp\(\)/);
+
+  // Leaving the mode returns the ramp choice to the common 8x4.
+  const reset = state.slice(state.indexOf("void Reset()"), state.indexOf("void Cycle("));
+  assert.match(reset, /RampStep = 0;/);
+});
+
 test("axis cycling does not steal the vanilla raise and lower keys", () => {
   assert.match(rotation, /EKeys::RightBracket/);
   assert.match(rotation, /EKeys::LeftBracket/);
@@ -96,7 +116,11 @@ test("input is refused in menus, text fields and on remote controllers", () => {
     rotation.indexOf("bool FAIFactoryBuildGunRotation::SupportsRotation("),
   );
   assert.match(gate, /Controller->IsLocalController\(\)/);
-  assert.match(gate, /HasActiveInteractWidget\(\)/);
+  // NOT gated on HasActiveInteractWidget: it is mInteractWidgetStack.Num() > 0,
+  // which a build mod such as SMART! keeps non-empty the whole time the Build
+  // Gun is out - the shipped diagnostic showed input=0 with every hologram
+  // condition green because of it. Match the call, not the comment about it.
+  assert.doesNotMatch(gate, /GameUI->HasActiveInteractWidget\(\)/);
   assert.match(gate, /IsPauseMenuOpen\(\)/);
   assert.match(gate, /IsPaused\(\)/);
   // A preprocessor sees keys before text widgets do, so viewport focus is the

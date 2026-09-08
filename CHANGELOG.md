@@ -5,6 +5,17 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Fixed Build Gun axis rotation being unreachable while any interact widget was
+  open. Entry required `HasActiveInteractWidget()` to be false, but that is
+  `mInteractWidgetStack.Num() > 0`, which a building mod such as SMART! keeps
+  non-empty for as long as the Build Gun is out - so the mode could never be
+  entered on such a setup. Viewport focus is the real guard and is kept; the
+  interact-widget check and the refusal on an unreadable game UI are gone.
+- Added **ramp pitches** to axis rotation, so a wall can be laid flush on a ramp
+  rather than merely near it. Alt with the wheel steps by the exact angle of a
+  vanilla ramp - 26.565 degrees for an 8x4, 14.036 for an 8x2, 7.125 for an 8x1
+  - none of which the 15, 1 and 45 degree steps can reach. **.** cycles which
+  ramp that step matches, and the hint row shows the current angle.
 - Fixed Build Gun axis rotation being completely invisible: the hint bar was
   located with `IsInViewport()`, which is only true for a widget added directly
   through `AddToViewport`. Every `UFGButtonHintBar` is a nested child, so the

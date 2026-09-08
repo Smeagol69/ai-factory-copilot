@@ -41,9 +41,26 @@ bool FAIFactoryBuildGunRotation::CanHandleInput(AFGPlayerController* Controller,
         Controller->bShowMouseCursor || !IsValid(Controller->GetWorld()) ||
         Controller->GetWorld()->IsPaused() || !FSlateApplication::IsInitialized()) return false;
 
-    AFGHUD* HUD = Cast<AFGHUD>(Controller->GetHUD());
-    UFGGameUI* GameUI = IsValid(HUD) ? HUD->GetGameUI() : nullptr;
-    if (!IsValid(GameUI) || GameUI->HasActiveInteractWidget() || GameUI->IsPauseMenuOpen()) return false;
+    // Deliberately NOT gated on GameUI validity or HasActiveInteractWidget().
+    //
+    // The shipped diagnostic showed every hologram condition green while
+    // input=0 with panel=0, cursor=0 and focus=SViewport, so one of those two
+    // was silently refusing during ordinary building. HasActiveInteractWidget
+    // is true for more UI than a text field - and with a build mod such as
+    // SMART! adding its own widgets it can be true the whole time the Build Gun
+    // is out, which would make this feature permanently unreachable.
+    //
+    // The focus test below is the real guard, and it is the strict one: keys are
+    // only taken while the game viewport itself owns focus, so a chat box,
+    // search field or any menu that takes focus still gets its input untouched.
+    // The pause menu is still refused when the game UI is readable, but a null
+    // game UI is no longer treated as a refusal.
+    const AFGHUD* const HUD = Cast<AFGHUD>(Controller->GetHUD());
+    if (const UFGGameUI* const GameUI = IsValid(HUD) ? HUD->GetGameUI() : nullptr;
+        IsValid(GameUI) && GameUI->IsPauseMenuOpen())
+    {
+        return false;
+    }
 
     // A preprocessor runs before both the game and text widgets. Only intercept
     // keys while the game viewport owns focus, never chat/search/menu input.
@@ -136,6 +153,12 @@ bool FAIFactoryBuildGunRotation::HandleKeyDown(AFGPlayerController* Controller,
     // Bracket keys, not PageUp/PageDown: those are the vanilla vertical
     // raise/lower bindings, and you want to keep raising an object while you
     // rotate it. The Build Gun does not bind [ or ].
+    if (State.bEnabled && Key == EKeys::Period)
+    {
+        // Which ramp the Alt step matches: 8x4, then 8x2, then 8x1.
+        if (!Event.IsRepeat()) State.CycleRamp();
+        return true;
+    }
     if (!State.bEnabled || (Key != EKeys::RightBracket && Key != EKeys::LeftBracket)) return false;
     if (!Event.IsRepeat()) State.Cycle(Key == EKeys::RightBracket ? 1 : -1);
     return true;
@@ -149,7 +172,10 @@ bool FAIFactoryBuildGunRotation::HandleWheel(AFGPlayerController* Controller,
     AFGHologram* Target = Hologram.Get();
     if (!IsValid(Build) || Build->GetHologram() != Target || !SupportsRotation(Target) ||
         !Target->IsHologramLocked()) return false;
-    State.Scroll(Event.GetWheelDelta(), Event.IsControlDown(), Event.IsShiftDown());
+    // Alt steps by the exact ramp pitch, which none of 15/1/45 degrees can
+    // reach - that is what lets a wall sit flush on a ramp rather than near it.
+    State.Scroll(Event.GetWheelDelta(), Event.IsControlDown(), Event.IsShiftDown(),
+        Event.IsAltDown());
     ApplyNativeRotation(Target, State.Rotation);
     bAppliedRotation = true;
     return true;
@@ -195,7 +221,7 @@ void FAIFactoryBuildGunRotation::AfterWorldTick(AFGPlayerController* Controller,
     const bool bCanStart = CanStart(Controller, bPanelVisible);
     LogGate(Controller, bPanelVisible, bCanStart);
     Hints->Update(Controller, bCanStart, State.bEnabled,
-        State.Axis, State.Rotation.Rotator());
+        State.Axis, State.Rotation.Rotator(), State.RampAngle());
 }
 
 void FAIFactoryBuildGunRotation::LogGate(
@@ -209,6 +235,9 @@ void FAIFactoryBuildGunRotation::LogGate(
     const UFGBuildGunStateBuild* const Build = GetBuildState(Controller);
     AFGHologram* const Target = IsValid(Build) ? Build->GetHologram() : nullptr;
 
+    AFGHUD* const HUD = IsValid(Controller) ? Cast<AFGHUD>(Controller->GetHUD()) : nullptr;
+    UFGGameUI* const GameUI = IsValid(HUD) ? HUD->GetGameUI() : nullptr;
+
     FString Focused = TEXT("none");
     if (FSlateApplication::IsInitialized())
     {
@@ -221,7 +250,8 @@ void FAIFactoryBuildGunRotation::LogGate(
 
     const FString Line = FString::Printf(
         TEXT("Axis rotation gate: canStart=%d enabled=%d buildState=%d hologram=%s ")
-        TEXT("input=%d panel=%d cursor=%d focus=%s ")
+        TEXT("input=%d panel=%d cursor=%d focus=%s local=%d paused=%d gameUI=%d ")
+        TEXT("interact=%d pauseMenu=%d ")
         TEXT("pending=%d parent=%d buildable=%d spline=%d canLock=%d canNudge=%d ")
         TEXT("locked=%d nudgeTargetIsSelf=%d sameWorld=%d instigatorMatch=%d"),
         bCanStart ? 1 : 0,
@@ -232,6 +262,12 @@ void FAIFactoryBuildGunRotation::LogGate(
         bPanelVisible ? 1 : 0,
         IsValid(Controller) && Controller->bShowMouseCursor ? 1 : 0,
         *Focused,
+        IsValid(Controller) && Controller->IsLocalController() ? 1 : 0,
+        IsValid(Controller) && IsValid(Controller->GetWorld()) &&
+            Controller->GetWorld()->IsPaused() ? 1 : 0,
+        IsValid(GameUI) ? 1 : 0,
+        IsValid(GameUI) && GameUI->HasActiveInteractWidget() ? 1 : 0,
+        IsValid(GameUI) && GameUI->IsPauseMenuOpen() ? 1 : 0,
         IsValid(Target) && Target->GetIsPendingToBeConstructed() ? 1 : 0,
         IsValid(Target) && IsValid(Target->GetParentHologram()) ? 1 : 0,
         IsValid(Target) && Target->IsA<AFGBuildableHologram>() ? 1 : 0,

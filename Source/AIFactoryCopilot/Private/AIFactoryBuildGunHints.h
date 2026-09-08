@@ -33,7 +33,8 @@ public:
         bool bCanStart,
         bool bEnabled,
         int32 Axis,
-        const FRotator& Rotation);
+        const FRotator& Rotation,
+        double RampDegrees);
 
     /** Removes every hint this added. Safe to call when nothing was added. */
     void Clear();

@@ -107,7 +107,8 @@ void FAIFactoryBuildGunHints::Update(
     const bool bCanStart,
     const bool bEnabled,
     const int32 Axis,
-    const FRotator& Rotation)
+    const FRotator& Rotation,
+    const double RampDegrees)
 {
     UFGButtonHintBar* const Target = FindGameplayHintBar(Controller);
 
@@ -141,7 +142,9 @@ void FAIFactoryBuildGunHints::Update(
             Rotation.Pitch,
             Rotation.Yaw,
             Rotation.Roll));
-        Desired.Add(TEXT("Turn  (Ctrl 1°, Shift 45°)"));
+        Desired.Add(FString::Printf(
+            TEXT("Turn  (Ctrl 1°, Shift 45°, Alt ramp %.2f°)"), RampDegrees));
+        Desired.Add(TEXT("Ramp angle: 8x4 / 8x2 / 8x1")); 
     }
     else if (bCanStart)
     {
@@ -182,6 +185,7 @@ void FAIFactoryBuildGunHints::Update(
         { EKeys::F5, FKey() },
         { EKeys::RightBracket, EKeys::LeftBracket },
         { EKeys::MouseScrollUp, FKey() },
+        { EKeys::Period, FKey() },
     };
     for (int32 Index = 0; Index < Desired.Num(); ++Index)
     {
