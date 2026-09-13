@@ -6498,3 +6498,52 @@ Shipping compiles and links; UAT build/cook/stage/archive/deploy succeeded.
 
 Still unverified in a packaged game: that the hint now renders, and that a
 rotated preview constructs with its pitch and roll intact.
+
+---
+
+## Claude — axis rotation deployed at last (2026-09-13)
+
+Two "still can't see it" reports were spent on a build the owner never had. The
+fix was committed at `b5a8b32`, but both deploy attempts were refused with
+`Satisfactory is running (PID …)` - correctly, since the packager will not swap a
+live DLL - so the game kept loading `B4E480D0…` from 2026-09-07, the build that
+still carried the blocker. **Check the deployed hash before debugging a symptom.**
+
+Now deployed: DLL SHA-256
+`4627909CEE4BE296502D971E12AF8CC4BB120932A8C12AA1CD773E8F9CE0ED89`.
+
+### What the diagnostic settled
+
+The shipped gate log answered the question in one run, after two builds of
+guessing:
+
+    buildable=1 canLock=1 canNudge=1 locked=1 nudgeTargetIsSelf=1
+    instigatorMatch=1  input=0  panel=0 cursor=0 focus=SViewport
+
+Every hologram condition green; `CanHandleInput` was the refusal. The cause was
+`HasActiveInteractWidget()`, which is literally `mInteractWidgetStack.Num() > 0`.
+The owner runs **SMART!**, whose widgets keep that stack non-empty for as long as
+the Build Gun is out, so the mode was unenterable on that setup and would have
+been for anyone with a similar build mod. Removed; the viewport-focus test is the
+real guard and is stricter.
+
+That log also disproves an earlier claim of mine: `canNudge=1` throughout, so
+`CanNudgeHologram` was never the problem. Corrected in source and recorded here.
+
+### Why the feature is not redundant with SMART!
+
+Asked directly, the owner's case is placing **a half wall lying flat along a
+ramp**. SMART!'s gizmo rotates SMART blueprints, not an individual vanilla
+buildable. This does.
+
+That exposed a real gap: the increments were 15 / 1 / 45 degrees, and a vanilla
+ramp rises its thickness over one 8 m cell - `atan(4/8)` = **26.565°** for an
+8x4. None of those steps can reach it, so a wall could only ever be placed *near*
+a ramp face. Alt+wheel now steps by the exact ramp angle, `.` cycles 8x4 / 8x2 /
+8x1 (26.565 / 14.036 / 7.125), and the hint row shows the live value.
+
+Verification: **979/979 companion tests** and `scripts/validate.ps1` pass.
+Shipping compiles, links, packages and deploys.
+
+Still unverified in a packaged game: that the hint renders, that F5 now enters,
+and that a pitched wall constructs keeping its tilt.
