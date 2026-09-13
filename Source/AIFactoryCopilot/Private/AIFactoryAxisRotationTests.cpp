@@ -38,7 +38,7 @@ bool FAIFactoryAxisRotationTest::RunTest(const FString& Parameters)
         FMath::Abs(State.Rotation.GetAxisX().Z) > 0.999);
     State.Cycle(1);
     State.Scroll(1.0f, true, true);
-    TestTrue(TEXT("Fine modifier takes precedence over coarse"),
+    TestTrue(TEXT("Ctrl+Shift is the one-degree rung"),
         FMath::IsNearlyEqual(State.Rotation.AngularDistance(FQuat(FVector::RightVector, PI / 2.0)),
             FMath::DegreesToRadians(1.0), 1.e-6));
     TestTrue(TEXT("Combined tilted edits remain normalized"), State.Rotation.IsNormalized());

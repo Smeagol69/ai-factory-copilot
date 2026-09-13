@@ -6547,3 +6547,44 @@ Shipping compiles, links, packages and deploys.
 
 Still unverified in a packaged game: that the hint renders, that F5 now enters,
 and that a pitched wall constructs keeping its tilt.
+
+---
+
+## Claude — precision steps and surface snap (2026-09-13)
+
+The owner confirmed axis rotation works ("almost perfect"), then asked for finer
+Ctrl increments, then for a surface snap **kept alongside** the manual controls
+rather than replacing them.
+
+**Step ladder** — Ctrl is now 0.1 degrees. One degree was not dropped; it moved
+to Ctrl+Shift, so nothing previously reachable stopped being reachable. Full
+ladder: Alt = exact ramp pitch, Shift = 45, none = 15, Ctrl+Shift = 1,
+Ctrl = 0.1. The hint readout went to one decimal, because a tenth of a degree is
+invisible at whole-degree precision and the fine step would have looked dead.
+
+**Surface snap** — `/` lays the selected local axis along the normal of whatever
+the Build Gun is aiming at. Notes for anyone touching it:
+
+- It uses `AFGBuildGun::TraceForBuilding` (a live trace), **not** the cached
+  `GetHitResult()`. The cached result stops updating once the hologram is locked,
+  which is exactly the state this runs in.
+- The applied turn is `FQuat::FindBetweenNormals`, the *minimal* rotation between
+  the two directions, so spin already set about that axis is preserved rather
+  than reset.
+- No blocking hit, or a degenerate normal, leaves the pose untouched instead of
+  applying a garbage rotation. `SupportsRotation` still gates it, so the snap
+  refuses the same hologram kinds manual rotation refuses.
+- Which face it aligns is chosen by the existing `[` / `]` axis selection, so a
+  wrong face is one keypress away from correct rather than a dead end.
+
+Verification: **980/980 companion tests** and `scripts/validate.ps1` pass, with
+13 axis-rotation contracts including one that asserts every manual key still
+exists, so a later change cannot quietly replace the manual controls with the
+snap. Shipping compiles and links; UAT deploy succeeded.
+
+Deployed Steam DLL SHA-256
+`207A9DD9D3B0B6FCF56C1F13E28516DF68C0B77AB4C6479EAFBEF2D558465551`
+(replaces `4627909C…`).
+
+Unverified in a packaged game: whether the snapped axis picks the face the owner
+expects first try, and whether a pitched wall constructs keeping its tilt.

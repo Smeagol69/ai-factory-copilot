@@ -90,6 +90,58 @@ test("a wall can be pitched to sit flush on a ramp", () => {
   assert.match(reset, /RampStep = 0;/);
 });
 
+test("the step ladder keeps every rung, finest on Ctrl", () => {
+  const scroll = state.slice(state.indexOf("void Scroll("));
+  // Ctrl is the precise rung at a tenth of a degree, for closing the last
+  // fraction against a surface. One degree is not dropped - it moves to
+  // Ctrl+Shift, so nothing that used to be reachable stops being reachable.
+  assert.match(scroll, /\(bFine && bCoarse\) \? 1\.0/);
+  assert.match(scroll, /bFine \? 0\.1/);
+  assert.match(scroll, /bCoarse \? 45\.0/);
+  assert.match(scroll, /: 15\.0/);
+  // Ramp outranks them all, so a slope match is never diluted by a modifier.
+  assert.ok(
+    scroll.indexOf("bRamp ? RampAngle()") < scroll.indexOf("(bFine && bCoarse)"),
+    "the ramp step must be tested before the modifier rungs",
+  );
+
+  // A tenth of a degree is invisible at whole-degree precision, so the live
+  // readout has to carry a decimal or the fine step looks like it does nothing.
+  assert.match(hints, /P %\.1f°/);
+  assert.match(hints, /Ctrl 0\.1°, Ctrl\+Shift 1°/);
+});
+
+test("the selected axis can be snapped onto an aimed surface", () => {
+  // The exact match the scroll steps can only approach: aim at a ramp face and
+  // lay the chosen axis along its normal in one press, whatever angle it is.
+  assert.match(state, /bool AlignAxisToNormal\(const FVector& Normal\)/);
+  // Minimal rotation, so the spin already set about that axis survives a snap.
+  assert.match(state, /FQuat::FindBetweenNormals\(CurrentDirection, Normal\)/);
+  // Refuses rather than applying a garbage pose.
+  assert.match(state, /!Normal\.IsNormalized\(\) \|\| Normal\.IsNearlyZero\(\)/);
+
+  const snap = rotation.slice(
+    rotation.indexOf("Key == EKeys::Slash"),
+    rotation.indexOf("Key == EKeys::Period"),
+  );
+  assert.ok(snap.length > 0);
+  // A live trace, not the cached mHitResult: that stops updating once the
+  // hologram is locked, which is exactly the state this runs in.
+  assert.match(snap, /TraceForBuilding\(Pawn, Hit\)/);
+  assert.match(snap, /Hit\.bBlockingHit/);
+  assert.match(snap, /ImpactNormal\.GetSafeNormal\(\)/);
+  assert.match(snap, /ApplyNativeRotation\(Target, State\.Rotation\)/);
+  // Still refuses the hologram kinds manual rotation refuses.
+  assert.match(snap, /SupportsRotation\(Target\)/);
+
+  // Added alongside the manual steps, not in place of them: every existing
+  // key still has to be there so a snap can be nudged afterwards.
+  assert.match(rotation, /Key == EKeys::F5/);
+  assert.match(rotation, /EKeys::RightBracket/);
+  assert.match(rotation, /Key == EKeys::Period/);
+  assert.match(hints, /Snap axis to aimed surface/);
+});
+
 test("axis cycling does not steal the vanilla raise and lower keys", () => {
   assert.match(rotation, /EKeys::RightBracket/);
   assert.match(rotation, /EKeys::LeftBracket/);

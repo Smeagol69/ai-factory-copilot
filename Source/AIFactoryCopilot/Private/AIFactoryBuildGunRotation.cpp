@@ -150,15 +150,41 @@ bool FAIFactoryBuildGunRotation::HandleKeyDown(AFGPlayerController* Controller,
         State.Begin(NativeRotation);
         return true;
     }
-    // Bracket keys, not PageUp/PageDown: those are the vanilla vertical
-    // raise/lower bindings, and you want to keep raising an object while you
-    // rotate it. The Build Gun does not bind [ or ].
+    if (State.bEnabled && Key == EKeys::Slash)
+    {
+        // Snap the selected axis onto whatever the Build Gun is aiming at.
+        // TraceForBuilding is a live trace rather than the cached mHitResult,
+        // which stops updating once the hologram is locked - and locked is
+        // exactly the state this runs in.
+        if (Event.IsRepeat()) return true;
+        AFGHologram* const Target = Hologram.Get();
+        APawn* const Pawn = IsValid(Controller)
+            ? Cast<APawn>(Controller->GetControlledCharacter()) : nullptr;
+        const AFGCharacterPlayer* const Character = Cast<AFGCharacterPlayer>(Pawn);
+        const AFGBuildGun* const Gun = IsValid(Character) ? Character->GetBuildGun() : nullptr;
+        if (!IsValid(Target) || !IsValid(Gun) || !SupportsRotation(Target)) return true;
+
+        FHitResult Hit;
+        Gun->TraceForBuilding(Pawn, Hit);
+        // Nothing aimed at, or a degenerate normal: leave the pose alone
+        // rather than snapping the preview somewhere meaningless.
+        if (!Hit.bBlockingHit || !State.AlignAxisToNormal(Hit.ImpactNormal.GetSafeNormal()))
+        {
+            return true;
+        }
+        ApplyNativeRotation(Target, State.Rotation);
+        bAppliedRotation = true;
+        return true;
+    }
     if (State.bEnabled && Key == EKeys::Period)
     {
         // Which ramp the Alt step matches: 8x4, then 8x2, then 8x1.
         if (!Event.IsRepeat()) State.CycleRamp();
         return true;
     }
+    // Bracket keys, not PageUp/PageDown: those are the vanilla vertical
+    // raise/lower bindings, and you want to keep raising an object while you
+    // rotate it. The Build Gun does not bind [ or ].
     if (!State.bEnabled || (Key != EKeys::RightBracket && Key != EKeys::LeftBracket)) return false;
     if (!Event.IsRepeat()) State.Cycle(Key == EKeys::RightBracket ? 1 : -1);
     return true;

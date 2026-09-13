@@ -11,6 +11,19 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   non-empty for as long as the Build Gun is out - so the mode could never be
   entered on such a setup. Viewport focus is the real guard and is kept; the
   interact-widget check and the refusal on an unreadable game UI are gone.
+- Added **snap to aimed surface** to axis rotation. With rotation mode active,
+  aim at a face and press **/** to lay the selected axis along that surface's
+  normal in one press - the exact match the scroll steps can only approach, at
+  whatever angle the face happens to be. It uses a live Build Gun trace rather
+  than the cached hit result, which stops updating once the hologram is locked.
+  The turn applied is the minimal rotation between the two directions, so any
+  spin already set about that axis survives; aiming at nothing, or at a
+  degenerate normal, leaves the preview untouched. Every manual control is
+  unchanged, so a snap can still be nudged afterwards.
+- Changed the precise rotation step from 1 degree to **0.1 degree on Ctrl**, for
+  closing the last fraction against a surface. One degree is not lost - it moves
+  to **Ctrl+Shift**. The live readout now shows tenths, since a 0.1 degree step
+  is invisible at whole-degree precision.
 - Added **ramp pitches** to axis rotation, so a wall can be laid flush on a ramp
   rather than merely near it. Alt with the wheel steps by the exact angle of a
   vanilla ramp - 26.565 degrees for an 8x4, 14.036 for an 8x2, 7.125 for an 8x1

@@ -137,14 +137,16 @@ void FAIFactoryBuildGunHints::Update(
     {
         Desired.Add(TEXT("Rotate axis: exit"));
         Desired.Add(FString::Printf(
-            TEXT("Axis %s  —  P %.0f°  Y %.0f°  R %.0f°"),
+            TEXT("Axis %s  —  P %.1f°  Y %.1f°  R %.1f°"),
             AxisName(Axis),
             Rotation.Pitch,
             Rotation.Yaw,
             Rotation.Roll));
         Desired.Add(FString::Printf(
-            TEXT("Turn  (Ctrl 1°, Shift 45°, Alt ramp %.2f°)"), RampDegrees));
-        Desired.Add(TEXT("Ramp angle: 8x4 / 8x2 / 8x1")); 
+            TEXT("Turn  (Ctrl 0.1°, Ctrl+Shift 1°, Shift 45°, Alt ramp %.2f°)"),
+            RampDegrees));
+        Desired.Add(TEXT("Ramp angle: 8x4 / 8x2 / 8x1"));
+        Desired.Add(TEXT("Snap axis to aimed surface")); 
     }
     else if (bCanStart)
     {
@@ -186,6 +188,7 @@ void FAIFactoryBuildGunHints::Update(
         { EKeys::RightBracket, EKeys::LeftBracket },
         { EKeys::MouseScrollUp, FKey() },
         { EKeys::Period, FKey() },
+        { EKeys::Slash, FKey() },
     };
     for (int32 Index = 0; Index < Desired.Num(); ++Index)
     {
