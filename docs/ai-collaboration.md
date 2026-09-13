@@ -6586,5 +6586,12 @@ Deployed Steam DLL SHA-256
 `207A9DD9D3B0B6FCF56C1F13E28516DF68C0B77AB4C6479EAFBEF2D558465551`
 (replaces `4627909C…`).
 
-Unverified in a packaged game: whether the snapped axis picks the face the owner
-expects first try, and whether a pitched wall constructs keeping its tilt.
+**Live-verified by the owner on the deployed build (2026-09-13):** axis rotation
+enters, the surface snap lands, and the precision steps behave. Reported
+"working perfect so far". This is the first packaged-game confirmation of the
+lane; everything before it was source and build evidence only.
+
+Still not confirmed by direct observation: that a pitched wall *constructs*
+keeping its tilt. The serialized scroll rotation is resynced for exactly that
+reason, but nobody has yet reported building one and inspecting the placed
+actor, so do not record it as proven.
