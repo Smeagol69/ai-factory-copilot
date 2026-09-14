@@ -21,6 +21,39 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
   role existed is still complete. Whether signage resolved is reported
   separately as `signage_resolved`, and an unsigned theme is described rather
   than demoted.
+- Added a **reference blueprint library**: a small, versioned set of
+  human-authored designs, measured and shipped with the mod so the Architect
+  has worked examples even when no save is attached. `find_reference_designs`
+  returns each design's envelope, occupied span, decoded buildable counts
+  grouped into roles, conveyor-pair counts, exact build cost, and the author's
+  declared inputs and outputs, plus the library-wide role census and the part
+  vocabulary ranked by how many separate designs use each piece.
+
+  The measurement that motivated it: across seven designer blueprints, 890
+  placed buildings, production machines are 24 of them - 2.7% - while enclosure
+  is 63.7%. Declared inputs and outputs are carried as author claims parsed
+  from description text, never as verified rates.
+
+- Added **complete blueprint decodes**. For each supplied design the ingest
+  writes a machine-readable record of every buildable - blueprint-local
+  position, derived 8 m grid cell, yaw, scale, each machine's current recipe
+  and clock, colour and swatch, conveyor/pipe and power topology - alongside a
+  readable sheet with a per-floor plan view. Designer blueprints are never
+  truncated. Both are committed, so the assistant and any collaborator read
+  identical evidence instead of each re-deriving it from the binary.
+
+  The saved clock is what makes an author's claim checkable: a module of four
+  Constructors on the Screw recipe at 75% against a declared 120/min credits
+  each machine with 40/min at full clock.
+
+- Added `scripts/ingest-blueprint-reference.mjs` and a drag-and-drop companion
+  script. Dropping `.sbp`/`.sbpcfg` pairs or a `.cbp` world export onto
+  `scripts/add-blueprint.cmd` copies them in, decodes them, and opens the
+  result. Files present without a manifest entry are still ingested, and
+  `--check` fails when any artifact is stale. The source binaries are
+  deliberately not committed - they are other people's work and the repository
+  is public - so only the derived measurements ship.
+
 - Added an **AI Architect composition budget**, which is what finally consumes
   the reference census. The blueprint library measured that real designs place
   about 24 enclosure pieces, 6 logistics, 3 signs and 2.6 power parts for every
