@@ -94,7 +94,25 @@ const SEMANTIC_ROLES = Object.freeze([
   "window",
   "sloped_roof",
   "lighting",
+  // Added after the reference census showed real designs place three signs
+  // per production machine while this vocabulary could not express one at
+  // all. Adding it changes every design_family fingerprint, which the owner
+  // decided to accept; see REQUIRED_SEMANTIC_ROLES for why it does not also
+  // make every existing theme provisional.
+  "sign",
 ]);
+
+/**
+ * The roles a theme must resolve before it stops being provisional.
+ *
+ * Signage is part of the vocabulary but not of this set. A design that never
+ * selected a sign was complete before the role existed, and calling it
+ * provisional now would be this change grading yesterday's designs against a
+ * capability they never had. Whether signage resolved is reported separately.
+ */
+const REQUIRED_SEMANTIC_ROLES = Object.freeze(
+  SEMANTIC_ROLES.filter((role) => role !== "sign"),
+);
 
 const MAX_COMMISSIONING_PHASES = 8;
 
@@ -107,6 +125,7 @@ const ROLE_NAME_PATTERNS = Object.freeze({
   window: Object.freeze(["window", "glass wall", "glass frame"]),
   sloped_roof: Object.freeze(["roof"]),
   lighting: Object.freeze(["light", "lights", "lightbulb", "lamp", "floodlight"]),
+  sign: Object.freeze(["sign", "signs", "billboard", "display sign", "sign pole"]),
 });
 
 function finite(value) {
@@ -241,13 +260,18 @@ function designFamilyIdentity(style, familyId, creativeParameters, parts) {
     family_id: familyId,
     fingerprint: `sha256:${createHash("sha256").update(JSON.stringify(signature)).digest("hex")}`,
     signature,
-    complete: Object.values(roleRecipes).every(Boolean),
+    // Structural roles only. Signage is vocabulary, not a completeness gate:
+    // see REQUIRED_SEMANTIC_ROLES.
+    complete: REQUIRED_SEMANTIC_ROLES.every((role) => Boolean(roleRecipes[role])),
+    signage_resolved: Boolean(roleRecipes.sign),
     reuse_contract:
       "Reuse this exact signature for related buildings. A different style parameter or role recipe is a new family revision, not the same theme.",
     unresolved_effect:
-      Object.values(roleRecipes).some((value) => !value)
-        ? "The theme is provisional because one or more semantic roles have no captured available recipe selection."
-        : null,
+      REQUIRED_SEMANTIC_ROLES.some((role) => !roleRecipes[role])
+        ? "The theme is provisional because one or more structural semantic roles have no captured available recipe selection."
+        : !roleRecipes.sign
+          ? "The theme is structurally complete but has no sign part selected, so the design cannot label itself. Real designs place roughly three signs per production machine."
+          : null,
   };
 }
 
@@ -1244,7 +1268,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
         program_group: zone.group.id,
         produces: zone.group.produces,
         phase_machine_allocation: phaseMachineAllocation,
-        optional_roles: ["lighting"],
+        optional_roles: ["lighting", "sign"],
       },
     );
     addPart(
@@ -1315,7 +1339,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     { x: towerX, y: maxY + parameters.hall_gap_cells, z: towerZ },
     { x: parameters.tower_width_cells, y: parameters.tower_depth_cells, z: parameters.tower_floors },
     ["foundation", "wall", "window"],
-    { optional_roles: ["lighting"] },
+    { optional_roles: ["lighting", "sign"] },
   );
 
   const elements = rawElements.map((element) => ({

@@ -6659,3 +6659,49 @@ needed - the bridge picks this up on its next restart.
 but nothing yet *acts* on it - the adapters do not add enclosure, walkways or
 signs to close a reported shortfall. Turning the report into generation is the
 follow-on, and it is unclaimed.
+
+---
+
+## Claude — the sign role, and the fingerprint cost the owner accepted (2026-09-13)
+
+The composition budget reported signage as *inexpressible*: real designs place
+roughly three signs per production machine and `SEMANTIC_ROLES` could not express
+one. The owner chose to add the role knowing it changes family identity.
+
+**`SEMANTIC_ROLES` now has a ninth entry, `sign`.** Part discovery searches for
+sign, billboard and sign-pole recipes; production zones and the campus landmark
+declare it as an optional role, because a zone is the thing a sign names.
+
+### The fingerprint cost, stated plainly
+
+`designFamilyIdentity` hashes `exact_role_recipes`, which is derived from
+`SEMANTIC_ROLES`. A ninth entry changes that object for every style, so **every
+family fingerprint changes**. Stored revisions keep the fingerprint they were
+written with; a recompiled design gets a new family identity rather than matching
+the old one. No test pinned a literal fingerprint, so nothing failed - but
+`match_design_family_fingerprint` against a pre-change value will no longer
+match, and that is expected rather than a bug.
+
+### What was deliberately *not* changed
+
+Completeness. `complete` is now computed over `REQUIRED_SEMANTIC_ROLES`, the
+eight structural roles, not over all nine. A theme that resolved every structural
+role was complete before this role existed and stays complete - calling it
+provisional now would be grading yesterday's designs against a capability they
+never had. Signage is reported separately as `signage_resolved`, and an unsigned
+theme gets a description rather than a demotion.
+
+A contract test pins that decision, so a later change cannot quietly fold signage
+into the completeness gate.
+
+### How signage is counted
+
+It is the one role that does not scale with area: a sign labels what is inside,
+so the implied count tracks the machines in an element rather than its footprint.
+One per machine is the floor; the references place about three. Declaring the
+role therefore clears "cannot label itself at all" while the ratio still shows
+how much more heavily a real build signs.
+
+Verification: **992/992 companion tests** and `scripts/validate.ps1` pass. Adding
+the role broke nothing else in the suite - part resolution, candidate discovery
+and promotion were unaffected. No C++ changed.

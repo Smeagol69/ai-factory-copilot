@@ -5,6 +5,22 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added a **sign** semantic role, so an AI Architect design can label itself.
+  The reference census showed real builds place roughly three signs per
+  production machine while the vocabulary could not express a single one.
+  Production zones and the campus landmark now declare it, and part discovery
+  searches for sign, billboard and sign-pole recipes.
+
+  **This changes every `design_family` fingerprint**, because the fingerprint
+  covers `exact_role_recipes` and that set now has a ninth entry. Stored
+  revisions keep their own recorded fingerprints; a recompiled design gets a
+  new family identity rather than matching the old one.
+
+  Theme completeness deliberately did **not** change meaning: it is computed
+  over the structural roles only, so a design that was complete before this
+  role existed is still complete. Whether signage resolved is reported
+  separately as `signage_resolved`, and an unsigned theme is described rather
+  than demoted.
 - Added an **AI Architect composition budget**, which is what finally consumes
   the reference census. The blueprint library measured that real designs place
   about 24 enclosure pieces, 6 logistics, 3 signs and 2.6 power parts for every

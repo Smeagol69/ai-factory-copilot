@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -80,22 +81,72 @@ test("a hall with no circulation is reported short of access", () => {
   assert.match(assessment.caveat, /not decoded buildings/);
 });
 
-test("signage is reported as inexpressible, not merely as zero", () => {
-  // The manifest vocabulary has no signage role at all, which is a different
-  // problem from a design that could label itself and did not. Real designs
-  // place three signs per machine.
-  assert.ok(!Object.values(SEMANTIC_ROLE_CENSUS).includes("signage"));
-  const assessment = assessComposition({
+test("signage is expressible now, and its absence is a real shortfall", () => {
+  // The census showed real designs place roughly three signs per machine while
+  // the vocabulary could not express one at all. The sign role closed that.
+  assert.equal(SEMANTIC_ROLE_CENSUS.sign, "signage");
+
+  const unlabelled = assessComposition({
     elements: [
-      { size_cells: { x: 4, y: 4, z: 1 }, requires_roles: ["foundation"], phase_machine_allocation: [{ machines: 2 }] },
+      {
+        size_cells: { x: 4, y: 4, z: 1 },
+        requires_roles: ["foundation"],
+        phase_machine_allocation: [{ machines: 2 }],
+      },
     ],
   });
-  assert.ok(assessment.inexpressible_roles.includes("signage"));
-  const signage = assessment.roles.find((role) => role.role === "signage");
-  assert.equal(signage.expressible, false);
-  assert.ok(signage.required_for_planned_machines > 0);
-  // An inexpressible role must not be counted as a shortfall the design could fix.
-  assert.ok(!assessment.shortfall_roles.includes("signage"));
+  // No longer a vocabulary gap - it is now a design that simply did not label.
+  assert.deepEqual(unlabelled.inexpressible_roles, []);
+  const signage = unlabelled.roles.find((role) => role.role === "signage");
+  assert.equal(signage.expressible, true);
+  assert.equal(signage.implied_by_declared_massing, 0);
+  assert.ok(signage.shortfall > 0);
+  assert.ok(unlabelled.shortfall_roles.includes("signage"));
+
+  // Declaring the role labels per machine, which is the floor rather than the
+  // reference density, so the ratio still shows how much more a real build signs.
+  const labelled = assessComposition({
+    elements: [
+      {
+        size_cells: { x: 4, y: 4, z: 1 },
+        requires_roles: ["foundation"],
+        optional_roles: ["sign"],
+        phase_machine_allocation: [{ machines: 2 }],
+      },
+    ],
+  });
+  const labelledSignage = labelled.roles.find((role) => role.role === "signage");
+  assert.equal(labelledSignage.implied_by_declared_massing, 2, "one per machine");
+  assert.ok(labelledSignage.shortfall < signage.shortfall, "declaring it closes some of the gap");
+});
+
+test("adding the sign role did not make existing themes provisional", () => {
+  // Signage is vocabulary, not a completeness gate. A theme that resolved every
+  // structural role was complete before the role existed and must stay complete,
+  // or this change would be grading old designs against a capability they
+  // never had.
+  const structural = [
+    "foundation",
+    "support_column",
+    "walkway",
+    "rail",
+    "wall",
+    "window",
+    "sloped_roof",
+    "lighting",
+  ];
+  const megabase = readFileSync(new URL("../lib/megabase.mjs", import.meta.url), "utf8")
+    .replace(/\r\n/g, "\n");
+  assert.match(megabase, /const REQUIRED_SEMANTIC_ROLES = Object\.freeze\(/);
+  assert.match(megabase, /SEMANTIC_ROLES\.filter\(\(role\) => role !== "sign"\)/);
+  // Completeness is computed over the structural set, never over every role.
+  assert.match(
+    megabase,
+    /complete: REQUIRED_SEMANTIC_ROLES\.every\(\(role\) => Boolean\(roleRecipes\[role\]\)\)/,
+  );
+  assert.match(megabase, /signage_resolved: Boolean\(roleRecipes\.sign\)/);
+  // Every structural role is still in the required set.
+  for (const role of structural) assert.match(megabase, new RegExp(`"${role}"`));
 });
 
 test("no machines means no budget rather than a false pass", () => {
@@ -160,7 +211,8 @@ test("validation reports composition without ever failing a design for it", () =
   assert.ok(result.composition_advisory, "the advisory is always present");
   assert.equal(result.composition_advisory.meets_reference_composition, false);
   assert.ok(result.composition_advisory.shortfall_roles.length > 0);
-  assert.ok(result.composition_advisory.inexpressible_roles.includes("signage"));
+  assert.deepEqual(result.composition_advisory.inexpressible_roles, []);
+  assert.ok(result.composition_advisory.shortfall_roles.includes("signage"));
   // Every issue raised is about something other than composition.
   for (const issue of result.issues) {
     assert.doesNotMatch(String(issue), /composition|enclosure|signage|access/);

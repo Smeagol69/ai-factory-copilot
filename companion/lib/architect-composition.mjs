@@ -36,6 +36,7 @@ export const SEMANTIC_ROLE_CENSUS = Object.freeze({
   walkway: "access",
   rail: "access",
   lighting: "ambience",
+  sign: "signage",
 });
 
 /**
@@ -120,7 +121,25 @@ export function impliedPartsForElement(element) {
     walkway: roles.has("walkway") ? perimeter : 0,
     rail: roles.has("rail") ? perimeter : 0,
     lighting: roles.has("lighting") ? Math.max(Math.round(deck / 4), 1) : 0,
+    // Signage is the one role that does not scale with area: a sign labels
+    // what is inside, so it tracks the machines in this element rather than
+    // its footprint. One per machine is the floor - the references place
+    // roughly three - so declaring the role clears "cannot label itself at
+    // all" while the ratio still shows how much more a real build signs.
+    sign: roles.has("sign") ? Math.max(elementMachines(element), 1) : 0,
   };
+}
+
+/** Machines this one element plans, across every phase it allocates. */
+function elementMachines(element) {
+  const allocation = element?.phase_machine_allocation;
+  let planned = 0;
+  if (Array.isArray(allocation)) {
+    for (const entry of allocation) planned += whole(entry?.machines ?? entry?.count);
+  } else if (allocation && typeof allocation === "object") {
+    for (const value of Object.values(allocation)) planned += whole(value);
+  }
+  return planned;
 }
 
 function machineCount(manifest) {
