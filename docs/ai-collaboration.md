@@ -46,7 +46,7 @@ Append a row when you start; update the status when you stop. Remove nothing.
 
 | Since | Agent | Branch | Area — files | Status |
 |---|---|---|---|---|
-| 2026-09-13 | Claude | `integrate/codex-blueprint-lanes` | **Make the reference census constrain Architect generation.** The blueprint library measured that real designs are 2.7% production and 63.7% enclosure, but nothing consumes it: `compileMegabaseConcept` still emits massing whose part composition is never checked against that. Add a composition budget derived from each element's `size_cells` and `requires_roles` - implied foundation/wall/window/roof/column counts from geometry, mapped onto the reference role census - and report required-vs-implied per role with named shortfalls, in the compile output the model reads and as a `validateMegabaseManifest` finding. Derived geometry is labelled an estimate, never a decoded fact. Scope is a new companion lib, wiring into compile and validation, and tests. **Deliberately NOT changing `SEMANTIC_ROLES`:** adding a signage role would change `exact_role_recipes` and therefore every `design_family` fingerprint, invalidating existing revision identity - the missing signage vocabulary is reported as a named limitation instead, for the owner to decide. No C++, no world mutation, no change to existing manifest bytes for designs that already validate. | claimed |
+| 2026-09-13 | Claude | `integrate/codex-blueprint-lanes` | **Make the reference census constrain Architect generation.** The blueprint library measured that real designs are 2.7% production and 63.7% enclosure, but nothing consumes it: `compileMegabaseConcept` still emits massing whose part composition is never checked against that. Add a composition budget derived from each element's `size_cells` and `requires_roles` - implied foundation/wall/window/roof/column counts from geometry, mapped onto the reference role census - and report required-vs-implied per role with named shortfalls, in the compile output the model reads and as a `validateMegabaseManifest` finding. Derived geometry is labelled an estimate, never a decoded fact. Scope is a new companion lib, wiring into compile and validation, and tests. **Deliberately NOT changing `SEMANTIC_ROLES`:** adding a signage role would change `exact_role_recipes` and therefore every `design_family` fingerprint, invalidating existing revision identity - the missing signage vocabulary is reported as a named limitation instead, for the owner to decide. No C++, no world mutation, no change to existing manifest bytes for designs that already validate. | complete |
 | 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Hand the Precision Frame back to the native Build Gun.** Owner reports the +/-90 controls work but the X/Y/Z move does not, and would rather nudge with the native arrow keys anyway. Root cause is in `ApplyPrecisionFrameToBuildState`: rotation is seeded once behind a generation guard, but position calls `SetNudgeOffset` on **every** post-tick, and `SetNudgeOffset` replaces the offset that native `NudgeHologram`/`AddNudgeOffset` accumulate into - so the mod overwrites the player's arrow keys one frame after every press. Change position to the same one-shot seed as rotation: lock, seed the offset once per generation, then stop writing so native nudge owns it. Also route lock/nudge through `GetNudgeHologramTarget()` per the CL 502094 header contract, since compound holograms (wire -> pole) nudge a child. Add a re-snap control and correct the status copy. Anchor capture, yaw, mirror, and +/-90 are preserved; the X/Y/Z fields are kept and become the initial seed rather than a continuous override. No new native call is introduced, nothing constructs, and the hook ordering is unchanged. Scope is the precision-frame path in the UI subsystem, its contract test, changelog, and this handoff, then validate/build/package/deploy with the game closed. | complete |
 | 2026-09-05 | Claude | `integrate/codex-blueprint-lanes` | **Complete blueprint decode, so both agents see exactly what a supplied blueprint is.** Yesterday's reference catalog keeps only aggregate class counts and a role census; it discards every transform, so neither agent can actually reconstruct a supplied design. Add a full-fidelity, unbounded offline decode over the same pinned read-only parser: every buildable with its blueprint-local translation, derived 8 m grid cell, derived yaw, and scale; per-machine `mCurrentRecipe`, `mBuiltWithRecipe`, and `mPendingPotential` clock; per-building colour slot and swatch; the decoded conveyor/pipe connection graph and power wires; and a derived throughput check that tests the author's declared I/O against machine count x clock rather than repeating it. Emit one complete JSON decode plus one readable Markdown sheet per blueprint into `reference/blueprints/decoded/`, both committed, so Codex and Claude read identical evidence. Also add `.cbp` interactive-map world exports to the same pipeline, and correct `AGENTS.md`, which still tells a fresh agent that blueprint transform analysis is unimplemented and that the companion is dependency-free. Scope is companion `lib/`, `scripts/`, `reference/`, `docs/`, and tests. No C++, no world mutation, no change to the bounded live-tool limits that protect provider context. | complete |
 | 2026-09-01 | Codex | `codex/ai-architect-promotion` | Continue AI Architect milestone A3 with a bounded selected-revision promotion adapter. Recompile and verify only the selected immutable `megabase.design/v1` revision against the current full snapshot; resolve its exact semantic parts into the existing `aifactory.generated-blueprint/v1..v4` contract only where captured unlocked Build Gun recipes, relative transforms, roles, bounds, and all required topology are proved; then submit the unchanged native Designer/serializer/readback action and arm the exact registered descriptor through the existing native Build Gun preview handoff. Fail closed with exact readiness blockers; never turn a semantic preview volume into guessed buildables, never bypass selection/staleness/write gates, never create a file before explicit commit, and never disturb `codex/generated-blueprint-two-stage-wire`, the A1 overlay, or the proven native generator/C++ path. Initial expected files are a separate companion adapter, `manage_architect_revisions` promotion operations/schema, focused tests, provider/docs/changelog, and append-only handoff; C++ changes are out of scope unless a verified missing game seam is found and separately announced. | claimed; auditing selected-revision, semantic part-resolution, and generated Blueprint contracts before implementation |
@@ -6596,3 +6596,66 @@ Still not confirmed by direct observation: that a pitched wall *constructs*
 keeping its tilt. The serialized scroll rotation is resynced for exactly that
 reason, but nobody has yet reported building one and inspecting the placed
 actor, so do not record it as proven.
+
+---
+
+## Claude — the reference census now constrains generation (2026-09-13)
+
+The measurement has been sitting unused since the blueprint library landed: real
+designs are 2.7% production and 63.7% enclosure, and nothing consumed it. This
+is what consumes it.
+
+### Two assessments, and they answer different questions
+
+`assessComposition(manifest)` grades **declared intent** - what a design's
+massing implies, from each element's `size_cells` and `requires_roles`.
+
+`assessPromotedComposition(actions)` grades **what will actually be built**,
+classifying each promoted action by the building its recipe produces through
+`classifyBuildable`, the same classifier the catalog was counted with. Planned
+buildings against decoded buildings, no estimate in between.
+
+**When they disagree, the promoted one is the truth.** The manifest side can
+report ample enclosure because a hall's volume implies a large skin, while the
+adapters emit far less. That gap is exactly where "reads like a box" lives, and
+only the second assessment can see it.
+
+### What it immediately says
+
+A 6x6x6 hall with four machines declaring foundation, wall and window:
+
+    enclosure   required  95   implied 384   short   0
+    access      required   4   implied   0   short   4
+    signage     required  12   implied   0   INEXPRESSIBLE
+
+Massing was never the problem. **Circulation and labelling are.** A hall that
+declares no walkway or rail has no way in, and nothing in the vocabulary can
+label anything.
+
+### Signage is inexpressible, and fixing it is the owner's call
+
+`SEMANTIC_ROLES` has no sign role, so a design cannot label itself even though
+real builds place three signs per machine. That is reported as its own kind of
+finding, not as a count of zero - they are different problems with different
+fixes.
+
+**Adding the role is deliberately not done here.** `SEMANTIC_ROLES` feeds
+`exact_role_recipes`, which feeds the `design_family` fingerprint, so adding one
+changes the identity of every family and invalidates stored revision matching.
+That is a decision for the owner, not a side effect of a reporting change.
+
+### Reporting, never enforcement
+
+Composition never becomes a validation issue. Every design that validated before
+this still validates; the advisory names the gap and the model reading the tool
+output can act on it. Refusing thin designs would have silently invalidated
+stored revisions, and a thin build can be deliberate.
+
+Verification: **991/991 companion tests** and `scripts/validate.ps1` pass, with
+ten new composition contracts. No C++ changed, so no rebuild or redeploy is
+needed - the bridge picks this up on its next restart.
+
+**Open next:** the promoted budget is the lever that can actually change output,
+but nothing yet *acts* on it - the adapters do not add enclosure, walkways or
+signs to close a reported shortfall. Turning the report into generation is the
+follow-on, and it is unclaimed.

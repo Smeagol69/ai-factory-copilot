@@ -18,6 +18,8 @@ export { captureUnlockConstraints } from "./unlock-constraints.mjs";
 
 import { FOUNDATION_CM } from "./designer.mjs";
 
+import { assessComposition } from "./architect-composition.mjs";
+
 export const MEGABASE_SCHEMA = "megabase.design/v1";
 
 export const MEGABASE_STYLES = Object.freeze([
@@ -1020,7 +1022,22 @@ export function validateMegabaseManifest(manifest) {
       issues.push(`production_output_rate_is_not_fully_accounted:${outputKey}`);
     }
   }
-  return { valid: issues.length === 0, issues };
+  // Composition is reported, never enforced as an issue. Every design that
+  // validated before this existed still validates: a thin build is a design
+  // judgement the owner may have made deliberately, and refusing it here would
+  // silently invalidate stored revisions. The shortfall is named so the model
+  // reading this can act on it.
+  const composition = assessComposition(manifest);
+  return {
+    valid: issues.length === 0,
+    issues,
+    composition_advisory: {
+      meets_reference_composition: composition.meets_reference_composition,
+      shortfall_roles: composition.shortfall_roles,
+      inexpressible_roles: composition.inexpressible_roles,
+      note: composition.guidance,
+    },
+  };
 }
 
 function zonePlacements(groups, style, parameters) {
@@ -1432,5 +1449,8 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
   manifest.footprint = megabaseFootprint(manifest);
   manifest.site_assessment = assessMegabaseSite(graph, manifest);
   const validation = validateMegabaseManifest(manifest);
-  return { ...manifest, validation };
+  // The reference census, made actionable: what real designs place per
+  // production machine, against what this design implies.
+  const composition_budget = assessComposition(manifest);
+  return { ...manifest, composition_budget, validation };
 }

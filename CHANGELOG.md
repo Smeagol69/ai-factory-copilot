@@ -5,6 +5,30 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Added an **AI Architect composition budget**, which is what finally consumes
+  the reference census. The blueprint library measured that real designs place
+  about 24 enclosure pieces, 6 logistics, 3 signs and 2.6 power parts for every
+  production machine; that measurement previously sat in the catalog unused.
+
+  `design_megabase_concept` now reports required-versus-implied parts per role
+  for the machines a design plans, derived from each element's declared
+  `size_cells` and `requires_roles`. `manage_architect_revisions` promotion
+  reports the same budget against the action list it will actually build,
+  classifying each action by the building its recipe produces through the very
+  classifier the catalog was counted with - so planned buildings are compared
+  with decoded buildings and no geometry estimate sits in between.
+
+  Composition is **reported, never enforced**: every design that validated
+  before still validates. A thin build can be a deliberate choice, and refusing
+  it would silently invalidate stored revisions.
+
+  Two findings fall straight out of it. A hall that declares foundation, wall
+  and window implies ample structure but **no circulation at all** - access is
+  short on any design that does not declare a walkway or rail. And **signage is
+  inexpressible**: `SEMANTIC_ROLES` has no sign role, so a design cannot label
+  itself even though real builds place three signs per machine. That is
+  reported as its own kind of finding rather than as a count of zero, because
+  adding the role would change every `design_family` fingerprint.
 - Fixed Build Gun axis rotation being unreachable while any interact widget was
   open. Entry required `HasActiveInteractWidget()` to be false, but that is
   `mInteractWidgetStack.Num() > 0`, which a building mod such as SMART! keeps
