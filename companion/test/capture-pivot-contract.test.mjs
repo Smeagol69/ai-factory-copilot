@@ -21,7 +21,7 @@ test("a capture is serialised against its own origin, not the designer's", () =>
   assert.match(exporter, /ComputeCaptureOrigin\(Members, CaptureOrigin\)/);
   assert.match(
     exporter,
-    /WriteSubsystem->WriteBlueprintToArchive\(\s*\n?\s*Record, CaptureOrigin, Members, Designer->GetBlueprintDimensions\(\)\);/,
+    /WriteSubsystem->WriteBlueprintToArchive\(\s*\n?\s*Record, CaptureOrigin, Members, ExpectedCaptureDimensions\);/,
   );
   assert.match(exporter, /WriteSubsystem->WriteBlueprintToDisk\(Record\);/);
 });
@@ -57,11 +57,27 @@ test("the designer is never moved to achieve the recentring", () => {
 });
 
 test("a degenerate selection refuses the new frame rather than writing NaN", () => {
-  // An empty or NaN-only selection must not produce an origin at all; the
-  // fallback then runs instead of a blueprint pivoted on garbage.
+  // Invalid origins cannot fall back to writing invalid transforms.
   assert.match(exporter, /if \(Location\.ContainsNaN\(\)\)/);
   assert.match(exporter, /if \(!Bounds\.IsValid \|\| Bounds\.Min\.ContainsNaN\(\)/);
   assert.match(exporter, /if \(Snapped\.ContainsNaN\(\)\)/);
+  assert.match(exporter, /capture_selection_has_invalid_origins/);
+});
+
+test("capture dimensions use complete native bounds and verify archive and disk results", () => {
+  const helper = exporter.slice(exporter.indexOf("bool ComputeCaptureDimensions("), exporter.indexOf("class FScopedGeneratedBuildables"));
+  assert.match(helper, /ResolveGeneratedNativeBounds\(Member, MemberBounds, Source\)/);
+  assert.match(helper, /Bounds \+= MemberBounds/);
+  assert.match(helper, /Bounds \+= Member->GetActorLocation\(\)/);
+  assert.match(helper, /Origin\.Z = Bounds\.Min\.Z/);
+  assert.match(helper, /AIFactoryCaptureGeometry::ComputeDimensions/);
+  assert.match(exporter, /native_capture_archive_dimensions_mismatch/);
+  assert.match(exporter, /const bool bWrittenToDisk = WriteSubsystem->WriteBlueprintToDisk\(Record\)/);
+  assert.match(exporter, /if \(!bWrittenToDisk\)[\s\S]*?native_capture_write_to_disk_failed/);
+  assert.match(exporter, /ReadHeader->Dimensions == ExpectedCaptureDimensions/);
+  assert.match(exporter, /native_capture_disk_dimensions_mismatch/);
+  assert.match(exporter, /designer_dimensions_fallback_selection_extent_unknown/);
+  assert.match(exporter, /capture_dimensions_unknown_reason/);
 });
 
 test("the designer-relative path survives as an explicit fallback", () => {

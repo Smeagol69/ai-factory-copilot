@@ -5,6 +5,23 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Captured Blueprints now record dimensions from every selected buildable's
+  native bounds, including lightweight structures, in the game's 8 m cells.
+  The envelope accounts for the snapped pivot and uses the measured base in Z,
+  so large captures no longer inherit an unrelated Designer's 32 m box. Missing
+  modded bounds keep the existing export fallback with an explicit unknown
+  extent; invalid transforms and unrepresentable dimensions refuse the write.
+  Native archive dimensions, disk-write success, and disk-header dimensions
+  are checked before export is reported successful. Existing files are unchanged.
+- Architect composition now counts the final generated Blueprint's buildings,
+  conveyors, power wires and pipelines. Building classification follows the
+  captured recipe/descriptor/class relation; missing or ambiguous evidence is
+  reported, and typed spline records retain their known transport/power role.
+  Composition remains advisory and does not change placement or design identity.
+- Validation and Starter Project staging select one Node executable when PATH
+  contains multiple Node installations, instead of joining their paths into an
+  invalid command.
+
 - Added a **sign** semantic role, so an AI Architect design can label itself.
   The reference census showed real builds place roughly three signs per
   production machine while the vocabulary could not express a single one.

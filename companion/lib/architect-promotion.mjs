@@ -16,7 +16,7 @@
  */
 
 import { parsePieceDimensions } from "./architecture.mjs";
-import { assessPromotedComposition } from "./architect-composition.mjs";
+import { assessGeneratedBlueprintComposition } from "./architect-composition.mjs";
 import {
   compileArchitectPipelines,
   partitionArchitectMaterialEdges,
@@ -1083,7 +1083,7 @@ export function compileArchitectPromotion(graph, manifest, {
   // produces, against the decoded reference census. The manifest-side budget
   // grades declared intent; this grades the action list, so when the two
   // disagree this is the one that describes what appears in the world.
-  const composition_budget = assessPromotedComposition(internalPower.actions);
+  const composition_budget = assessGeneratedBlueprintComposition(native, graph);
   return {
     ...base,
     composition_budget,

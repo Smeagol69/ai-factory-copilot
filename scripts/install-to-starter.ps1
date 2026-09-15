@@ -74,7 +74,7 @@ foreach ($name in $included) {
 # production dependency tree in the Starter Project. Materialise it only after
 # copying clean source: it is reproducible from package-lock.json and never
 # inherits an arbitrary repository node_modules directory.
-$nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+$nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $nodeCommand) {
     throw 'Node.js 20 or newer is required to stage the bundled companion dependencies.'
 }

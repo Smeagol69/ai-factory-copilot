@@ -973,6 +973,8 @@ test("single-link Architect machines receive a capacity-safe pole with an extern
   assert.equal(promoted.internal_power.external_connection.reserved_links, 1);
   assert.equal(promoted.native_blueprint.counts.buildables, 7);
   assert.equal(promoted.native_blueprint.counts.power_wires, 2);
+  assert.equal(promoted.composition_budget.planned_buildings, 10, "seven ordinary actors, one conveyor and two wire actors");
+  assert.equal(promoted.composition_budget.planned_by_role.power, 3, "one pole plus both wires");
   const independentlyValidated = validateAction(graph, promoted.action);
   assert.equal(independentlyValidated.valid, true, JSON.stringify(independentlyValidated));
   assert.equal(independentlyValidated.checks.captured_power_capacity_checked_endpoints, 3);
@@ -990,6 +992,10 @@ test("one-to-one rate-matched fluid dependencies compile through native v3 pipel
   assert.equal(promoted.native_blueprint.schema, "aifactory.generated-blueprint/v3");
   assert.equal(promoted.native_blueprint.counts.pipelines, 1);
   assert.equal(promoted.native_blueprint.counts.conveyors, 0);
+  assert.equal(promoted.composition_budget.planned_buildings,
+    promoted.action.buildables.length + promoted.action.power_wires.length + promoted.action.pipelines.length);
+  assert.equal(promoted.composition_budget.planned_by_role.logistics, 1, "the native pipeline is counted even with a modded name");
+  assert.equal(promoted.composition_budget.native_record_counts.pipelines, 1);
   assert.equal(promoted.internal_pipelines.compiled, true);
   assert.equal(promoted.internal_pipelines.evidence[0].lane_rate_m3_per_minute, 120);
   assert.equal(promoted.internal_pipelines.evidence[0].pipeline_capacity_m3_per_minute, 300);
