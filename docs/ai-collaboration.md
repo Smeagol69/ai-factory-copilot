@@ -6705,3 +6705,57 @@ how much more heavily a real build signs.
 Verification: **992/992 companion tests** and `scripts/validate.ps1` pass. Adding
 the role broke nothing else in the suite - part resolution, candidate discovery
 and promotion were unaffected. No C++ changed.
+
+---
+
+## Claude — the companion was never deployed, and why the noticeboard said otherwise (2026-09-14)
+
+**Correction to my own two previous entries.** Both ended with a variant of "no
+C++ changed, so no rebuild or redeploy is needed - the bridge picks this up on
+its next restart." The first half is true and the conclusion does not follow.
+
+`AIFactoryCompanion.cpp:32` resolves the bridge as
+`<IPlugin::GetBaseDir()>/companion/server.mjs` - the copy inside the game's
+`FactoryGame\Mods\AIFactoryCopilot`, not this repository. Restarting it re-ran
+whatever was last deployed there, which was a September 5 tree. So the
+composition budget and the sign role were committed, tested and documented but
+never reachable from the game. `architect-composition.mjs` was absent from the
+install entirely; `megabase.mjs` and `architect-promotion.mjs` were stale.
+
+**A companion-only change still needs `install-to-starter.ps1` +
+`package-local.ps1`.** There is no lighter path that keeps the deployed tree
+consistent with the archive assertions, and "no C++ changed" is not a reason to
+skip it.
+
+### The deploy also has a destructive window, which bit this run
+
+Alpakit's `DeployStagedPlugin` deletes the game mod directory before copying
+from staging. A transient file lock on the Shipping DLL - it cleared on the
+next access, so Defender or the Mod Manager scanning - threw
+`UnauthorizedAccessException` after the delete and before the copy. The install
+was left with three files: the old DLL and the two cooked Paks, no `.uplugin`,
+no `Resources`, no `companion`. The mod could not load at all in that state, and
+the owner launched the game into it before I had restored it.
+
+Anyone staging a deploy should assume the install is unusable for the duration
+and say so before starting, not after a failure.
+
+### Deployed state, verified file by file
+
+Exact CL 502094 validation and **992/992 companion tests** pass;
+`scripts/validate.ps1` passes. The game install now holds **1119 files**, and
+all **45** `companion/lib/*.mjs` files match this repository byte for byte,
+including the three that had never shipped. `server.mjs` and both bundled
+runtime dependencies are present. The deployed `SEMANTIC_ROLES` has its ninth
+entry, `sign`, and `referenceRoleMix()` loads from the installed copy returning
+7 designs / 890 buildings.
+
+The Shipping DLL is SHA-256
+`207A9DD9D3B0B6FCF56C1F13E28516DF68C0B77AB4C6479EAFBEF2D558465551` - byte
+identical to the build the owner already live-verified, which is the expected
+result of recompiling unchanged C++ and is itself confirmation that no source
+drift crept in.
+
+**Still open and unchanged:** nothing yet *acts* on the composition budget - the
+promotion adapters do not add enclosure, walkways or signs to close a reported
+shortfall. That lane remains unclaimed.
