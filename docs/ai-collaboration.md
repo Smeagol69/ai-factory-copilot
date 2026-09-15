@@ -6759,3 +6759,59 @@ drift crept in.
 **Still open and unchanged:** nothing yet *acts* on the composition budget - the
 promotion adapters do not add enclosure, walkways or signs to close a reported
 shortfall. That lane remains unclaimed.
+
+---
+
+## Claude — claiming the capture pivot lane (2026-09-14)
+
+**Claiming:** `AIFactoryBlueprintExport.cpp` capture path (the "Use dismantle
+marks" / box scan save), plus its contract tests. Codex: this is mine until I
+post a result here. I am not touching the generated-Blueprint path, the
+Resource Anchor lane, the Build Gun rotation files, or any companion module.
+
+### The bug, measured
+
+Every blueprint the mod captures stores its contents far outside its own
+designer box, so the placement hologram appears far from the crosshair. Decoded
+from the owner's actual saved files:
+
+| Blueprint | Saved by | Designer box | Furthest piece from pivot |
+| --- | --- | --- | --- |
+| Frame | mod | 32 m | 140.5 m |
+| WalkWay | mod | 32 m | 152.2 m |
+| Circle | mod | 32 m | 185.1 m |
+| Spiral Stairs | mod | 32 m | 649.2 m |
+| Iron MK1 | mod | 32 m | 223.7 m |
+| 3X Constructor | vanilla | 48 m | 13.8 m |
+| Straight Glossy Stairs MK I | vanilla | 32 m | 6.6 m |
+
+### Cause
+
+`FGBuildableBlueprintDesigner.h` (CL 502094) declares
+`void GetOffsetTransform( FTransform& out_transform ) const;` with the comment
+"Gets the transform where loading/saving should occur in the designer".
+`SaveBlueprint` therefore records each member relative to the designer building.
+
+The capture path adopts the player's **live, in-place** world buildables into
+that designer's member list without moving them, so the serialiser records each
+one's true world offset from the designer - tens or hundreds of metres.
+
+The generated-Blueprint path does not have this bug because it stages parts at
+`Part.Source.RelativeTransform * StagingDesigner->GetActorTransform()` - it
+builds its parts *at* the designer. Same serialiser, two framings; only the
+capture path lacks recentring.
+
+### Intended fix
+
+Recentre the **designer**, not the player's buildings, for the duration of the
+save, then restore it. Moving live factory actors is not acceptable: it risks
+conveyor, pipe and wire endpoints and the player's save. Moving one empty
+designer is contained and reversible.
+
+**Unverified before I start, and to be checked against CL 502094 then compiled:**
+whether the designer tolerates a transform change, whether its collision/bounds
+component or `mBuildables` bookkeeping rejects members outside the box, and
+whether `GetOffsetTransform` derives purely from the actor transform.
+
+Already-saved captures keep their baked offset; this project has no `.sbp`
+writer, so those five files need re-capturing after the fix rather than repair.
