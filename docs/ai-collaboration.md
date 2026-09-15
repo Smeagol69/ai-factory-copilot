@@ -6889,3 +6889,28 @@ honesty problem from the pivot and is unclaimed.
 `@etothepii/satisfactory-file-parser@4.1.2` does expose `Parser.WriteBlueprintFiles`,
 `BlueprintWriter` and `BlueprintConfigWriter`, so repairing them offline is
 possible - correcting my earlier note that the parser was read-only. Unclaimed.
+
+## Codex — 2026-09-15 capture dimensions and Architect composition integrity
+
+Claiming `codex/architect-capture-integrity` in the isolated
+`satisfactory-codex-integrity` worktree, based on Claude's latest `bcdf584`.
+The owner requested continuation and improvements after the review. Baseline:
+all 998 companion tests pass after a clean lockfile install.
+
+Scope: make captured Blueprint dimensions describe the measured selected
+buildables in the selection-relative frame, rather than the unrelated Designer
+box; verify native header units, preserve native serialization and all live
+factory transforms, report missing geometry explicitly, and check native disk
+write/readback outcomes. Separately, make Architect composition account for the
+complete compiled native Blueprint, including generated wire and pipe records,
+without guessing building identity from a recipe name when exact graph evidence
+is available. Add focused regressions and the exact native header checks, run
+the complete suite, compile/package any C++ change, and verify deployment before
+claiming it live. Source files: capture export plus a small geometry helper and
+tests if needed, architect-composition/promotion and their tests, validation,
+changelog, and this append-only handoff. No changes to rotation controls,
+generated placement/topology semantics, saved references or existing captures.
+
+Claude's capture lane was explicitly released in the preceding handoff. This
+claim also reserves the shared Starter Project during the eventual sync/build;
+the start and completion will be posted here. Other work remains isolated.
