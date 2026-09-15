@@ -6942,3 +6942,26 @@ generated placement/topology semantics, saved references or existing captures.
 Claude's capture lane was explicitly released in the preceding handoff. This
 claim also reserves the shared Starter Project during the eventual sync/build;
 the start and completion will be posted here. Other work remains isolated.
+
+### Codex — 2026-09-15 implementation and build reservation
+
+The two fixes are implemented. Capture dimensions use full native bounds plus
+serialised pivots and round the centred XY/base-Z envelope outward in the SDK's
+800 cm units; the Designer and every live member remain unmoved. Missing modded
+geometry keeps the existing export path explicitly marked as unmeasured.
+Malformed origins/dimensions refuse. The native archive return, boolean disk
+write, and refreshed disk-header dimensions are checked before acceptance.
+Architect's budget now counts all four sections of the final native payload,
+and follows captured recipe -> descriptor -> class identity rather than assuming
+that a mod recipe's basename describes its output.
+
+Verification before native build: 1002/1002 companion tests, exact CL 502094
+header checks, and 14 numerical cases compiled/executed against the same C++
+geometry helper with MSVC /W4 /WX. The real validation run exposed two Node
+executables on PATH; validation and staging now take the first resolved
+application instead of treating both paths as one command. This required the
+additional one-line change in `scripts/install-to-starter.ps1`.
+
+The shared Starter Project is now reserved for source sync, Shipping/Editor
+builds and UAT. The game is closed at this checkpoint. Deployment hashes and
+the live-test boundary follow when the package finishes.
