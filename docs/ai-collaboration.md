@@ -6815,3 +6815,77 @@ whether `GetOffsetTransform` derives purely from the actor transform.
 
 Already-saved captures keep their baked offset; this project has no `.sbp`
 writer, so those five files need re-capturing after the fix rather than repair.
+
+---
+
+## Claude — capture pivot fixed, and the fix I first proposed was wrong (2026-09-14)
+
+**Releasing the lane.** `AIFactoryBlueprintExport.cpp` capture path is free.
+
+### The fix I claimed would work does not, and would have failed silently
+
+I claimed I would move the designer temporarily. Verified against CL 502094
+before writing it, and it cannot work:
+
+- `AFGBuildable`'s root component is created with `EComponentMobility::Static`
+  (`FGBuildable.cpp`), and `AFGBuildableBlueprintDesigner`'s constructor only
+  calls `SetupAttachment(RootComponent)` - it never re-mobilises the root.
+- `AActor::SetActorTransform` routes to `USceneComponent::MoveComponentImpl`,
+  which early-returns `false` via `CheckStaticMobilityAndWarn` for a registered
+  static component in an initialised game world.
+- That warning is inside `#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)`. **In a
+  shipping game the move is refused with no diagnostic at all.** The mod would
+  have reported success and saved the same broken offsets.
+
+The obvious workaround is also unsafe: `SetMobility(Movable)` recurses into
+every attached child, while `SetMobility(Static)` does not recurse back. The
+designer's terminal mesh, floor mesh, refund and storage components would be
+left permanently Movable, each having paid a full `FComponentReregisterContext`.
+
+**Anyone tempted to move an `AFGBuildable` at runtime: don't. It is a silent
+no-op in Shipping.**
+
+### What actually fixes it
+
+`AFGBlueprintSubsystem::WriteBlueprintToArchive(const FBlueprintRecord&, const
+FTransform& blueprintOrigin, const TArray<AFGBuildable*>&, FIntVector)` is
+public, `FACTORYGAME_API` and `BlueprintCallable`, and **takes the origin as an
+explicit parameter**. Nothing has to move; the caller states the frame.
+`GetOffsetTransform` is only how the designer supplies that argument.
+
+The capture now computes its own origin from the selection: X and Y snapped to
+the 8 m grid so a grid-aligned build stays aligned once re-expressed, Z at the
+selection's floor so it sits on its own base, identity rotation because rotating
+the frame would turn the whole capture. Degenerate or NaN selections produce no
+origin at all.
+
+The designer-relative `SaveBlueprint` call is **kept as an explicit fallback**
+for an unavailable subsystem, and the result reports `recentred_on_selection`
+plus `blueprint_origin_cm`, so it can never silently downgrade to the old frame.
+
+### Verification
+
+**998/998 companion tests** (six new capture-pivot contracts, one of which
+asserts the designer is never moved, anchored on `Designer->` receivers so a
+comment cannot satisfy it), `scripts/validate.ps1`, Shipping and Editor builds,
+UAT cook/archive and matched Steam deployment all pass. The compile is itself
+evidence: `WriteBlueprintToArchive` bound against the real CL 502094 signature.
+
+Deployed Shipping DLL SHA-256
+`9457173927695D355BC278DDD0A43F0EE487E3E159113F153DA8FBFCE695133B`.
+
+**Not yet proven, and needs a live capture:** whether `WriteBlueprintToArchive`
+followed by `WriteBlueprintToDisk` composes into a complete file on its own.
+Both bodies are auto-generated stubs in the Starter Project, so the composition
+is read off signatures and header comments rather than code. The existing
+`ReadBlueprintFromDisc` readback is the fail-closed guard - a wrong composition
+refuses the capture rather than writing a bad file.
+
+**Deliberately not changed:** the declared `dimensions` still come from the
+designer, so a 150 m capture is still recorded as a 32 m box. That is a separate
+honesty problem from the pivot and is unclaimed.
+
+**Already-saved captures keep their baked offset.** The pinned
+`@etothepii/satisfactory-file-parser@4.1.2` does expose `Parser.WriteBlueprintFiles`,
+`BlueprintWriter` and `BlueprintConfigWriter`, so repairing them offline is
+possible - correcting my earlier note that the parser was read-only. Unclaimed.

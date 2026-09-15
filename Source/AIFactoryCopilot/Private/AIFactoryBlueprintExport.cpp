@@ -850,6 +850,71 @@ namespace
             Bounds.GetSize().GetAbsMax() > KINDA_SMALL_NUMBER;
     }
 
+    /** One 8 m build grid cell, in centimetres. */
+    constexpr double AIFactoryGridCellCm = 800.0;
+
+    /**
+     * The origin a captured selection should be serialised against.
+     *
+     * This is the fix for captures that placed hundreds of metres from the
+     * crosshair. `AFGBuildableBlueprintDesigner::SaveBlueprint` has no origin
+     * parameter -- it uses its own `GetOffsetTransform`, documented in
+     * FGBuildableBlueprintDesigner.h as "the transform where loading/saving
+     * should occur in the designer". A real designer works because the player
+     * builds *inside* it. This export adopts buildings that are wherever they
+     * already stand, so every member was recorded at its true world offset from
+     * a designer that could be a kilometre away. Decoding the owner's captures
+     * measured 140 m to 649 m, against 6 m to 14 m for vanilla-saved files.
+     *
+     * `AFGBlueprintSubsystem::WriteBlueprintToArchive` takes `blueprintOrigin`
+     * as an explicit parameter, so nothing has to move: the caller states the
+     * frame. That matters, because the designer cannot be moved anyway --
+     * AFGBuildable's root component is created with EComponentMobility::Static
+     * (FGBuildable.cpp), and USceneComponent::MoveComponentImpl refuses a
+     * registered static component outright, silently in Shipping.
+     *
+     * X and Y snap to the 8 m grid so a grid-aligned build stays grid-aligned
+     * once re-expressed. Z takes the exact floor of the selection, so the
+     * blueprint sits on its own base the way a designer-built one does.
+     * Rotation is identity: any rotation here would turn the whole capture.
+     */
+    bool ComputeCaptureOrigin(const TArray<AFGBuildable*>& Members, FTransform& OutOrigin)
+    {
+        FBox Bounds(ForceInit);
+        for (const AFGBuildable* Member : Members)
+        {
+            if (!IsValid(Member))
+            {
+                continue;
+            }
+            // Actor origin rather than rendered bounds: it is what the
+            // serialiser records, so the frame and the contents agree even for
+            // a buildable whose mesh is offset from its transform.
+            const FVector Location = Member->GetActorLocation();
+            if (Location.ContainsNaN())
+            {
+                continue;
+            }
+            Bounds += Location;
+        }
+        if (!Bounds.IsValid || Bounds.Min.ContainsNaN() || Bounds.Max.ContainsNaN())
+        {
+            return false;
+        }
+
+        const FVector Centre = Bounds.GetCenter();
+        const FVector Snapped(
+            FMath::RoundToDouble(Centre.X / AIFactoryGridCellCm) * AIFactoryGridCellCm,
+            FMath::RoundToDouble(Centre.Y / AIFactoryGridCellCm) * AIFactoryGridCellCm,
+            Bounds.Min.Z);
+        if (Snapped.ContainsNaN())
+        {
+            return false;
+        }
+        OutOrigin = FTransform(FQuat::Identity, Snapped, FVector::OneVector);
+        return true;
+    }
+
     /**
      * Resolve the same spatial contract Satisfactory uses for hologram
      * clearance before falling back to registered primitive bounds.
@@ -2124,7 +2189,8 @@ FAIFactoryActionResult ExportSelection(
     {
         Predicted->SetStringField(
             TEXT("would_call"),
-            TEXT("OnBuildableConstructedInsideDesigner per buildable, then SaveBlueprint"));
+            TEXT("OnBuildableConstructedInsideDesigner per buildable, then ")
+            TEXT("WriteBlueprintToArchive against the selection's own origin"));
         FAIFactoryActionResult Result;
         Result.Action = Action;
         Result.bAccepted = true;
@@ -2190,8 +2256,58 @@ FAIFactoryActionResult ExportSelection(
         AFGPlayerController* Controller =
             IsValid(Context.Player) ? Cast<AFGPlayerController>(Context.Player->GetController()) : nullptr;
 
-        Designer->SaveBlueprint(Record, Controller);
+        // Serialise against the selection's own origin rather than the
+        // designer's. See ComputeCaptureOrigin: SaveBlueprint offers no origin
+        // parameter, which is what pushed every capture hundreds of metres from
+        // its pivot; WriteBlueprintToArchive takes one.
+        TArray<AFGBuildable*> Members;
+        Members.Reserve(Buildables.Num() + Materialised.Get().Num());
+        for (AFGBuildable* Buildable : Buildables)
+        {
+            if (IsValid(Buildable))
+            {
+                Members.Add(Buildable);
+            }
+        }
+        for (AFGBuildable* Buildable : Materialised.Get())
+        {
+            if (IsValid(Buildable))
+            {
+                Members.Add(Buildable);
+            }
+        }
 
+        FTransform CaptureOrigin;
+        AFGBlueprintSubsystem* WriteSubsystem =
+            AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
+        const bool bRecentred =
+            IsValid(WriteSubsystem) && Members.Num() > 0 && ComputeCaptureOrigin(Members, CaptureOrigin);
+
+        if (bRecentred)
+        {
+            WriteSubsystem->WriteBlueprintToArchive(
+                Record, CaptureOrigin, Members, Designer->GetBlueprintDimensions());
+            WriteSubsystem->WriteBlueprintToDisk(Record);
+        }
+        else
+        {
+            // The designer-relative path this replaces. Kept deliberately: it
+            // is the only other way to produce the file, and a capture that
+            // saves in the wrong frame still beats one that cannot save at all.
+            // The readback below reports which frame was used either way.
+            Designer->SaveBlueprint(Record, Controller);
+        }
+
+        Predicted->SetBoolField(TEXT("recentred_on_selection"), bRecentred);
+        if (bRecentred)
+        {
+            const FVector OriginLocation = CaptureOrigin.GetLocation();
+            const TSharedRef<FJsonObject> OriginJson = MakeShared<FJsonObject>();
+            OriginJson->SetNumberField(TEXT("x"), OriginLocation.X);
+            OriginJson->SetNumberField(TEXT("y"), OriginLocation.Y);
+            OriginJson->SetNumberField(TEXT("z"), OriginLocation.Z);
+            Predicted->SetObjectField(TEXT("blueprint_origin_cm"), OriginJson);
+        }
         Predicted->SetNumberField(TEXT("adopted"), Membership.Num());
         Predicted->SetNumberField(TEXT("skipped"), Skipped);
     }
