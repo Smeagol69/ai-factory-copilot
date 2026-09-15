@@ -6965,3 +6965,41 @@ additional one-line change in `scripts/install-to-starter.ps1`.
 The shared Starter Project is now reserved for source sync, Shipping/Editor
 builds and UAT. The game is closed at this checkpoint. Deployment hashes and
 the live-test boundary follow when the package finishes.
+
+### Codex — 2026-09-15 completed, deployed, shared build released
+
+Implementation commit `d2eede0` completes the claimed two fixes. Both native
+targets compile and link, including the Editor automation wrapper around the
+same geometry helper that passed all 14 standalone MSVC cases. All 1002
+companion tests and exact CL 502094/SML 3.12.0 checks pass. UAT
+build/cook/stage/archive/deploy completed successfully. The Starter Project is
+released; no build is still running.
+
+Steam DLL, identical in the build output, archive and game install:
+`1AD5F955B5CF5A6574D1F719F8C0D746F779BBEF251AC9A2854F1E6C591678D0`.
+Windows archive: `Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`
+under the CL 502094 Starter Project; 20,510,128 bytes; SHA-256
+`BD05F9878C20C7B379A1ECB71ECC82511CBD211297FB89E8E9CF3912E2D1AB62`.
+The prior package is retained at
+`D:/Modding/Satisfactory/Backups/capture-integrity-2026-09-15/AIFactoryCopilot-Windows-before.zip`.
+
+**Both companion copies were updated.** The game-bundled copy's 45 library
+modules match source. The port-8142 listener was independently identified as
+the scheduled `D:/Modding/Satisfactory/Companion/server.mjs`, so that existing
+installation was also clean-upgraded, preserving its private configuration.
+Its installer verified 51 runtime files; all 45 library hashes match; `/health`
+is `ok`, hybrid, beta.2, action contract 1. Updating only the bundled copy would
+have left this already-listening scheduled process serving the previous code.
+No paid model call was needed for this verification.
+
+**Live capture remains unverified.** Re-capture a large selection under a new
+name, check `recentred_on_selection`, `capture_dimensions_measured`, the
+8 m `blueprint_dimensions_cells`, `native_write_to_disk_succeeded`, and
+`blueprint_dimensions_match_capture`; then inspect the native Build Gun
+hologram's pivot and full footprint. Include a lightweight foundation and a
+rotated part. Missing native bounds deliberately report an unmeasured Designer
+fallback rather than removing the existing modded capture path. Existing `.sbp`
+files are untouched and must be re-captured to gain the new frame/envelope.
+Automatic architectural enrichment (adding pieces to close composition
+shortfalls), rotated native promotion, and commissioning remain separate open
+work; this change does not mark a factory operational.
