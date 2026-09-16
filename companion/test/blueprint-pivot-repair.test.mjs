@@ -16,12 +16,41 @@ test("the repair only touches blueprints this mod wrote", () => {
   assert.match(repair, /repair: false, why: "not written by this mod"/);
 });
 
-test("a blueprint already inside its declared box is left alone", () => {
-  // Being far from the pivot is not itself a fault: a blueprint may legitimately
-  // fill its designer, so the limit is the half-diagonal of the box it declares.
-  assert.match(repair, /halfDiagonalCm/);
-  assert.match(repair, /if \(worst <= halfDiagonalCm\)/);
-  assert.match(repair, /already inside its/);
+test("a blueprint already centred and inside its declared box is left alone", () => {
+  // The invariant comes from the game, not from taste: across a real library all
+  // 49 Designer-saved blueprints have contents fitting the box they declare.
+  // Extent is the test, not distance from pivot - the latter would wrongly clear
+  // a blueprint that is centred but still larger than the box it claims.
+  assert.match(repair, /const fits = span\("x"\) <= box\.x && span\("y"\) <= box\.y && span\("z"\) <= box\.z;/);
+  assert.match(repair, /already centred and inside its declared box/);
+});
+
+test("a correct blueprint is not rewritten just to shift it a few centimetres", () => {
+  // Grid snapping almost always yields some small non-zero origin. Without a
+  // tolerance this tool rewrote three already-good captures to move them ~20 cm,
+  // which is churn on files that work. A real mis-pivot is tens of cells out.
+  assert.match(repair, /Math\.abs\(origin\.x\) < GRID_CELL_CM/);
+  assert.match(repair, /Math\.abs\(origin\.z\) < GRID_CELL_CM/);
+  assert.match(repair, /Math\.abs\(origin\.x\) >= GRID_CELL_CM/);
+});
+
+test("an oversized box is corrected even when the pivot is already right", () => {
+  // Two independent faults. A capture recentred by an earlier run of this tool
+  // can still declare a box smaller than its contents, and that must not be
+  // mistaken for "nothing to do".
+  assert.match(repair, /function computeDimensions\(objects, declared\)/);
+  assert.match(repair, /Math\.max\(Number\(declared\?\.x\) \|\| 0, cellsFor\(span\("x"\)\)\)/);
+  assert.match(repair, /entry\.parsed\.header\.designerDimension = dimensions;/);
+  assert.match(repair, /if \(!shifted && !grew\)/);
+});
+
+test("a junction cannot make one blueprint be repaired twice", () => {
+  // A real library contained a Windows junction onto a sibling folder, so 19
+  // blueprints were reachable by two paths. Subtracting the origin twice would
+  // move a blueprint further out than it started.
+  assert.match(repair, /fs\.realpathSync\.native\(current\)/);
+  assert.match(repair, /if \(seenDirs\.has\(real\)\) return;/);
+  assert.match(repair, /found\.set\(fs\.realpathSync\.native\(full\), full\)/);
 });
 
 test("the origin rule matches the exporter's, so repaired and new captures agree", () => {

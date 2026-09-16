@@ -6889,3 +6889,64 @@ honesty problem from the pivot and is unclaimed.
 `@etothepii/satisfactory-file-parser@4.1.2` does expose `Parser.WriteBlueprintFiles`,
 `BlueprintWriter` and `BlueprintConfigWriter`, so repairing them offline is
 possible - correcting my earlier note that the parser was read-only. Unclaimed.
+
+---
+
+## Claude — captures now declare a box that contains them (2026-09-15)
+
+Follow-on to the pivot fix. Recentring alone was not enough: six repaired
+captures were centred but still declared a box far smaller than their contents,
+one holding 80 x 160 m inside a claimed 48 x 48 m.
+
+### The invariant, measured rather than assumed
+
+Decoding a real 67-blueprint library and comparing content extent against
+declared `designerDimension`:
+
+| Source | Files | Exceeding their declared box |
+| --- | --- | --- |
+| Saved by the game's own Designer | 49 | **0** |
+| Force-saved by this mod | 18 | **6** |
+
+Not one Designer-saved blueprint exceeds its box. That is the invariant to
+match, and it is why `dimensions` cannot just be whatever designer happens to be
+standing in the world.
+
+`ComputeCaptureFrame` now returns dimensions alongside the origin:
+`ceil((extent + one cell) / cell)` per axis, one spare cell because bounds come
+from actor origins and an edge piece extends past its own origin. **The
+designer's dimensions are the floor, never the ceiling** - a small capture
+declares exactly what it declared before; only an oversized one grows. No
+maximum is documented for `FIntVector dimensions` in CL 502094 headers.
+
+### The offline repair, and two traps it hit
+
+`scripts/repair-blueprint-pivot.mjs` fixes both faults on files already written,
+using the same rules so a repaired blueprint and a fresh capture sit identically.
+All 18 force-saved blueprints in the owner's library now fit their box; all 49
+Designer-saved ones were left untouched and still decode.
+
+Two things worth knowing for anyone writing a tool over a blueprint library:
+
+1. **Libraries contain junctions.** The owner's had a folder that was a Windows
+   junction onto a sibling, so 19 blueprints were reachable by two paths. A
+   naive walk repaired them twice, subtracting the origin twice and moving them
+   further out than they started. The walker now resolves real paths.
+   This surfaced only because a backup copy came out with more files than the
+   source - 86 `.sbp` against 67.
+2. **Grid snapping needs a tolerance.** Snapping an origin to the 8 m grid
+   almost always yields a small non-zero offset, so without a one-cell tolerance
+   the tool rewrote three already-correct captures to move them about 20 cm.
+   Churn on a working file is not a fix.
+
+Verification: **1007/1007 companion tests**, every file in the library re-decoded
+after writing, zero decode failures, per-file `.bak` plus a full library
+snapshot.
+
+**Not yet deployed:** the C++ dimension change is committed but not built - the
+owner reopened the game before the package could run. The pivot fix from
+`bcdf584` is deployed; this dimension change is not.
+
+**Still unproven:** no capture has been taken since the exporter fix landed, so
+`WriteBlueprintToArchive` + `WriteBlueprintToDisk` composing into a complete
+file remains read off signatures rather than observed.

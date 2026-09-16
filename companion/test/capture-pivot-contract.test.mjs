@@ -18,10 +18,13 @@ test("a capture is serialised against its own origin, not the designer's", () =>
   // stand were recorded at their true world offset from a designer that could
   // be a kilometre away. Decoded captures measured 140-649 m from pivot against
   // 6-14 m for vanilla-saved files.
-  assert.match(exporter, /ComputeCaptureOrigin\(Members, CaptureOrigin\)/);
   assert.match(
     exporter,
-    /WriteSubsystem->WriteBlueprintToArchive\(\s*\n?\s*Record, CaptureOrigin, Members, Designer->GetBlueprintDimensions\(\)\);/,
+    /ComputeCaptureFrame\(\s*\n?\s*Members, Designer->GetBlueprintDimensions\(\), CaptureOrigin, CaptureDimensions\)/,
+  );
+  assert.match(
+    exporter,
+    /WriteSubsystem->WriteBlueprintToArchive\(\s*\n?\s*Record, CaptureOrigin, Members, CaptureDimensions\);/,
   );
   assert.match(exporter, /WriteSubsystem->WriteBlueprintToDisk\(Record\);/);
 });
@@ -82,4 +85,22 @@ test("the readback that proves the file exists is unchanged", () => {
   // committed when the subsystem can read the archive back off disk.
   assert.match(exporter, /Subsystem->ReadBlueprintFromDisc\(BlueprintName\)/);
   assert.match(exporter, /save_ran_but_no_archive_could_be_read_back/);
+});
+
+test("a capture declares a box that actually contains it", () => {
+  // Measured across a real library: all 49 blueprints saved by the game's own
+  // Designer fit the dimensions they declare, without exception. Six of this
+  // mod's captures did not - one held 80 x 160 m of content in a 48 x 48 m box -
+  // because dimensions were copied from whichever designer stood in the world.
+  assert.match(exporter, /FIntVector& OutDimensions/);
+  assert.match(exporter, /CellsFor\(Size\.X\)/);
+  assert.match(exporter, /CellsFor\(Size\.Y\)/);
+  assert.match(exporter, /CellsFor\(Size\.Z\)/);
+  // One spare cell per axis, because bounds come from actor origins and a piece
+  // at the edge extends past its own origin.
+  assert.match(exporter, /\(Extent \+ AIFactoryGridCellCm\) \/ AIFactoryGridCellCm/);
+  // The designer's dimensions are the floor, never the ceiling: a small capture
+  // declares exactly what it declared before, only an oversized one grows.
+  assert.match(exporter, /FMath::Max\(DesignerDimensions\.X, CellsFor\(Size\.X\)\)/);
+  assert.match(exporter, /Predicted->SetObjectField\(TEXT\("declared_dimensions_cells"\), DimensionJson\);/);
 });

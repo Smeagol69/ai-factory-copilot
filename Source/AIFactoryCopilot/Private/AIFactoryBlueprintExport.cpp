@@ -878,7 +878,11 @@ namespace
      * blueprint sits on its own base the way a designer-built one does.
      * Rotation is identity: any rotation here would turn the whole capture.
      */
-    bool ComputeCaptureOrigin(const TArray<AFGBuildable*>& Members, FTransform& OutOrigin)
+    bool ComputeCaptureFrame(
+        const TArray<AFGBuildable*>& Members,
+        const FIntVector& DesignerDimensions,
+        FTransform& OutOrigin,
+        FIntVector& OutDimensions)
     {
         FBox Bounds(ForceInit);
         for (const AFGBuildable* Member : Members)
@@ -912,6 +916,31 @@ namespace
             return false;
         }
         OutOrigin = FTransform(FQuat::Identity, Snapped, FVector::OneVector);
+
+        /**
+         * Declare a box that actually contains the capture.
+         *
+         * Measured across a real library: all 49 blueprints saved by the game's
+         * own Designer fit inside the dimensions they declare, without a single
+         * exception. Six of this mod's captures did not -- one held 80 x 160 m
+         * of content in a blueprint claiming 48 x 48 m -- because the dimensions
+         * were copied from whichever designer happened to be standing in the
+         * world rather than measured from the selection.
+         *
+         * One extra cell is added per axis because the bounds are taken from
+         * actor origins, and a piece at the edge extends past its own origin.
+         * The designer's dimensions are the floor, never the ceiling, so a small
+         * capture still declares exactly what it declared before and only an
+         * oversized one grows. FIntVector carries no documented maximum.
+         */
+        const FVector Size = Bounds.GetSize();
+        const auto CellsFor = [](const double Extent) {
+            return FMath::Max(1, FMath::CeilToInt32((Extent + AIFactoryGridCellCm) / AIFactoryGridCellCm));
+        };
+        OutDimensions = FIntVector(
+            FMath::Max(DesignerDimensions.X, CellsFor(Size.X)),
+            FMath::Max(DesignerDimensions.Y, CellsFor(Size.Y)),
+            FMath::Max(DesignerDimensions.Z, CellsFor(Size.Z)));
         return true;
     }
 
@@ -2278,15 +2307,17 @@ FAIFactoryActionResult ExportSelection(
         }
 
         FTransform CaptureOrigin;
+        FIntVector CaptureDimensions = Designer->GetBlueprintDimensions();
         AFGBlueprintSubsystem* WriteSubsystem =
             AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
-        const bool bRecentred =
-            IsValid(WriteSubsystem) && Members.Num() > 0 && ComputeCaptureOrigin(Members, CaptureOrigin);
+        const bool bRecentred = IsValid(WriteSubsystem) && Members.Num() > 0 &&
+            ComputeCaptureFrame(
+                Members, Designer->GetBlueprintDimensions(), CaptureOrigin, CaptureDimensions);
 
         if (bRecentred)
         {
             WriteSubsystem->WriteBlueprintToArchive(
-                Record, CaptureOrigin, Members, Designer->GetBlueprintDimensions());
+                Record, CaptureOrigin, Members, CaptureDimensions);
             WriteSubsystem->WriteBlueprintToDisk(Record);
         }
         else
@@ -2307,6 +2338,12 @@ FAIFactoryActionResult ExportSelection(
             OriginJson->SetNumberField(TEXT("y"), OriginLocation.Y);
             OriginJson->SetNumberField(TEXT("z"), OriginLocation.Z);
             Predicted->SetObjectField(TEXT("blueprint_origin_cm"), OriginJson);
+
+            const TSharedRef<FJsonObject> DimensionJson = MakeShared<FJsonObject>();
+            DimensionJson->SetNumberField(TEXT("x"), CaptureDimensions.X);
+            DimensionJson->SetNumberField(TEXT("y"), CaptureDimensions.Y);
+            DimensionJson->SetNumberField(TEXT("z"), CaptureDimensions.Z);
+            Predicted->SetObjectField(TEXT("declared_dimensions_cells"), DimensionJson);
         }
         Predicted->SetNumberField(TEXT("adopted"), Membership.Num());
         Predicted->SetNumberField(TEXT("skipped"), Skipped);

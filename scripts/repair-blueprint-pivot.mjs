@@ -158,6 +158,29 @@ const furthest = (objects) =>
     return Math.max(worst, Math.hypot(t.x, t.y, t.z));
   }, 0);
 
+/**
+ * A declared box that actually contains the contents.
+ *
+ * Mirrors ComputeCaptureFrame. Measured across a real library, all 49
+ * blueprints written by the game's own Designer fit the dimensions they
+ * declare; captures written before this were copying whichever designer stood
+ * in the world, so one held 80 x 160 m of content in a 48 x 48 m box. One extra
+ * cell per axis covers pieces extending past their own origin, and the existing
+ * declaration is the floor so nothing ever shrinks.
+ */
+function computeDimensions(objects, declared) {
+  const span = (key) => {
+    const values = objects.map((o) => o.transform.translation[key]);
+    return Math.max(...values) - Math.min(...values);
+  };
+  const cellsFor = (extent) => Math.max(1, Math.ceil((extent + GRID_CELL_CM) / GRID_CELL_CM));
+  return {
+    x: Math.max(Number(declared?.x) || 0, cellsFor(span("x"))),
+    y: Math.max(Number(declared?.y) || 0, cellsFor(span("y"))),
+    z: Math.max(Number(declared?.z) || 0, cellsFor(span("z"))),
+  };
+}
+
 /** The exporter stamps this into every capture it writes. */
 const COPILOT_DESCRIPTION = /AI Factory Copilot/i;
 
@@ -171,10 +194,11 @@ const COPILOT_DESCRIPTION = /AI Factory Copilot/i;
  * is repaired only when the exporter's own description is on it and its
  * contents genuinely fall outside the box it declares.
  *
- * The box test uses the declared designer dimensions in 8 m tiles. A blueprint
- * legitimately fills its designer, so the furthest piece can sit at the far
- * corner; the half-diagonal of the declared box is that limit, and anything
- * past it could never have been built inside the designer it claims.
+ * The box test compares the contents' extent against the declared dimensions in
+ * 8 m tiles. That is the invariant the game's own Designer maintains: measured
+ * across a real library, all 49 Designer-saved blueprints have contents that fit
+ * the box they declare, with no exceptions, while six of this mod's captures did
+ * not.
  */
 function needsRepair(parsed, objects) {
   const description = String(parsed.config?.description ?? "");
@@ -182,14 +206,42 @@ function needsRepair(parsed, objects) {
     return { repair: false, why: "not written by this mod" };
   }
   const dim = parsed.header?.designerDimension ?? { x: 0, y: 0, z: 0 };
-  const halfDiagonalCm =
-    (Math.hypot(Number(dim.x) || 0, Number(dim.y) || 0, Number(dim.z) || 0) * GRID_CELL_CM) / 2;
-  if (!(halfDiagonalCm > 0)) {
+  const box = {
+    x: (Number(dim.x) || 0) * GRID_CELL_CM,
+    y: (Number(dim.y) || 0) * GRID_CELL_CM,
+    z: (Number(dim.z) || 0) * GRID_CELL_CM,
+  };
+  if (!(box.x > 0 && box.y > 0 && box.z > 0)) {
     return { repair: false, why: "no declared designer box to judge against" };
   }
-  const worst = furthest(objects);
-  if (worst <= halfDiagonalCm) {
-    return { repair: false, why: `already inside its ${(halfDiagonalCm / 100).toFixed(1)} m box` };
+
+  // Extent, not distance from the pivot. That is the invariant the game's own
+  // Designer maintains: measured across a real library, all 49 Designer-saved
+  // blueprints have contents fitting the box they declare, with no exceptions.
+  // Distance from pivot would wrongly clear a blueprint that is centred but
+  // still larger than the box it claims.
+  const span = (key) => {
+    const values = objects.map((o) => o.transform.translation[key]);
+    return Math.max(...values) - Math.min(...values);
+  };
+  const fits = span("x") <= box.x && span("y") <= box.y && span("z") <= box.z;
+
+  // Within one cell counts as centred. Snapping to the grid will almost always
+  // produce some small non-zero origin, and rewriting a correct blueprint to
+  // shift it 20 cm is churn on a file that already works -- three already-good
+  // captures were being rewritten for exactly that before this tolerance.
+  // A genuinely mis-pivoted capture is out by tens of cells, not one.
+  const centred = (() => {
+    const origin = computeOrigin(objects);
+    if (!origin) return false;
+    return (
+      Math.abs(origin.x) < GRID_CELL_CM &&
+      Math.abs(origin.y) < GRID_CELL_CM &&
+      Math.abs(origin.z) < GRID_CELL_CM
+    );
+  })();
+  if (fits && centred) {
+    return { repair: false, why: "already centred and inside its declared box" };
   }
   return { repair: true, why: null };
 }
@@ -273,22 +325,51 @@ function main() {
       skipped += 1;
       continue;
     }
-    if (origin.x === 0 && origin.y === 0 && origin.z === 0) {
-      console.log(`  OK    ${label} — already centred (${(before / 100).toFixed(1)} m)`);
-      continue;
-    }
 
-    for (const object of objects) {
-      object.transform.translation.x -= origin.x;
-      object.transform.translation.y -= origin.y;
-      object.transform.translation.z -= origin.z;
+    // Two independent faults, either of which can be the one present. A capture
+    // written before the exporter fix is off-pivot; one already recentred can
+    // still declare a box smaller than it is.
+    // Same one-cell tolerance the verdict uses: a blueprint kept only for its
+    // box being wrong must not also be nudged a few centimetres sideways.
+    const shifted =
+      Math.abs(origin.x) >= GRID_CELL_CM ||
+      Math.abs(origin.y) >= GRID_CELL_CM ||
+      Math.abs(origin.z) >= GRID_CELL_CM;
+    if (shifted) {
+      for (const object of objects) {
+        object.transform.translation.x -= origin.x;
+        object.transform.translation.y -= origin.y;
+        object.transform.translation.z -= origin.z;
+      }
     }
     const after = furthest(objects);
 
-    console.log(
-      `  FIX   ${label} — ${objects.length} pieces, ` +
-        `${(before / 100).toFixed(1)} m -> ${(after / 100).toFixed(1)} m from pivot`,
-    );
+    const declared = entry.parsed.header.designerDimension;
+    const dimensions = computeDimensions(objects, declared);
+    const grew =
+      dimensions.x !== (Number(declared?.x) || 0) ||
+      dimensions.y !== (Number(declared?.y) || 0) ||
+      dimensions.z !== (Number(declared?.z) || 0);
+    if (grew) {
+      entry.parsed.header.designerDimension = dimensions;
+    }
+
+    if (!shifted && !grew) {
+      console.log(`  OK    ${label} — already centred and honestly sized`);
+      continue;
+    }
+
+    const parts = [];
+    if (shifted) {
+      parts.push(`${(before / 100).toFixed(1)} m -> ${(after / 100).toFixed(1)} m from pivot`);
+    }
+    if (grew) {
+      parts.push(
+        `box ${declared?.x}x${declared?.y}x${declared?.z} -> ` +
+          `${dimensions.x}x${dimensions.y}x${dimensions.z} cells`,
+      );
+    }
+    console.log(`  FIX   ${label} — ${objects.length} pieces, ${parts.join("; ")}`);
 
     if (!args.apply) continue;
 
