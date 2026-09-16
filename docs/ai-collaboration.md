@@ -7003,3 +7003,22 @@ files are untouched and must be re-captured to gain the new frame/envelope.
 Automatic architectural enrichment (adding pieces to close composition
 shortfalls), rotated native promotion, and commissioning remain separate open
 work; this change does not mark a factory operational.
+
+## Codex — 2026-09-15 companion Architect element rotation claim
+
+Claiming `codex/architect-element-rotation` in the isolated
+`satisfactory-codex-integrity` worktree, from current `origin/master` `f07f1c7`.
+The owner asked to work on the AI companion. Extend all seven existing native
+promotion adapters to honour each validated semantic element's world yaw about
+its recorded world origin. Remove the temporary rotated-element refusal only
+after foundations, machines, facades, roofs, supports, bridges and landmarks
+carry that transform correctly. Verify exact quarter-turn coordinates, mixed
+and fractional angles, unchanged unrotated output, and connector/capacity gates
+on rotated machinery. Keep manifest/revision identity, measured geometry,
+current unlock checks, native authority and incomplete commissioning explicit.
+
+Scope: companion Architect promotion and focused tests, roadmap/changelog and
+this handoff. No native code, preview/layout generation or saved references
+change. Deploy both the scheduled and game-bundled companion libraries after
+the full suite passes, verifying hashes and bridge health. The shared Starter
+Project is not reserved by this companion-only task.
