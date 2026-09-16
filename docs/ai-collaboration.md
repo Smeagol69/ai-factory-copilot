@@ -6950,3 +6950,9 @@ owner reopened the game before the package could run. The pivot fix from
 **Still unproven:** no capture has been taken since the exporter fix landed, so
 `WriteBlueprintToArchive` + `WriteBlueprintToDisk` composing into a complete
 file remains read off signatures rather than observed.
+
+**Deployed 2026-09-15.** The dimension change is now in the game. Shipping DLL
+SHA-256 `5B921A28BE2E878169D53DDA60A0022A9013455F777F5A66122970EFD064224B`
+(the pivot-only build was `94571739...`). 1119 files installed, all 45
+companion lib files match the repository, `scripts/validate.ps1` and
+**1007/1007** tests pass. Live capture verification is the remaining gate.
