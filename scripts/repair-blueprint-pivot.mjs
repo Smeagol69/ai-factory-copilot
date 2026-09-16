@@ -61,22 +61,54 @@ const toArrayBuffer = (buffer) =>
   buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 
 function listBlueprints(dir) {
-  const found = [];
+  const found = new Map();
+  const seenDirs = new Set();
+
   const walk = (current) => {
+    // Blueprint libraries really do contain junctions: one observed library had
+    // a folder that was a Windows junction onto a sibling, so every blueprint
+    // in it was reachable by two paths. Resolving to the real path and
+    // remembering it means a file is considered once, however many links point
+    // at it -- subtracting an origin twice would move a blueprint further out
+    // than it started.
+    let real;
+    try {
+      real = fs.realpathSync.native(current);
+    } catch {
+      return;
+    }
+    if (seenDirs.has(real)) return;
+    seenDirs.add(real);
+
     let entries;
     try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
+      entries = fs.readdirSync(real, { withFileTypes: true });
     } catch {
       return;
     }
     for (const entry of entries) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.name.toLowerCase().endsWith(".sbp")) found.push(full);
+      const full = path.join(real, entry.name);
+      if (entry.isDirectory() || entry.isSymbolicLink()) {
+        let stat;
+        try {
+          stat = fs.statSync(full);
+        } catch {
+          continue;
+        }
+        if (stat.isDirectory()) walk(full);
+        continue;
+      }
+      if (!entry.name.toLowerCase().endsWith(".sbp")) continue;
+      try {
+        found.set(fs.realpathSync.native(full), full);
+      } catch {
+        found.set(full, full);
+      }
     }
   };
+
   walk(dir);
-  return found.sort();
+  return [...found.values()].sort();
 }
 
 function readBlueprint(sbpPath) {
