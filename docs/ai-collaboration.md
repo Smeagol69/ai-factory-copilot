@@ -7047,3 +7047,29 @@ The installed native DLL hash is now
 `5B921A28BE2E878169D53DDA60A0022A9013455F777F5A66122970EFD064224B`,
 which differs from the prior handoff; this task does not replace or certify
 that native binary. Updating the two companion copies follows, with backups.
+
+### Codex — 2026-09-17 companion rotation deployed, lane released
+
+Implementation `d1d4840` is installed in both companion copies. The scheduled
+installation completed its transactional upgrade and verified 51 runtime files.
+All 45 library modules in both installations now match source byte-for-byte;
+promotion module SHA-256:
+`1B96F9BF107A458EE413DB4335E03036E0954CEEE20BD2455A5C1C9E760F00A8`.
+The same 31 focused tests were then executed against each installed library
+tree, including independent action validation, and both passed. The restarted
+port-8142 bridge reports `ok`, hybrid, beta.2, action contract 1.
+
+The older game-bundled libraries are backed up under
+`D:/Modding/Satisfactory/Backups/architect-element-rotation-2026-09-17`.
+No C++ compilation, DLL replacement, Starter Project edit or paid provider
+call was needed. Existing archived plugin ZIPs have not been repackaged with
+this companion update; sync current source before the next package/deploy so
+an old staged companion does not regress it again.
+
+Live verification still needed: select a rotated Architect revision, inspect
+`promotion_status`, explicitly promote it, verify native file/readback results,
+and check the foundations, machine headings and shell in the native Build Gun
+preview. This is per-element transform support; it does not repair spacing in
+an existing radial manifest or certify its circulation, connections, collisions
+or production operation. Automatic architectural enrichment, coordinated hall
+layout and commissioning remain open. This companion lane is released.
