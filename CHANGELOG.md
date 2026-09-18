@@ -5,6 +5,12 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Architect native Blueprint generation now preserves each section's validated
+  angle around its recorded origin across foundations, machines, facades,
+  roofs, supports, walkways/rails and landmark towers. Rotated sections no
+  longer fail solely because their angle differs from the campus grid. Exact
+  connector alignment, unlock, geometry and native readback gates still apply;
+  existing unrotated layouts retain their coordinates and rounding.
 - Captured Blueprints now record dimensions from every selected buildable's
   native bounds, including lightweight structures, in the game's 8 m cells.
   The envelope accounts for the snapped pivot and uses the measured base in Z,

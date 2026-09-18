@@ -165,6 +165,23 @@ Promotion-adapter checkpoint (2026-09-01):
   `preview_blueprint` handoff arms that exact descriptor in the player's normal
   Build Gun.
 
+Element-rotation checkpoint (2026-09-17):
+
+- all seven promotion adapters honour the validated `world_yaw_degrees` of
+  each element, about its recorded `world_origin_cm`, including the offsets
+  between repeated parts and the direction of bridge rails and tower walls;
+- the temporary refusal of all elements rotated relative to the campus grid
+  is replaced by exact transform compilation. Existing unrotated foundations
+  retain their original grid calculation to avoid changing rounding in stored
+  revisions. Manifest geometry, fingerprints and preview generation are unchanged;
+- captured belt, pipe and power endpoints use the resulting machine transforms.
+  A rotated hall is not proof of a connected route: misaligned endpoints still
+  require a separately supported route and block the whole native action;
+- this proves companion compilation, not a complete radial campus, collision-free
+  construction or commissioning. Hall-to-platform alignment, circulation and
+  inter-hall routes still depend on the selected manifest; the game must verify
+  the generated Blueprint and its placement. Live visual rotation checks remain.
+
 ### A4 — Working-factory topology
 
 Production machines, splitters/mergers, conveyors/lifts, pipes/junctions/pumps,

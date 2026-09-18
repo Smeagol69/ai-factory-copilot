@@ -7022,3 +7022,28 @@ this handoff. No native code, preview/layout generation or saved references
 change. Deploy both the scheduled and game-bundled companion libraries after
 the full suite passes, verifying hashes and bridge health. The shared Starter
 Project is not reserved by this companion-only task.
+
+### Codex — 2026-09-17 element rotation implementation verified
+
+All seven native adapters now rotate part offsets and yaws about the validated
+element origin. Existing unrotated foundation placement retains its original
+single grid calculation (including fractional-campus-angle rounding). The
+temporary blanket rotation blocker is gone; manifest validation, exact part
+evidence, selected revision/current unlocks, connector alignment and native
+readback checks remain. No manifest generation or stored identity changed.
+
+31 focused promotion tests pass, including all seven quarter-turn adapters,
+Y-axis walkway rails, independent fractional/wrapped angles, untouched adjacent
+elements, legacy foundation rounding, invalid angles, and rotated solid/fluid
+lanes with power and independent action validation. Misaligning the receiving
+machine still refuses the entire action. Full `scripts/validate.ps1` passes
+exact SDK checks and all 1013 companion tests.
+
+Deployment audit: the port-8142 process uses
+`D:/Modding/Satisfactory/Companion/server.mjs`. Its only changed runtime file
+is this task's promotion module. The game-bundled copy has older composition
+and promotion code (the other twelve hash differences are only line endings).
+The installed native DLL hash is now
+`5B921A28BE2E878169D53DDA60A0022A9013455F777F5A66122970EFD064224B`,
+which differs from the prior handoff; this task does not replace or certify
+that native binary. Updating the two companion copies follows, with backups.
