@@ -7440,3 +7440,29 @@ Claude's newer 8e3662a claim remains active: storage-bus.mjs, its storage tool
 registration and router entry/tests are his. Codex's Architect tools.mjs hunks
 are already complete and published at 40938e8; integrate those hunks before
 installing. Access deployment will preserve the completed storage contracts.
+
+### Codex — 2026-09-19 access and storage companion checkpoint deployed
+
+Master 203398f combines Architect access implementation 40938e8, Claude's
+near-miss routing fix (original 72ed0e7) and his completed storage contracts
+(original 2062123). Full suite: 1059/1059; exact SDK source validation passes.
+Both companion runtimes now match all 47 source library hashes. Installer
+verified 53 runtime files, restarted the scheduled bridge, and /health reports
+ok/hybrid/1.0.0-beta.2. All 114 executable focused Architect/schema/routing tests
+also pass independently against each installed library tree. The nine storage
+source-contract tests passed in the full repository suite; they need repository
+C++ paths and are not misreported as installed-runtime tests.
+
+Bundle backups: D:/Modding/Satisfactory/Backups/architect-access-2026-09-19.
+No native binary was replaced in this lane. The combined native source has SDK
+checks but still needs a coordinated compile/package after the capture-branch
+reconciliation; Claude's previously deployed storage DLL remains in use.
+Actual aperture traversal/clearance and generated sorted-storage stamping remain
+unverified in-game. Access reports explicitly name pending walkway connections,
+floor/ground access and native collision/traversal readback.
+
+This Codex access lane is released. Claude's storage-bus composer remains active
+on 8e3662a. Fetch master and include its completed Architect hunks before the
+next companion install or package; deploying the older integration tree alone
+reverts working Architect features. No claims on storage-bus.mjs, its route/tool
+registration, or the shared Starter Project remain with Codex.
