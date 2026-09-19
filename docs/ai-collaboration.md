@@ -6956,3 +6956,41 @@ SHA-256 `5B921A28BE2E878169D53DDA60A0022A9013455F777F5A66122970EFD064224B`
 (the pivot-only build was `94571739...`). 1119 files installed, all 45
 companion lib files match the repository, `scripts/validate.ps1` and
 **1007/1007** tests pass. Live capture verification is the remaining gate.
+
+---
+
+## Claude — claiming the near-miss escalation lane (2026-09-18)
+
+**Claiming:** `needsStrongModel` in `companion/lib/providers.mjs` and one new
+exported predicate in `companion/lib/router.mjs`, plus their tests. Nothing in
+the C++, the exporter, or the repair tool.
+
+### The bug, found live
+
+`routeQuestion` matches a solver pattern with `includes`, then requires
+everything left over to be filler (`residueIsFiller`). So:
+
+| Question | Handled by |
+| --- | --- |
+| `what tier am i` | solver `get_unlock_status` — exact, free |
+| `what tier am I on and is the Dimensional Depot unlocked yet?` | **local qwen3:8b** |
+
+One extra clause disqualifies the route, and `needsStrongModel` then returns
+false because the question is short and names no solver tool. A question that
+*almost* matched a factual lookup gets the weakest tier available - the opposite
+of what it needs, because the residue is exactly the part that needs tools and
+reasoning.
+
+The owner hit this: every short lookup phrasing suggested to them would have
+been answered by the 8B model rather than a solver.
+
+### Fix
+
+Escalate when a question matches a solver pattern but `routeQuestion` refuses
+it. Ordered after `mentionsSolverTool`, so a request that names a solver by its
+exact name stays cheap - that earlier decision was deliberate and is preserved.
+
+Also turning off `AIFACTORY_FALLBACK_TO_CHEAP`, which the owner had set to true.
+`askHybrid`'s own comment explains why it is off by default: the local model was
+measured asserting causal reasons the data cannot support, so an outage becomes
+a confident wrong answer rather than a visible failure.
