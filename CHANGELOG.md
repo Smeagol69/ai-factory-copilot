@@ -5,6 +5,11 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Architect design, stored-option inspection, preview and promotion reports now
+  expose exact declared entrance corners, dimensions and outward directions.
+  Geometry follows the facade's shared hall frame and native panel convention;
+  saved manifest identities stay unchanged. Walkway connections and measured
+  clearance remain explicitly unverified.
 - New model-requested Architect designs now default to four-sided glazed hall
   enclosures with centered first-storey access bays. Facade orientation composes
   with the hall's frame, and native generation omits the declared bay panels

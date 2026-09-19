@@ -36,6 +36,30 @@ function run(graph, name, args, architect, emitted = null) {
   ).serialized);
 }
 
+test("access reports survive get, preview and promotion without entering immutable revisions", () => {
+  const graph = toolGraph();
+  const architect = createArchitectRevisionStore().scope({ snapshot: graph.snapshot, chat_session_id: "access" });
+  const design = run(graph, "design_megabase_concept", {
+    item_name: "Iron Rod", target_rate_per_minute: 60,
+    origin: { x: 100000, y: 100000, z: 500 }, style: "radial_hub_campus",
+    architect_session_name: "Access", architect_select_revision: true,
+  }, architect);
+  assert.equal(design.access_catalog.compiled, true, JSON.stringify(design.access_catalog.issues));
+  assert.ok(design.access_catalog.portals.length >= 4);
+  const revisionId = design.architect_revision.revision.revision_id;
+  const stored = architect.getRevision({ session_name: "Access", revision_id: revisionId });
+  assert.equal(Object.hasOwn(stored.revision.manifest, "access_catalog"), false);
+  const before = structuredClone(stored);
+  for (const operation of ["get", "preview", "promotion_status"]) {
+    const result = run(graph, "manage_architect_revisions", {
+      operation, session_name: "Access", revision_id: revisionId,
+    }, architect);
+    assert.equal(result.ok, true, result.reason);
+    assert.deepEqual((result.promotion ?? result).access_catalog, design.access_catalog);
+  }
+  assert.deepEqual(architect.getRevision({ session_name: "Access", revision_id: revisionId }), before);
+});
+
 test("stored requests without an enclosure mode still recompile their original front-only manifest", () => {
   const graph = toolGraph();
   const architect = createArchitectRevisionStore().scope({ snapshot: graph.snapshot, chat_session_id: "legacy-enclosure" });

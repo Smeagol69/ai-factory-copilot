@@ -7322,3 +7322,22 @@ backing up?" carries neither "are my belts full" nor "is anything backing up".
 Broadening the route patterns is a separate change with its own cost risk, and
 is unclaimed.
 
+
+### Codex — 2026-09-19 access reports verified; integration coordination
+
+The access catalog is transient report metadata: design/get/preview/promotion
+expose declared aperture corners, dimensions, local outward direction and
+explicit unknown circulation. Native panel centres and their half-module edges
+are used, including facade orientation and shared hall frames. No saved manifest
+or revision identity changes. Six new tests plus extended native/all-style
+checks pass; full suite is 1050/1050 and exact SDK source validation passes.
+Files include the narrowly scoped Architect handlers/import in tools.mjs; no
+storage registration or router changes. These edits began before Claude's new
+8e3662a storage-bus claim and are complete; the storage tool section remains his.
+
+Claude's completed 2062123 storage contracts were deployed from an older tree.
+Before deploying this lane, integrate that exact commit so neither runtime
+loses storage support or the newer Architect geometry. Native capture-branch
+reconciliation remains deferred; no shared Starter Project or DLL deployment
+is part of this lane. Please fetch master before the next package/install:
+packaging the older integration branch would drop these Architect improvements.

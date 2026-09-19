@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { buildGraph } from "../lib/graph.mjs";
 import { orientedVolume } from "../lib/architect-geometry.mjs";
+import { compileArchitectAccess } from "../lib/architect-access.mjs";
 import {
   MEGABASE_SCHEMA,
   MEGABASE_STYLES,
@@ -998,6 +999,16 @@ test("perimeter enclosures add four correctly oriented faces with symmetric acce
     const zones = concept.elements.filter((element) => element.kind === "production_zone");
     const faces = concept.elements.filter((element) => element.kind === "glazed_facade");
     assert.equal(faces.length, zones.length * 4);
+    const access = compileArchitectAccess(concept);
+    assert.equal(access.compiled, true, JSON.stringify(access.issues));
+    assert.equal(access.portals.length, faces.length);
+    for (const portal of access.portals) {
+      const face = faces.find((entry) => entry.id === portal.element_id);
+      assert.equal(portal.world_yaw_degrees, face.world_yaw_degrees);
+      assert.equal(portal.lower_edge_center_cm.z, face.world_origin_cm.z);
+      const [left, right] = portal.corners_cm;
+      assert.ok(Math.abs(Math.hypot(right.x - left.x, right.y - left.y) - portal.width_cm) < 0.002);
+    }
     for (let index = 0; index < zones.length; index += 1) {
       const zone = zones[index];
       const prefix = `facade-${index + 1}`;

@@ -19,6 +19,7 @@ import { compositionActions, planComposition, stageComposition } from "./composi
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
+import { compileArchitectAccess } from "./architect-access.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
@@ -727,6 +728,7 @@ export const SOLVER_TOOLS = [
       const compiled = compileArchitectDesignRequest(graph, designRequest, services ?? {});
       if (!compiled.compiled) return compiled.result;
       const { manifest, vertical } = compiled;
+      const accessCatalog = compileArchitectAccess(manifest);
       let architectRevision = null;
       if (args.architect_session_name) {
         const store = services?.architect;
@@ -759,6 +761,7 @@ export const SOLVER_TOOLS = [
         if (!preview.compiled) {
           return {
             ...manifest,
+            access_catalog: accessCatalog,
             vertical_module: vertical,
             ...(architectRevision ? { architect_revision: architectRevision } : {}),
             architect_preview: preview,
@@ -767,6 +770,7 @@ export const SOLVER_TOOLS = [
         services?.actions?.emit?.([preview.action]);
         return {
           ...manifest,
+          access_catalog: accessCatalog,
           vertical_module: vertical,
           ...(architectRevision ? { architect_revision: architectRevision } : {}),
           architect_preview: {
@@ -782,6 +786,7 @@ export const SOLVER_TOOLS = [
       }
       return {
         ...manifest,
+        access_catalog: accessCatalog,
         vertical_module: vertical,
         ...(architectRevision ? { architect_revision: architectRevision } : {}),
       };
@@ -839,10 +844,13 @@ export const SOLVER_TOOLS = [
         return store.list({ session_name: args.session_name });
       }
       if (args.operation === "get") {
-        return store.getRevision({
+        const stored = store.getRevision({
           session_name: args.session_name,
           revision_id: args.revision_id,
         });
+        return stored.ok
+          ? { ...stored, access_catalog: compileArchitectAccess(stored.revision.manifest) }
+          : stored;
       }
       if (args.operation === "compare") {
         return store.compare({
@@ -898,6 +906,7 @@ export const SOLVER_TOOLS = [
           return {
             ok: true,
             operation: "preview",
+            access_catalog: compileArchitectAccess(recompiled.manifest),
             revision: verified.revision,
             evidence: verified.evidence,
             architect_preview: {

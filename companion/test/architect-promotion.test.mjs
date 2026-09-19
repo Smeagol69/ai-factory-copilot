@@ -1119,6 +1119,15 @@ test("native facades leave declared first-storey bays open and retain the upper 
   assert.equal(ground.length, 4);
   assert.deepEqual([...new Set(ground.map((part) => part.relative_location.x))].sort((a, b) => a - b), [-3200, -800]);
   assert.ok(parts.every((part) => part.yaw === 180));
+  const portal = result.access_catalog.portals[0];
+  assert.equal(result.access_catalog.compiled, true);
+  assert.equal(portal.width_cm, 1600);
+  assert.equal(portal.height_cm, 400);
+  assert.deepEqual(portal.lower_edge_center_cm, {
+    x: face.world_origin_cm.x - 1200, y: face.world_origin_cm.y - 400,
+    z: face.world_origin_cm.z,
+  });
+  assert.equal(result.access_catalog.circulation.reachable, null);
 });
 
 test("malformed facade openings refuse promotion before any parts are emitted", () => {

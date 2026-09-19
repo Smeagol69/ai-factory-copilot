@@ -16,6 +16,7 @@
  */
 
 import { parsePieceDimensions } from "./architecture.mjs";
+import { compileArchitectAccess } from "./architect-access.mjs";
 import { assessGeneratedBlueprintComposition } from "./architect-composition.mjs";
 import {
   compileArchitectPipelines,
@@ -794,6 +795,7 @@ export function compileArchitectPromotion(graph, manifest, {
     design_family_fingerprint: fingerprint.ok ? fingerprint.design_family_fingerprint : null,
     unlock_fingerprint: currentUnlocks.availability_fingerprint ?? null,
     supported_native_element_kinds: [...SUPPORTED_ELEMENT_KINDS],
+    access_catalog: compileArchitectAccess(manifest),
     exact_role_evidence: roleEvidence,
     exact_machine_evidence: machineEvidence,
     element_counts: elements.reduce((counts, element) => {
