@@ -7335,9 +7335,108 @@ Files include the narrowly scoped Architect handlers/import in tools.mjs; no
 storage registration or router changes. These edits began before Claude's new
 8e3662a storage-bus claim and are complete; the storage tool section remains his.
 
+
 Claude's completed 2062123 storage contracts were deployed from an older tree.
 Before deploying this lane, integrate that exact commit so neither runtime
 loses storage support or the newer Architect geometry. Native capture-branch
 reconciliation remains deferred; no shared Starter Project or DLL deployment
 is part of this lane. Please fetch master before the next package/install:
 packaging the older integration branch would drop these Architect improvements.
+
+### Goal
+
+"Build me a sorted storage hub fed from my miners" as one generated blueprint
+the player stamps, rather than hundreds of live placements.
+
+### What already works, found by survey and verified
+
+`router.mjs:2010` already parses storage/container/warehouse/depot intent, and
+`router.mjs:4902` already builds a walled, roofed, pillared shell and fills its
+interior cells with storage containers, committed. `build a 12x12 storage
+warehouse here` works on the shipped build today. It has no belts, no sorting,
+no overflow, and no miner feed - that is the whole gap.
+
+### The three blockers
+
+1. **A storage container cannot be a fan-out target.** `routing.mjs` drops any
+   consumer whose `consumedItemClasses` is empty, and a container's always is,
+   because that set comes from `recipeOf(node)?.ingredients` and a container has
+   `recipe_class: null`. So nothing can plan a belt into storage.
+2. **A splitter cannot exist in a generated blueprint.**
+   `AIFactoryBlueprintExport.cpp` denies `AFGBuildableConveyorAttachment`
+   outright with `generated_buildable_needs_an_unimplemented_native_topology` -
+   while the companion has already written balanced splitter fan-out for v4.
+   The two halves contradict, and the C++ is the one refusing.
+3. **Sort rules are not expressible.** `AFGBuildableSplitterSmart` exposes
+   `SetSortRules` / `AddSortRule` publicly, and `mSortRules` is
+   `UPROPERTY(SaveGame, ReplicatedUsing=OnRep_SortRules)` - so filters serialize
+   into a `.sbp` and survive a stamp. The mod references none of it.
+   One class covers both Smart and Programmable splitters; they differ only by
+   `mMaxNumSortRules` in their class defaults, which is per-save capability
+   evidence rather than something to hard-code.
+
+### Approach
+
+Fail-closed throughout, matching the existing contracts: a sort rule is accepted
+only when its item resolves in the captured catalog, the part is splitter-shaped,
+the output index exists on the captured class, and the rule count fits the
+captured `GetMaxNumSortRules()`. The denylist narrows rather than opens: an
+attachment is admitted only when every captured factory connection on it is
+bound by a conveyor link in the same request, preserving the original reason the
+clause exists.
+
+**Done 2026-09-19.** All three shipped.
+
+1. `routing.mjs` accepts a recipe-less target as an unfiltered sink when it has
+   no captured `manufacturer` block and real inventory slots, marked
+   `accepts: "any_solid_item"`. An unconfigured manufacturer is also recipe-less
+   and is still refused - it is waiting to be told what to make, not accepting
+   anything.
+2. The attachment denylist now excepts `Part.Role == "splitter"`, and
+   `GenerateLayout` refuses unless every captured `UFGFactoryConnectionComponent`
+   on that part is bound by a conveyor link in the same request, with connector
+   names read off the class defaults. The unconnected attachment - the stated
+   hazard - is still refused. Splitters require v4.
+3. `sort_rules: [{output_index, item_class}]` runs the full contract: rule cap
+   from `GetMaxNumSortRules()`, output index against actual `FCD_OUTPUT`
+   connectors, item resolved in the captured catalog, duplicate output claims
+   rejected bridge-side, then `SetSortRules` followed by a `GetSortRules`
+   readback before anything is serialised. An empty `item_class` is the game's
+   own any-undefined-item rule and is allowed through without a lookup.
+   An unfiltered splitter stays legal.
+
+**The compile is the evidence for 3.** `SetSortRules`, `GetSortRules`,
+`GetMaxNumSortRules`, `FSplitterSortRule` and `EFactoryConnectionDirection`
+bound against the real CL 502094 headers on first use.
+
+Verification: **1022/1022 companion tests** (nine new), `scripts/validate.ps1`,
+Shipping and Editor builds, UAT cook/archive, matched Steam deployment. Both
+companion copies - the bundled one and the standalone the scheduled task runs -
+are byte-identical to this repository. Deployed Shipping DLL SHA-256
+`27D92F6F3DE90BDE2813369C883647CC6DA8DB27EB445480C3A5B1E452A21E0A`.
+
+**Unproven and needing a live test:** no generated blueprint containing a
+splitter has been written or stamped. The readback gate means a wrong
+composition refuses rather than writing a bad file.
+
+**Still open:** nothing yet *composes* a sorted hub. These three remove the
+blockers; a planner that lays out bus, sorters, containers and overflow from a
+miner census does not exist. `router.mjs:4902` already builds the shell and
+fills it with containers, so the shell half is done. That composition is the
+next lane and is unclaimed.
+
+
+### Codex — storage integration and active composer notice (2026-09-19)
+
+Integrated Claude's exact completed storage commit 2062123. Code applied cleanly;
+only append-only handoff text needed resolution. Master now preserves native
+capture-integrity source alongside storage, plus all newer Architect companion
+work. The combined native translation unit has not been rebuilt in this lane;
+Claude's deployed DLL remains untouched. Source checks/full companion suite run
+before this integration is pushed. The older capture/repair branch remains
+unmerged due to conflicting independent dimension implementations.
+
+Claude's newer 8e3662a claim remains active: storage-bus.mjs, its storage tool
+registration and router entry/tests are his. Codex's Architect tools.mjs hunks
+are already complete and published at 40938e8; integrate those hunks before
+installing. Access deployment will preserve the completed storage contracts.

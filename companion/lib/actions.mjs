@@ -737,7 +737,7 @@ export function validateAction(graph, proposal) {
       ids.add(partId);
 
       const role = String(proposedPart.role ?? "standalone").trim().toLowerCase();
-      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner"].includes(role)) {
+      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner", "splitter"].includes(role)) {
         return reject(kind, "generated_blueprint_part_role_is_unsupported", {
           part: index + 1,
           part_id: partId,
@@ -936,10 +936,62 @@ export function validateAction(graph, proposal) {
         configuredManufacturers += 1;
       }
 
+      // v4 splitter filters. The game is the authority on whether a rule is
+      // placeable — it checks the output index and the rule cap against the
+      // captured class, and reads the applied rules back before serialising.
+      // This side proves only what it can see: the shape is right, the item
+      // resolves in the captured catalog, and no two rules claim one output.
+      const requestedSortRules = proposedPart.sort_rules;
+      const sortRules = [];
+      if (requestedSortRules !== undefined && requestedSortRules !== null) {
+        if (!Array.isArray(requestedSortRules)) {
+          return reject(kind, "generated_blueprint_sort_rules_must_be_an_array", {
+            part_id: partId,
+          });
+        }
+        if (role !== "splitter") {
+          return reject(kind, "generated_blueprint_sort_rules_need_the_splitter_role", {
+            part_id: partId,
+            role,
+          });
+        }
+        const claimedOutputs = new Set();
+        for (const rule of requestedSortRules) {
+          const outputIndex = Number(rule?.output_index);
+          if (!Number.isInteger(outputIndex) || outputIndex < 0) {
+            return reject(kind, "generated_blueprint_sort_rule_output_index_is_not_a_whole_number", {
+              part_id: partId,
+              output_index: rule?.output_index ?? null,
+            });
+          }
+          // Two rules on one output is a contradiction the game would resolve
+          // silently by order, producing a bus that sorts differently from the
+          // plan that was approved.
+          const itemClass = String(rule?.item_class ?? "").trim();
+          const claim = `${outputIndex}:${itemClass}`;
+          if (claimedOutputs.has(claim)) {
+            return reject(kind, "generated_blueprint_sort_rule_is_duplicated", {
+              part_id: partId,
+              output_index: outputIndex,
+              item_class: itemClass || null,
+            });
+          }
+          claimedOutputs.add(claim);
+          if (itemClass && !findItemInCatalog(graph, itemClass)) {
+            return reject(kind, "generated_blueprint_sort_rule_item_is_not_in_the_catalog", {
+              part_id: partId,
+              item_class: itemClass,
+            });
+          }
+          sortRules.push({ output_index: outputIndex, item_class: itemClass });
+        }
+      }
+
       buildables.push({
         part_id: partId,
         role,
         recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+        ...(sortRules.length > 0 ? { sort_rules: sortRules } : {}),
         ...(productionRecipe
           ? { production_recipe_class: productionRecipe.class_path ?? requestedProductionRecipe }
           : {}),
