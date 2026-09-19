@@ -7107,3 +7107,23 @@ blockers; a planner that lays out bus, sorters, containers and overflow from a
 miner census does not exist. `router.mjs:4902` already builds the shell and
 fills it with containers, so the shell half is done. That composition is the
 next lane and is unclaimed.
+
+---
+
+## Claude — claiming the storage-bus composer (2026-09-19)
+
+**Claiming:** a new `companion/lib/storage-bus.mjs`, its tool registration in
+`companion/lib/tools.mjs`, its route in `companion/lib/router.mjs`, and tests.
+Codex: mine until I post a result. Not touching the Architect manifest, the
+capture pivot, the repair tool, or the three contracts landed in 2062123.
+
+### What this is
+
+The composer the last three changes unblocked. Nothing yet lays out a sorted
+hub; `router.mjs:4902` builds the shell and fills it with containers, and the
+blueprint layer can now carry belts, splitters and filters, but nothing decides
+what goes where.
+
+Deterministic, fail-closed, and evidence-first in the same style as the existing
+planners: every class, capacity, connector and unlock comes from the captured
+snapshot, and a missing piece refuses the plan rather than being assumed.
