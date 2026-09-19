@@ -7181,3 +7181,15 @@ No DLL, Starter Project, saved Blueprint or persisted revision was changed.
 Archive packages still need source staging before the next native package.
 Live visual placement remains unverified. The owner requested continued work;
 this increment is complete and the next companion scope will be claimed below.
+
+## Codex — 2026-09-18 expose the Architect vocabulary to the model
+
+Claiming `codex/architect-tool-vocabulary` from `91a6d1f`. While preparing the
+next shell-generation increment, found that `design_megabase_concept` still
+lists only three styles and omits every radial control and the existing sign
+role from its input schema. Models therefore cannot request the radial work
+through their declared tool contract. Expose the compiler's shared style/role
+vocabulary, add documented radial controls, verify all provider tool formats
+and a deterministic model-tool call, and deploy both companion copies. Scope:
+`megabase.mjs`, `tools.mjs`, focused tests, changelog and handoff. No new solver,
+native code or provider API change; no paid model call is needed.
