@@ -276,7 +276,7 @@ function compilePlatformActions(manifest, elements, foundation) {
         };
         // Keep the original single-rounding grid transform for existing designs.
         // Rotated elements use their validated preview origin as the local pivot.
-        const world = Number(element.yaw_offset_degrees ?? 0) === 0
+        const world = element.placement_frame === undefined && Number(element.yaw_offset_degrees ?? 0) === 0
           ? gridPointToWorld(cell, manifest.grid, manifest.anchor_cm)
           : rotatedWorldOffset(
             element.world_origin_cm,

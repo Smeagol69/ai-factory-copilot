@@ -1,3 +1,26 @@
+/** Resolve an optional shared placement frame into campus-grid coordinates. */
+export function elementGridOrigin(element) {
+  const local = element?.local;
+  if (!local || ![local.x, local.y, local.z].every(Number.isInteger)) return null;
+  if (element.placement_frame === undefined) return { ...local };
+  const frame = element.placement_frame;
+  const pivot = frame?.local_pivot_cells;
+  const centre = frame?.campus_pivot_cells;
+  const angle = element.yaw_offset_degrees ?? 0;
+  if (![pivot?.x, pivot?.y, centre?.x, centre?.y].every((value) =>
+    Number.isFinite(value) && Number.isInteger(value * 2)) ||
+    !Number.isFinite(angle) || angle < 0 || angle >= 360) return null;
+  const radians = angle * Math.PI / 180;
+  const dx = local.x - pivot.x;
+  const dy = local.y - pivot.y;
+  const point = {
+    x: centre.x + dx * Math.cos(radians) - dy * Math.sin(radians),
+    y: centre.y + dx * Math.sin(radians) + dy * Math.cos(radians),
+    z: local.z,
+  };
+  return Object.values(point).every(Number.isFinite) ? point : null;
+}
+
 /** Geometry of declarative Architect volumes, not native collision meshes. */
 export function orientedVolume(origin, size, yawDegrees) {
   if (!origin || !size || ![origin.x, origin.y, origin.z, size.x, size.y, size.z, yawDegrees]

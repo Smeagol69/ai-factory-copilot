@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildGraph } from "../lib/graph.mjs";
+import { orientedVolume } from "../lib/architect-geometry.mjs";
 import {
   MEGABASE_SCHEMA,
   MEGABASE_STYLES,
@@ -732,10 +733,7 @@ test("the ring is sized so neighbouring halls cannot touch", () => {
   // Centres a chord apart, and the chord must clear the widest hall. This is
   // the property the radius is solved for, so it is worth asserting directly
   // rather than trusting the derivation.
-  const centres = zones.map((zone) => ({
-    x: zone.world_origin_cm.x + (zone.world_size_cm.x / 2),
-    y: zone.world_origin_cm.y + (zone.world_size_cm.y / 2),
-  }));
+  const centres = zones.map(volumeCentre);
   const widest = Math.max(...zones.map((zone) => zone.world_size_cm.x));
   for (let left = 0; left < centres.length; left += 1) {
     for (let right = left + 1; right < centres.length; right += 1) {
@@ -755,6 +753,7 @@ test("the other families keep emitting exactly one campus yaw", () => {
     for (const element of result.elements) {
       assert.equal(element.world_yaw_degrees, gridYaw, `${style} element ${element.id} was rotated`);
       assert.equal(element.yaw_offset_degrees, undefined, `${style} element ${element.id} gained an offset`);
+      assert.equal(element.placement_frame, undefined, `${style} element ${element.id} gained a frame`);
     }
   }
 });
@@ -879,4 +878,103 @@ test("missing probe or malformed element geometry keeps coverage unknown", () =>
   const invalid = assessMegabaseSite(spatialProbeGraph({ x: 0, y: 0, z: 0 }, 100), concept);
   assert.equal(invalid.assessed, false);
   assert.equal(invalid.reason, "manifest_element_geometry_is_invalid");
+});
+
+function volumeCentre(element) {
+  const volume = orientedVolume(element.world_origin_cm, element.world_size_cm, element.world_yaw_degrees);
+  return {
+    x: volume.corners.reduce((total, point) => total + point.x, 0) / 4,
+    y: volume.corners.reduce((total, point) => total + point.y, 0) / 4,
+  };
+}
+
+test("radial hall shells keep every local offset when the campus and hall both rotate", () => {
+  const radial = compile("radial_hub_campus", { yaw_degrees: 17.25 });
+  const zones = radial.elements.filter((element) => element.kind === "production_zone");
+  for (const [index, zone] of zones.entries()) {
+    const number = index + 1;
+    const members = radial.elements.filter((element) =>
+      [ `platform-${number}`, `facade-${number}`, `roof-${number}` ].includes(element.id) ||
+      element.id.startsWith(`support-${number}-`));
+    assert.ok(members.length >= 7);
+    const angle = -zone.world_yaw_degrees * Math.PI / 180;
+    for (const member of members) {
+      assert.deepEqual(member.placement_frame, zone.placement_frame);
+      const dx = member.world_origin_cm.x - zone.world_origin_cm.x;
+      const dy = member.world_origin_cm.y - zone.world_origin_cm.y;
+      const localX = dx * Math.cos(angle) - dy * Math.sin(angle);
+      const localY = dx * Math.sin(angle) + dy * Math.cos(angle);
+      assert.ok(Math.abs(localX - (member.local.x - zone.local.x) * radial.grid.unit_cm) < 0.002,
+        `${member.id} lost its hall-relative X offset`);
+      assert.ok(Math.abs(localY - (member.local.y - zone.local.y) * radial.grid.unit_cm) < 0.002,
+        `${member.id} lost its hall-relative Y offset`);
+    }
+    const centre = volumeCentre(zone);
+    const expected = gridPointToWorld({ ...zone.placement_frame.campus_pivot_cells, z: 0 },
+      radial.grid, radial.anchor_cm);
+    assert.ok(Math.hypot(centre.x - expected.x, centre.y - expected.y) < 0.002);
+  }
+});
+
+test("the radial landmark is centred at the hub even with odd cell dimensions", () => {
+  const radial = compile("radial_hub_campus", { yaw_degrees: 41.5 });
+  const tower = radial.elements.find((element) => element.id === "central-tower");
+  assert.equal(tower.size_cells.x % 2, 1);
+  const centre = volumeCentre(tower);
+  assert.ok(Math.hypot(centre.x - radial.anchor_cm.x, centre.y - radial.anchor_cm.y) < 0.002);
+});
+
+test("deep radial halls retain platform-to-platform and platform-to-hub clearance", () => {
+  const deepLayout = structuredClone(layout);
+  deepLayout.layout.rows[0].machine_footprint_cm.depth = 12000;
+  const radial = compileMegabaseConcept(graph, deepLayout, {
+    style: "radial_hub_campus", floor_height_cm: 400, part_selections: partSelections,
+    yaw_degrees: 33,
+  });
+  assert.equal(radial.compiled, true, JSON.stringify(radial.validation));
+  assert.equal(radial.validation.valid, true, JSON.stringify(radial.validation));
+  const platforms = radial.elements.filter((element) => element.kind === "structural_platform");
+  const tower = radial.elements.find((element) => element.id === "central-tower");
+  const radius = (element) => Math.hypot(element.world_size_cm.x, element.world_size_cm.y) / 2;
+  for (let index = 0; index < platforms.length; index += 1) {
+    const platform = platforms[index];
+    const centre = volumeCentre(platform);
+    const hubDistance = Math.hypot(centre.x - radial.anchor_cm.x, centre.y - radial.anchor_cm.y);
+    assert.ok(hubDistance >= radius(platform) + radius(tower) +
+      radial.creative_parameters.service_margin_cells * radial.grid.unit_cm - 0.002);
+    for (const other of platforms.slice(index + 1)) {
+      const otherCentre = volumeCentre(other);
+      const distance = Math.hypot(centre.x - otherCentre.x, centre.y - otherCentre.y);
+      assert.ok(distance >= radius(platform) + radius(other) +
+        radial.creative_parameters.ring_clearance_cells * radial.grid.unit_cm - 0.002);
+    }
+  }
+});
+
+test("radial facing accepts both documented directions while keeping the shell together", () => {
+  for (const facing of [1, -1]) {
+    const radial = compile("radial_hub_campus", { creative_parameters: { hall_facing: facing } });
+    assert.equal(radial.compiled, true, radial.reason);
+    for (const zone of radial.elements.filter((element) => element.kind === "production_zone")) {
+      const centre = volumeCentre(zone);
+      const dx = centre.x - radial.anchor_cm.x;
+      const dy = centre.y - radial.anchor_cm.y;
+      const angle = zone.world_yaw_degrees * Math.PI / 180;
+      // +Y points away from the facade at -Y: positive is front facing inward.
+      const alignment = (-Math.sin(angle) * dx + Math.cos(angle) * dy) / Math.hypot(dx, dy);
+      assert.ok(alignment * facing > 0.998);
+    }
+  }
+  assert.equal(compile("radial_hub_campus", { creative_parameters: { hall_facing: 0 } }).reason,
+    "hall_facing_must_be_1_or_minus_1");
+});
+
+test("frame and transformed-origin tampering fails manifest validation", () => {
+  const radial = compile("radial_hub_campus");
+  const tampered = structuredClone(radial);
+  tampered.elements[0].placement_frame.campus_pivot_cells.x += 1;
+  assert.ok(validateMegabaseManifest(tampered).issues.includes("world_transform_mismatch:production-zone-1"));
+  const malformed = structuredClone(radial);
+  malformed.elements[0].placement_frame = null;
+  assert.ok(validateMegabaseManifest(malformed).issues.includes("invalid_placement_frame:production-zone-1"));
 });

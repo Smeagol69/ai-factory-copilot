@@ -5,6 +5,13 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- New radial Architect designs keep each hall, platform, facade, roof and pylon
+  in one shared placement frame. Half-cell pivots centre odd-sized halls exactly
+  on the ring; the landmark is centred at the hub. Ring spacing now includes
+  complete platform diagonals and the central tower, with conservative service
+  clearance. The documented outward-facing option (`hall_facing: -1`) is now
+  accepted. Existing saved designs and the other architectural families retain
+  their geometry; native collision/readback and commissioning remain required.
 - Architect site planning now includes each element's angle in its footprint
   and checks production-hall overlap using oriented volumes. Rotated wings no
   longer disappear from obstruction screening, and separated diagonal halls

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { orientedVolume, volumesOverlap } from "../lib/architect-geometry.mjs";
+import { elementGridOrigin, orientedVolume, volumesOverlap } from "../lib/architect-geometry.mjs";
 
 const box = (x, y, width, depth, yaw = 0, z = 0) =>
   orientedVolume({ x, y, z }, { x: width, y: depth, z: 400 }, yaw);
@@ -39,4 +39,28 @@ test("invalid or overflowing geometry cannot become a usable volume", () => {
   assert.equal(box(0, 0, 0, 800), null);
   assert.equal(box(0, 0, -800, 800), null);
   assert.equal(box(1e308, 0, 1e308, 800), null);
+});
+
+test("shared frames rotate local cells about half-cell centres without rounding them away", () => {
+  const element = {
+    local: { x: 0, y: 0, z: 3 }, yaw_offset_degrees: 90,
+    placement_frame: {
+      local_pivot_cells: { x: 1.5, y: 2 }, campus_pivot_cells: { x: 10, y: 20 },
+    },
+  };
+  assert.deepEqual(elementGridOrigin(element), { x: 12, y: 18.5, z: 3 });
+  element.yaw_offset_degrees = 0;
+  assert.deepEqual(elementGridOrigin(element), { x: 8.5, y: 18, z: 3 });
+  delete element.placement_frame;
+  assert.deepEqual(elementGridOrigin(element), element.local);
+});
+
+test("malformed placement frames never silently fall back to the campus grid", () => {
+  for (const frame of [null, {}, { local_pivot_cells: { x: 0, y: 0 } }, {
+    local_pivot_cells: { x: 0.25, y: 0 }, campus_pivot_cells: { x: 0, y: 0 },
+  }, {
+    local_pivot_cells: { x: 0, y: 0 }, campus_pivot_cells: { x: Infinity, y: 0 },
+  }]) {
+    assert.equal(elementGridOrigin({ local: { x: 0, y: 0, z: 0 }, placement_frame: frame }), null);
+  }
 });

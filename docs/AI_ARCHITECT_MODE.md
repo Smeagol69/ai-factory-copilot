@@ -198,6 +198,23 @@ Spatial-check checkpoint (2026-09-18):
   transforms and stored revisions are unchanged; newly compiled revisions
   receive the corrected footprint and assessment.
 
+Coordinated radial-layout checkpoint (2026-09-18):
+
+- newly compiled radial halls and all their structural members share an optional
+  `placement_frame`, with half-cell `local_pivot_cells` and `campus_pivot_cells`;
+  local integer cells rotate around the former and place that pivot at the
+  latter before applying the campus yaw and authoritative world anchor;
+- validation recomputes the transformed origin; footprints and native platform
+  promotion consume the same frame, including an unrotated frame used to centre
+  an odd-sized landmark. Legacy elements without a frame keep their old path;
+- radial hall centres sit on the ring and the landmark sits at the hub. Spacing
+  uses circumscribed platform/tower radii, requested clearance, and the error
+  bound from snapping ring centres. This is conservative spacing, not a claim
+  of the smallest possible footprint;
+- inward and outward facing retain the same shell. The previously documented
+  `hall_facing: -1` now passes parameter validation. Bridges remain semantic
+  circulation intent and native construction still needs game-side validation.
+
 ### A4 — Working-factory topology
 
 Production machines, splitters/mergers, conveyors/lifts, pipes/junctions/pumps,

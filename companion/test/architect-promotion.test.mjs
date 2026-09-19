@@ -6,6 +6,7 @@ import { compileArchitectPromotion } from "../lib/architect-promotion.mjs";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   captureUnlockConstraints,
+  elementOriginToWorld,
   gridPointToWorld,
   validateMegabaseManifest,
 } from "../lib/megabase.mjs";
@@ -1097,6 +1098,24 @@ function setElementRotation(manifest, element, offset) {
   element.yaw_offset_degrees = offset;
   element.world_yaw_degrees = (Number(manifest.grid.yaw_degrees) + offset) % 360;
 }
+
+test("platform promotion uses the shared frame even when its yaw offset is zero", () => {
+  const graph = promotionGraph();
+  const manifest = platformManifest(graph);
+  const platform = manifest.elements[0];
+  platform.placement_frame = {
+    local_pivot_cells: { x: 0.5, y: 0.5 }, campus_pivot_cells: { x: 0, y: 0 },
+  };
+  for (const [offset, expected] of [
+    [0, { x: -1200, y: -1200, z: 200 }],
+    [90, { x: 1200, y: -1200, z: 200 }],
+  ]) {
+    setElementRotation(manifest, platform, offset);
+    platform.world_origin_cm = elementOriginToWorld(platform, manifest.grid, manifest.anchor_cm);
+    const promoted = promoteForRotationTest(graph, manifest);
+    assert.deepEqual(promoted.action.buildables[0].relative_location, expected);
+  }
+});
 
 for (const kind of [
   "structural_platform", "production_zone", "glazed_facade", "sloped_roof_intent",

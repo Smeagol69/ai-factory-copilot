@@ -7147,3 +7147,24 @@ roadmap/changelog and handoff. No C++ or shared Starter Project use. Existing
 stored revisions and world construction stay untouched; native cost, collision,
 readback and operational-readiness gates remain. Further increments will be
 claimed and checkpointed separately after validation and companion deployment.
+
+### Codex — 2026-09-18 hall frames verified
+
+New radial designs emit shared `placement_frame` metadata for each hall's
+members. `elementGridOrigin` and `elementOriginToWorld` consistently compose
+local half-cell pivots, snapped campus pivots, hall yaw and campus/world frame.
+Footprint/validation/platform promotion use those same transforms; malformed
+frames fail rather than falling back. Non-radial designs and legacy elements
+take the original path. Radial landmarks now centre exactly on the hub, and
+ring separation includes the full platform diagonal, tower radius, service
+clearance and centre-rounding error. The documented outward-facing option was
+blocked by the generic non-negative parameter guard; `-1` and `1` now both work.
+
+1032 tests and exact SDK validation pass. Focused tests verify all structural
+offsets after combined fractional campus/hall rotation, odd dimensions, deep
+halls' platform/hub clearances, both facing directions, frame tampering and the
+zero-yaw platform case. A separate comparison loaded the actual prior master
+compiler (`ed1bcac`) and compared complete manifests for all three non-radial
+styles at 0, 17.25 and 90 degrees: all nine are unchanged. No stored revisions
+were rewritten. Deployment follows; bridges remain semantic circulation intent
+and native collision/readback is still required.

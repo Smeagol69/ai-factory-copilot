@@ -12,7 +12,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { orientedVolume, volumesOverlap } from "./architect-geometry.mjs";
+import { elementGridOrigin, orientedVolume, volumesOverlap } from "./architect-geometry.mjs";
 import { captureUnlockConstraints } from "./unlock-constraints.mjs";
 
 export { captureUnlockConstraints } from "./unlock-constraints.mjs";
@@ -278,9 +278,21 @@ function designFamilyIdentity(style, familyId, creativeParameters, parts) {
 
 /** Converts an integer grid cell into an exact world-space point. */
 export function gridPointToWorld(local, grid, anchor) {
-  const x = whole(local?.x);
-  const y = whole(local?.y);
-  const z = whole(local?.z);
+  if ([local?.x, local?.y, local?.z].some((value) => whole(value) === null)) return null;
+  return gridPositionToWorld(local, grid, anchor);
+}
+
+/** Shared-frame elements can land between campus cells while keeping exact local cells. */
+export function elementOriginToWorld(element, grid, anchor) {
+  if (element?.placement_frame === undefined) return gridPointToWorld(element?.local, grid, anchor);
+  const origin = elementGridOrigin(element);
+  return origin ? gridPositionToWorld(origin, grid, anchor) : null;
+}
+
+function gridPositionToWorld(local, grid, anchor) {
+  const x = finite(local?.x);
+  const y = finite(local?.y);
+  const z = finite(local?.z);
   const unit = positive(grid?.unit_cm);
   const floorHeight = positive(grid?.floor_height_cm);
   const yaw = finite(grid?.yaw_degrees);
@@ -311,6 +323,11 @@ function normalizeParameters(style, overrides = {}) {
   for (const [name, fallback] of Object.entries(defaults)) {
     const supplied = overrides[name];
     const value = supplied === undefined ? fallback : whole(supplied);
+    if (name === "hall_facing") {
+      if (value !== 1 && value !== -1) return { valid: false, reason: "hall_facing_must_be_1_or_minus_1" };
+      parameters[name] = value;
+      continue;
+    }
     if (value === null || value < 0) {
       return { valid: false, reason: `creative_parameter_${name}_must_be_a_non_negative_integer` };
     }
@@ -680,7 +697,7 @@ export function megabaseFootprint(manifest) {
   const worldMin = { ...min };
   const worldMax = { ...max };
   for (const element of elements) {
-    const local = orientedVolume(element.local, element.size_cells, element.yaw_offset_degrees ?? 0);
+    const local = orientedVolume(elementGridOrigin(element), element.size_cells, element.yaw_offset_degrees ?? 0);
     const world = elementWorldVolume(element, manifest.grid);
     if (!local || !world) return null;
     for (const [volume, lower, upper] of [[local, min, max], [world, worldMin, worldMax]]) {
@@ -881,7 +898,10 @@ export function validateMegabaseManifest(manifest) {
         issues.push(`invalid_size_${axis}:${element?.id ?? ""}`);
       }
     }
-    const expected = gridPointToWorld(element.local, manifest.grid, manifest.anchor_cm);
+    if (element?.placement_frame !== undefined && !elementGridOrigin(element)) {
+      issues.push(`invalid_placement_frame:${element?.id ?? ""}`);
+    }
+    const expected = elementOriginToWorld(element, manifest.grid, manifest.anchor_cm);
     if (!expected || JSON.stringify(expected) !== JSON.stringify(element.world_origin_cm)) {
       issues.push(`world_transform_mismatch:${element?.id ?? ""}`);
     }
@@ -1086,6 +1106,7 @@ function zonePlacements(groups, style, parameters) {
     let y = cursorY;
     let z = parameters.deck_floor;
     let yawOffset = 0;
+    let placementFrame;
 
     if (style === "elevated_industrial_campus") {
       const side = index % 2 === 0 ? -1 : 1;
@@ -1100,12 +1121,16 @@ function zonePlacements(groups, style, parameters) {
     } else if (ring) {
       const degrees = ring.start_degrees + index * ring.step_degrees;
       const radians = (degrees * Math.PI) / 180;
-      // The hall's centre lands on the ring; its origin is the corner, which is
-      // why the half-extents come off here rather than at emission.
+      // Keep integer local cells; the shared frame maps the exact half-cell
+      // centre of an odd-width/depth hall onto the snapped ring centre.
       const centreX = Math.round(ring.radius_cells * Math.cos(radians));
       const centreY = Math.round(ring.radius_cells * Math.sin(radians));
       x = centreX - Math.floor(width / 2);
       y = centreY - Math.floor(depth / 2);
+      placementFrame = {
+        local_pivot_cells: { x: x + width / 2, y: y + depth / 2 },
+        campus_pivot_cells: { x: centreX, y: centreY },
+      };
       // Local +Y is the hall's depth axis. Rotating by the ring angle plus a
       // quarter turn points that axis radially; facing 1 then turns the front
       // toward the hub, -1 leaves it looking outward.
@@ -1117,6 +1142,7 @@ function zonePlacements(groups, style, parameters) {
       local: { x, y, z },
       size: { x: width, y: depth, z: parameters.hall_floors },
       ...(yawOffset ? { yaw_offset_degrees: normalizeDegrees(yawOffset) } : {}),
+      ...(placementFrame ? { placement_frame: placementFrame } : {}),
     });
     if (ring) continue;
     if (style !== "terraced_megafactory") cursorY += depth + parameters.hall_gap_cells;
@@ -1146,8 +1172,12 @@ function normalizeDegrees(degrees) {
  */
 function ringGeometry(groups, parameters) {
   const count = Math.max(1, groups.length);
-  const widest = Math.max(...groups.map((group) => group.hall_size_cells.x), 1);
-  const deepest = Math.max(...groups.map((group) => group.hall_size_cells.y), 1);
+  // Each platform extends one cell past every hall edge. Circumscribed circles
+  // bound the full rotated platforms, including deep or unusually wide halls.
+  const platformRadius = Math.max(...groups.map((group) =>
+    Math.hypot(group.hall_size_cells.x + 2, group.hall_size_cells.y + 2) / 2), 1);
+  const towerRadius = Math.hypot(parameters.tower_width_cells, parameters.tower_depth_cells) / 2;
+  const centreRoundingError = Math.SQRT1_2; // half a cell per axis when snapping ring centres.
 
   const entrance = Math.min(180, Math.max(0, parameters.ring_entrance_degrees ?? 0));
   const usable = 360 - entrance;
@@ -1155,13 +1185,15 @@ function ringGeometry(groups, parameters) {
   // sine below cannot divide by zero.
   const step = count > 1 ? usable / count : usable;
 
-  const chord = widest + Math.max(0, parameters.ring_clearance_cells ?? 0);
+  const chord = 2 * platformRadius + Math.max(0, parameters.ring_clearance_cells ?? 0) +
+    2 * centreRoundingError;
   const halfStep = (step * Math.PI) / 360;
   const spacingRadius = count > 1 ? chord / (2 * Math.sin(halfStep)) : 0;
-  const hubRadius = deepest + (parameters.service_margin_cells ?? 0);
+  const hubRadius = platformRadius + towerRadius + (parameters.service_margin_cells ?? 0) +
+    centreRoundingError;
 
   return {
-    radius_cells: Math.max(Math.ceil(spacingRadius), hubRadius),
+    radius_cells: Math.ceil(Math.max(spacingRadius, hubRadius)),
     step_degrees: step,
     // Centre the used arc so the entrance gap sits opposite the ring's middle.
     start_degrees: entrance / 2 + step / 2,
@@ -1254,9 +1286,11 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     // design, and would be invisible until someone looked at the preview.
     const addPart = (id, kind, local, size, requires = [], extra = {}) =>
       add(id, kind, local, size, requires,
-        zone.yaw_offset_degrees
-          ? { ...extra, yaw_offset_degrees: zone.yaw_offset_degrees }
-          : extra);
+        {
+          ...extra,
+          ...(zone.yaw_offset_degrees ? { yaw_offset_degrees: zone.yaw_offset_degrees } : {}),
+          ...(zone.placement_frame ? { placement_frame: zone.placement_frame } : {}),
+        });
     const number = index + 1;
     const phaseMachineAllocation = commissioning.phases.map((phase) => ({
       phase_id: phase.id,
@@ -1336,16 +1370,30 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
 
   const maxY = Math.max(...zones.map((zone) => zone.local.y + zone.size.y));
   const towerX = -Math.floor(parameters.tower_width_cells / 2);
+  const towerY = style === "radial_hub_campus"
+    ? -Math.floor(parameters.tower_depth_cells / 2)
+    : maxY + parameters.hall_gap_cells;
   const towerZ = style === "terraced_megafactory"
     ? Math.max(...zones.map((zone) => zone.local.z + zone.size.z))
     : parameters.deck_floor;
   add(
     "central-tower",
     "vertical_landmark",
-    { x: towerX, y: maxY + parameters.hall_gap_cells, z: towerZ },
+    { x: towerX, y: towerY, z: towerZ },
     { x: parameters.tower_width_cells, y: parameters.tower_depth_cells, z: parameters.tower_floors },
     ["foundation", "wall", "window"],
-    { optional_roles: ["lighting", "sign"] },
+    {
+      optional_roles: ["lighting", "sign"],
+      ...(style === "radial_hub_campus" ? {
+        placement_frame: {
+          local_pivot_cells: {
+            x: towerX + parameters.tower_width_cells / 2,
+            y: towerY + parameters.tower_depth_cells / 2,
+          },
+          campus_pivot_cells: { x: 0, y: 0 },
+        },
+      } : {}),
+    },
   );
 
   const elements = rawElements.map((element) => ({
@@ -1353,7 +1401,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     kind: element.kind,
     local: element.local,
     size_cells: element.size,
-    world_origin_cm: gridPointToWorld(element.local, grid, anchor),
+    world_origin_cm: elementOriginToWorld(element, grid, anchor),
     world_size_cm: {
       x: element.size.x * unitCm,
       y: element.size.y * unitCm,
@@ -1367,6 +1415,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     ...(element.yaw_offset_degrees
       ? { yaw_offset_degrees: element.yaw_offset_degrees }
       : {}),
+    ...(element.placement_frame ? { placement_frame: element.placement_frame } : {}),
     requires_roles: element.requires,
     ...(element.program_group ? { program_group: element.program_group } : {}),
     ...(element.produces ? { produces: element.produces } : {}),
