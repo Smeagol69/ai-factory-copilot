@@ -7235,3 +7235,28 @@ rather than writing a bad file, but that is a claim from reading the gate, not
 from watching it run. The owner's save is early enough that a Smart Splitter may
 not be unlocked, in which case the planner refuses by name - which is the design
 working, not a failure.
+
+---
+
+## Claude — claiming the generated-blueprint dimension gap (2026-09-19)
+
+**Claiming:** the `Designer->SaveBlueprint` call in `GenerateLayout`
+(`AIFactoryBlueprintExport.cpp:2999`) and its tests.
+
+Found while answering "is this going to create a blueprint?". The capture path
+was fixed to declare a box containing its contents; **the generated path was
+not**. It serialises through `Designer->SaveBlueprint`, which takes dimensions
+from whichever designer is standing in the world, and nothing bounds a
+generated layout to that box - zero calls to `IsLocationInsideDesigner` or
+`GetBlueprintDesignerSize` anywhere in the file.
+
+A three-lane storage bus is about 32 x 32 m and fits a Mk1 designer. Five lanes
+does not, and would ship declaring 4x4x4 while holding 48 m of content - the
+same mismatch measured across the owner's captures, where all 49 Designer-saved
+blueprints fit their declared box and six mod-written ones did not.
+
+**The pivot must not change.** Generated parts are staged at
+`RelativeTransform * StagingDesigner->GetActorTransform()`, so the designer's
+own offset transform is already the correct frame and their relative
+coordinates come out small and right. This widens the declared dimensions only,
+passing that same frame explicitly to `WriteBlueprintToArchive`.
