@@ -21,7 +21,7 @@ import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabase
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { compileArchitectAccess } from "./architect-access.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
-import { planStorageBus } from "./storage-bus.mjs";
+import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -562,11 +562,29 @@ export const SOLVER_TOOLS = [
         },
         belt_tier: { type: "number", description: "Optional exact conveyor tier; omit for the best unlocked." },
         max_lanes: { type: "number", description: "Refuse rather than plan more lanes than this. Default 16." },
+        blueprint_name: { type: "string", description: "Name for the generated blueprint file. Defaults to Sorted Storage Bus." },
       },
       required: ["splitter_class_path"],
       additionalProperties: false,
     },
-    run: (graph, args) => planStorageBus(graph, args),
+    run: (graph, args) => {
+      const plan = planStorageBus(graph, args);
+      if (!plan.planned) return plan;
+      // The action is handed over ready to run, but never pre-committed. The
+      // player approves a native blueprint write the same way they approve
+      // any other: it is a file, it is not undoable, and it must be the only
+      // committed write in its transaction.
+      const name = String(args?.blueprint_name ?? "").trim() || "Sorted Storage Bus";
+      return {
+        ...plan,
+        blueprint_name: name,
+        proposed_action: storageBusActions(plan, { blueprint_name: name, commit: false })[0],
+        to_build:
+          "pass proposed_action to perform_actions with commit set true; it must be the only " +
+          "committed write in that request, because a native blueprint write is a file and " +
+          "cannot be undone.",
+      };
+    },
   },
 
   {

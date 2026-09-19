@@ -7537,3 +7537,56 @@ to this repository. Deployed Shipping DLL SHA-256
 **Unproven:** no bus has been generated or stamped in a real game. The planner
 emits parts and conveyors only - wiring its output into a committed
 `generate_native_blueprint` action is the remaining step, and is unclaimed.
+
+---
+
+## Claude — claiming the storage-bus build lane (2026-09-19)
+
+**Claiming:** `storageBusActions` in `companion/lib/storage-bus.mjs`, its
+exposure through `companion/lib/tools.mjs`, and tests. The last link: turning
+the planner's parts and conveyors into a committed
+`generate_native_blueprint` action.
+
+The action contract is `{ action, blueprint_name, layout_schema, buildables,
+conveyors, commit }` - note `buildables`, not `parts`, which the planner
+currently names. The adapter renames rather than the planner, so the plan stays
+readable on its own terms.
+
+Fail-closed as everywhere else: a plan that did not compile emits no action, and
+the existing bridge and game validation - splitter port counts, sort-rule caps,
+item resolution, readback after staging - all still run. This adds no new
+authority; it only hands an already-validated plan to the existing lane.
+
+**Done 2026-09-19.** `storageBusActions` closes the chain. The planner's output
+becomes one `generate_native_blueprint` action, and the test that matters runs
+it through **the real `validatePlan`** rather than a mock: a planned bus is
+accepted, with one sort rule per ore surviving into the validated action.
+
+Four refusals are pinned by contract:
+
+- The tool returns `proposed_action` with `commit: false`. The player approves
+  the write; the tool never decides to build.
+- Exactly one action, because a native blueprint write cannot share a
+  transaction with reversible writes.
+- An uncompiled plan, or one with no blueprint name, emits `[]` - a refusal
+  upstream can never become half a bus.
+- Stripping `availability_known` still refuses with
+  `generated_blueprint_requires_authoritative_recipe_unlock_capture`. That gate
+  caught the first end-to-end attempt, where the fixture lacked a populated
+  `recipesByClass`; the fixture was wrong, not the gate.
+
+Verification: **1046/1046 companion tests**, `scripts/validate.ps1`, Shipping and
+Editor builds, UAT cook/archive, matched Steam deployment. All **46**
+`companion/lib/*.mjs` files are byte-identical across the repository, the
+standalone install the scheduled task runs, and the bundled copy in the game.
+Deployed Shipping DLL SHA-256
+`64DDAF835ABD27A35DB65BAEA5FB8351BB63AF86A053315EF866843A0859BF06` (unchanged -
+this lane touched no C++, and an identical hash from a fresh compile is itself
+evidence of that).
+
+**The remaining gate is live proof.** No bus has been generated or stamped in a
+real game. The readback in `GenerateLayout` means a wrong composition refuses
+rather than writing a bad file, but that is a claim from reading the gate, not
+from watching it run. The owner's save is early enough that a Smart Splitter may
+not be unlocked, in which case the planner refuses by name - which is the design
+working, not a failure.
