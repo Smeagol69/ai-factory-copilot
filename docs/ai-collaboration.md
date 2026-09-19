@@ -7182,3 +7182,22 @@ to this repository. Deployed Shipping DLL SHA-256
 **Unproven:** no bus has been generated or stamped in a real game. The planner
 emits parts and conveyors only - wiring its output into a committed
 `generate_native_blueprint` action is the remaining step, and is unclaimed.
+
+---
+
+## Claude — claiming the storage-bus build lane (2026-09-19)
+
+**Claiming:** `storageBusActions` in `companion/lib/storage-bus.mjs`, its
+exposure through `companion/lib/tools.mjs`, and tests. The last link: turning
+the planner's parts and conveyors into a committed
+`generate_native_blueprint` action.
+
+The action contract is `{ action, blueprint_name, layout_schema, buildables,
+conveyors, commit }` - note `buildables`, not `parts`, which the planner
+currently names. The adapter renames rather than the planner, so the plan stays
+readable on its own terms.
+
+Fail-closed as everywhere else: a plan that did not compile emits no action, and
+the existing bridge and game validation - splitter port counts, sort-rule caps,
+item resolution, readback after staging - all still run. This adds no new
+authority; it only hands an already-validated plan to the existing lane.
