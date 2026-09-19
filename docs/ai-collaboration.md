@@ -7130,3 +7130,20 @@ plugin ZIPs are still older than these companion updates; stage current source
 before the next package. Native hologram collision, actual terrain and visual
 placement remain live checks. Coordinated radial hall/platform placement,
 architectural enrichment and commissioning remain open. This lane is released.
+
+## Codex — 2026-09-18 continuous Architect work: coordinated hall frames
+
+The owner asked to continue AI Architect work until available usage is consumed.
+Claiming `codex/architect-hall-frames` from master `ed1bcac`, in the isolated
+Codex integrity worktree. First increment: make newly generated radial halls,
+their platforms/facades/roofs/pylons share one placement frame so rotating them
+preserves their relationships. Centre halls on the ring, include full platform
+diagonals in spacing, and place the radial landmark at the hub. Preserve other
+styles and legacy manifests without the new optional frame metadata.
+
+Scope: companion geometry/megabase compilation and validation, the platform
+promotion frame seam, focused geometry/manifest/promotion/revision tests,
+roadmap/changelog and handoff. No C++ or shared Starter Project use. Existing
+stored revisions and world construction stay untouched; native cost, collision,
+readback and operational-readiness gates remain. Further increments will be
+claimed and checkpointed separately after validation and companion deployment.
