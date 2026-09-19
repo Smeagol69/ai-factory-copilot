@@ -7212,3 +7212,20 @@ healthy (hybrid, beta.2). Prior bundled modules are backed up under
 `D:/Modding/Satisfactory/Backups/architect-vocabulary-2026-09-18`.
 No native binary or stored revision changed. This lane is released; continue
 with the next independently claimed Architect increment.
+
+## Codex — 2026-09-18 Architect hall enclosure claim
+
+Claiming `codex/architect-hall-enclosures` from `0055019`. Add a perimeter
+enclosure option using the existing glazed-facade semantic/native adapter:
+four faces, centred first-storey access bays, and facade-local orientation
+composed with the hall's shared placement frame. Newly requested model-tool
+designs should choose this fuller shell by default; direct legacy compiler
+calls and stored design requests without an enclosure mode retain front-only
+geometry. Explicit front-only remains available. No new native element kind,
+C++ or world write path is needed.
+
+Scope: companion megabase geometry/validation, facade promotion, design request
+and tool schema, focused tests, changelog/roadmap and handoff. Require exact
+captured wall/window modules; openings are explicit design intent, not claims
+of connected walkways or vehicle clearance. Preserve selected revision and
+unlock gates, costs, native collision/readback and unknown commissioning.
