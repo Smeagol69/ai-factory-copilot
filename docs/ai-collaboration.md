@@ -7479,3 +7479,61 @@ Claude's completed 564c0d3/45acef9 storage-bus commits before runtime deployment
 their native hunks are already completed work, not edits to his active lane.
 Keep both handoffs and all newer Architect features. Please fetch master before
 packaging so the older integration branch does not replace newer runtime code.
+Deterministic, fail-closed, and evidence-first in the same style as the existing
+planners: every class, capacity, connector and unlock comes from the captured
+snapshot, and a missing piece refuses the plan rather than being assumed.
+
+**Done 2026-09-19.** `companion/lib/storage-bus.mjs` composes the hub, exposed as
+the `plan_storage_bus` solver tool (31 tools now).
+
+A chain of smart splitters, one filtered lane per item into its own container,
+ending in an unfiltered terminal overflow container. Splitter connector topology
+is measured from a captured instance via `measureSplitterTopology`, now exported
+from `routing.mjs`; container and belt come from build recipes the save reports
+available; the item list is censused from live extractors unless named. A locked
+splitter, no captured splitter, fewer than two measured outputs, or nothing
+being extracted each refuse with the missing evidence named.
+
+### Three corrections to the work landed in 2062123, all found by writing its consumer
+
+1. **An empty item class is not "any undefined".** The game expresses
+   AnyUndefined, Overflow and None as real `UFGItemDescriptor` subclasses
+   (`UFGAnyUndefinedDescriptor`, `UFGOverflowDescriptor`, `UFGNoneDescriptor`),
+   so they resolve through the ordinary lookup. `FSplitterSortRule`'s default
+   constructor uses a null ItemClass to mean *unset*. Every rule must now name
+   an item; an empty one refuses on both sides. My earlier comment asserting the
+   opposite was wrong and is gone.
+2. **"Every splitter port must be bound" would have refused every realistic
+   bus.** A sorting bus has a deliberately free intake - that is where the
+   player belts their production in after stamping. The rule is now
+   participation (at least one link), links never exceeding captured ports, and
+   every *sorted* output being belted. Nor can a rule's `OutputIndex` be mapped
+   to a connector name: `AFGBuildableConveyorAttachment::mOutputs` is a runtime
+   cache built at BeginPlay, not readable from class defaults, so any such
+   mapping would have been an assumption. Counts are what is provable.
+3. A positional `parts[parts.length - 2]` put the second lane's sort rule on the
+   first lane's container. Held by reference now.
+
+### Also fixed: an escalation pattern made of literal backspace bytes
+
+`/\bbuild\b|.../i` was written into `providers.mjs` with real 0x08 bytes instead
+of backslash-b, so it compiled into a regex matching nothing and the feature
+stayed unreachable. `od -c` found it after `grep` and `sed` both read it as
+normal. A contract now asserts the source contains no control characters.
+
+The pattern also had to move **below** `mentionsSolverTool`: "build" is a weaker
+signal than "why" or "compare" and appears incidentally in precise solver
+requests ("Using plan_belt_route ... Do not build or change anything"), which
+the de-escalation check exists to keep cheap. `build me a sorted storage hub`
+now reaches the strong tier; `build a storage warehouse here` still answers
+locally; bare lookups still cost nothing.
+
+Verification: **1039/1039 companion tests** (12 for the planner, plus the
+corrections), `scripts/validate.ps1`, Shipping and Editor builds, UAT
+cook/archive, matched Steam deployment, and both companion copies byte-identical
+to this repository. Deployed Shipping DLL SHA-256
+`64DDAF835ABD27A35DB65BAEA5FB8351BB63AF86A053315EF866843A0859BF06`.
+
+**Unproven:** no bus has been generated or stamped in a real game. The planner
+emits parts and conveyors only - wiring its output into a committed
+`generate_native_blueprint` action is the remaining step, and is unclaimed.

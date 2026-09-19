@@ -968,6 +968,16 @@ export function validateAction(graph, proposal) {
           // silently by order, producing a bus that sorts differently from the
           // plan that was approved.
           const itemClass = String(rule?.item_class ?? "").trim();
+          // Every rule names an item. The game's "Any Undefined", "Overflow"
+          // and "None" are real UFGItemDescriptor subclasses, so they come
+          // through this same path; an empty class is an unset rule, which
+          // would ship a lane that silently sorts nothing.
+          if (!itemClass) {
+            return reject(kind, "generated_blueprint_sort_rule_needs_an_item_class", {
+              part_id: partId,
+              output_index: outputIndex,
+            });
+          }
           const claim = `${outputIndex}:${itemClass}`;
           if (claimedOutputs.has(claim)) {
             return reject(kind, "generated_blueprint_sort_rule_is_duplicated", {
@@ -977,7 +987,7 @@ export function validateAction(graph, proposal) {
             });
           }
           claimedOutputs.add(claim);
-          if (itemClass && !findItemInCatalog(graph, itemClass)) {
+          if (!findItemInCatalog(graph, itemClass)) {
             return reject(kind, "generated_blueprint_sort_rule_item_is_not_in_the_catalog", {
               part_id: partId,
               item_class: itemClass,

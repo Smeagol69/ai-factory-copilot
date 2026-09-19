@@ -1734,6 +1734,19 @@ export function needsStrongModel(question, env = process.env) {
   // out of credit it turned a free answer into a failed one.
   if (mentionsSolverTool(text)) return false;
 
+  // Composing something to build is judgement, not lookup - but a weaker signal
+  // than "why" or "compare", which is why it sits here rather than in
+  // ESCALATE_PATTERNS. The verb appears incidentally in precise solver
+  // requests ("Using plan_belt_route ... Do not build or change anything"),
+  // and escalating those is exactly what the check above exists to prevent.
+  //
+  // Measured against the router: every simple build request is already claimed
+  // by a local parser before any of this runs - "build a storage warehouse
+  // here", "build a 10x10 foundation here", "build a coal power plant". What
+  // reaches here is the open-ended kind ("build me a sorted storage hub fed
+  // from my miners"), which needs tools and was going to the 8B model.
+  if (/\bbuild\b|\bcompose\b|\bassemble\b/i.test(text)) return true;
+
   // A near miss on a solver is the weakest tier's worst case.
   //
   // `routeQuestion` matches a solver's trigger phrase and then demands that
@@ -1894,6 +1907,7 @@ const SOLVER_TOOL_NAMES = [
   "plan_belted_module",
   "plan_production",
   "plan_splitter_fan_out",
+  "plan_storage_bus",
   "plan_structure",
 ];
 
