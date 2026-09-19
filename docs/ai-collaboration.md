@@ -6994,3 +6994,24 @@ Also turning off `AIFACTORY_FALLBACK_TO_CHEAP`, which the owner had set to true.
 `askHybrid`'s own comment explains why it is off by default: the local model was
 measured asserting causal reasons the data cannot support, so an outage becomes
 a confident wrong answer rather than a visible failure.
+
+**Done 2026-09-18.** `mentionsSolverPattern` is exported from `router.mjs` and
+`needsStrongModel` escalates when a question carries a solver's trigger phrase
+but `routeQuestion` refuses it. Ordered after `mentionsSolverTool`, so naming a
+solver outright still stays cheap - six contracts pin that, the
+`AIFACTORY_ESCALATE` overrides, and the fact that the two predicates must stay
+different (if they ever agreed, the rule would be dead code). No cycle: nothing
+under `router.mjs` imports `providers.mjs`.
+
+`AIFACTORY_FALLBACK_TO_CHEAP` is now `false` in the owner's user environment and
+the bridge has restarted onto it. An unavailable strong tier is now a visible
+failure rather than a confident answer from an 8B model.
+
+**1013/1013 companion tests** pass. Deployed install verified: 51 runtime file
+hashes, `providers.mjs` and `router.mjs` byte-identical to this repository.
+
+**Known residue, deliberately not widened:** a question sharing *no* phrase with
+any route still goes to the cheap tier - "are any of my belts over capacity or
+backing up?" carries neither "are my belts full" nor "is anything backing up".
+Broadening the route patterns is a separate change with its own cost risk, and
+is unclaimed.
