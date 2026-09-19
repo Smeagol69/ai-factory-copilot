@@ -1114,11 +1114,37 @@ export function planSplitterFanOut(graph, args = {}) {
 
     const consumes = consumedItemClasses(graph, node);
     if (consumes.size === 0) {
-      unusable.push({
-        actor_id: id,
-        name: describeActor(node),
-        reason: "no captured current recipe proves what this consumer accepts",
-        missing: ["target_current_recipe"],
+      // A storage container has no recipe and never will, so demanding one
+      // excluded the most ordinary belt destination there is: nothing could
+      // plan a belt into storage at all.
+      //
+      // It is still not a free pass. A manufacturer with no recipe set is also
+      // recipe-less, and belting into one would be wrong — it is waiting to be
+      // configured, not accepting anything. The distinguishing evidence is the
+      // captured `manufacturer` block, which a container does not have and an
+      // unconfigured machine does. Captured inventory slots then prove the
+      // thing actually holds items rather than merely passing them through.
+      //
+      // Solidity needs no separate check: this is a conveyor fan-out and
+      // conveyor connectors carry solid items, fluids being on pipe ports.
+      const isUnfilteredSink =
+        !node?.raw?.manufacturer && Number(node?.inventory_slot_count ?? 0) > 0;
+      if (!isUnfilteredSink) {
+        unusable.push({
+          actor_id: id,
+          name: describeActor(node),
+          reason: "no captured current recipe proves what this consumer accepts",
+          missing: ["target_current_recipe"],
+        });
+        continue;
+      }
+      targets.push({
+        node,
+        connector: inputs.free[0],
+        compatible: [...produces],
+        // Named so a caller never mistakes this for a recipe-proven match.
+        accepts: "any_solid_item",
+        accepted_because: "captured_storage_inventory_without_a_manufacturer",
       });
       continue;
     }

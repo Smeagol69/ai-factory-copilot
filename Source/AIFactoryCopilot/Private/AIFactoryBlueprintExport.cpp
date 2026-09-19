@@ -18,6 +18,7 @@
 #include "Buildables/FGBuildablePipelineAttachment.h"
 #include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableResourceExtractorBase.h"
+#include "Buildables/FGBuildableSplitterSmart.h"
 #include "Buildables/FGBuildableWire.h"
 #include "FGCircuitConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
@@ -29,6 +30,7 @@
 #include "Hologram/FGPipelineHologram.h"
 #include "Resources/FGBuildDescriptor.h"
 #include "Resources/FGBuildingDescriptor.h"
+#include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceDescriptor.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
@@ -400,7 +402,8 @@ namespace
             Part.Role != TEXT("wall") && Part.Role != TEXT("roof") &&
             Part.Role != TEXT("ramp") && Part.Role != TEXT("machine") &&
             Part.Role != TEXT("standalone") &&
-            Part.Role != TEXT("resource_anchor") && Part.Role != TEXT("miner"))
+            Part.Role != TEXT("resource_anchor") && Part.Role != TEXT("miner") &&
+            Part.Role != TEXT("splitter"))
         {
             OutReason = TEXT("generated_part_role_is_unsupported:") + Part.PartId;
             return false;
@@ -443,12 +446,26 @@ namespace
 
         const bool bResourceAnchorRole = Part.Role == TEXT("resource_anchor");
         const bool bMinerRole = Part.Role == TEXT("miner");
+        const bool bSplitterRole = Part.Role == TEXT("splitter");
 
         // These classes need topology or a native placement target, not just a
         // transform. Serialising an unconnected spline, wire, attachment, or
         // extractor would create a file that looks populated but cannot work.
+        //
+        // A conveyor attachment is the one exception, and only under the
+        // `splitter` role. The stated hazard is an *unconnected* attachment, so
+        // the caller must bind every one of its captured factory connections
+        // with conveyor links in the same request; ValidateSplitterBinding
+        // below enforces that before anything is staged, and refuses the whole
+        // action otherwise. Without that role the class stays denied, which is
+        // what keeps a stray splitter out of a generated file.
+        //
+        // This resolves a real contradiction: the companion had already
+        // compiled balanced splitter fan-out for schema v4, and this clause was
+        // refusing to serialise what it produced.
         if (BuildableClass->IsChildOf(AFGBuildableConveyorBase::StaticClass()) ||
-            BuildableClass->IsChildOf(AFGBuildableConveyorAttachment::StaticClass()) ||
+            (BuildableClass->IsChildOf(AFGBuildableConveyorAttachment::StaticClass()) &&
+             !bSplitterRole) ||
             BuildableClass->IsChildOf(AFGBuildablePipeBase::StaticClass()) ||
             BuildableClass->IsChildOf(AFGBuildablePipelineAttachment::StaticClass()) ||
             BuildableClass->IsChildOf(AFGBuildableWire::StaticClass()) ||
@@ -1133,6 +1150,60 @@ namespace
                         Failure = TEXT("generated_manufacturer_recipe_readback_failed:") +
                             Part.Source.PartId;
                         return false;
+                    }
+                }
+
+                // Splitter filters, applied the same way and read back the same
+                // way: the game is the authority on whether it took, not the
+                // fact that a setter returned. mSortRules is UPROPERTY(SaveGame)
+                // so what survives this readback is what lands in the `.sbp`.
+                if (Part.Source.SortRules.Num() > 0)
+                {
+                    AFGBuildableSplitterSmart* const Splitter =
+                        Cast<AFGBuildableSplitterSmart>(Buildable);
+                    if (!IsValid(Splitter))
+                    {
+                        Failure = TEXT("generated_sort_rules_need_a_smart_splitter:") +
+                            Part.Source.PartId;
+                        return false;
+                    }
+
+                    TArray<FSplitterSortRule> Rules;
+                    Rules.Reserve(Part.Source.SortRules.Num());
+                    for (const FAIFactoryGeneratedBlueprintSortRule& Requested : Part.Source.SortRules)
+                    {
+                        const FString Trimmed = Requested.ItemClassPath.TrimStartAndEnd();
+                        TSubclassOf<UFGItemDescriptor> ItemClass = nullptr;
+                        if (!Trimmed.IsEmpty())
+                        {
+                            UClass* const Found = FindGeneratedClassByPath(Trimmed);
+                            if (!Found || !Found->IsChildOf(UFGItemDescriptor::StaticClass()))
+                            {
+                                Failure = TEXT("generated_sort_rule_item_class_is_not_an_item:") + Trimmed;
+                                return false;
+                            }
+                            ItemClass = Found;
+                        }
+                        Rules.Add(FSplitterSortRule(ItemClass, Requested.OutputIndex));
+                    }
+
+                    Splitter->SetSortRules(Rules);
+                    const TArray<FSplitterSortRule> Readback = Splitter->GetSortRules();
+                    if (Readback.Num() != Rules.Num())
+                    {
+                        Failure = TEXT("generated_sort_rule_readback_count_mismatch:") +
+                            Part.Source.PartId;
+                        return false;
+                    }
+                    for (int32 Index = 0; Index < Rules.Num(); ++Index)
+                    {
+                        if (Readback[Index].ItemClass != Rules[Index].ItemClass ||
+                            Readback[Index].OutputIndex != Rules[Index].OutputIndex)
+                        {
+                            Failure = TEXT("generated_sort_rule_readback_mismatch:") +
+                                Part.Source.PartId;
+                            return false;
+                        }
                     }
                 }
 
@@ -2505,6 +2576,143 @@ FAIFactoryActionResult GenerateLayout(
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("generated_resource_anchors_and_miners_require_v4"));
+    }
+
+    // A splitter is admitted past the attachment denylist only because every
+    // one of its captured factory connections is bound here. The denied case
+    // was always the *unconnected* attachment: a part that looks placed and
+    // silently carries nothing. So prove the binding before anything is staged,
+    // reading the connector names off the class defaults rather than trusting
+    // the request to have named them correctly.
+    for (const FResolvedGeneratedPart& Entry : Resolved)
+    {
+        if (Entry.Source.Role != TEXT("splitter"))
+        {
+            continue;
+        }
+        if (!bSchemaV4)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_splitters_require_v4"));
+        }
+
+        const AFGBuildable* const Defaults =
+            Entry.BuildableClass ? Entry.BuildableClass->GetDefaultObject<AFGBuildable>() : nullptr;
+        if (!IsValid(Defaults))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_splitter_class_defaults_unreadable:") + Entry.Source.PartId);
+        }
+
+        TArray<UFGFactoryConnectionComponent*> Connections;
+        Defaults->GetComponents<UFGFactoryConnectionComponent>(Connections);
+        int32 Required = 0;
+        int32 Bound = 0;
+        for (const UFGFactoryConnectionComponent* const Connection : Connections)
+        {
+            if (!IsValid(Connection))
+            {
+                continue;
+            }
+            ++Required;
+            const FString ConnectorName = Connection->GetName();
+            const bool bLinked = Conveyors.ContainsByPredicate(
+                [&Entry, &ConnectorName](const FAIFactoryGeneratedBlueprintConveyor& Conveyor)
+                {
+                    return (Conveyor.FromPartId == Entry.Source.PartId &&
+                            Conveyor.FromConnectorName == ConnectorName) ||
+                        (Conveyor.ToPartId == Entry.Source.PartId &&
+                            Conveyor.ToConnectorName == ConnectorName);
+                });
+            if (bLinked)
+            {
+                ++Bound;
+            }
+        }
+
+        if (Required == 0)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_splitter_has_no_captured_factory_connections:") + Entry.Source.PartId);
+        }
+        if (Bound != Required)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                FString::Printf(
+                    TEXT("generated_splitter_ports_are_not_all_linked:%s:%d_of_%d"),
+                    *Entry.Source.PartId,
+                    Bound,
+                    Required));
+        }
+
+        // Sort rules are optional: an unfiltered splitter is a legitimate
+        // even split. But a rule that is present must be provably placeable,
+        // so everything here is checked against the captured class rather than
+        // against a vanilla assumption — a modded splitter with a different
+        // output count or rule cap is then handled by the same code.
+        if (Entry.Source.SortRules.Num() == 0)
+        {
+            continue;
+        }
+        const AFGBuildableSplitterSmart* const SplitterDefaults =
+            Entry.BuildableClass
+                ? Entry.BuildableClass->GetDefaultObject<AFGBuildableSplitterSmart>()
+                : nullptr;
+        if (!IsValid(SplitterDefaults))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_sort_rules_need_a_smart_splitter_class:") + Entry.Source.PartId);
+        }
+        const int32 MaxRules = SplitterDefaults->GetMaxNumSortRules();
+        if (MaxRules > 0 && Entry.Source.SortRules.Num() > MaxRules)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                FString::Printf(
+                    TEXT("generated_sort_rules_exceed_captured_capacity:%s:%d_of_%d"),
+                    *Entry.Source.PartId,
+                    Entry.Source.SortRules.Num(),
+                    MaxRules));
+        }
+
+        int32 OutputCount = 0;
+        for (const UFGFactoryConnectionComponent* const Connection : Connections)
+        {
+            if (IsValid(Connection) && Connection->GetDirection() == EFactoryConnectionDirection::FCD_OUTPUT)
+            {
+                ++OutputCount;
+            }
+        }
+        for (const FAIFactoryGeneratedBlueprintSortRule& Rule : Entry.Source.SortRules)
+        {
+            if (Rule.OutputIndex < 0 || (OutputCount > 0 && Rule.OutputIndex >= OutputCount))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Action,
+                    FString::Printf(
+                        TEXT("generated_sort_rule_output_index_is_not_on_this_splitter:%s:%d"),
+                        *Entry.Source.PartId,
+                        Rule.OutputIndex));
+            }
+            // An empty item class is the game's own "any undefined item" rule,
+            // so it is allowed through without a lookup; a named one must
+            // resolve to a real descriptor or the whole action refuses.
+            if (Rule.ItemClassPath.TrimStartAndEnd().IsEmpty())
+            {
+                continue;
+            }
+            if (!FindGeneratedClassByPath(Rule.ItemClassPath))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Action,
+                    TEXT("generated_sort_rule_item_class_not_found:") + Rule.ItemClassPath);
+            }
+        }
     }
     TSet<FString> UsedResourceAnchors;
     for (const FResolvedGeneratedPart& Entry : Resolved)

@@ -9,6 +9,22 @@ struct FAIFactoryActionResult;
 class AFGBuildable;
 
 /** One exact, Blueprint-relative native buildable requested by a planner. */
+/**
+ * One filter on a generated smart or programmable splitter.
+ *
+ * `AFGBuildableSplitterSmart::mSortRules` is UPROPERTY(SaveGame), so a rule set
+ * here is serialised into the `.sbp` and survives being stamped — which is what
+ * lets a whole sorted bus ship as one blueprint instead of being configured by
+ * hand afterwards.
+ */
+struct FAIFactoryGeneratedBlueprintSortRule
+{
+    /** Exact UFGItemDescriptor class path this output should receive. */
+    FString ItemClassPath;
+    /** Which output on the splitter, validated against the captured class. */
+    int32 OutputIndex = INDEX_NONE;
+};
+
 struct FAIFactoryGeneratedBlueprintPart
 {
     FString PartId;
@@ -21,6 +37,8 @@ struct FAIFactoryGeneratedBlueprintPart
     FString ResourcePurity;
     /** v4 Miner: exact generated Anchor part id, never a world actor id. */
     FString ResourceAnchorPartId;
+    /** v4 Splitter: item filters, empty for an unfiltered splitter. */
+    TArray<FAIFactoryGeneratedBlueprintSortRule> SortRules;
     FTransform RelativeTransform = FTransform::Identity;
 };
 

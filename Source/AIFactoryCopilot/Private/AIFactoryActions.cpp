@@ -3943,6 +3943,36 @@ namespace
                 (*Object)->TryGetStringField(
                     TEXT("resource_anchor_part_id"),
                     Part.ResourceAnchorPartId);
+
+                // v4 splitter filters. Absent means an unfiltered splitter,
+                // which is a legitimate even split; a malformed entry refuses
+                // rather than being dropped, so a sorting bus can never quietly
+                // ship with one lane missing its rule.
+                const TArray<TSharedPtr<FJsonValue>>* SortRules = nullptr;
+                if ((*Object)->TryGetArrayField(TEXT("sort_rules"), SortRules) && SortRules)
+                {
+                    for (const TSharedPtr<FJsonValue>& RuleValue : *SortRules)
+                    {
+                        const TSharedPtr<FJsonObject>* RuleObject = nullptr;
+                        if (!RuleValue.IsValid() || !RuleValue->TryGetObject(RuleObject) || !RuleObject)
+                        {
+                            return FAIFactoryActionResult::Refuse(
+                                Kind,
+                                TEXT("generated_sort_rule_is_not_an_object:") + Part.PartId);
+                        }
+                        FAIFactoryGeneratedBlueprintSortRule& Rule = Part.SortRules.AddDefaulted_GetRef();
+                        (*RuleObject)->TryGetStringField(TEXT("item_class"), Rule.ItemClassPath);
+                        double OutputIndex = 0.0;
+                        if (!(*RuleObject)->TryGetNumberField(TEXT("output_index"), OutputIndex))
+                        {
+                            return FAIFactoryActionResult::Refuse(
+                                Kind,
+                                TEXT("generated_sort_rule_needs_an_output_index:") + Part.PartId);
+                        }
+                        Rule.OutputIndex = static_cast<int32>(OutputIndex);
+                    }
+                }
+
                 if (Part.PartId.IsEmpty() || Part.BuildRecipeClassPath.IsEmpty())
                 {
                     return FAIFactoryActionResult::Refuse(

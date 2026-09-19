@@ -7067,3 +7067,43 @@ captured `GetMaxNumSortRules()`. The denylist narrows rather than opens: an
 attachment is admitted only when every captured factory connection on it is
 bound by a conveyor link in the same request, preserving the original reason the
 clause exists.
+
+**Done 2026-09-19.** All three shipped.
+
+1. `routing.mjs` accepts a recipe-less target as an unfiltered sink when it has
+   no captured `manufacturer` block and real inventory slots, marked
+   `accepts: "any_solid_item"`. An unconfigured manufacturer is also recipe-less
+   and is still refused - it is waiting to be told what to make, not accepting
+   anything.
+2. The attachment denylist now excepts `Part.Role == "splitter"`, and
+   `GenerateLayout` refuses unless every captured `UFGFactoryConnectionComponent`
+   on that part is bound by a conveyor link in the same request, with connector
+   names read off the class defaults. The unconnected attachment - the stated
+   hazard - is still refused. Splitters require v4.
+3. `sort_rules: [{output_index, item_class}]` runs the full contract: rule cap
+   from `GetMaxNumSortRules()`, output index against actual `FCD_OUTPUT`
+   connectors, item resolved in the captured catalog, duplicate output claims
+   rejected bridge-side, then `SetSortRules` followed by a `GetSortRules`
+   readback before anything is serialised. An empty `item_class` is the game's
+   own any-undefined-item rule and is allowed through without a lookup.
+   An unfiltered splitter stays legal.
+
+**The compile is the evidence for 3.** `SetSortRules`, `GetSortRules`,
+`GetMaxNumSortRules`, `FSplitterSortRule` and `EFactoryConnectionDirection`
+bound against the real CL 502094 headers on first use.
+
+Verification: **1022/1022 companion tests** (nine new), `scripts/validate.ps1`,
+Shipping and Editor builds, UAT cook/archive, matched Steam deployment. Both
+companion copies - the bundled one and the standalone the scheduled task runs -
+are byte-identical to this repository. Deployed Shipping DLL SHA-256
+`27D92F6F3DE90BDE2813369C883647CC6DA8DB27EB445480C3A5B1E452A21E0A`.
+
+**Unproven and needing a live test:** no generated blueprint containing a
+splitter has been written or stamped. The readback gate means a wrong
+composition refuses rather than writing a bad file.
+
+**Still open:** nothing yet *composes* a sorted hub. These three remove the
+blockers; a planner that lays out bus, sorters, containers and overflow from a
+miner census does not exist. `router.mjs:4902` already builds the shell and
+fills it with containers, so the shell half is done. That composition is the
+next lane and is unclaimed.
