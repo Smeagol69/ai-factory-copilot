@@ -7245,3 +7245,29 @@ grammars, symmetry, orientation tampering, an exact 12-panel native facade
 case with its four missing entrance panels, malformed opening refusal and
 legacy request compatibility. Model schemas, native authority and no-write
 preview contracts remain intact. Deployment follows before usage exhaustion.
+
+### Codex — 2026-09-18 continuous-work checkpoint: all increments deployed
+
+Perimeter implementation `fac9e35` is deployed in both companion copies. All
+46 library hashes match source; the scheduled installer verified 52 runtime
+files. All 102 focused geometry, megabase, promotion, model-schema and revision
+tests pass against each installed library tree, in addition to the full 1038
+test suite and SDK validation. Port 8142 reports `ok`, hybrid, beta.2. Prior
+bundled modules are backed up in
+`D:/Modding/Satisfactory/Backups/architect-enclosures-2026-09-18`.
+
+This continuous run completed three increments: coordinated radial hall frames
+and hub spacing (`461f2da`), model-visible radial/sign vocabulary (`a30ce39`),
+and perimeter facades with access bays (`fac9e35`). No native binaries, saved
+Blueprints or stored revisions changed. No paid provider request or usage-reset
+credit was consumed. Account five-hour usage reached 98% at the final check;
+the remaining work is recorded rather than starting another unverified change.
+
+Next implementation priorities: connect the declared access bays to usable
+circulation, refine facade/roof style from the decoded reference designs, and
+extend commissioning from explicit external-I/O obligations to verified game
+outcomes. Optional signage is selectable but still lacks a native attachment
+adapter. Live visual checks remain for rotated hall shells, their access bays,
+native collision/cost/readback and the previously changed capture pipeline.
+Archived plugin ZIPs still need current source staging before packaging. This
+lane is released with a clean worktree and both companion runtimes healthy.
