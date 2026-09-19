@@ -906,7 +906,7 @@ function connectorName(component) {
  * look like one six-output splitter. This keeps instances separate and accepts
  * the capacity only when every captured example agrees.
  */
-function measureSplitterTopology(graph, classPath) {
+export function measureSplitterTopology(graph, classPath) {
   if (!classPath) {
     return {
       resolved: false,

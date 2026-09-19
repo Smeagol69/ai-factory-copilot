@@ -20,6 +20,7 @@ import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
+import { planStorageBus } from "./storage-bus.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -523,6 +524,45 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => planBeltedModule(graph, args),
+  },
+
+  {
+    name: "plan_storage_bus",
+    description:
+      "Composes a sorted storage hub as one generated blueprint the player stamps: a belt bus feeding a chain of smart or programmable splitters, each filtering one item into its own storage container, ending in an unfiltered overflow container so a full lane cannot stall the bus. Splitter connector topology is measured from a captured instance of that exact class, the container and belt come from build recipes this save reports as available, and the item list is censused from what the world is actually extracting unless items are named. It refuses rather than assuming: a locked splitter, no captured splitter to measure, a splitter with fewer than two outputs, or nothing being extracted all stop the plan. The first splitter's input is left deliberately free - that is where the player belts their own production in after stamping. Belt length, clearance and fit remain the game's decision, and rates are not balanced because a sorting bus does not need matched throughput. This plans only; it does not build.",
+    parameters: {
+      type: "object",
+      properties: {
+        splitter_class_path: {
+          type: "string",
+          description:
+            "Exact class_path of a smart or programmable splitter the player has already built, so its connectors can be measured.",
+        },
+        container_class_path: {
+          type: "string",
+          description:
+            "Optional exact class_path of the storage container to use. Defaults to the most common captured container.",
+        },
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional exact item class paths to sort, one lane each. Omit to census what the world extracts.",
+        },
+        origin_cm: {
+          type: "object",
+          description: "Optional blueprint-local origin in centimetres.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y", "z"],
+          additionalProperties: false,
+        },
+        belt_tier: { type: "number", description: "Optional exact conveyor tier; omit for the best unlocked." },
+        max_lanes: { type: "number", description: "Refuse rather than plan more lanes than this. Default 16." },
+      },
+      required: ["splitter_class_path"],
+      additionalProperties: false,
+    },
+    run: (graph, args) => planStorageBus(graph, args),
   },
 
   {

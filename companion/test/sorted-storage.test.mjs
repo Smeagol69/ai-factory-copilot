@@ -44,13 +44,32 @@ test("a splitter may exist in a generated blueprint only under its own role", ()
 
 test("an unconnected splitter is refused, which is why the exception is safe", () => {
   // The stated reason the denylist exists is an attachment that looks placed
-  // and silently carries nothing. Every captured port must be bound by a
-  // conveyor link in the same request, read off the class defaults rather than
-  // trusted from the request.
+  // and silently carries nothing.
   assert.match(exporter, /Defaults->GetComponents<UFGFactoryConnectionComponent>\(Connections\);/);
-  assert.match(exporter, /generated_splitter_ports_are_not_all_linked/);
+  assert.match(exporter, /generated_splitter_is_not_connected_to_anything/);
   assert.match(exporter, /generated_splitter_has_no_captured_factory_connections/);
   assert.match(exporter, /generated_splitters_require_v4/);
+  // Links can never exceed the ports the captured class actually has.
+  assert.match(exporter, /generated_splitter_has_more_links_than_ports/);
+});
+
+test("a bus blueprint may keep a free intake", () => {
+  // Found by writing the planner: demanding every port be bound refuses the
+  // very thing this was built for. A sorting bus has a deliberately free
+  // input - that is where the player belts their own production in after
+  // stamping it - so participation is the rule, not saturation.
+  assert.doesNotMatch(exporter, /generated_splitter_ports_are_not_all_linked/);
+  assert.match(exporter, /if \(BoundOutputs \+ BoundInputs == 0\)/);
+});
+
+test("a sorted lane must be belted somewhere", () => {
+  // Declaring three sorted outputs and belting one would ship a bus that drops
+  // two item types on the floor. Counted rather than name-matched, because
+  // mOutputs is a runtime cache and any index-to-connector mapping read from
+  // class defaults would be an assumption.
+  assert.match(exporter, /TSet<int32> FilteredOutputs;/);
+  assert.match(exporter, /generated_splitter_has_unrouted_sorted_outputs/);
+  assert.match(exporter, /mOutputs` is a runtime cache|runtime cache built/);
 });
 
 test("sort rules are validated against the captured class, not a vanilla guess", () => {
@@ -61,6 +80,20 @@ test("sort rules are validated against the captured class, not a vanilla guess",
   assert.match(exporter, /EFactoryConnectionDirection::FCD_OUTPUT/);
   assert.match(exporter, /generated_sort_rule_output_index_is_not_on_this_splitter/);
   assert.match(exporter, /generated_sort_rule_item_class_not_found/);
+});
+
+test("every sort rule names an item, including the special ones", () => {
+  // Corrected after reading the headers: the game expresses "Any Undefined",
+  // "Overflow" and "None" as real UFGItemDescriptor subclasses
+  // (UFGAnyUndefinedDescriptor, UFGOverflowDescriptor, UFGNoneDescriptor), so
+  // they resolve through the ordinary lookup and need no special case. An empty
+  // item class is NOT one of them - FSplitterSortRule's default constructor
+  // uses a null ItemClass to mean *unset*, and serialising that would ship a
+  // splitter with a lane that silently sorts nothing.
+  assert.match(exporter, /generated_sort_rule_needs_an_item_class/);
+  assert.match(actions, /generated_blueprint_sort_rule_needs_an_item_class/);
+  // The single IsChildOf check covers specials and real items alike.
+  assert.match(exporter, /Found->IsChildOf\(UFGItemDescriptor::StaticClass\(\)\)/);
 });
 
 test("applied sort rules are read back before anything is serialised", () => {

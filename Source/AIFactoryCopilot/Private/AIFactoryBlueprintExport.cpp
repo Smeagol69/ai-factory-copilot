@@ -1173,17 +1173,23 @@ namespace
                     for (const FAIFactoryGeneratedBlueprintSortRule& Requested : Part.Source.SortRules)
                     {
                         const FString Trimmed = Requested.ItemClassPath.TrimStartAndEnd();
-                        TSubclassOf<UFGItemDescriptor> ItemClass = nullptr;
-                        if (!Trimmed.IsEmpty())
+                        if (Trimmed.IsEmpty())
                         {
-                            UClass* const Found = FindGeneratedClassByPath(Trimmed);
-                            if (!Found || !Found->IsChildOf(UFGItemDescriptor::StaticClass()))
-                            {
-                                Failure = TEXT("generated_sort_rule_item_class_is_not_an_item:") + Trimmed;
-                                return false;
-                            }
-                            ItemClass = Found;
+                            Failure = TEXT("generated_sort_rule_needs_an_item_class:") +
+                                Part.Source.PartId;
+                            return false;
                         }
+                        UClass* const Found = FindGeneratedClassByPath(Trimmed);
+                        // The special rules are ordinary descriptors here:
+                        // UFGAnyUndefinedDescriptor, UFGOverflowDescriptor and
+                        // UFGNoneDescriptor all derive from UFGItemDescriptor,
+                        // so this one check covers them and real items alike.
+                        if (!Found || !Found->IsChildOf(UFGItemDescriptor::StaticClass()))
+                        {
+                            Failure = TEXT("generated_sort_rule_item_class_is_not_an_item:") + Trimmed;
+                            return false;
+                        }
+                        const TSubclassOf<UFGItemDescriptor> ItemClass = Found;
                         Rules.Add(FSplitterSortRule(ItemClass, Requested.OutputIndex));
                     }
 
@@ -2608,45 +2614,94 @@ FAIFactoryActionResult GenerateLayout(
 
         TArray<UFGFactoryConnectionComponent*> Connections;
         Defaults->GetComponents<UFGFactoryConnectionComponent>(Connections);
-        int32 Required = 0;
-        int32 Bound = 0;
+        int32 InputPorts = 0;
+        int32 OutputPorts = 0;
         for (const UFGFactoryConnectionComponent* const Connection : Connections)
         {
             if (!IsValid(Connection))
             {
                 continue;
             }
-            ++Required;
-            const FString ConnectorName = Connection->GetName();
-            const bool bLinked = Conveyors.ContainsByPredicate(
-                [&Entry, &ConnectorName](const FAIFactoryGeneratedBlueprintConveyor& Conveyor)
-                {
-                    return (Conveyor.FromPartId == Entry.Source.PartId &&
-                            Conveyor.FromConnectorName == ConnectorName) ||
-                        (Conveyor.ToPartId == Entry.Source.PartId &&
-                            Conveyor.ToConnectorName == ConnectorName);
-                });
-            if (bLinked)
+            if (Connection->GetDirection() == EFactoryConnectionDirection::FCD_OUTPUT)
             {
-                ++Bound;
+                ++OutputPorts;
+            }
+            else if (Connection->GetDirection() == EFactoryConnectionDirection::FCD_INPUT)
+            {
+                ++InputPorts;
             }
         }
-
-        if (Required == 0)
+        if (InputPorts + OutputPorts == 0)
         {
             return FAIFactoryActionResult::Refuse(
                 Action,
                 TEXT("generated_splitter_has_no_captured_factory_connections:") + Entry.Source.PartId);
         }
-        if (Bound != Required)
+
+        // Counted by direction rather than matched by connector name.
+        //
+        // An earlier version demanded that *every* port be bound, which is
+        // wrong for the thing this exists to build: a sorting bus blueprint has
+        // a deliberately free intake, because that is where the player belts
+        // their own production in after stamping it. Requiring it bound would
+        // refuse every realistic bus.
+        //
+        // Nor can a rule's OutputIndex be mapped to a named connector here.
+        // `AFGBuildableConveyorAttachment::mOutputs` is a runtime cache built
+        // at BeginPlay, not readable from class defaults, so any index-to-name
+        // mapping would be an assumption. What *is* provable is the count.
+        int32 BoundOutputs = 0;
+        int32 BoundInputs = 0;
+        for (const FAIFactoryGeneratedBlueprintConveyor& Conveyor : Conveyors)
+        {
+            if (Conveyor.FromPartId == Entry.Source.PartId)
+            {
+                ++BoundOutputs;
+            }
+            if (Conveyor.ToPartId == Entry.Source.PartId)
+            {
+                ++BoundInputs;
+            }
+        }
+
+        // The original hazard: an attachment that looks placed and carries
+        // nothing at all.
+        if (BoundOutputs + BoundInputs == 0)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("generated_splitter_is_not_connected_to_anything:") + Entry.Source.PartId);
+        }
+        if (BoundOutputs > OutputPorts || BoundInputs > InputPorts)
         {
             return FAIFactoryActionResult::Refuse(
                 Action,
                 FString::Printf(
-                    TEXT("generated_splitter_ports_are_not_all_linked:%s:%d_of_%d"),
+                    TEXT("generated_splitter_has_more_links_than_ports:%s:in_%d_of_%d:out_%d_of_%d"),
                     *Entry.Source.PartId,
-                    Bound,
-                    Required));
+                    BoundInputs,
+                    InputPorts,
+                    BoundOutputs,
+                    OutputPorts));
+        }
+
+        // A filtered lane must actually go somewhere. Declaring three sorted
+        // outputs and belting one of them would ship a bus that drops two
+        // item types on the floor.
+        TSet<int32> FilteredOutputs;
+        for (const FAIFactoryGeneratedBlueprintSortRule& Rule : Entry.Source.SortRules)
+        {
+            FilteredOutputs.Add(Rule.OutputIndex);
+        }
+        if (FilteredOutputs.Num() > BoundOutputs)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                FString::Printf(
+                    TEXT("generated_splitter_has_unrouted_sorted_outputs:%s:%d_sorted_%d_belted"),
+                    *Entry.Source.PartId,
+                    FilteredOutputs.Num(),
+                    BoundOutputs));
         }
 
         // Sort rules are optional: an unfiltered splitter is a legitimate
@@ -2699,12 +2754,21 @@ FAIFactoryActionResult GenerateLayout(
                         *Entry.Source.PartId,
                         Rule.OutputIndex));
             }
-            // An empty item class is the game's own "any undefined item" rule,
-            // so it is allowed through without a lookup; a named one must
-            // resolve to a real descriptor or the whole action refuses.
+            // Every rule names an item, including the special ones.
+            //
+            // The game expresses "Any Undefined", "Overflow" and "None" as real
+            // UFGItemDescriptor subclasses -- UFGAnyUndefinedDescriptor,
+            // UFGOverflowDescriptor, UFGNoneDescriptor -- so they resolve
+            // through this same lookup and need no special case. An empty class
+            // is not one of them; FSplitterSortRule's default constructor uses
+            // a null ItemClass with OutputIndex INDEX_NONE to mean *unset*, and
+            // serialising an unset rule would produce a splitter with a lane
+            // that silently sorts nothing.
             if (Rule.ItemClassPath.TrimStartAndEnd().IsEmpty())
             {
-                continue;
+                return FAIFactoryActionResult::Refuse(
+                    Action,
+                    TEXT("generated_sort_rule_needs_an_item_class:") + Entry.Source.PartId);
             }
             if (!FindGeneratedClassByPath(Rule.ItemClassPath))
             {
