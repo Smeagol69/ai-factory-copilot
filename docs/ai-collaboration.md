@@ -7168,3 +7168,16 @@ compiler (`ed1bcac`) and compared complete manifests for all three non-radial
 styles at 0, 17.25 and 90 degrees: all nine are unchanged. No stored revisions
 were rewritten. Deployment follows; bridges remain semantic circulation intent
 and native collision/readback is still required.
+
+### Codex — 2026-09-18 hall frames deployed, next increment pending
+
+Implementation `461f2da` is installed in both companion copies. All 46 runtime
+library hashes match; the scheduled installer verified all 52 runtime files and
+restarted the bridge healthy on port 8142 (hybrid, beta.2). All 78 focused
+geometry/megabase/promotion tests also pass against each installed library tree.
+Bundled previous modules are retained in
+`D:/Modding/Satisfactory/Backups/architect-hall-frames-2026-09-18`.
+No DLL, Starter Project, saved Blueprint or persisted revision was changed.
+Archive packages still need source staging before the next native package.
+Live visual placement remains unverified. The owner requested continued work;
+this increment is complete and the next companion scope will be claimed below.
