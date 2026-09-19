@@ -399,3 +399,39 @@ export function planStorageBus(graph, args = {}) {
     ],
   };
 }
+
+/**
+ * The plan as one committed `generate_native_blueprint` action.
+ *
+ * Deliberately a single action. A native blueprint export must be a standalone
+ * commit and is explicitly not undoable, so a bus cannot be mixed into a
+ * transaction with reversible writes; and the sorting only survives at all
+ * because the filters are applied to staged actors and serialised, which is
+ * something only this lane does.
+ *
+ * This adds no authority of its own. Everything downstream still runs: the
+ * bridge re-resolves every recipe and item against the captured catalog, the
+ * game checks splitter port counts and the sort-rule cap against the captured
+ * class, applies the rules and reads them back before serialising, and refuses
+ * the whole file if any of it disagrees. A plan that did not compile emits
+ * nothing.
+ *
+ * `buildables` rather than `parts`: that is what the action contract calls the
+ * field. The rename lives here so the plan stays readable on its own terms.
+ */
+export function storageBusActions(plan, { blueprint_name: blueprintName, commit = false } = {}) {
+  if (!plan?.planned) return [];
+  const name = String(blueprintName ?? "").trim();
+  if (!name) return [];
+
+  return [
+    {
+      action: "generate_native_blueprint",
+      blueprint_name: name,
+      layout_schema: plan.schema,
+      buildables: plan.parts,
+      conveyors: plan.conveyors,
+      commit,
+    },
+  ];
+}
