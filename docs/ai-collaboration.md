@@ -7073,3 +7073,19 @@ preview. This is per-element transform support; it does not repair spacing in
 an existing radial manifest or certify its circulation, connections, collisions
 or production operation. Automatic architectural enrichment, coordinated hall
 layout and commissioning remain open. This companion lane is released.
+
+## Codex — 2026-09-18 Architect spatial checks claim
+
+Claiming `codex/architect-spatial-checks` from current master `1eb8c10`, in the
+isolated `satisfactory-codex-integrity` checkout. Continue the owner's Architect
+Mode request with rotation-aware planning checks: derive footprint bounds from
+all element corners, test production-hall overlap in their actual orientations,
+and require the captured terrain probe's world-space square to contain the
+complete footprint. Comparing probe width with unrotated design width alone
+currently misreports offset/rotated campuses as covered.
+
+Scope: companion geometry helper if useful, `megabase.mjs`, focused regressions,
+roadmap/changelog and this handoff. Preserve native placement, design transforms,
+stored revisions, authority checks and unknown terrain evidence. No C++ or
+shared Starter Project use. Run full validation, update both companion copies,
+verify installed code and health, and report the remaining live-test boundary.
