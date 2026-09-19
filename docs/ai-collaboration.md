@@ -7109,3 +7109,24 @@ rotation now genuinely overlaps its neighbour under the corrected geometry;
 the receiver is moved clear before that test, preserving its intended assertion
 that a misaligned conveyor/pipe fails at the route gate. No native action
 compiler or game code changed. Both companion deployments follow.
+
+### Codex — 2026-09-18 spatial checks deployed, lane released
+
+Implementation `1865fd6` is installed in the scheduled and game-bundled
+companions. The installer verified 52 runtime files; all 46 library modules
+in both copies match source hashes. The 70 geometry, megabase and promotion
+tests also pass against each installed library tree. Restarted bridge health
+is `ok`, hybrid, beta.2, action contract 1. No paid model call was needed.
+
+SHA-256: `megabase.mjs`
+`AD717083CEA6FD4D86D21C74B4200C2230E36F64DBDEB066A98C36F6F41AC8D1`;
+`architect-geometry.mjs`
+`ECF55CA05CE9E0CEA1F8877394D9734C5CDCF2EBB4AD6B32DFD1FEBBE82E9B96`.
+Prior bundled megabase module backup:
+`D:/Modding/Satisfactory/Backups/architect-spatial-checks-2026-09-18`.
+
+No DLL, Starter Project or existing Blueprint/revision file changed. Archived
+plugin ZIPs are still older than these companion updates; stage current source
+before the next package. Native hologram collision, actual terrain and visual
+placement remain live checks. Coordinated radial hall/platform placement,
+architectural enrichment and commissioning remain open. This lane is released.
