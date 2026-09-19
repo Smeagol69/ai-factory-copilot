@@ -5,6 +5,10 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- The model-facing Architect tool now exposes the radial style, ring spacing,
+  entrance arc, inward/outward facing and the existing sign role. Provider tool
+  schemas share the compiler's style/role lists so implemented capabilities do
+  not remain hidden from the assistant.
 - New radial Architect designs keep each hall, platform, facade, roof and pylon
   in one shared placement frame. Half-cell pivots centre odd-sized halls exactly
   on the ring; the landmark is centred at the hub. Ring spacing now includes

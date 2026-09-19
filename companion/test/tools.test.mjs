@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildGraph } from "../lib/graph.mjs";
+import { MEGABASE_STYLES, SEMANTIC_ROLES } from "../lib/megabase.mjs";
 import {
   SOLVER_TOOLS,
   anthropicToolDefinitions,
+  chatCompletionsToolDefinitions,
   openAIToolDefinitions,
   runSolverTool,
   serializeToolResult,
@@ -11,6 +13,25 @@ import {
 import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
 const graph = buildGraph(buildFactorySnapshot());
+
+test("every provider exposes the complete Architect style, radial and part vocabulary", () => {
+  const name = "design_megabase_concept";
+  const schemas = [
+    openAIToolDefinitions().find((tool) => tool.name === name).parameters,
+    anthropicToolDefinitions().find((tool) => tool.name === name).input_schema,
+    chatCompletionsToolDefinitions().find((tool) => tool.function.name === name).function.parameters,
+  ];
+  for (const schema of schemas) {
+    assert.deepEqual(schema.properties.style.enum, [...MEGABASE_STYLES]);
+    assert.ok(schema.properties.style.enum.includes("radial_hub_campus"));
+    assert.deepEqual(Object.keys(schema.properties.part_selections.properties), [...SEMANTIC_ROLES]);
+    assert.equal(schema.properties.part_selections.properties.sign.type, "string");
+    const radial = schema.properties.creative_parameters.properties;
+    assert.deepEqual(radial.hall_facing.enum, [1, -1]);
+    assert.equal(radial.ring_entrance_degrees.maximum, 180);
+    assert.equal(radial.ring_clearance_cells.minimum, 0);
+  }
+});
 
 test("every solver tool has a name, description, and object schema", () => {
   assert.ok(SOLVER_TOOLS.length >= 15);

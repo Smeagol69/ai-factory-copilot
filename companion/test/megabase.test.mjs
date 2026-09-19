@@ -693,6 +693,17 @@ test("the model-facing solver is action-free by default and can emit one draw-on
   assert.equal(emitted[0].action, "architect_preview");
   assert.equal(emitted[0].commit, true);
   assert.equal(emitted[0].elements.length, parsed.elements.length);
+
+  const radial = JSON.parse(runSolverTool(toolGraph, "design_megabase_concept", {
+    ...request, style: "radial_hub_campus",
+    creative_parameters: { hall_facing: -1, ring_clearance_cells: 4, ring_entrance_degrees: 90 },
+  }).serialized);
+  assert.equal(radial.compiled, true, radial.reason);
+  assert.equal(radial.validation.valid, true);
+  assert.equal(radial.creative_parameters.hall_facing, -1);
+  assert.equal(radial.creative_parameters.ring_clearance_cells, 4);
+  assert.ok(radial.elements.find((element) => element.id === "platform-1").placement_frame);
+  assert.deepEqual(radial.actions, []);
 });
 
 test("radial_hub_campus rotates each hall to face the hub", () => {

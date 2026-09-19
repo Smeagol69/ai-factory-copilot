@@ -86,7 +86,7 @@ const STYLE_DEFAULTS = Object.freeze({
   }),
 });
 
-const SEMANTIC_ROLES = Object.freeze([
+export const SEMANTIC_ROLES = Object.freeze([
   "foundation",
   "support_column",
   "walkway",

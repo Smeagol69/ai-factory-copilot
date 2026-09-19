@@ -7193,3 +7193,13 @@ vocabulary, add documented radial controls, verify all provider tool formats
 and a deterministic model-tool call, and deploy both companion copies. Scope:
 `megabase.mjs`, `tools.mjs`, focused tests, changelog and handoff. No new solver,
 native code or provider API change; no paid model call is needed.
+
+### Codex — 2026-09-18 Architect vocabulary verified
+
+The tool now derives its style enum and part-selection properties from the
+compiler's exported vocabulary. Radial clearance, entrance arc and +/-1 facing
+are declared with their constraints. A regression checks all three existing
+provider formats and a deterministic `runSolverTool` request exercises radial
+outward-facing generation, shared frames and the no-construction response.
+All 1033 tests and exact SDK validation pass. No solver count or provider API
+changed. Companion deployment follows.

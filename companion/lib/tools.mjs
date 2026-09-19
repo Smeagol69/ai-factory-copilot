@@ -17,7 +17,7 @@ import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
-import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
+import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
@@ -603,12 +603,8 @@ export const SOLVER_TOOLS = [
         },
         style: {
           type: "string",
-          enum: [
-            "elevated_industrial_campus",
-            "terraced_megafactory",
-            "curvilinear_future_campus",
-          ],
-          description: "Architectural grammar to compile. It changes massing, not game facts.",
+          enum: [...MEGABASE_STYLES],
+          description: "Architectural grammar to compile. Choose radial_hub_campus for halls arranged around a central landmark with a shared frame per hall. It changes massing, not game facts.",
         },
         design_family_id: {
           type: "string",
@@ -696,6 +692,12 @@ export const SOLVER_TOOLS = [
             terrace_step_cells: { type: "integer" },
             terrace_level_floors: { type: "integer" },
             curve_amplitude_cells: { type: "integer" },
+            ring_clearance_cells: { type: "integer", minimum: 0,
+              description: "Radial style: extra spacing between the full platform envelopes." },
+            ring_entrance_degrees: { type: "integer", minimum: 0, maximum: 180,
+              description: "Radial style: arc left open as the campus entrance." },
+            hall_facing: { type: "integer", enum: [1, -1],
+              description: "Radial style: 1 faces hall fronts toward the hub, -1 faces them outward." },
             tower_width_cells: { type: "integer" },
             tower_depth_cells: { type: "integer" },
             tower_floors: { type: "integer" },
@@ -706,16 +708,7 @@ export const SOLVER_TOOLS = [
           type: "object",
           description:
             "Optional recipe classes selected for semantic architecture roles. Each is independently checked against the captured available recipe catalog; a guessed class remains unresolved.",
-          properties: {
-            foundation: { type: "string" },
-            support_column: { type: "string" },
-            walkway: { type: "string" },
-            rail: { type: "string" },
-            wall: { type: "string" },
-            window: { type: "string" },
-            sloped_roof: { type: "string" },
-            lighting: { type: "string" },
-          },
+          properties: Object.fromEntries(SEMANTIC_ROLES.map((role) => [role, { type: "string" }])),
           additionalProperties: false,
         },
       },
