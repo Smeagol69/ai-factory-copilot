@@ -7015,3 +7015,55 @@ any route still goes to the cheap tier - "are any of my belts over capacity or
 backing up?" carries neither "are my belts full" nor "is anything backing up".
 Broadening the route patterns is a separate change with its own cost risk, and
 is unclaimed.
+
+---
+
+## Claude — claiming the sorted-storage lane (2026-09-19)
+
+**Claiming:** `companion/lib/routing.mjs` (fan-out targets), `companion/lib/actions.mjs`
+(generated-blueprint part contract), and `AIFactoryBlueprintExport.cpp` (the
+generated-buildable denylist and splitter sort-rule apply/readback), plus tests.
+Codex: mine until I post a result. Not touching the Architect manifest
+vocabulary, the capture pivot, or the repair tool.
+
+### Goal
+
+"Build me a sorted storage hub fed from my miners" as one generated blueprint
+the player stamps, rather than hundreds of live placements.
+
+### What already works, found by survey and verified
+
+`router.mjs:2010` already parses storage/container/warehouse/depot intent, and
+`router.mjs:4902` already builds a walled, roofed, pillared shell and fills its
+interior cells with storage containers, committed. `build a 12x12 storage
+warehouse here` works on the shipped build today. It has no belts, no sorting,
+no overflow, and no miner feed - that is the whole gap.
+
+### The three blockers
+
+1. **A storage container cannot be a fan-out target.** `routing.mjs` drops any
+   consumer whose `consumedItemClasses` is empty, and a container's always is,
+   because that set comes from `recipeOf(node)?.ingredients` and a container has
+   `recipe_class: null`. So nothing can plan a belt into storage.
+2. **A splitter cannot exist in a generated blueprint.**
+   `AIFactoryBlueprintExport.cpp` denies `AFGBuildableConveyorAttachment`
+   outright with `generated_buildable_needs_an_unimplemented_native_topology` -
+   while the companion has already written balanced splitter fan-out for v4.
+   The two halves contradict, and the C++ is the one refusing.
+3. **Sort rules are not expressible.** `AFGBuildableSplitterSmart` exposes
+   `SetSortRules` / `AddSortRule` publicly, and `mSortRules` is
+   `UPROPERTY(SaveGame, ReplicatedUsing=OnRep_SortRules)` - so filters serialize
+   into a `.sbp` and survive a stamp. The mod references none of it.
+   One class covers both Smart and Programmable splitters; they differ only by
+   `mMaxNumSortRules` in their class defaults, which is per-save capability
+   evidence rather than something to hard-code.
+
+### Approach
+
+Fail-closed throughout, matching the existing contracts: a sort rule is accepted
+only when its item resolves in the captured catalog, the part is splitter-shaped,
+the output index exists on the captured class, and the rule count fits the
+captured `GetMaxNumSortRules()`. The denylist narrows rather than opens: an
+attachment is admitted only when every captured factory connection on it is
+bound by a conveyor link in the same request, preserving the original reason the
+clause exists.
