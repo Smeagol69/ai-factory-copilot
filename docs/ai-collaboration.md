@@ -7271,3 +7271,25 @@ adapter. Live visual checks remain for rotated hall shells, their access bays,
 native collision/cost/readback and the previously changed capture pipeline.
 Archived plugin ZIPs still need current source staging before packaging. This
 lane is released with a clean worktree and both companion runtimes healthy.
+
+## Codex — 2026-09-19 alongside Claude: Architect access portals
+
+Claiming `codex/architect-access-portals` from master `9f7136b`, in the isolated
+Codex integrity worktree. Read Claude's `cd3d68a` sorted-storage claim: his
+`routing.mjs`, `actions.mjs`, generated splitter/native export lane and tests
+remain his. Codex will take a separate Architect access catalog: exact portal
+positions, dimensions and directions derived from declared facade openings,
+with clear pending-circulation status for the model and future walkway planning.
+Expected files: a new Architect access helper/tests, `megabase.mjs`, small
+promotion/report integration if needed, docs/changelog. No native code, routing
+or action-contract changes; no shared Starter Project use.
+
+Integration notice: Claude's integration branch diverged before the two capture
+dimension implementations, so a whole-branch merge conflicts in the capture
+export and contract tests. That trial merge was aborted cleanly; those files
+are unchanged. Integrate the completed companion-only near-miss escalation
+commit `72ed0e7` here, preserving both logs, and leave native capture reconciliation
+to a separately coordinated step after Claude releases the export lane.
+Both agents should fetch master before deployment: it carries the deployed
+Architect frames/enclosures and 1038 tests, while Claude's completed routing
+fix was validated on an older 1013-test tree. Do not downgrade either runtime.
