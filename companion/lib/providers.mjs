@@ -12,6 +12,10 @@ import {
   runSolverTool,
 } from "./tools.mjs";
 import { narrateFindings } from "./narrate.mjs";
+// One direction only: router.mjs does not import this module, so this adds no
+// cycle. Used by needsStrongModel to spot a question that nearly matched a
+// deterministic solver.
+import { mentionsSolverPattern, routeQuestion } from "./router.mjs";
 import { isVisionQuestion, visionMetadataText } from "./vision.mjs";
 
 const DEFAULT_MAXIMUM_SOLVER_ROUNDS = 6;
@@ -1729,6 +1733,19 @@ export function needsStrongModel(question, env = process.env) {
   // Escalating it wasted the expensive tier on typing, and when that tier was
   // out of credit it turned a free answer into a failed one.
   if (mentionsSolverTool(text)) return false;
+
+  // A near miss on a solver is the weakest tier's worst case.
+  //
+  // `routeQuestion` matches a solver's trigger phrase and then demands that
+  // everything left over be filler. "what tier am i" routes and is answered
+  // exactly, for free. "what tier am I on and is the Dimensional Depot
+  // unlocked yet?" does not route, and without this rule it fell through every
+  // remaining check — short, no solver named — to the local 8B model.
+  //
+  // That is backwards. The leftover clause is the part that needs tools and
+  // judgement; the solver phrase only proves the question is about this save.
+  // So a question that nearly matched a lookup is exactly one to escalate.
+  if (mentionsSolverPattern(text) && !routeQuestion(text)) return true;
 
   // A long question is usually a compound or nuanced one.
   if (text.split(/\s+/).length > 28) return true;

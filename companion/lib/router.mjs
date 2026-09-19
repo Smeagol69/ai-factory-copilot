@@ -3052,6 +3052,26 @@ const ROUTES = [
  * Longest pattern first, so "where should i build" is preferred over a shorter
  * overlapping phrase and the residue check has the most text accounted for.
  */
+/**
+ * Does this question contain a solver's own trigger phrase?
+ *
+ * Deliberately weaker than `routeQuestion`, which additionally demands that
+ * everything left over be filler. The gap between the two is the interesting
+ * case: "what tier am i" routes to a solver, while "what tier am I on and is
+ * the Dimensional Depot unlocked yet?" does not, because the second clause is
+ * real content rather than filler.
+ *
+ * That residue is precisely the part that needs tools and judgement, so the
+ * escalation logic uses this to send such a question to the strong tier
+ * instead of letting it fall through to the weakest one. See
+ * `needsStrongModel`.
+ */
+export function mentionsSolverPattern(question) {
+  const normalized = normalize(question);
+  if (!normalized) return false;
+  return ROUTES.some((route) => route.patterns.some((pattern) => normalized.includes(pattern)));
+}
+
 export function routeQuestion(question) {
   const normalized = normalize(question);
   if (!normalized) return null;
