@@ -772,3 +772,111 @@ test("validation recomputes element rotation instead of trusting it", () => {
   assert.equal(check.valid, false);
   assert.ok(check.issues.some((issue) => issue.startsWith("world_yaw_mismatch:")), check.issues.join(","));
 });
+
+function spatialConcept(specifications, campusYaw = 0) {
+  const concept = compile("elevated_industrial_campus");
+  concept.anchor_cm = { x: 0, y: 0, z: 0 };
+  concept.grid.yaw_degrees = campusYaw;
+  concept.elements = specifications.map(({ local, size, yaw = 0 }, index) => ({
+    id: `spatial-${index}`, kind: "production_zone", local, size_cells: size,
+    world_origin_cm: gridPointToWorld(local, concept.grid, concept.anchor_cm),
+    world_yaw_degrees: (campusYaw + yaw) % 360,
+    yaw_offset_degrees: yaw,
+    requires_roles: [],
+  }));
+  concept.connections = [];
+  return concept;
+}
+
+function spatialProbeGraph(center, width) {
+  return {
+    nodes: new Map(),
+    snapshot: {
+      world: { scan_center: center },
+      terrain: { at_scan_center: { sampled: true, verdict: "flat_and_clear", footprint_meters: width } },
+    },
+  };
+}
+
+test("footprints union every rotated element rather than the campus-aligned rectangles", () => {
+  const concept = spatialConcept([
+    { local: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 1, z: 1 }, yaw: 90 },
+    { local: { x: 4, y: 0, z: 2 }, size: { x: 1, y: 1, z: 1 }, yaw: 180 },
+  ]);
+  const footprint = megabaseFootprint(concept);
+  assert.deepEqual(footprint.local_min_cells, { x: -1, y: -1, z: 0 });
+  assert.deepEqual(footprint.local_max_cells, { x: 4, y: 2, z: 3 });
+  assert.deepEqual(footprint.world_aabb_cm, {
+    min: { x: -800, y: -800, z: 0 }, max: { x: 3200, y: 1600, z: 1200 },
+  });
+  assert.deepEqual(footprint.size_meters, { x: 40, y: 24, z: 12 });
+});
+
+test("a captured obstruction under a rotated wing is included in site screening", () => {
+  const concept = spatialConcept([
+    { local: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 1, z: 1 }, yaw: 90 },
+  ]);
+  const site = spatialProbeGraph({ x: 0, y: 0, z: 0 }, 40);
+  site.nodes.set("obstruction", { kind: "buildable", actor_id: "obstruction", raw: {
+    bounds: { origin: { x: -400, y: 1200, z: 200 }, extent: { x: 100, y: 100, z: 100 } },
+  } });
+  const result = assessMegabaseSite(site, concept);
+  assert.equal(result.status, "blocked_by_captured_buildings");
+  assert.equal(result.captured_building_overlaps.count, 1);
+});
+
+test("hall validation uses oriented volumes for both missed and false overlaps", () => {
+  for (const [yaw, second, expected] of [
+    [90, { x: -2, y: 1, z: 0 }, true],
+    [180, { x: 1, y: 1, z: 0 }, false],
+    [90, { x: -2, y: 1, z: 1 }, false],
+  ]) {
+    const concept = spatialConcept([
+      { local: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 2, z: 1 }, yaw },
+      { local: second, size: { x: 1, y: 1, z: 1 } },
+    ]);
+    const overlaps = validateMegabaseManifest(concept).issues.filter((issue) => issue.startsWith("production_zones_overlap:"));
+    assert.equal(overlaps.length > 0, expected, `yaw=${yaw} second=${JSON.stringify(second)}`);
+  }
+});
+
+test("a probe as wide as an offset design does not cover the side extending beyond it", () => {
+  const concept = spatialConcept([
+    { local: { x: 1, y: -1, z: 0 }, size: { x: 2, y: 2, z: 1 } },
+  ]);
+  const site = spatialProbeGraph({ x: 0, y: 0, z: 0 }, 24);
+  const result = assessMegabaseSite(site, concept);
+  assert.equal(result.footprint.size_meters.x, 16);
+  assert.equal(result.terrain.required_footprint_meters, 48);
+  assert.equal(result.terrain.covers_whole_design, false);
+  site.snapshot.terrain.at_scan_center.footprint_meters = 48;
+  assert.equal(assessMegabaseSite(site, concept).terrain.covers_whole_design, true);
+});
+
+test("terrain coverage includes fractional campus angles and the actual probe centre", () => {
+  const concept = spatialConcept([
+    { local: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 2, z: 1 } },
+  ], 45);
+  const site = spatialProbeGraph({ x: 0, y: -100, z: 0 }, 40);
+  const result = assessMegabaseSite(site, concept);
+  // Furthest corner is 1600 * sqrt(2) north; probe is 100 cm south of origin.
+  const required = 2 * (1600 * Math.sqrt(2) + 100) / 100;
+  assert.ok(Math.abs(result.terrain.required_footprint_meters - required) < 1e-9);
+  assert.equal(result.terrain.covers_whole_design, false);
+  site.snapshot.terrain.at_scan_center.footprint_meters = required + 0.001;
+  assert.equal(assessMegabaseSite(site, concept).terrain.covers_whole_design, true);
+});
+
+test("missing probe or malformed element geometry keeps coverage unknown", () => {
+  const concept = spatialConcept([
+    { local: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 2, z: 1 } },
+  ]);
+  const missing = assessMegabaseSite({ nodes: new Map(), snapshot: {} }, concept);
+  assert.equal(missing.terrain.covers_whole_design, false);
+  assert.equal(missing.terrain.required_footprint_meters, null);
+  concept.elements[0].world_yaw_degrees = NaN;
+  assert.equal(megabaseFootprint(concept), null);
+  const invalid = assessMegabaseSite(spatialProbeGraph({ x: 0, y: 0, z: 0 }, 100), concept);
+  assert.equal(invalid.assessed, false);
+  assert.equal(invalid.reason, "manifest_element_geometry_is_invalid");
+});

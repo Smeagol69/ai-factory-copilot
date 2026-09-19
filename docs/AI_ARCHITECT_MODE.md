@@ -182,6 +182,22 @@ Element-rotation checkpoint (2026-09-17):
   inter-hall routes still depend on the selected manifest; the game must verify
   the generated Blueprint and its placement. Live visual rotation checks remain.
 
+Spatial-check checkpoint (2026-09-18):
+
+- footprint bounds now union the transformed corners of every semantic element
+  in campus and world coordinates, including its individual yaw;
+- production-hall validation uses oriented rectangle intersections plus vertical
+  intervals. Touching faces and stacked floors remain allowed. This catches
+  rotated overlaps that the former campus-axis rectangle test missed;
+- terrain coverage compares the complete world footprint with the square
+  sampled by `ProbeSite`, centred on its captured scan/node location. A width
+  comparison alone is insufficient for an offset campus or angled corners;
+- captured-building screening remains a conservative envelope check, not a
+  native mesh intersection test. Missing geometry/probes stay unknown, and
+  construction still needs game-side collision and terrain validation. Geometry
+  transforms and stored revisions are unchanged; newly compiled revisions
+  receive the corrected footprint and assessment.
+
 ### A4 — Working-factory topology
 
 Production machines, splitters/mergers, conveyors/lifts, pipes/junctions/pumps,

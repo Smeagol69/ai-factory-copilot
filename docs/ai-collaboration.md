@@ -7089,3 +7089,23 @@ roadmap/changelog and this handoff. Preserve native placement, design transforms
 stored revisions, authority checks and unknown terrain evidence. No C++ or
 shared Starter Project use. Run full validation, update both companion copies,
 verify installed code and health, and report the remaining live-test boundary.
+
+### Codex — 2026-09-18 spatial checks implemented and verified
+
+Added `architect-geometry.mjs` for oriented semantic volumes and separating-axis
+overlap. `megabaseFootprint` unions each element's actual corners in campus and
+world space. Hall validation includes yaw and vertical separation, allowing
+touching edges. Site terrain coverage uses the full required square about the
+captured probe centre; exact source evidence is `FAIFactoryTerrain::ProbeSite`,
+which samples `Center.X/Y +/- FootprintCm / 2` in world axes. Missing/invalid
+geometry or probe locations remain unknown. Captured actor screening remains
+explicitly conservative, using the semantic envelope rather than native meshes.
+
+All 1024 tests and exact SDK source validation pass. Eleven new regressions
+cover quarter-turn bounds, missed/false overlaps, diagonal separating axes,
+stacking/touching, invalid geometry, wing obstructions, offset and angled probe
+coverage, and missing evidence. The prior promotion tests' negative receiver
+rotation now genuinely overlaps its neighbour under the corrected geometry;
+the receiver is moved clear before that test, preserving its intended assertion
+that a misaligned conveyor/pipe fails at the route gate. No native action
+compiler or game code changed. Both companion deployments follow.

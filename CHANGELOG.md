@@ -5,6 +5,13 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Architect site planning now includes each element's angle in its footprint
+  and checks production-hall overlap using oriented volumes. Rotated wings no
+  longer disappear from obstruction screening, and separated diagonal halls
+  are not rejected just because their enclosing rectangles overlap. Terrain
+  coverage requires the captured probe square to contain the entire design,
+  including offset wings and corners; missing geometry or probe locations stay
+  unknown. These checks still describe semantic volumes, not native mesh collision.
 - Architect native Blueprint generation now preserves each section's validated
   angle around its recorded origin across foundations, machines, facades,
   roofs, supports, walkways/rails and landmark towers. Rotated sections no

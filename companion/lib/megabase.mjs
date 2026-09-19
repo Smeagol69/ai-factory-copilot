@@ -12,6 +12,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { orientedVolume, volumesOverlap } from "./architect-geometry.mjs";
 import { captureUnlockConstraints } from "./unlock-constraints.mjs";
 
 export { captureUnlockConstraints } from "./unlock-constraints.mjs";
@@ -662,36 +663,37 @@ export function findMegabasePartCandidates(graph, { limit_per_role = 5 } = {}) {
   };
 }
 
-/** Exact union bounds of every declarative element in design and world space. */
+function elementWorldVolume(element, grid) {
+  return orientedVolume(element?.world_origin_cm, {
+    x: element?.size_cells?.x * grid?.unit_cm,
+    y: element?.size_cells?.y * grid?.unit_cm,
+    z: element?.size_cells?.z * grid?.floor_height_cm,
+  }, element?.world_yaw_degrees);
+}
+
+/** Union bounds of every oriented declarative element, not native mesh bounds. */
 export function megabaseFootprint(manifest) {
   const elements = manifest?.elements ?? [];
   if (elements.length === 0) return null;
   const min = { x: Infinity, y: Infinity, z: Infinity };
   const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  const worldMin = { ...min };
+  const worldMax = { ...max };
   for (const element of elements) {
-    for (const axis of ["x", "y", "z"]) {
-      min[axis] = Math.min(min[axis], element.local[axis]);
-      max[axis] = Math.max(max[axis], element.local[axis] + element.size_cells[axis]);
+    const local = orientedVolume(element.local, element.size_cells, element.yaw_offset_degrees ?? 0);
+    const world = elementWorldVolume(element, manifest.grid);
+    if (!local || !world) return null;
+    for (const [volume, lower, upper] of [[local, min, max], [world, worldMin, worldMax]]) {
+      for (const axis of ["x", "y"]) {
+        lower[axis] = Math.min(lower[axis], ...volume.corners.map((point) => point[axis]));
+        upper[axis] = Math.max(upper[axis], ...volume.corners.map((point) => point[axis]));
+      }
+      lower.z = Math.min(lower.z, volume.min_z);
+      upper.z = Math.max(upper.z, volume.max_z);
     }
   }
-
-  const corners = [
-    { x: min.x, y: min.y, z: min.z },
-    { x: min.x, y: max.y, z: min.z },
-    { x: max.x, y: min.y, z: min.z },
-    { x: max.x, y: max.y, z: min.z },
-  ].map((point) => gridPointToWorld(point, manifest.grid, manifest.anchor_cm));
-  const worldMin = {
-    x: Math.min(...corners.map((point) => point.x)),
-    y: Math.min(...corners.map((point) => point.y)),
-    z: manifest.anchor_cm.z + min.z * manifest.grid.floor_height_cm,
-  };
-  const worldMax = {
-    x: Math.max(...corners.map((point) => point.x)),
-    y: Math.max(...corners.map((point) => point.y)),
-    z: manifest.anchor_cm.z + max.z * manifest.grid.floor_height_cm,
-  };
   const sizeCells = { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z };
+  if (!Object.values(sizeCells).every(Number.isFinite)) return null;
   return {
     local_min_cells: min,
     local_max_cells: max,
@@ -703,7 +705,7 @@ export function megabaseFootprint(manifest) {
     },
     world_aabb_cm: { min: worldMin, max: worldMax },
     note:
-      "The world AABB encloses the rotated design. It is conservative for non-axis-aligned grids and is used only for captured-obstruction screening.",
+      "Bounds include every element's own rotation. The world AABB is a conservative envelope of semantic volumes for captured-obstruction screening, not native mesh collision proof.",
   };
 }
 
@@ -725,7 +727,11 @@ function boxesOverlap(left, right) {
 export function assessMegabaseSite(graph, manifest) {
   const footprint = megabaseFootprint(manifest);
   if (!footprint) {
-    return { assessed: false, reason: "manifest_has_no_elements", game_validation_pending: true };
+    return {
+      assessed: false,
+      reason: manifest?.elements?.length ? "manifest_element_geometry_is_invalid" : "manifest_has_no_elements",
+      game_validation_pending: true,
+    };
   }
   const designBox = footprint.world_aabb_cm;
   const overlaps = [];
@@ -750,11 +756,12 @@ export function assessMegabaseSite(graph, manifest) {
   const atScanCenter = graph?.snapshot?.terrain?.at_scan_center;
   const scanCenter = graph?.snapshot?.world?.scan_center ??
     graph?.snapshot?.interaction_context?.player?.pawn_location ?? null;
-  if (atScanCenter && scanCenter) {
+  const finiteLocation = (point) => point && [point.x, point.y, point.z].every(Number.isFinite);
+  if (atScanCenter && finiteLocation(scanCenter)) {
     samples.push({ terrain: atScanCenter, location: scanCenter, source_actor_id: null, source: "scan_center" });
   }
   for (const node of graph?.nodes?.values?.() ?? []) {
-    if (node.raw?.terrain?.sampled && node.raw?.location) {
+    if (node.raw?.terrain?.sampled && finiteLocation(node.raw?.location)) {
       samples.push({
         terrain: node.raw.terrain,
         location: node.raw.location,
@@ -782,10 +789,20 @@ export function assessMegabaseSite(graph, manifest) {
   const anchorMatched = anchorDistanceCm !== null && anchorDistanceCm <= manifest.grid.unit_cm / 2;
   const measuredFootprintMeters = positive(nearest?.terrain?.footprint_meters) ??
     positive(graph?.snapshot?.terrain?.probe_footprint_meters);
-  const requiredFootprintMeters = Math.max(footprint.size_meters.x, footprint.size_meters.y);
+  // ProbeSite samples an axis-aligned square centred on the captured location.
+  // Width alone cannot prove coverage when the design extends to one side or
+  // its corners rotate outside that square. Do not round before this check.
+  const probeCenter = nearest?.location ?? null;
+  const requiredFootprintMeters = probeCenter
+    ? 2 * Math.max(
+      Math.abs(designBox.min.x - probeCenter.x), Math.abs(designBox.max.x - probeCenter.x),
+      Math.abs(designBox.min.y - probeCenter.y), Math.abs(designBox.max.y - probeCenter.y),
+    ) / 100
+    : null;
   const terrainCoversWholeDesign = Boolean(
     anchorMatched && nearest?.terrain?.sampled === true &&
-    measuredFootprintMeters !== null && measuredFootprintMeters >= requiredFootprintMeters,
+    measuredFootprintMeters !== null && requiredFootprintMeters !== null &&
+    measuredFootprintMeters >= requiredFootprintMeters,
   );
   const terrainVerdict = anchorMatched ? nearest?.terrain?.verdict ?? null : null;
 
@@ -828,18 +845,6 @@ export function assessMegabaseSite(graph, manifest) {
     certainty: "authoritative_for_captured_bounds_and_reported_probe_coverage_only",
     game_validation_pending: true,
   };
-}
-
-function overlaps3d(left, right) {
-  const a = left.local;
-  const as = left.size_cells;
-  const b = right.local;
-  const bs = right.size_cells;
-  return (
-    a.x < b.x + bs.x && a.x + as.x > b.x &&
-    a.y < b.y + bs.y && a.y + as.y > b.y &&
-    a.z < b.z + bs.z && a.z + as.z > b.z
-  );
 }
 
 /** Validates the declarative contract without consulting or mutating the game. */
@@ -903,9 +908,10 @@ export function validateMegabaseManifest(manifest) {
   }
 
   const zones = (manifest?.elements ?? []).filter((element) => element.kind === "production_zone");
+  const zoneVolumes = zones.map((element) => elementWorldVolume(element, manifest.grid));
   for (let left = 0; left < zones.length; left += 1) {
     for (let right = left + 1; right < zones.length; right += 1) {
-      if (overlaps3d(zones[left], zones[right])) {
+      if (volumesOverlap(zoneVolumes[left], zoneVolumes[right])) {
         issues.push(`production_zones_overlap:${zones[left].id}:${zones[right].id}`);
       }
     }

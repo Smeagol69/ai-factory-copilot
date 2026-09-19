@@ -1251,6 +1251,10 @@ for (const [name, graphBuilder, manifestBuilder, resultKey, countKey] of [
       { x: -2800, y: -2000, z: 400 }, { x: -2800, y: -5200, z: 400 },
     ]);
     // Rotate only the consumer back: the saved port pair no longer lines up.
+    // Keep the hall clear of its neighbour so this still exercises the route
+    // gate rather than the earlier oriented-volume collision gate.
+    zones[1].local.x -= 4;
+    zones[1].world_origin_cm = gridPointToWorld(zones[1].local, manifest.grid, manifest.anchor_cm);
     setElementRotation(manifest, zones[1], 0);
     const refused = compileArchitectPromotion(graph, manifest, {
       revision_id: REVISION, selected_revision_id: REVISION, blueprint_name: "Misaligned Ports",
