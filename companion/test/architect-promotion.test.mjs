@@ -1099,6 +1099,44 @@ function setElementRotation(manifest, element, offset) {
   element.world_yaw_degrees = (Number(manifest.grid.yaw_degrees) + offset) % 360;
 }
 
+test("native facades leave declared first-storey bays open and retain the upper glazing", () => {
+  const graph = promotionGraph();
+  const manifest = shellManifest(graph);
+  const face = manifest.elements.find((element) => element.kind === "glazed_facade");
+  manifest.elements = [face];
+  manifest.program.groups = [];
+  manifest.program.external_outputs = [];
+  face.orientation_offset_degrees = 90;
+  face.world_yaw_degrees = 180;
+  face.openings = [{ start_cell: 1, width_cells: 2, base_floor: 0, height_floors: 1 }];
+  const result = promoteForRotationTest(graph, manifest);
+  const parts = result.action.buildables;
+  // Four columns x two storeys x two 2m panels, less the four opening panels.
+  assert.equal(parts.length, 12);
+  assert.equal(parts.filter((part) => part.recipe_class === WALL_RECIPE).length, 8);
+  assert.equal(parts.filter((part) => part.recipe_class === WINDOW_RECIPE).length, 4);
+  const ground = parts.filter((part) => part.relative_location.z < 800);
+  assert.equal(ground.length, 4);
+  assert.deepEqual([...new Set(ground.map((part) => part.relative_location.x))].sort((a, b) => a - b), [-3200, -800]);
+  assert.ok(parts.every((part) => part.yaw === 180));
+});
+
+test("malformed facade openings refuse promotion before any parts are emitted", () => {
+  const graph = promotionGraph();
+  for (const openings of [null, [null], [{ start_cell: -1, width_cells: 1, base_floor: 0, height_floors: 1 }],
+    [{ start_cell: 1, width_cells: 4, base_floor: 0, height_floors: 1 }],
+    [{ start_cell: 1, width_cells: 1, base_floor: 1, height_floors: 2 }]]) {
+    const manifest = shellManifest(graph);
+    manifest.elements.find((element) => element.kind === "glazed_facade").openings = openings;
+    const refused = compileArchitectPromotion(graph, manifest, {
+      revision_id: REVISION, selected_revision_id: REVISION, blueprint_name: "Invalid Bay",
+    });
+    assert.equal(refused.compiled, false);
+    assert.ok(refused.blockers.includes("architect_manifest_validation_failed"));
+    assert.equal(refused.action, undefined);
+  }
+});
+
 test("platform promotion uses the shared frame even when its yaw offset is zero", () => {
   const graph = promotionGraph();
   const manifest = platformManifest(graph);

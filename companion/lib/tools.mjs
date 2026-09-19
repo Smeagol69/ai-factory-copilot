@@ -61,6 +61,7 @@ function architectDesignRequest(args = {}) {
     target_rate_per_minute: args.target_rate_per_minute,
     origin: args.origin,
     style: args.style,
+    enclosure_mode: args.enclosure_mode ?? "perimeter",
     design_family_id: args.design_family_id,
     match_design_family_fingerprint: args.match_design_family_fingerprint,
     commissioning_phases: args.commissioning_phases,
@@ -99,6 +100,8 @@ function compileArchitectDesignRequest(graph, request, services = {}) {
   }
   const manifest = compileMegabaseConcept(graph, layout, {
     style: request.style,
+    // Requests saved before this option existed compiled front-only facades.
+    enclosure_mode: request.enclosure_mode ?? "front_facade",
     design_family_id: request.design_family_id,
     match_design_family_fingerprint: request.match_design_family_fingerprint,
     commissioning_phases: request.commissioning_phases,
@@ -611,6 +614,10 @@ export const SOLVER_TOOLS = [
           maxLength: 80,
           description:
             "Stable human-readable identity shared by buildings that must use the same style parameters and exact captured role recipes. Defaults to the style grammar.",
+        },
+        enclosure_mode: {
+          type: "string", enum: ["perimeter", "front_facade"],
+          description: "Defaults to perimeter: four glazed faces with symmetric first-storey access bays. Choose front_facade for the original open-sided concept. Bays are design intent; walkways, transport and native clearance still need validation.",
         },
         match_design_family_fingerprint: {
           type: "string",

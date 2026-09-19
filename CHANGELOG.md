@@ -5,6 +5,12 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- New model-requested Architect designs now default to four-sided glazed hall
+  enclosures with centered first-storey access bays. Facade orientation composes
+  with the hall's frame, and native generation omits the declared bay panels
+  while keeping upper glazing. `enclosure_mode: front_facade` retains the original
+  open-sided layout; saved requests lacking this option recompile as before.
+  Access bays do not imply connected walkways or verified vehicle clearance.
 - The model-facing Architect tool now exposes the radial style, ring spacing,
   entrance arc, inward/outward facing and the existing sign role. Provider tool
   schemas share the compiler's style/role lists so implemented capabilities do

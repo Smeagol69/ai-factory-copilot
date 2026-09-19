@@ -215,6 +215,20 @@ Coordinated radial-layout checkpoint (2026-09-18):
   `hall_facing: -1` now passes parameter validation. Bridges remain semantic
   circulation intent and native construction still needs game-side validation.
 
+Hall-enclosure checkpoint (2026-09-18):
+
+- new model-tool requests default to `enclosure_mode: perimeter`: four glazed
+  faces with one centered first-storey opening per face, one cell wide for odd
+  faces and two for even faces. Front-only remains explicitly selectable;
+- facade `orientation_offset_degrees` turns the face inside its hall frame
+  without moving its origin. Manifest validation recomputes orientation and
+  checks opening bounds; native promotion omits exactly the declared panels;
+- direct compiler callers and saved design requests without an enclosure mode
+  preserve the original front-only output. No saved revision is rewritten;
+- the existing wall/window recipe, dimension, cost and game-readback gates
+  remain. Openings are architectural intent; usable circulation, vehicle fit,
+  terrain, collision and commissioning still need their respective checks.
+
 ### A4 — Working-factory topology
 
 Production machines, splitters/mergers, conveyors/lifts, pipes/junctions/pumps,

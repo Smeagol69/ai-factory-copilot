@@ -473,6 +473,9 @@ function compileFacadeActions(manifest, elements, roleEvidence) {
     for (let level = 0; level < element.size_cells.z; level += 1) {
       for (let segment = 0; segment < verticalSegmentsPerFloor; segment += 1) {
         for (let column = 0; column < element.size_cells.x; column += 1) {
+          if ((element.openings ?? []).some((opening) =>
+            column >= opening.start_cell && column < opening.start_cell + opening.width_cells &&
+            level >= opening.base_floor && level < opening.base_floor + opening.height_floors)) continue;
           const frame = column === 0 || column === element.size_cells.x - 1;
           const selected = frame ? wall : window;
           const world = rotatedWorldOffset(

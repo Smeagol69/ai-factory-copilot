@@ -7229,3 +7229,19 @@ and tool schema, focused tests, changelog/roadmap and handoff. Require exact
 captured wall/window modules; openings are explicit design intent, not claims
 of connected walkways or vehicle clearance. Preserve selected revision and
 unlock gates, costs, native collision/readback and unknown commissioning.
+
+### Codex — 2026-09-18 perimeter enclosures verified
+
+Four-sided facades reuse the existing native adapter and add explicit centered
+first-storey openings. Facade-local orientation composes with the hall frame
+without moving the placement origin. Validation checks orientation and opening
+bounds; promotion omits exactly those panels and retains the glazing above.
+New model requests store an explicit perimeter mode. Direct compiler calls and
+old stored requests without the field preserve front-only output, proven by a
+stored-revision recompile through `promotion_status`.
+
+All 1038 tests and exact SDK validation pass, including all four style
+grammars, symmetry, orientation tampering, an exact 12-panel native facade
+case with its four missing entrance panels, malformed opening refusal and
+legacy request compatibility. Model schemas, native authority and no-write
+preview contracts remain intact. Deployment follows before usage exhaustion.

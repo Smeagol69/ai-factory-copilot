@@ -697,7 +697,8 @@ export function megabaseFootprint(manifest) {
   const worldMin = { ...min };
   const worldMax = { ...max };
   for (const element of elements) {
-    const local = orientedVolume(elementGridOrigin(element), element.size_cells, element.yaw_offset_degrees ?? 0);
+    const local = orientedVolume(elementGridOrigin(element), element.size_cells,
+      (element.yaw_offset_degrees ?? 0) + (element.orientation_offset_degrees ?? 0));
     const world = elementWorldVolume(element, manifest.grid);
     if (!local || !world) return null;
     for (const [volume, lower, upper] of [[local, min, max], [world, worldMin, worldMax]]) {
@@ -915,14 +916,34 @@ export function validateMegabaseManifest(manifest) {
       ? 0
       : finite(element.yaw_offset_degrees);
     const worldYaw = finite(element?.world_yaw_degrees);
+    const orientation = element?.orientation_offset_degrees ?? 0;
+    if (!Number.isFinite(orientation) || orientation < 0 || orientation >= 360 ||
+        element?.orientation_offset_degrees === null) {
+      issues.push(`invalid_orientation_offset:${element?.id ?? ""}`);
+    }
     if (offset === null || worldYaw === null || gridYaw === null) {
       issues.push(`non_finite_yaw:${element?.id ?? ""}`);
     } else if (offset < 0 || offset >= 360) {
       issues.push(`yaw_offset_must_be_0_to_under_360:${element?.id ?? ""}`);
     } else {
-      const expectedYaw = offset ? normalizeDegrees(gridYaw + offset) : gridYaw;
+      const expectedYaw = offset || orientation ? normalizeDegrees(gridYaw + offset + orientation) : gridYaw;
       if (round(worldYaw) !== round(expectedYaw)) {
         issues.push(`world_yaw_mismatch:${element?.id ?? ""}`);
+      }
+    }
+    if (element?.openings !== undefined) {
+      if (element.kind !== "glazed_facade" || !Array.isArray(element.openings)) {
+        issues.push(`invalid_facade_openings:${element.id}`);
+      } else {
+        for (const opening of element.openings) {
+          if (![opening?.start_cell, opening?.width_cells, opening?.base_floor, opening?.height_floors]
+            .every(Number.isInteger) || opening.start_cell < 0 || opening.width_cells < 1 ||
+            opening.base_floor < 0 || opening.height_floors < 1 ||
+            opening.start_cell + opening.width_cells > element.size_cells.x ||
+            opening.base_floor + opening.height_floors > element.size_cells.z) {
+            issues.push(`facade_opening_outside_face:${element.id}`);
+          }
+        }
       }
     }
   }
@@ -1200,6 +1221,12 @@ function ringGeometry(groups, parameters) {
   };
 }
 
+// An odd face has a one-cell bay; an even face has two, preserving exact symmetry.
+function centredAccessBay(width) {
+  const bayWidth = width % 2 === 0 ? 2 : 1;
+  return [{ start_cell: (width - bayWidth) / 2, width_cells: bayWidth, base_floor: 0, height_floors: 1 }];
+}
+
 function bridgeSegments(from, to, index) {
   const fromCenter = {
     x: from.local.x + Math.floor(from.size.x / 2),
@@ -1247,6 +1274,10 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     return failed("style_must_be_one_of_the_supported_megabase_grammars", {
       supported_styles: [...MEGABASE_STYLES],
     });
+  }
+  const enclosureMode = options.enclosure_mode ?? "front_facade";
+  if (!["front_facade", "perimeter"].includes(enclosureMode)) {
+    return failed("enclosure_mode_must_be_front_facade_or_perimeter");
   }
 
   const anchor = options.anchor_cm ?? factoryLayout?.origin;
@@ -1324,7 +1355,21 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
       { x: zone.local.x, y: zone.local.y - 1, z: zone.local.z },
       { x: zone.size.x, y: 1, z: zone.size.z },
       ["window", "wall"],
+      enclosureMode === "perimeter" ? { openings: centredAccessBay(zone.size.x) } : {},
     );
+    if (enclosureMode === "perimeter") {
+      for (const [face, local, width, orientation] of [
+        ["rear", { x: zone.local.x + zone.size.x - 1, y: zone.local.y + zone.size.y, z: zone.local.z }, zone.size.x, 180],
+        ["left", { x: zone.local.x - 1, y: zone.local.y + zone.size.y - 1, z: zone.local.z }, zone.size.y, 270],
+        ["right", { x: zone.local.x + zone.size.x, y: zone.local.y, z: zone.local.z }, zone.size.y, 90],
+      ]) {
+        addPart(`facade-${number}-${face}`, "glazed_facade", local,
+          { x: width, y: 1, z: zone.size.z }, ["window", "wall"], {
+            orientation_offset_degrees: orientation,
+            openings: centredAccessBay(width),
+          });
+      }
+    }
     addPart(
       `roof-${number}`,
       "sloped_roof_intent",
@@ -1409,13 +1454,15 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     },
     // The campus yaw plus this element's own rotation. Every previous style
     // left the offset undefined, so those manifests are byte-for-byte unchanged.
-    world_yaw_degrees: element.yaw_offset_degrees
-      ? normalizeDegrees(yaw + element.yaw_offset_degrees)
+    world_yaw_degrees: element.yaw_offset_degrees || element.orientation_offset_degrees
+      ? normalizeDegrees(yaw + (element.yaw_offset_degrees ?? 0) + (element.orientation_offset_degrees ?? 0))
       : yaw,
     ...(element.yaw_offset_degrees
       ? { yaw_offset_degrees: element.yaw_offset_degrees }
       : {}),
     ...(element.placement_frame ? { placement_frame: element.placement_frame } : {}),
+    ...(element.orientation_offset_degrees ? { orientation_offset_degrees: element.orientation_offset_degrees } : {}),
+    ...(element.openings ? { openings: element.openings } : {}),
     requires_roles: element.requires,
     ...(element.program_group ? { program_group: element.program_group } : {}),
     ...(element.produces ? { produces: element.produces } : {}),
@@ -1459,6 +1506,7 @@ export function compileMegabaseConcept(graph, factoryLayout, options = {}) {
     status: "concept_only",
     style,
     anchor_cm: { x: Number(anchor.x), y: Number(anchor.y), z: Number(anchor.z) },
+    ...(enclosureMode === "perimeter" ? { enclosure_mode: enclosureMode } : {}),
     grid,
     creative_parameters: parameters,
     design_family: {

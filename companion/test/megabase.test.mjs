@@ -672,6 +672,7 @@ test("the model-facing solver is action-free by default and can emit one draw-on
   const parsed = JSON.parse(result.serialized);
 
   assert.equal(parsed.compiled, true, parsed.reason);
+  assert.equal(parsed.enclosure_mode, "perimeter");
   assert.equal(parsed.validation.valid, true);
   assert.equal(parsed.grid.yaw_degrees, 45);
   assert.equal(parsed.vertical_module.source, "tallest_measured_machine_plus_one_half_grid_unit_rounded_up_to_the_half_grid");
@@ -988,4 +989,40 @@ test("frame and transformed-origin tampering fails manifest validation", () => {
   const malformed = structuredClone(radial);
   malformed.elements[0].placement_frame = null;
   assert.ok(validateMegabaseManifest(malformed).issues.includes("invalid_placement_frame:production-zone-1"));
+});
+
+test("perimeter enclosures add four correctly oriented faces with symmetric access bays", () => {
+  for (const style of MEGABASE_STYLES) {
+    const concept = compile(style, { enclosure_mode: "perimeter", yaw_degrees: 17.25 });
+    assert.equal(concept.validation.valid, true, JSON.stringify(concept.validation));
+    const zones = concept.elements.filter((element) => element.kind === "production_zone");
+    const faces = concept.elements.filter((element) => element.kind === "glazed_facade");
+    assert.equal(faces.length, zones.length * 4);
+    for (let index = 0; index < zones.length; index += 1) {
+      const zone = zones[index];
+      const prefix = `facade-${index + 1}`;
+      const hallFaces = faces.filter((face) => face.id === prefix || face.id.startsWith(`${prefix}-`));
+      assert.deepEqual(hallFaces.map((face) => face.orientation_offset_degrees ?? 0), [0, 180, 270, 90]);
+      for (const face of hallFaces) {
+        assert.deepEqual(face.placement_frame, zone.placement_frame);
+        assert.equal(face.openings.length, 1);
+        const bay = face.openings[0];
+        assert.equal(bay.start_cell, face.size_cells.x - bay.start_cell - bay.width_cells);
+        assert.equal(bay.base_floor, 0);
+        assert.equal(bay.height_floors, 1);
+      }
+    }
+    assert.deepEqual(compile(style), compile(style, { enclosure_mode: "front_facade" }));
+  }
+});
+
+test("facade orientation changes its direction without moving its shared-frame origin", () => {
+  const concept = compile("radial_hub_campus", { enclosure_mode: "perimeter" });
+  const face = concept.elements.find((element) => element.id === "facade-1-right");
+  const tampered = structuredClone(concept);
+  const copy = tampered.elements.find((element) => element.id === face.id);
+  copy.orientation_offset_degrees = 45;
+  const issues = validateMegabaseManifest(tampered).issues;
+  assert.ok(issues.includes(`world_yaw_mismatch:${face.id}`));
+  assert.ok(!issues.includes(`world_transform_mismatch:${face.id}`));
 });

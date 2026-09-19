@@ -36,6 +36,27 @@ function run(graph, name, args, architect, emitted = null) {
   ).serialized);
 }
 
+test("stored requests without an enclosure mode still recompile their original front-only manifest", () => {
+  const graph = toolGraph();
+  const architect = createArchitectRevisionStore().scope({ snapshot: graph.snapshot, chat_session_id: "legacy-enclosure" });
+  const front = run(graph, "design_megabase_concept", {
+    item_name: "Iron Rod", target_rate_per_minute: 60,
+    origin: { x: 100000, y: 100000, z: 500 }, style: "elevated_industrial_campus",
+    enclosure_mode: "front_facade", architect_session_name: "Seed",
+  }, architect);
+  const exact = architect.getRevision({ session_name: "Seed", revision_id: front.architect_revision.revision.revision_id });
+  const request = structuredClone(exact.revision.design_request);
+  delete request.enclosure_mode;
+  const legacy = architect.saveRevision({ session_name: "Legacy", label: "Old request",
+    brief: { goal: "Keep the original front facade" }, manifest: exact.revision.manifest,
+    design_request: request, select: true });
+  assert.equal(legacy.ok, true, legacy.reason);
+  const status = run(graph, "manage_architect_revisions", { operation: "promotion_status",
+    session_name: "Legacy", revision_id: legacy.revision.revision_id }, architect);
+  assert.equal(status.ok, true, status.reason);
+  assert.equal(status.action_emitted, false);
+});
+
 test("model-facing Architect tools create, compare, select, roll back, and delete drafts", () => {
   const graph = toolGraph();
   const architect = createArchitectRevisionStore().scope({
