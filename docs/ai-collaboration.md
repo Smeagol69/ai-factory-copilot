@@ -7203,3 +7203,12 @@ provider formats and a deterministic `runSolverTool` request exercises radial
 outward-facing generation, shared frames and the no-construction response.
 All 1033 tests and exact SDK validation pass. No solver count or provider API
 changed. Companion deployment follows.
+
+### Codex — 2026-09-18 vocabulary deployed
+
+`a30ce39` is installed in both companion copies; all 46 library hashes match.
+The scheduled installer verified 52 runtime files and the restarted bridge is
+healthy (hybrid, beta.2). Prior bundled modules are backed up under
+`D:/Modding/Satisfactory/Backups/architect-vocabulary-2026-09-18`.
+No native binary or stored revision changed. This lane is released; continue
+with the next independently claimed Architect increment.
