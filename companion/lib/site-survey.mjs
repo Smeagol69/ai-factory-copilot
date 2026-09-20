@@ -113,6 +113,61 @@ const overlapsXY = (a, b, pad = ADJACENCY_TOLERANCE_CM) =>
   a.minY - pad <= b.maxY && a.maxY + pad >= b.minY;
 
 /**
+ * What is under a deck, and how much of it is open.
+ *
+ * The owner builds belts in a service layer beneath the foundation so the
+ * walking surface stays clean. Nothing downstream could plan that, because the
+ * survey reported only a deck's top and discarded its underside entirely.
+ *
+ * Two different facts, kept apart on purpose:
+ *
+ *   - **Structural clearance is measured.** The highest built thing under the
+ *     footprint is in the snapshot, so "nothing built below for N metres" is
+ *     something this can assert.
+ *   - **Ground height is not known.** Terrain is probed only for site
+ *     candidates and that probing is bounded per capture, so a deck floating
+ *     over open desert and one sitting flat on rock look identical here.
+ *
+ * Conflating them would let a service level be planned into solid rock because
+ * "nothing was below", which is exactly the confident wrong answer this project
+ * refuses everywhere else. So the open space is reported as open *of
+ * structures*, and the ground is reported as unknown.
+ */
+function describeUnderside(bottomZ, bounds, occupants, decks) {
+  let highestBelow = null;
+  let blockedBy = null;
+  const under = [
+    ...occupants.map((entry) => ({ box: entry.box, node: entry.node })),
+    ...decks.map((entry) => ({ box: entry.box, node: entry.node })),
+  ];
+  for (const entry of under) {
+    if (!overlapsXY(entry.box, bounds, 0)) continue;
+    if (entry.box.maxZ >= bottomZ - 1) continue;
+    if (highestBelow === null || entry.box.maxZ > highestBelow) {
+      highestBelow = entry.box.maxZ;
+      blockedBy = entry.node;
+    }
+  }
+
+  return {
+    bottom_z_cm: Math.round(bottomZ),
+    structural_clearance_cm: highestBelow === null ? null : Math.round(bottomZ - highestBelow),
+    structural_clearance_m:
+      highestBelow === null ? null : Math.round((bottomZ - highestBelow) / 100),
+    nearest_structure_below: blockedBy
+      ? { actor_id: blockedBy.actor_id, class_path: blockedBy.class_path ?? null }
+      : null,
+    clear_of_structures_below: highestBelow === null,
+    ground_below:
+      "unknown: terrain is probed only for site candidates, so this cannot tell open air from rock",
+    usable_for_a_service_level:
+      highestBelow === null
+        ? "no structure is below; whether there is open air or ground here is unknown"
+        : `${Math.round((bottomZ - highestBelow) / 100)} m of space before the next structure below`,
+  };
+}
+
+/**
  * Contiguous build surfaces in the world, largest first.
  *
  * Clustering is by top height first, then XY adjacency, so a deck and the
@@ -181,8 +236,9 @@ export function surveyDecks(graph, args = {}) {
           minY: Math.min(acc.minY, member.box.minY),
           maxY: Math.max(acc.maxY, member.box.maxY),
           topZ: Math.max(acc.topZ, member.box.maxZ),
+          bottomZ: Math.min(acc.bottomZ, member.box.minZ),
         }),
-        { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, topZ: -Infinity },
+        { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, topZ: -Infinity, bottomZ: Infinity },
       );
       const widthCells = Math.round(((bounds.maxX - bounds.minX) / GRID_CELL_CM) * 10) / 10;
       const depthCells = Math.round(((bounds.maxY - bounds.minY) / GRID_CELL_CM) * 10) / 10;
@@ -196,6 +252,7 @@ export function surveyDecks(graph, args = {}) {
         pieces: cluster.length,
         classified_by: rules,
         top_z_cm: Math.round(bounds.topZ),
+        underside: describeUnderside(bounds.bottomZ, bounds, occupants, pieces),
         bounds_cm: {
           min_x: Math.round(bounds.minX), max_x: Math.round(bounds.maxX),
           min_y: Math.round(bounds.minY), max_y: Math.round(bounds.maxY),

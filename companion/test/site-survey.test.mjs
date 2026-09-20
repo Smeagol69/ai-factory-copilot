@@ -170,3 +170,54 @@ test("with no search term at all it still refuses, and says a centre is one", ()
   assert.equal(result.found, false);
   assert.match(result.reason, /center_cm/);
 });
+
+test("a deck reports its underside, so a service level can be planned at all", () => {
+  // The owner runs belts beneath the foundation to keep the walking surface
+  // clean. Nothing could plan that while the survey reported only the top.
+  const survey = surveyDecks(graphOf(deck("f", "/Game/Build_Foundation.Build_Foundation_C", {
+    cols: 4, rows: 4, z: 8100,
+  })));
+  const [only] = survey.decks;
+  assert.equal(only.top_z_cm, 8200);
+  assert.equal(only.underside.bottom_z_cm, 8000, "the deck is 2 m thick in this fixture");
+  assert.equal(only.underside.clear_of_structures_below, true);
+});
+
+test("open space is measured against structures, and ground is refused as unknown", () => {
+  // Terrain is probed only for site candidates, so a deck over open desert and
+  // one flat on rock are indistinguishable here. Saying "clear" without that
+  // caveat would let a service level be planned into solid rock.
+  const survey = surveyDecks(graphOf(deck("f", "/Game/Build_Foundation.Build_Foundation_C", {
+    cols: 4, rows: 4, z: 8100,
+  })));
+  const { underside } = survey.decks[0];
+  assert.equal(underside.structural_clearance_cm, null, "nothing built below");
+  assert.match(underside.ground_below, /unknown/);
+  assert.match(underside.ground_below, /cannot tell open air from rock/);
+  assert.match(underside.usable_for_a_service_level, /unknown/);
+});
+
+test("a structure below is found, and the gap to it measured", () => {
+  const nodes = [
+    ...deck("upper", "/Game/Build_Foundation.Build_Foundation_C", { cols: 4, rows: 4, z: 2000 }),
+    ...deck("lower", "/Game/Build_Foundation.Build_Foundation_C", { cols: 4, rows: 4, z: 0 }),
+  ];
+  const survey = surveyDecks(graphOf(nodes));
+  const upper = survey.decks.find((entry) => entry.top_z_cm === 2100);
+  assert.ok(upper, "the upper deck is surveyed");
+  // Upper spans 1900..2100, lower tops out at 100, so 18 m of space between.
+  assert.equal(upper.underside.structural_clearance_m, 18);
+  assert.equal(upper.underside.clear_of_structures_below, false);
+  assert.ok(upper.underside.nearest_structure_below.actor_id.startsWith("lower_"));
+  assert.match(upper.underside.usable_for_a_service_level, /18 m of space/);
+});
+
+test("the deck's own pieces are never counted as the thing below it", () => {
+  // Every member of a cluster overlaps its own footprint; treating one as the
+  // obstruction below would report zero clearance on every deck.
+  const survey = surveyDecks(graphOf(deck("f", "/Game/Build_Foundation.Build_Foundation_C", {
+    cols: 5, rows: 5, z: 500,
+  })));
+  assert.equal(survey.decks[0].underside.clear_of_structures_below, true);
+  assert.equal(survey.decks[0].underside.nearest_structure_below, null);
+});

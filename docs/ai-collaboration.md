@@ -7664,3 +7664,24 @@ So the underside reports structural clearance as measured, and ground as
 explicitly unknown rather than inferred. A service level planned into rock
 because "nothing was below" would be exactly the kind of confident wrong answer
 this project refuses everywhere else.
+
+**Done 2026-09-20.** `surveyDecks` reports each deck's underside.
+
+`describeUnderside` gives `bottom_z_cm`, the gap to the nearest structure below,
+which structure that is, and whether anything is built under the footprint at
+all. The deck's own members are excluded, or every deck would report zero
+clearance against itself.
+
+**Structural clearance and ground height are kept apart deliberately.** The
+first is measured from the snapshot. The second is not available: terrain is
+probed only for site candidates and that probing is bounded per capture, so a
+deck over open desert and one flat on rock are indistinguishable here. The
+result says `ground_below: unknown ... cannot tell open air from rock` rather
+than reporting "clear". Conflating them would let a service level be planned
+into solid rock because nothing was built there, which is the shape of confident
+wrong answer this project refuses everywhere else.
+
+That unblocks the service-level and multi-floor work without committing to
+either.
+
+**1097/1097 companion tests.**
