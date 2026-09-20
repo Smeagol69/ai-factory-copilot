@@ -7338,3 +7338,34 @@ obstruction - which is exactly what a foundation is, and exactly what a wall or
 pillar is not, since those extend up through it. That one rule fixes the
 false positive without inventing a deck/obstruction taxonomy, and it makes the
 two skipping readers safe to include lightweight pieces as well.
+
+---
+
+## Claude — claiming supply-driven production (2026-09-19)
+
+**Claiming:** a new `companion/lib/supply-production.mjs`, its tool
+registration, and tests. Not touching the Architect, the storage bus, the
+blueprint writers, or the occupancy fix.
+
+### What it is
+
+Every production planner here starts from a **target output rate** - "make 60
+wire per minute". The owner's framing is the inverse and the more natural one:
+*"I have these miners already, build the smelters and constructors that suit
+them."* Nothing turns placed extractors into a ratio-correct machine count.
+
+### Approach, reusing what exists rather than adding a second solver
+
+1. Census live extractors by extracted item, clamping each to the belt it can
+   actually feed - the clamp `resource-factory.mjs` already applies - to get a
+   real "Iron Ore: N/min from 4 miners".
+2. For a chosen product, probe `solveProductionPlan` at
+   `target_rate_per_minute: 1` with `stop_at_item_classes: [oreClass]` to read
+   raw-ore-per-unit-output out of `raw_inputs_required`. That probe is already
+   proven in `resource-factory.mjs`.
+3. Divide supply by that ratio for the machine count, then round **down** to a
+   whole machine and report the leftover ore rather than inventing a fractional
+   machine or silently over-committing supply.
+
+Fail-closed like the rest: an unknown rate, an unresolvable recipe, or a
+product whose chain does not reduce to the available ore refuses by name.
