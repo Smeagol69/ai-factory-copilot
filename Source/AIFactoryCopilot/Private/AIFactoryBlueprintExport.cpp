@@ -2996,7 +2996,61 @@ FAIFactoryActionResult GenerateLayout(
         AFGPlayerController* Controller = IsValid(Context.Player)
             ? Cast<AFGPlayerController>(Context.Player->GetController())
             : nullptr;
-        Designer->SaveBlueprint(Record, Controller);
+
+        // Declare a box that contains the layout.
+        //
+        // `SaveBlueprint` takes its dimensions from whichever designer happens
+        // to be standing in the world, and nothing bounds a generated layout to
+        // that box. A three-lane storage bus is about 32 x 32 m and fits a Mk1
+        // designer; five lanes does not, and shipped declaring 4x4x4 while
+        // holding 48 m of content. Measured across a real library, all 49
+        // blueprints the game's own Designer saved fit the box they declare.
+        //
+        // The *pivot* is deliberately unchanged. Generated parts are staged at
+        // RelativeTransform * StagingDesigner->GetActorTransform(), so the
+        // designer's own offset transform is already the correct frame and
+        // their recorded coordinates come out small and right. Passing that
+        // same frame explicitly to WriteBlueprintToArchive widens the declared
+        // dimensions without moving anything.
+        FTransform BlueprintOrigin;
+        Designer->GetOffsetTransform(BlueprintOrigin);
+        FIntVector Dimensions = Designer->GetBlueprintDimensions();
+        if (CombinedBounds.IsValid && !CombinedBounds.Min.ContainsNaN() &&
+            !CombinedBounds.Max.ContainsNaN())
+        {
+            const FVector Size = CombinedBounds.GetSize();
+            const auto CellsFor = [](const double Extent) {
+                return FMath::Max(
+                    1,
+                    FMath::CeilToInt32((Extent + AIFactoryGridCellCm) / AIFactoryGridCellCm));
+            };
+            // The designer's dimensions are the floor, never the ceiling: a
+            // layout that already fits declares exactly what it declared
+            // before, and only an oversized one grows.
+            Dimensions = FIntVector(
+                FMath::Max(Dimensions.X, CellsFor(Size.X)),
+                FMath::Max(Dimensions.Y, CellsFor(Size.Y)),
+                FMath::Max(Dimensions.Z, CellsFor(Size.Z)));
+        }
+
+        AFGBlueprintSubsystem* const WriteSubsystem =
+            AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
+        if (IsValid(WriteSubsystem))
+        {
+            WriteSubsystem->WriteBlueprintToArchive(
+                Record, BlueprintOrigin, Staging.GetAll(), Dimensions);
+            WriteSubsystem->WriteBlueprintToDisk(Record);
+        }
+        else
+        {
+            // The path this replaces. Kept so a generated blueprint still
+            // writes when the subsystem is unavailable; the readback below
+            // reports either way, and an under-declared box beats no file.
+            Designer->SaveBlueprint(Record, Controller);
+        }
+        Predicted->SetNumberField(TEXT("declared_dimension_x_cells"), Dimensions.X);
+        Predicted->SetNumberField(TEXT("declared_dimension_y_cells"), Dimensions.Y);
+        Predicted->SetNumberField(TEXT("declared_dimension_z_cells"), Dimensions.Z);
     }
     Predicted->SetNumberField(TEXT("adopted"), Adopted);
 

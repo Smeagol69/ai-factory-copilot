@@ -7260,3 +7260,44 @@ blueprints fit their declared box and six mod-written ones did not.
 own offset transform is already the correct frame and their relative
 coordinates come out small and right. This widens the declared dimensions only,
 passing that same frame explicitly to `WriteBlueprintToArchive`.
+
+**Done 2026-09-19.** `GenerateLayout` now declares a box that contains its
+layout. Dimensions are measured from the already-computed `CombinedBounds` -
+`ceil((extent + one cell) / cell)` per axis, with the designer's own dimensions
+as a floor, so a layout that already fits declares exactly what it declared
+before and only an oversized one grows.
+
+**The pivot is unchanged, deliberately.** Generated parts are staged at
+`RelativeTransform * StagingDesigner->GetActorTransform()`, so the designer's
+offset transform is already the correct frame and their recorded coordinates
+come out small and right. That same frame is now passed explicitly to
+`WriteBlueprintToArchive`; recentring here would move every generated blueprint
+that currently places correctly. A contract pins that `ComputeCaptureFrame` is
+never called on this path.
+
+`Designer->SaveBlueprint` survives as the fallback when the subsystem is
+unavailable - an under-declared box beats no file.
+
+That completes the honesty work on both write paths:
+
+| Path | Pivot | Declared box |
+| --- | --- | --- |
+| Capture ("use dismantle marks") | recentred on the selection | measured |
+| Generated (planner output) | unchanged, already correct | **measured (this change)** |
+
+Verification: **1049/1049 companion tests** (three new contracts),
+`scripts/validate.ps1`, Shipping and Editor builds, UAT cook/archive, matched
+Steam deployment, all 46 companion lib files identical across repository,
+standalone install and bundled copy. Deployed Shipping DLL SHA-256
+`8EF43EAF599F4E82AB40ECB72E24FB83D0351165180323729DB6AEE715CDC801`.
+
+**Live state, for whoever picks this up:** the owner's Anthropic credit was
+empty, which is why the first live attempt fell back to the deterministic
+diagnostic - the visible failure the `AIFACTORY_FALLBACK_TO_CHEAP=false` change
+was made to produce. With credit restored, `plan_storage_bus` ran and **refused
+correctly**: the save has seven plain `Build_ConveyorAttachmentSplitter_C` and
+no sorting-capable splitter, and both Smart and Programmable Splitter recipes
+report unavailable. The model then called `find_recipes` to explain why rather
+than guessing a substitute topology. That is the fail-closed design working
+end to end; the remaining gate is still a live stamp, which needs the AI Limiter
+unlock first.
