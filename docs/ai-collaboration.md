@@ -7301,3 +7301,40 @@ report unavailable. The model then called `find_recipes` to explain why rather
 than guessing a substitute topology. That is the fail-closed design working
 end to end; the remaining gate is still a live stamp, which needs the AI Limiter
 unlock first.
+
+---
+
+## Claude — claiming the lightweight occupancy bug (2026-09-19)
+
+**Claiming:** `occupiedBoxes` / `overlaps` in `companion/lib/designer.mjs`, the
+`kind !== "buildable"` skips in `companion/lib/solvers.mjs` (site_selection) and
+`companion/lib/megabase.mjs` (`assessMegabaseSite`), and their tests.
+
+### The bug, verified
+
+`occupiedBoxes` (designer.mjs:222) builds axis-aligned boxes from **every** node
+carrying `raw.bounds`, foundations included, and `overlaps` tests X and Y only.
+There is no Z term anywhere in the collision path.
+
+A foundation deck is therefore a solid obstruction in plan view, so every
+machine the layout designer tries to place **on** that deck is reported
+`blocked_by: lightweight:Build_Foundation_...`. That is precisely the owner's
+stated goal - "build my hub on this mega foundation" - refused by the mod
+because the surface it should build on reads as a wall.
+
+Two other consumers have the **opposite** error: `site_selection`
+(solvers.mjs:1352) and `assessMegabaseSite` (megabase.mjs:733) skip anything
+whose `kind !== "buildable"`, so they report *zero* overlaps against the same
+deck. Three readers of the same data, three different answers.
+
+### Fix
+
+Give the collision test a Z term. Both halves of the data already exist:
+`footprint.height_cm` (designer.mjs:128) and the full 3D `extent` emitted by
+`LightweightBuildableJson` (AIFactorySnapshot.cpp:993-998).
+
+A box whose top is at or below the build plane is a *surface*, not an
+obstruction - which is exactly what a foundation is, and exactly what a wall or
+pillar is not, since those extend up through it. That one rule fixes the
+false positive without inventing a deck/obstruction taxonomy, and it makes the
+two skipping readers safe to include lightweight pieces as well.
