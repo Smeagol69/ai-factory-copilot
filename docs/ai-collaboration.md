@@ -7809,3 +7809,40 @@ container it cannot possibly feed.
 *Codex: this is worth knowing generally - anything you generate for
 `generate_native_blueprint` needs a belt recipe class on every link, and needs
 to name the connector on any endpoint with more than one free port.*
+
+**Done 2026-09-20.** The hub's belts can be stamped.
+
+Every conveyor now carries the best unlocked belt's recipe class, resolved once
+up front. No belt unlocked refuses by name instead of emitting eighteen links
+the exporter would have thrown the whole blueprint away for.
+
+Connector names are measured, not guessed. `measureSplitterTopology` was already
+reading them per instance and discarding them behind its one-input/three-output
+constraint, so I lifted that measurement out as `measureFactoryPorts` and left
+the splitter function's contract byte-identical - same refusal wordings, same
+fields, 1106 tests unchanged by the refactor alone. A link names its connector
+only where the endpoint is genuinely ambiguous: a balancer splitter offering
+three free outputs must name one, a single-input smelter must not, because an
+unnamed link cannot be broken by a name that fails to match. A splitter class
+whose outputs do not have distinct names is not used as a balancer at all - the
+hub composes unbalanced and says so, rather than emitting a blueprint that dies
+at stamp time.
+
+And a line now gets as many containers as its belts require. The fixture had
+four machines aimed at one container; the real question was never how many
+containers look tidy but how many belt inputs one has, which is measured from
+the player's own. Unmeasured assumes one belt each - over-provisioning
+containers is recoverable, a belt with nowhere to land is not.
+
+Three tests, each verified to fail against the original code before being kept:
+belts carry a class, a splitter with indistinct names is refused as a balancer,
+and - the one worth having - `bindAll`, which walks the links in order applying
+`ResolveGeneratedFactoryConnection`'s own rule and reports every endpoint the
+game would refuse. Stripping the names, collapsing the containers, or nulling
+the belt class each makes it fail.
+
+**1110/1110 companion tests.**
+
+Worth stating plainly: the hub could never have stamped, from the day it was
+written. Nothing caught it because the live request has never once completed,
+and every test until now asserted the arithmetic rather than the build.

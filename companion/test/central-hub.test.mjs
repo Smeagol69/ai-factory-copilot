@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { buildGraph } from "../lib/graph.mjs";
 import { centralHubActions, composeCentralHub } from "../lib/central-hub.mjs";
+import { measureFactoryPorts } from "../lib/routing.mjs";
 
 const ORE_IRON = "/Game/Desc_OreIron.Desc_OreIron_C";
 const ORE_COPPER = "/Game/Desc_OreCopper.Desc_OreCopper_C";
@@ -147,13 +148,32 @@ test("one line per extracted ore, each with its own container", () => {
   }
 });
 
-test("every machine belts into its own line's container", () => {
+test("every machine belts into one of its own line's containers", () => {
+  // Re-scoped from "its own line's container", singular: a line gets as many
+  // containers as its machines' belts require, because a container can only
+  // take as many belts as it has inputs. The old shape asserted a line that
+  // could be balanced but never built.
   const plan = composeCentralHub(makeWorld());
   for (const line of plan.lines) {
-    const intoThis = plan.conveyors.filter((link) => link.to_part_id === line.container_part_id);
-    assert.equal(intoThis.length, line.machines, "one belt per machine on this line");
-    // And never into another line's container.
-    for (const link of intoThis) assert.match(link.from_part_id, new RegExp(`^${line.container_part_id.split("_")[0]}_`));
+    const intoThisLine = plan.conveyors.filter((link) =>
+      line.container_part_ids.includes(link.to_part_id),
+    );
+    assert.equal(intoThisLine.length, line.machines, "one belt per machine on this line");
+    // And never from another line's machines.
+    for (const link of intoThisLine) {
+      assert.ok(
+        line.machine_part_ids.includes(link.from_part_id),
+        `${link.from_part_id} belongs to this line`,
+      );
+    }
+    // No container is asked to take more belts than it has inputs.
+    for (const containerId of line.container_part_ids) {
+      const intoOne = intoThisLine.filter((link) => link.to_part_id === containerId);
+      assert.ok(
+        intoOne.length <= line.container_inputs_each,
+        `${containerId} takes ${intoOne.length} belts into ${line.container_inputs_each} inputs`,
+      );
+    }
   }
 });
 
@@ -300,8 +320,10 @@ test("with a splitter captured, every machine on a line is actually fed", () => 
   assert.equal(plan.balancing.balanced, true);
   for (const line of plan.lines) {
     if (line.machines < 2) continue;
-    for (let index = 1; index <= line.machines; index += 1) {
-      const machineId = `${line.container_part_id.replace("_container", "")}_machine${index}`;
+    // Ask the plan which machines are on this line rather than rebuilding
+    // their ids from a container's name, which broke the moment a line
+    // could have more than one container.
+    for (const machineId of line.machine_part_ids) {
       assert.ok(
         plan.conveyors.some((link) => link.to_part_id === machineId),
         `${machineId} is fed`,
@@ -513,4 +535,120 @@ test("floors report their own service level, not one shared answer", () => {
     assert.ok(entry.deck_id, "each floor names itself");
     assert.ok(typeof entry.why === "string" && entry.why.length > 0);
   }
+});
+
+// ---------------------------------------------------------------------------
+// CAN THE EXPORTER ACTUALLY BIND WHAT WE EMIT
+//
+// Two rules in the C++ decide whether a generated blueprint stamps at all,
+// and the composer silently broke both for as long as it existed:
+//
+//   AIFactoryActions.cpp        a link with no recipe class is refused
+//   AIFactoryBlueprintExport.cpp  an endpoint must resolve to exactly one free
+//                                 connector, or the link is refused
+//
+// These tests apply those rules here, where a failure costs a second rather
+// than a trip into the game.
+
+test("every belt carries a belt recipe class, which the exporter requires", () => {
+  const plan = composeCentralHub(worldWithSplitter());
+  assert.equal(plan.composed, true, plan.reason);
+  assert.ok(plan.conveyors.length > 0);
+  for (const link of plan.conveyors) {
+    assert.ok(
+      typeof link.recipe_class === "string" && link.recipe_class.length > 0,
+      `${link.link_id} has no belt class, so the exporter refuses the whole blueprint`,
+    );
+  }
+});
+
+test("no unlocked belt refuses the hub, rather than emitting belts with no class", () => {
+  const graph = worldWithSplitter();
+  for (const recipe of graph.snapshot.content.recipes) {
+    if (String(recipe.name).includes("Conveyor Belt")) recipe.available = false;
+  }
+  const plan = composeCentralHub(graph);
+  assert.equal(plan.composed, false);
+  assert.match(plan.reason, /conveyor belt/i);
+  assert.deepEqual(plan.missing, ["unlocked_conveyor_belt_recipe"]);
+});
+
+/**
+ * Mirrors `ResolveGeneratedFactoryConnection`: walk the links in order and,
+ * for each endpoint, count the connectors still free and facing the right way
+ * that also match the link's name if it gave one. Exactly one is a bind;
+ * anything else is the refusal the game would give us.
+ */
+function bindAll(plan, graph) {
+  const classOf = new Map(plan.parts.map((part) => [part.part_id, part.recipe_class]));
+  const buildingFor = new Map();
+  for (const node of graph.nodes.values()) {
+    const built = node.raw?.built_with_recipe;
+    if (built && !buildingFor.has(built)) buildingFor.set(built, node.class_path);
+  }
+  const free = new Map();
+  const portsOf = (partId) => {
+    const classPath = buildingFor.get(classOf.get(partId));
+    if (!classPath) return null;
+    const ports = measureFactoryPorts(graph, classPath);
+    return ports.resolved ? ports : null;
+  };
+  const remaining = (partId, direction) => {
+    const key = partId + ':' + direction;
+    if (!free.has(key)) {
+      const ports = portsOf(partId);
+      // A part whose class was never captured is assumed to have one port,
+      // which is what the composer assumes when it leaves a link unnamed.
+      const list = ports
+        ? (direction === "input" ? ports.inputs : ports.outputs).map((port) => port.component_name)
+        : [null];
+      free.set(key, [...list]);
+    }
+    return free.get(key);
+  };
+  const failures = [];
+  for (const link of plan.conveyors) {
+    for (const end of [
+      { partId: link.from_part_id, direction: "output", name: link.from_connector_name },
+      { partId: link.to_part_id, direction: "input", name: link.to_connector_name },
+    ]) {
+      const pool = remaining(end.partId, end.direction);
+      const candidates = end.name ? pool.filter((name) => name === end.name) : [...pool];
+      if (candidates.length !== 1) {
+        failures.push(
+          `${link.link_id}:${end.direction} on ${end.partId} => candidates=${candidates.length}`,
+        );
+        continue;
+      }
+      pool.splice(pool.indexOf(candidates[0]), 1);
+    }
+  }
+  return failures;
+}
+
+test("every generated link resolves to exactly one free connector", () => {
+  // The defect this was written for: a three-output balancer splitter whose
+  // first belt out found three free outputs and refused, and four machines
+  // belting into one container that has room for fewer.
+  const graph = worldWithSplitter();
+  const plan = composeCentralHub(graph);
+  assert.equal(plan.composed, true, plan.reason);
+  assert.deepEqual(bindAll(plan, graph), [], "the exporter would refuse these links");
+});
+
+test("a splitter whose outputs have no distinct names is not used as a balancer", () => {
+  // Naming is the only way past an ambiguous endpoint. A splitter that cannot
+  // name its outputs would refuse at stamp time, so the hub composes without
+  // a balancer and says so, rather than emitting a blueprint that dies.
+  const graph = worldWithSplitter();
+  for (const node of graph.nodes.values()) {
+    if (!String(node.class_path).includes("Splitter")) continue;
+    for (const connection of node.raw.connections ?? []) {
+      if (String(connection.direction).includes("OUTPUT")) connection.component = "Output0";
+    }
+  }
+  const plan = composeCentralHub(graph);
+  assert.equal(plan.composed, true, plan.reason);
+  assert.equal(plan.balancing.balanced, false);
+  assert.deepEqual(bindAll(plan, graph), [], "an unbalanced hub still has to bind");
 });

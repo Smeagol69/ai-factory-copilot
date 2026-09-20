@@ -12,12 +12,32 @@
  * from build recipes the save reports available. Nothing here invents a number.
  *
  * ---------------------------------------------------------------------------
- * ONE LINE PER ORE, ONE CONTAINER PER LINE - AND WHY THERE ARE NO FILTERS
+ * ONE LINE PER ORE, ITS OWN CONTAINERS - AND WHY THERE ARE NO FILTERS
  *
  * Sorting exists to separate items that share a belt. Give each production line
- * its own container and nothing ever shares a belt, so a smart splitter would
+ * its own containers and nothing ever shares a belt, so a smart splitter would
  * be ceremony: it would also require merging the lines onto one bus first, and
  * a merger is still refused by the generated-blueprint denylist.
+ *
+ * A line gets as many containers as its machines' belts require, not one. A
+ * container can take only as many belts as it has inputs, and the exporter
+ * consumes a free connector per link, so a four-machine line aimed at a
+ * two-input container is not a tight layout - it is unbuildable.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT THE EXPORTER DEMANDS OF EVERY LINK
+ *
+ * Two rules, both of which this composer once broke, and both of which refuse
+ * the whole blueprint rather than the one bad link:
+ *
+ *   - A link with no belt recipe class is rejected outright, so the belt is
+ *     resolved once up front and stamped on every conveyor.
+ *   - An endpoint must resolve to exactly one free connector facing the right
+ *     way. A three-output splitter offers three, so the link has to name the
+ *     one it means. Names are measured from the player's own buildings, like
+ *     every other number here, and are given only where the endpoint is
+ *     genuinely ambiguous - an unnamed link cannot be broken by a name that
+ *     fails to match.
  *
  * `plan_storage_bus` remains the right tool when the intake really is mixed -
  * belting an existing shared line in. The hub says which topology it chose, so
@@ -32,9 +52,9 @@
  * approximate hub placed into a wall - is worse than no hub.
  */
 
-import { findBuildRecipeForBuilding } from "./base-build.mjs";
+import { findBestAvailableBelt, findBuildRecipeForBuilding } from "./base-build.mjs";
 import { measureBuilding } from "./designer.mjs";
-import { measureSplitterTopology } from "./routing.mjs";
+import { measureFactoryPorts, measureSplitterTopology } from "./routing.mjs";
 import { surveyDecks } from "./site-survey.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
 
@@ -111,7 +131,22 @@ function findBalancerSplitter(graph) {
     if (!(outputs >= 2)) continue;
     const build = findBuildRecipeForBuilding(graph, classPath);
     if (!build?.available) continue;
-    return { class_path: classPath, outputs, build, measured_from: topology.measured_from };
+    // A splitter is only usable as a balancer if its outputs have distinct
+    // names to give. The exporter refuses a belt whose endpoint has more than
+    // one free connector unless the link names the one it means, and three
+    // free outputs is exactly that case - so an unnamed balancer would refuse
+    // on its first belt out.
+    const outputNames = topology.outputs.map((output) => output.component_name);
+    if (outputNames.some((name) => !name) || new Set(outputNames).size !== outputNames.length) {
+      continue;
+    }
+    return {
+      class_path: classPath,
+      outputs,
+      output_names: outputNames,
+      build,
+      measured_from: topology.measured_from,
+    };
   }
   return null;
 }
@@ -132,7 +167,36 @@ function findBalancerSplitter(graph) {
  * Appends parts and conveyors, and returns the root splitter's part id - the
  * line's single intake.
  */
-function buildBalancer({ splitter, machineIds, linePrefix, origin, parts, conveyors, counter }) {
+/**
+ * The connector a generated link must name, or null when it needs none.
+ *
+ * `ResolveGeneratedFactoryConnection` looks for exactly one free connector
+ * facing the right way and refuses when it finds several. So a name is needed
+ * precisely when the class has more than one port of that direction - and is
+ * better left off when it has one, because an unnamed link cannot be broken by
+ * a name that fails to match.
+ *
+ * Unmeasured means unnamed: a class we have never seen built is assumed to
+ * have a single port, which is true of every basic machine. If it is not, the
+ * exporter refuses that link by name rather than mis-binding it.
+ */
+function portName(ports, direction, index) {
+  const list = direction === "input" ? ports?.inputs : ports?.outputs;
+  if (!Array.isArray(list) || list.length <= 1) return null;
+  return list[index]?.component_name ?? null;
+}
+
+function buildBalancer({
+  splitter,
+  machineIds,
+  linePrefix,
+  origin,
+  parts,
+  conveyors,
+  counter,
+  beltRecipeClass,
+  machinePorts,
+}) {
   if (machineIds.length <= 1) return null;
 
   const split = (ids, depth, branch) => {
@@ -166,18 +230,23 @@ function buildBalancer({ splitter, machineIds, linePrefix, origin, parts, convey
       if (share.length === 1) {
         conveyors.push({
           link_id: `${partId}_to_${share[0]}`,
-          recipe_class: null,
+          recipe_class: beltRecipeClass,
           from_part_id: partId,
           to_part_id: share[0],
+          from_connector_name: splitter.output_names?.[index] ?? null,
+          to_connector_name: portName(machinePorts, "input", 0),
         });
         continue;
       }
       const childId = split(share, depth + 1, branch + index);
       conveyors.push({
         link_id: `${partId}_to_${childId}`,
-        recipe_class: null,
+        recipe_class: beltRecipeClass,
         from_part_id: partId,
         to_part_id: childId,
+        from_connector_name: splitter.output_names?.[index] ?? null,
+        // A splitter has one input, so the child end needs no name.
+        to_connector_name: null,
       });
     }
     return partId;
@@ -345,6 +414,29 @@ export function composeCentralHub(graph, args = {}) {
   }
   const containerFootprint = measureBuilding(graph, [containerClass]);
 
+  // How many belts one container can actually take. Every link the exporter
+  // binds consumes a free connector, so a line with more machines than its
+  // container has inputs is not a layout problem - it is unbuildable. Measured
+  // from the player's own container; unmeasured falls back to one belt each,
+  // which over-provisions containers but never emits a belt with nowhere to
+  // land.
+  const containerPorts = measureFactoryPorts(graph, containerClass);
+  const containerInputs = containerPorts.resolved
+    ? Math.max(1, Number(containerPorts.input_capacity ?? 1))
+    : 1;
+
+  // --- the belt ------------------------------------------------------------
+  //
+  // Every generated link carries a belt recipe class, and the exporter refuses
+  // a link without one outright. Resolve it once, here, rather than leaving
+  // each conveyor to be filled in later and forgotten.
+  const belt = findBestAvailableBelt(graph);
+  if (!belt) {
+    return refuse("no conveyor belt is unlocked, so nothing in the hub could be belted together", {
+      missing: ["unlocked_conveyor_belt_recipe"],
+    });
+  }
+
   // --- size one line per ore ----------------------------------------------
   const wanted = Array.isArray(requestedItems) && requestedItems.length > 0 ? requestedItems : null;
   const lines = [];
@@ -430,7 +522,12 @@ export function composeCentralHub(graph, args = {}) {
     const width = Number(line.machine.footprint.width_cm);
     const depth = Number(line.machine.footprint.depth_cm);
     const rowLength = count * width + (count - 1) * MACHINE_GAP_CM;
-    const neededX = rowLength + CONTAINER_GAP_CM + Number(containerFootprint?.width_cm ?? GRID_CELL_CM) + GRID_CELL_CM * 2;
+    // One container per `containerInputs` machines - see the note where
+    // containerInputs is measured.
+    const containerCount = Math.ceil(count / containerInputs);
+    const containerWidth = Number(containerFootprint?.width_cm ?? GRID_CELL_CM);
+    const containerRun = containerCount * containerWidth + (containerCount - 1) * MACHINE_GAP_CM;
+    const neededX = rowLength + CONTAINER_GAP_CM + containerRun + GRID_CELL_CM * 2;
     const neededY = depth + LINE_GAP_CM;
 
     // The first floor this line fits on, checked before anything is emitted so
@@ -476,6 +573,7 @@ export function composeCentralHub(graph, args = {}) {
       { length: count },
       (unused, machineIndex) => `line${index + 1}_machine${machineIndex + 1}`,
     );
+    const machinePorts = measureFactoryPorts(graph, line.machine.footprint.class_path);
     const balancerRoot = splitter
       ? buildBalancer({
           splitter,
@@ -485,30 +583,54 @@ export function composeCentralHub(graph, args = {}) {
           parts,
           conveyors,
           counter: splitCounter,
+          beltRecipeClass: belt.recipe_class,
+          machinePorts,
         })
       : null;
 
-    const containerId = `line${index + 1}_container`;
-    parts.push({
-      part_id: containerId,
-      role: "standalone",
-      recipe_class: containerBuild.recipe_class,
-      relative_location: {
-        x: lineX + rowLength + CONTAINER_GAP_CM,
-        y: cursorY,
-        z: floor.deck.top_z_cm,
-      },
-      yaw: 0,
-    });
+    // The line's containers, stood in a row past the machines. A line gets as
+    // many as its machines' belts require rather than one it cannot feed: the
+    // containers are the face of the hub, the part the player walks up to and
+    // pulls from, so under-providing them is what makes a balanced line
+    // unbuildable.
+    const containerIds = [];
+    for (let containerIndex = 0; containerIndex < containerCount; containerIndex += 1) {
+      const containerId = `line${index + 1}_container${containerIndex + 1}`;
+      containerIds.push(containerId);
+      parts.push({
+        part_id: containerId,
+        role: "standalone",
+        recipe_class: containerBuild.recipe_class,
+        relative_location: {
+          x:
+            lineX +
+            rowLength +
+            CONTAINER_GAP_CM +
+            containerIndex * (containerWidth + MACHINE_GAP_CM),
+          y: cursorY,
+          z: floor.deck.top_z_cm,
+        },
+        yaw: 0,
+      });
+    }
 
-    // Each machine belts into this line's own container. No sorting is needed
-    // because nothing shares a belt - see the note at the top of this file.
+    // Each machine belts into one of this line's containers. No sorting is
+    // needed because nothing shares a belt - see the note at the top of this
+    // file. Machines fill a container's inputs in order, so no belt is ever
+    // aimed at a connector another belt already took.
     for (let machineIndex = 0; machineIndex < count; machineIndex += 1) {
+      const containerIndex = Math.floor(machineIndex / containerInputs);
       conveyors.push({
         link_id: `line${index + 1}_out${machineIndex + 1}`,
-        recipe_class: null,
+        recipe_class: belt.recipe_class,
         from_part_id: `line${index + 1}_machine${machineIndex + 1}`,
-        to_part_id: containerId,
+        to_part_id: containerIds[containerIndex],
+        from_connector_name: portName(machinePorts, "output", 0),
+        to_connector_name: portName(
+          containerPorts.resolved ? containerPorts : null,
+          "input",
+          machineIndex % containerInputs,
+        ),
       });
     }
 
@@ -523,7 +645,11 @@ export function composeCentralHub(graph, args = {}) {
       output_per_minute: line.plan.product?.output_per_minute ?? null,
       ore_consumed_per_minute: line.plan.ore_consumed_per_minute ?? null,
       ore_left_over_per_minute: line.plan.ore_left_over_per_minute ?? null,
-      container_part_id: containerId,
+      machine_part_ids: machineIds,
+      container_part_id: containerIds[0],
+      container_part_ids: containerIds,
+      containers: containerIds.length,
+      container_inputs_each: containerInputs,
       intake_part_id: balancerRoot ?? (count === 1 ? machineIds[0] : null),
       balanced: Boolean(balancerRoot) || count === 1,
       row_length_cm: rowLength,
@@ -583,6 +709,21 @@ export function composeCentralHub(graph, args = {}) {
     },
     parts,
     conveyors,
+    belt: {
+      recipe_class: belt.recipe_class,
+      name: belt.name,
+      tier: belt.tier,
+      why: "the fastest belt this save has unlocked; every link carries it, because the exporter rejects a link without one",
+    },
+    containers: {
+      class_path: containerClass,
+      inputs_each: containerInputs,
+      measured: containerPorts.resolved,
+      total: placedLines.reduce((sum, line) => sum + line.containers, 0),
+      why: containerPorts.resolved
+        ? `a container of this class has ${containerInputs} belt input(s), so a line gets one container per ${containerInputs} machine(s)`
+        : "this container class has never been captured, so one belt each was assumed rather than guessed upward",
+    },
     service_level: {
       used: used.some((floor) => floor.service.used),
       z_cm: used.find((floor) => floor.service.used)?.service.z ?? null,
