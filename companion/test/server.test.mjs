@@ -613,3 +613,21 @@ test("a broken provider falls back to deterministic live analysis", async (conte
     );
   }
 });
+
+test("a provider failure explains itself instead of saying only that it failed", () => {
+  // Every provider failure used to produce the same sentence, so an exhausted
+  // credit balance, a context overflow and a network drop were
+  // indistinguishable. Three failures on this project were diagnosed by
+  // guessing before this existed - the message was captured the whole time and
+  // simply never shown.
+  const source = fs
+    .readFileSync(new URL("../server.mjs", import.meta.url), "utf8")
+    .replace(/\r\n/g, "\n");
+  assert.match(source, /function describeProviderFailure\(message, info\)/);
+  assert.match(source, /request did not complete: `? ?\+?\s*`?\$\{describeProviderFailure/);
+  // Token usage travels with it: a very large input is often the explanation.
+  assert.match(source, /usage\?\.input_tokens \?\? usage\?\.prompt_tokens/);
+  assert.match(source, /k tokens in/);
+  // And a missing message still says something rather than rendering blank.
+  assert.match(source, /no error message was returned/);
+});
