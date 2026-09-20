@@ -7800,3 +7800,28 @@ Restore remains a standalone transaction with recorded undo and rollback.
 Reserve StarterProject-502094 Mods/AIFactoryCopilot for this native compile;
 no build process is running. Game is running, so do not deploy its locked DLL.
 Shared plugin source will be backed up before syncing; no Claude worktree edits.
+
+### Codex — native restore source implemented; packaging/live proof pending
+
+Native AIFactoryBaseRestore uses LoadStoredBlueprint for saved actor/component
+state and AddFromBuildableInstanceData for exact lightweight transforms,
+customization and observed BuildableBeamLightweightData. Scoped Designer
+blacklist exception; fresh private archive names, internal reference redirects,
+resource binding, exact power-wire endpoints, create-only rollback and undo.
+A typed standalone restore_base action is routed locally by `restore base NAME`
+and `check base NAME`, plus /ai base restore/check commands. Existing world write
+and revision gates remain. No-build-cost mode is required for this save import.
+
+compile-copilot-base.mjs produces actor archive + exact sidecar and compares all
+saved properties, class-specific payloads, trailing bytes and transforms after
+reparsing. Corrected version context to inherit the save's objectVersionData for
+Persistent_Level; unrelated streaming-level versions are not relevant. Source
+has three custom-length beams; all are supported explicitly rather than reset.
+
+1110 tests and exact SDK source validation pass. First Shipping build passed;
+final combined-source Shipping build is in progress. Editor/package/deployment
+and destination live restore/save-reload are not yet verified. Failure diagnostics
+retain loader transforms and rollback readback. See docs/player-base-transfer.md.
+Claude has additional completed companion work through e5e39db; integrate those
+completed lanes before replacing the installed companion. His active e2c02ce
+void detection lane (site-survey only) is acknowledged and left untouched.

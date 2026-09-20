@@ -1,4 +1,5 @@
 #include "AIFactoryActions.h"
+#include "AIFactoryBaseRestore.h"
 #include "AIFactoryWaypointDisplay.h"
 
 #include "AIFactoryBlueprintExport.h"
@@ -3690,6 +3691,7 @@ namespace
             Kind == TEXT("teleport_player") ||
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
+            Kind == TEXT("restore_base") ||
             Kind == TEXT("export_native_blueprint") ||
             Kind == TEXT("generate_native_blueprint") ||
             Kind == TEXT("give_item") ||
@@ -3801,6 +3803,17 @@ namespace
             return FAIFactoryActionResult::Refuse(TEXT("unknown"), TEXT("missing_action_kind"));
         }
 
+        if (Kind == TEXT("restore_base"))
+        {
+            const FString Blocked = CheckActionPreconditions(Context);
+            if (!Blocked.IsEmpty()) return FAIFactoryActionResult::Refuse(Kind, Blocked);
+            FString PackageName;
+            Spec->TryGetStringField(TEXT("base_name"), PackageName);
+            FAIFactoryUndoStep Step;
+            FAIFactoryActionResult Result = AIFactoryBaseRestore::Restore(Context, PackageName, Step);
+            if (Result.bCommitted) RecordActionUndo(MoveTemp(Step));
+            return Result;
+        }
         if (Kind == TEXT("teleport_player"))
         {
             FVector Location;
@@ -4477,7 +4490,8 @@ FString ExecutePlan(
                 ++UndoWrites;
             }
             if (Item.Kind == TEXT("export_native_blueprint") ||
-                Item.Kind == TEXT("generate_native_blueprint"))
+                Item.Kind == TEXT("generate_native_blueprint") ||
+                Item.Kind == TEXT("restore_base"))
             {
                 ++BlueprintFileWrites;
             }

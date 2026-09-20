@@ -35,6 +35,7 @@ export const WRITE_ACTION_KINDS = [
   "teleport_player",
   "place_building",
   "place_blueprint",
+  "restore_base",
   // Exports the exact set the player marked with the game's dismantle tool as
   // a native .sbp. This writes a durable file, so it is a write even though it
   // does not place or remove anything in the world.
@@ -411,6 +412,17 @@ export function validateAction(graph, proposal) {
   const warnings = [];
   const checks = {};
   const playerPosition = findPlayerPosition(graph);
+
+  if (kind === "restore_base") {
+    const name = proposal.base_name;
+    if (typeof name !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(name)) return reject(kind, "invalid_base_package_name");
+    if (["location", "offset", "yaw", "scale", "transform", "pieces", "path"].some(key => Object.hasOwn(proposal, key))) {
+      return reject(kind, "base_restore_uses_saved_transforms_only");
+    }
+    warnings.push("The game validates the local transfer package, destination, resources and exact spawned transforms; no restore has happened yet.");
+    return { valid: true, warnings, checks: { package_validation: "game_required" },
+      action: bindWorldRevision(graph, { action: kind, base_name: name, commit: proposal.commit === true }, proposal) };
+  }
 
   if (kind === "teleport_player") {
     const target = vector(proposal.target);
@@ -2019,6 +2031,9 @@ export function validatePlan(graph, proposals, { maxActions = DEFAULT_MAX_ACTION
   const nativeExports = committedWrites.filter(
     (action) => ["export_native_blueprint", "generate_native_blueprint"].includes(action.action),
   );
+  if (committedWrites.some(action => action.action === "restore_base") && committedWrites.length > 1) {
+    return { valid: false, reason: "base_restore_must_be_a_standalone_commit", actions: [] };
+  }
   if (nativeExports.length > 0 && committedWrites.length > 1) {
     return {
       valid: false,

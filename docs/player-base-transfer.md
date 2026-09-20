@@ -1,61 +1,69 @@
-# Exact base restoration through AI Copilot
+# Restore a saved base through Copilot
 
-The owner wants one Copilot request to spawn the player-built base from
-chatgpt.sav into another world, at every original absolute world transform.
-Ordinary movable Blueprints and external save-editor imports do not satisfy
-this request. Map actors, player state and progression are excluded.
+The native restore path imports every packaged player-built actor and active
+lightweight piece at its recorded absolute world XYZ, rotation and scale.
+The source save is not edited. Map actors and progression are not copied.
 
-## Current implementation boundary
+## In the game
 
-`scripts/prepare-copilot-base.mjs` prepares the complete saved build set and
-`companion/lib/base-transfer.mjs` validates its coordinate contract. **There is
-no native restore executor yet. These files cannot currently spawn the base.**
-The manifest deliberately says `can_spawn: false`. Preparation changes no game
-files, source saves or destination saves. Do not register a model tool claiming
-this is an implemented write action.
+After the updated mod and companion are installed, load the destination save.
+Enable Copilot write actions and the game's no-build-cost mode. The original
+base region must be clear and the required mods must be installed.
 
-Preparation uses the existing pinned local parser:
+In the Copilot panel:
 
-```powershell
-node scripts/prepare-copilot-base.mjs --save <chatgpt.sav> --snapshot <captured-catalog.json> --output <new-directory>
+```text
+check base chatgpt
+restore base chatgpt
 ```
 
-Outputs are `source-manifest.json` and `saved-build-state.json`. Each placed
-piece has its original class, source identity, XYZ, quaternion and scale.
-IEEE-754 double bytes accompany readable numbers, preserving signed zero and
-detecting rounding. Source and saved-state payloads have SHA-256 hashes.
-Owned components, referenced proxies and complete power circuits are retained.
-Map references stay external identities. Missing references are reported.
-Deleted lightweight slots are excluded even when their old transforms remain.
+The game's chat equivalents are `/ai base check chatgpt` and
+`/ai base restore chatgpt`. A check runs preflight only. A restore is one
+server-side transaction and supports the existing `undo` command. A destination
+with a HUB already built refuses importing a second saved HUB.
 
-The earlier SCIM tooling is a development cross-check of the save scan, not the
-requested delivery workflow. Its local artifacts remain separate. No `.cbp`
-import is required or proposed for the Copilot feature.
+No selection, aim point, terrain snapping, recentering or offset is used.
+Coordinates come from the installed package, never from the language model.
+The game reports the real result; chat-command diagnostics are written to
+Saved/AIFactoryCopilot/Diagnostics/latest-base-restore.json.
 
-## Native work required
+## Package preparation
 
-1. Validate manifest, state digest, game/map/mod dependencies and destination
-   occupancy server-side before any write. Resolve miners to recorded resource
-   identities; never create replacement map nodes.
-2. Serialize/restore the complete build graph. The CL502094 SDK constructor in
-   `FGBlueprintSubsystem.cpp` lists Blueprint Designers among
-   `mBlacklistedBlueprintCollectClasses`; the source contains one. Ordinary
-   ExportSelection cannot be assumed to preserve the complete set. HUB ownership
-   and the unresolved HUB locker reference need explicit handling.
-3. Preserve native properties, component connections, customization and mod-owned
-   assembly references. A recipe/coordinate loop is insufficient.
-4. Apply saved transforms without recentering, terrain snapping, grid rounding
-   or relative offsets. LoadStoredBlueprint exposes post-serialize and
-   pre-BeginPlay callbacks, but their ordering and index meaning need native
-   verification before relying on them for exact mapping.
-5. Track every created actor/lightweight instance. Roll back incomplete restores
-   without touching pre-existing destination pieces. Keep existing server,
-   write, commit, revision and journal gates.
-6. Read back the complete created set, including construction-generated pieces,
-   and compare full transforms with multiplicity. verifyBaseSpawn rejects
-   missing/extra pieces, duplicate runtime identities, rounded values and wrong
-   coordinates. It proves geometry only; properties/connections need separate
-   checks. Recheck after lightweight conversion and save/load.
+```powershell
+node scripts/prepare-copilot-base.mjs --save <source.sav> --snapshot <catalog.json> --output <new-prepared-directory>
+node scripts/compile-copilot-base.mjs <prepared-directory> <source.sav> <new-native-directory>
+```
 
-Native writes are not implemented, compiled, deployed or live-verified by this
-checkpoint. Offline parsing is not evidence of a working restore.
+Install the native directory as
+Saved/AIFactoryCopilot/BaseTransfers/chatgpt containing restore.json, actors.sbp
+and actors.sbpcfg. These private actor archives are loaded by the restore action;
+they are not movable Build Gun Blueprints.
+
+The compiler retains saved actor/component properties and connections, redirects
+internal identities, and reparses the result to compare every property, special
+payload, trailing byte and transform. It keeps double-precision original
+transforms beside the native actor archive's float transform headers. Native
+loading identifies each actor by its exact archived class/transform and applies
+the original transform before BeginPlay. Ambiguous identities refuse packaging.
+
+Lightweight records load through AddFromBuildableInstanceData, including full
+customization and the saved beam-length dynamic struct. Other dynamic struct
+formats refuse explicitly. Dismantled slots are excluded. The engine's Designer
+collection blacklist exception is scoped to this restore and unwound afterwards.
+
+## Validation and limits
+
+The native action checks server authority, package checksums, required assets,
+map/build, target region, and original miner nodes before writes. It verifies
+every created actor/instance transform, lightweight customization and beam data,
+miner node and both endpoints of each saved power wire. Missing/extra pieces
+cause rollback of the created buildables. Readback records actual transforms.
+Existing destination pieces are excluded from proof and rollback.
+
+Native circuit IDs and Blueprint proxy IDs are rebuilt for the destination.
+The source's absent HUB locker reference is left to native initialization.
+Saved inventories/properties remain in the actor archive, but arbitrary mod
+behavior and post-load side effects have not been live-verified. Immediate
+readback does not establish save/reload persistence or delayed conversion.
+Do not claim a proven exact transfer until the packaged game reports success
+and a destination save/reload has also been checked.

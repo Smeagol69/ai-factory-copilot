@@ -1328,13 +1328,14 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
+                enum: ["place_building", "place_blueprint", "restore_base", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
+              base_name: { type: "string", description: "restore_base only: exact local saved-base package name supplied by the player. Restores all saved absolute transforms, accepts no offset or rotation, requires no-build-cost mode, and must be a standalone write. Never invent package names or claim success before the native result." },
               blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. generate_native_blueprint: the name of the new native Blueprint file. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {
