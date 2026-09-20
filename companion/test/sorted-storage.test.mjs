@@ -132,3 +132,36 @@ test("an unfiltered splitter stays legal", () => {
   assert.match(exporter, /if \(Entry\.Source\.SortRules\.Num\(\) == 0\)\n\s*\{\n\s*continue;/);
   assert.match(actions, /\.\.\.\(sortRules\.length > 0 \? \{ sort_rules: sortRules \} : \{\}\)/);
 });
+
+test("a generated blueprint declares a box that contains its layout", () => {
+  // Found while answering "is this going to create a blueprint?". The capture
+  // path was fixed to declare an honest box; the generated path was not - it
+  // took dimensions from whichever designer stood in the world, and nothing
+  // bounds a generated layout to that box. A three-lane bus fits a Mk1
+  // designer; five lanes does not.
+  assert.match(exporter, /Designer->GetOffsetTransform\(BlueprintOrigin\);/);
+  assert.match(
+    exporter,
+    /WriteSubsystem->WriteBlueprintToArchive\(\s*\n?\s*Record, BlueprintOrigin, Staging\.GetAll\(\), Dimensions\);/,
+  );
+  assert.match(exporter, /declared_dimension_x_cells/);
+});
+
+test("widening the generated box does not move the generated pivot", () => {
+  // Generated parts are staged at RelativeTransform * designer transform, so
+  // the designer's own offset transform is already the right frame. Passing it
+  // explicitly changes the declared size and nothing else; recentring here
+  // would shift every generated blueprint that currently places correctly.
+  assert.match(exporter, /FTransform BlueprintOrigin;/);
+  // No selection-centre recentring on this path - that belongs to captures.
+  const generated = exporter.slice(exporter.indexOf("FAIFactoryActionResult GenerateLayout"));
+  assert.doesNotMatch(generated, /ComputeCaptureFrame\(/);
+});
+
+test("the designer's dimensions remain the floor on the generated path too", () => {
+  // A layout that already fits declares exactly what it declared before.
+  assert.match(exporter, /FMath::Max\(Dimensions\.X, CellsFor\(Size\.X\)\)/);
+  assert.match(exporter, /FMath::Max\(Dimensions\.Z, CellsFor\(Size\.Z\)\)/);
+  // And the old path survives if the subsystem is unavailable.
+  assert.match(exporter, /Designer->SaveBlueprint\(Record, Controller\);/);
+});
