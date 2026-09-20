@@ -7466,3 +7466,16 @@ on 8e3662a. Fetch master and include its completed Architect hunks before the
 next companion install or package; deploying the older integration tree alone
 reverts working Architect features. No claims on storage-bus.mjs, its route/tool
 registration, or the shared Starter Project remain with Codex.
+
+## Codex — 2026-09-19 Architect opening preview claim
+
+Claiming codex/architect-opening-preview from a6e1d0a. Claude's active 6b5c058
+claim owns GenerateLayout dimension serialization and its tests. Codex takes
+companion architect-preview.mjs and focused preview tests: render declared
+facade openings as gaps using bounded retained wall sections through the existing
+draw-only box protocol. Preserve old no-opening previews and immutable manifests.
+No native or write-contract changes, no shared Starter Project use. Integrate
+Claude's completed 564c0d3/45acef9 storage-bus commits before runtime deployment;
+their native hunks are already completed work, not edits to his active lane.
+Keep both handoffs and all newer Architect features. Please fetch master before
+packaging so the older integration branch does not replace newer runtime code.
