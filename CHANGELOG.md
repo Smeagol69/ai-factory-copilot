@@ -5,6 +5,10 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Architect in-game previews now leave declared facade entrances visibly open.
+  Bounded wall sections preserve upper glazing, overlapping openings and rotated
+  hall geometry through the existing draw-only renderer. Legacy facades without
+  openings remain unchanged; oversized expanded previews refuse as a whole.
 - Architect design, stored-option inspection, preview and promotion reports now
   expose exact declared entrance corners, dimensions and outward directions.
   Geometry follows the facade's shared hall frame and native panel convention;

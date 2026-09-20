@@ -694,7 +694,10 @@ test("the model-facing solver is action-free by default and can emit one draw-on
   assert.equal(emitted.length, 1);
   assert.equal(emitted[0].action, "architect_preview");
   assert.equal(emitted[0].commit, true);
-  assert.equal(emitted[0].elements.length, parsed.elements.length);
+  // Every default perimeter face becomes two jambs and an upper wall.
+  const facadeCount = parsed.elements.filter((element) => element.kind === "glazed_facade").length;
+  assert.equal(emitted[0].elements.length, parsed.elements.length + 2 * facadeCount);
+  assert.equal(previewed.architect_preview.element_count, emitted[0].elements.length);
 
   const radial = JSON.parse(runSolverTool(toolGraph, "design_megabase_concept", {
     ...request, style: "radial_hub_campus",

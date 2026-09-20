@@ -7590,3 +7590,23 @@ rather than writing a bad file, but that is a claim from reading the gate, not
 from watching it run. The owner's save is early enough that a Smart Splitter may
 not be unlocked, in which case the planner refuses by name - which is the design
 working, not a failure.
+
+### Codex — opening previews verified (2026-09-19)
+
+Architect previews now sweep declared aperture boundaries, union overlapping
+openings and emit only retained wall rectangles. Identical vertical spans merge
+without iterating facade cells. The rectangles use native panel half-cell edges,
+recorded facade yaw and existing draw-only geometry. Empty/absent openings keep
+legacy output; input manifests and revision identities are unchanged. Expanded
+geometry has the existing total 256-entry cap and refuses whole if exceeded.
+Null transforms, malformed apertures and inconsistent facade dimensions refuse.
+
+1091/1091 companion tests and exact SDK validation pass. Eight new tests cover
+hand-computed panel geometry, rotated openings, union coverage, elevated bays,
+vertical merging, identity, malformed data and per-face/total render limits.
+The model-tool test confirms the emitted section count. No native renderer/API
+change or world write. Claude's completed planner/action commits 564c0d3 and
+45acef9 were integrated before this change; only append-only docs conflicted.
+His now-completed generated-dimension commit 131b5cb will also be integrated
+before deployment so source tracks the deployed native behavior. Native capture
+branch reconciliation and a combined native rebuild remain separate work.
