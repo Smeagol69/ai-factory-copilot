@@ -7398,3 +7398,41 @@ Three real defects found by writing its tests, all now fixed and pinned:
    becomes a refusal naming the ore rather than taking the whole request down.
 
 **1063/1063 companion tests.** Companion-only; no rebuild needed.
+
+---
+
+## Claude — claiming the deck survey and spatial query (2026-09-20)
+
+**Claiming:** a new `companion/lib/site-survey.mjs`, `center_cm`/`radius_m` on
+`solveActorLookup` in `companion/lib/solvers.mjs`, the `locate` tool schema in
+`companion/lib/tools.mjs`, and tests.
+
+### Why
+
+The owner's requirement: *"it needs to know the placement of all foundations
+and have a good understanding of everything placed in order to make proper
+placements."*
+
+The data is already captured - `AIFactorySnapshot.cpp` emits every lightweight
+instance with full 3D bounds, whole-world - and yesterday's occupancy fix
+stopped a deck falsely blocking what stands on it. Two things are still
+missing:
+
+1. **No position-aware query.** `solveActorLookup` takes no centre and no
+   radius; it sorts by distance to the *player* and caps at ten. Nothing can
+   answer "what is at these coordinates".
+2. **No notion of a surface.** A planner can see two thousand foundation boxes
+   but not *"there is a 40 x 60 m deck at Z 8100"*. A list of boxes is not a
+   build surface, and picking where a hub goes needs the surface.
+
+### Approach
+
+Cluster deck-like lightweight instances into contiguous surfaces: bucket by top
+Z, then union adjacent footprints, and report each cluster's extent, top Z,
+piece count and what already stands on it.
+
+"Deck-like" is decided by **two** independent rules, and which one matched is
+reported so it stays auditable: a class-name match, or a geometry heuristic
+(thin in Z relative to its XY footprint). The second rule is what makes modded
+foundations work - this save has `DodNFPiece4m` and ConcreteConstruction
+pieces that no vanilla name test would catch.
