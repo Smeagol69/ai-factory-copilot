@@ -1907,6 +1907,7 @@ const SOLVER_TOOL_NAMES = [
   "plan_belted_module",
   "plan_production",
   "plan_splitter_fan_out",
+  "survey_decks",
   "plan_storage_bus",
   "plan_supply_driven_production",
   "get_extracted_supply",

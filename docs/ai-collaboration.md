@@ -7436,3 +7436,38 @@ reported so it stays auditable: a class-name match, or a geometry heuristic
 (thin in Z relative to its XY footprint). The second rule is what makes modded
 foundations work - this save has `DodNFPiece4m` and ConcreteConstruction
 pieces that no vanilla name test would catch.
+
+**Done 2026-09-20.** `companion/lib/site-survey.mjs` plus a position-aware
+`locate` (34 tools).
+
+`survey_decks` clusters deck-like lightweight pieces into contiguous build
+surfaces, each reported with its extent in metres and cells, its **top** Z, the
+piece count, and what stands on it. Clustering is by top height first and XY
+adjacency second, so a balcony above a deck stays a separate surface rather
+than merging into one blob.
+
+**Two independent rules classify a deck, and which matched is reported.** A
+class-name match covers the obvious cases; a geometry rule - thin relative to
+its footprint - covers everything else. The second is not a nicety: this save's
+base is built from `DodNFPiece4m` and ConcreteConstruction parts that no
+vanilla name test matches, and a name-only survey would have reported empty
+ground on top of the owner's factory. A wall fails both rules and stays an
+obstruction, which is what the collision test needs.
+
+`solveActorLookup` now takes `center_cm` and `radius_m`, sorts by distance from
+that centre rather than from the player, and accepts a centre as a search term
+on its own. `locate`'s `kind` enum gained `lightweight_buildable`. Before this
+nothing could answer "what is at these coordinates" at all.
+
+Two defects in my own test fixtures, both worth recording because they are easy
+to repeat: `buildGraph` sets `raw: actor`, so `kind` and `location` live inside
+`raw`, not on the node - a fixture that put them only on the node matched
+nothing. And `solveActorLookup` reads `raw.location`, not `node.location_cm`.
+
+**1074/1074 companion tests.** Companion-only; no rebuild needed.
+
+**Where the one-prompt hub now stands:** scanning, deck understanding,
+positional queries, supply-driven sizing, load balancing, the sorted bus and
+the shell all exist. What does not exist is the composer that calls them in
+order and emits one placed result. That is the remaining lane, and it is
+unclaimed.

@@ -61,6 +61,7 @@ test("exposes the roadmap solver set to the model", () => {
     "plan_storage_bus",
     "plan_structure",
     "plan_supply_driven_production",
+    "survey_decks",
   ]);
 });
 

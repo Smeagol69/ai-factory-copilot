@@ -3021,17 +3021,28 @@ export { buildGraph, normalizeProductionStatus };
  * Matches on actor id, name, class, or resource, in that order of specificity.
  */
 export function solveActorLookup(graph, args = {}) {
-  const { actor_id, name_contains, resource_name, kind, limit = 10 } = args;
+  const { actor_id, name_contains, resource_name, kind, limit = 10,
+    center_cm: centerCm = null, radius_m: radiusM = null } = args;
   const wanted = String(actor_id ?? "").trim();
   const nameNeedle = String(name_contains ?? "").trim().toLowerCase();
   const resourceNeedle = String(resource_name ?? "").trim().toLowerCase();
   const kindNeedle = String(kind ?? "").trim().toLowerCase();
 
-  if (!wanted && !nameNeedle && !resourceNeedle && !kindNeedle) {
+  // A position is a search term in its own right. Without one this could only
+  // ever answer "what is near the player", never "what is at these
+  // coordinates" - the question that must be answerable before anything can be
+  // placed onto an existing site.
+  const centreX = Number.isFinite(Number(centerCm?.x)) ? Number(centerCm.x) : null;
+  const centreY = Number.isFinite(Number(centerCm?.y)) ? Number(centerCm.y) : null;
+  const radiusCm = Number.isFinite(Number(radiusM)) ? Number(radiusM) * 100 : null;
+  const hasCentre = centreX !== null && centreY !== null;
+
+  if (!wanted && !nameNeedle && !resourceNeedle && !kindNeedle && !hasCentre) {
     return {
       solver: "actor_lookup",
       found: false,
-      reason: "give an actor_id, name_contains, resource_name, or kind to look for",
+      reason:
+        "give an actor_id, name_contains, resource_name, kind, or center_cm to look for",
     };
   }
 
@@ -3091,8 +3102,28 @@ export function solveActorLookup(graph, args = {}) {
     matches.push(entry);
   }
 
-  matches.sort((a, b) => (a.distance_meters ?? 1e9) - (b.distance_meters ?? 1e9));
-  const capped = matches.slice(0, Math.max(1, limit));
+  // Distance from the requested centre when one was given, otherwise from the
+  // player. Sorting a positional query by distance to the player would put the
+  // nearest thing to *you* first, not the nearest thing to the place asked
+  // about.
+  if (hasCentre) {
+    for (const entry of matches) {
+      const location = entry?.location_cm;
+      entry.distance_from_centre_meters = location
+        ? round(Math.hypot(Number(location.x) - centreX, Number(location.y) - centreY) / 100)
+        : null;
+    }
+  }
+  matches.sort((a, b) =>
+    hasCentre
+      ? (a.distance_from_centre_meters ?? 1e9) - (b.distance_from_centre_meters ?? 1e9)
+      : (a.distance_meters ?? 1e9) - (b.distance_meters ?? 1e9),
+  );
+  const withinRadius =
+    hasCentre && radiusCm !== null
+      ? matches.filter((entry) => (entry.distance_from_centre_meters ?? 1e9) * 100 <= radiusCm)
+      : matches;
+  const capped = withinRadius.slice(0, Math.max(1, limit));
 
   return {
     solver: "actor_lookup",

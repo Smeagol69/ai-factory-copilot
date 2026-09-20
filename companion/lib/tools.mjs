@@ -22,6 +22,7 @@ import { compileArchitectPreview } from "./architect-preview.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
+import { surveyDecks } from "./site-survey.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -444,11 +445,20 @@ export const SOLVER_TOOLS = [
       type: "object",
       properties: {
         actor_id: { type: "string", description: "Exact actor_id, or the trailing name portion of one." },
+        center_cm: {
+          type: "object",
+          description:
+            "Search around a position rather than around the player. Results are sorted by distance from this point, which is what makes \"what is at these coordinates\" answerable.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y"],
+          additionalProperties: false,
+        },
+        radius_m: { type: "number", description: "Optional radius in metres around center_cm; matches outside it are dropped." },
         name_contains: { type: "string", description: "Substring of the actor's name, e.g. \"ResourceNode12\"." },
         resource_name: { type: "string", description: "Resource held, e.g. \"Iron Ore\", \"Coal\"." },
         kind: {
           type: "string",
-          enum: ["resource_node", "buildable", "item_pickup", "player", "vehicle"],
+          enum: ["resource_node", "buildable", "lightweight_buildable", "item_pickup", "player", "vehicle"],
           description: "Restrict to one kind of actor.",
         },
         limit: { type: "number", description: "Maximum matches to return. Defaults to 10, nearest first." },
@@ -559,6 +569,29 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => censusExtractedSupply(graph, args),
+  },
+
+  {
+    name: "survey_decks",
+    description:
+      "The buildable surfaces that already exist, as decks rather than as a list of boxes. Clusters foundation-like pieces into contiguous surfaces and reports each one's extent in metres and grid cells, its top Z, how many pieces form it, and what already stands on it. Use this before placing anything onto an existing base - it answers \"where is there room, and at what height\", which a list of two thousand foundation instances does not. Deck-like is decided by class name OR by geometry (thin relative to its footprint), and which rule matched is reported, so modded foundations are found rather than missed. Pass center_cm and radius_m to survey one area. A deck is a surface, not a promise the game will accept a build there; clearance remains the hologram's decision.",
+    parameters: {
+      type: "object",
+      properties: {
+        center_cm: {
+          type: "object",
+          description: "Optional centre to survey around, in centimetres.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y"],
+          additionalProperties: false,
+        },
+        radius_m: { type: "number", description: "Optional radius in metres around center_cm." },
+        min_cells: { type: "number", description: "Ignore surfaces smaller than this many 8 m cells. Default 4." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: (graph, args) => surveyDecks(graph, args),
   },
 
   {
