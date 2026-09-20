@@ -7735,3 +7735,30 @@ states it covers the no-service-level case. That is the second test in this
 lane which would have silently stopped describing anything - worth watching for.
 
 **1102/1102 companion tests.**
+
+**Done 2026-09-20.** The composer builds across floors.
+
+`chooseDecks` keeps every surveyed deck instead of only the largest, and layout
+runs a cursor per floor: each line goes on the first floor with room for it, so
+a hub that outgrows one deck climbs to the next rather than refusing. Every part
+sits at the height of the floor its line landed on - a single shared deck height
+would have put an upper-floor machine inside the deck below it. Each floor
+resolves its own service level, since one may have measured space beneath and
+another may not.
+
+Fit is now decided per line, before anything is emitted, so a line is never
+half-placed. A line no floor can take is named in `lines_without_room` rather
+than dropped - silently omitting one would ship a hub missing an ore with
+nothing to show for it. Refusal now means no deck had room for even one line.
+
+Three fixture arithmetic errors while testing this, all mine and all worth
+recording because they looked like product failures: a 32 m deck cannot take a
+line needing 33 m across; a 24 m deck cannot take one needing 26 m including its
+margin; and 120 ore/min buys four smelters, whose row is 57 m and fits no deck
+in the fixture. The composer was right every time.
+
+**1106/1106 companion tests.**
+
+That completes the layered-building arc: decks are understood as surfaces, their
+undersides are measured, distribution drops below, and production stacks across
+floors.

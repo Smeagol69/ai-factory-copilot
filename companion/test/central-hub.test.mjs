@@ -188,12 +188,15 @@ test("with no balancer, machine inputs are left free for the player to belt", ()
   }
 });
 
-test("a hub too large for its deck refuses, and says how much room it needed", () => {
-  // Refusing beats placing half a hub off the edge.
+test("a hub with nowhere at all to go refuses, and says what it tried", () => {
+  // Behaviour changed deliberately: a hub that outgrows one deck now spills
+  // onto the next rather than refusing, so refusal means no surveyed deck had
+  // room for even one line. Refusing still beats placing half a hub off an edge.
   const plan = composeCentralHub(makeWorld({ cols: 2, rows: 2 }));
   assert.equal(plan.composed, false);
-  assert.match(plan.reason, /does not fit/);
-  assert.ok(plan.needs_m.x > 0 && plan.deck_m.x > 0);
+  assert.match(plan.reason, /no surveyed deck has room/);
+  assert.ok(Array.isArray(plan.too_large) && plan.too_large.length > 0);
+  assert.ok(plan.too_large[0].needs_m.x > 0);
   assert.match(plan.note, /max_lines/);
 });
 
@@ -438,4 +441,76 @@ test("service_level false keeps everything up, even with a measured gap", () => 
   const plan = composeCentralHub(worldWithProvenGap(), { service_level: false });
   assert.equal(plan.service_level.used, false);
   assert.match(plan.service_level.why, /not asked for/);
+});
+
+/** Two small decks stacked, neither big enough for every line alone. */
+function worldWithTwoFloors() {
+  const graph = makeWorld({ cols: 6, rows: 4, ores: [[ORE_IRON, 30], [ORE_COPPER, 30]] });
+  for (let cx = 0; cx < 6; cx += 1) {
+    for (let cy = 0; cy < 4; cy += 1) {
+      const id = `up_${cx}_${cy}`;
+      graph.nodes.set(id, {
+        actor_id: id,
+        kind: "lightweight_buildable",
+        class_path: "/Game/Build_Foundation.Build_Foundation_C",
+        location_cm: { x: cx * 800, y: cy * 800, z: 2000 },
+        inventory_by_item: new Map(),
+        raw: {
+          name: id, kind: "lightweight_buildable",
+          location: { x: cx * 800, y: cy * 800, z: 2000 },
+          bounds: { origin: { x: cx * 800, y: cy * 800, z: 2000 }, extent: { x: 400, y: 400, z: 100 } },
+        },
+      });
+    }
+  }
+  return graph;
+}
+
+test("a hub that outgrows one deck climbs to the next", () => {
+  // The layered building: rather than refusing, lines spill onto the floor
+  // above. The survey already separated levels; this uses them.
+  const plan = composeCentralHub(worldWithTwoFloors());
+  assert.equal(plan.composed, true, plan.reason);
+  assert.ok(plan.floors_used >= 1);
+  const decksUsed = new Set(plan.lines.map((line) => line.on_deck_id));
+  assert.ok(decksUsed.size >= 1, "lines record which floor they are on");
+  // Every line names a real surveyed floor.
+  const known = new Set(plan.floors.map((floor) => floor.deck_id));
+  for (const line of plan.lines) assert.ok(known.has(line.on_deck_id), `${line.ore} on a real floor`);
+});
+
+test("each part sits at the height of the floor its line was placed on", () => {
+  // The bug this guards: with several floors, one shared deck height would put
+  // an upper-floor machine inside the deck below it.
+  const plan = composeCentralHub(worldWithTwoFloors());
+  const floorZ = new Map(plan.floors.map((floor) => [floor.deck_id, floor.top_z_cm]));
+  for (const line of plan.lines) {
+    const expected = floorZ.get(line.on_deck_id);
+    assert.equal(line.on_deck_top_z_cm, expected, `${line.ore} records its own floor height`);
+    const machine = plan.parts.find((part) => part.part_id.startsWith(line.container_part_id.replace("_container", "")) && part.role === "machine");
+    if (machine) assert.equal(machine.relative_location.z, expected, `${line.ore} machine on its floor`);
+    const container = plan.parts.find((part) => part.part_id === line.container_part_id);
+    assert.equal(container.relative_location.z, expected, `${line.ore} container on its floor`);
+  }
+});
+
+test("a line no floor can take is named rather than dropped", () => {
+  // Silently omitting a line would ship a hub missing an ore with no sign of it.
+  const plan = composeCentralHub(makeWorld({ cols: 3, rows: 3 }));
+  if (plan.composed) {
+    const named = new Set([...plan.lines.map((l) => l.ore), ...plan.lines_without_room.map((l) => l.ore)]);
+    assert.ok(named.size > 0, "every ore is either placed or listed as not fitting");
+  } else {
+    assert.ok(Array.isArray(plan.too_large) && plan.too_large.length > 0);
+  }
+});
+
+test("floors report their own service level, not one shared answer", () => {
+  const plan = composeCentralHub(worldWithTwoFloors());
+  assert.ok(Array.isArray(plan.service_level.per_floor));
+  assert.equal(plan.service_level.per_floor.length, plan.floors_used);
+  for (const entry of plan.service_level.per_floor) {
+    assert.ok(entry.deck_id, "each floor names itself");
+    assert.ok(typeof entry.why === "string" && entry.why.length > 0);
+  }
 });

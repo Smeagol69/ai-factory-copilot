@@ -240,20 +240,23 @@ function refuse(reason, extra = {}) {
 }
 
 /** The deck to build on: the one asked for, else the largest that fits nearby. */
-function chooseDeck(graph, { deckId, center, radiusM }) {
+function chooseDecks(graph, { deckId, center, radiusM }) {
   const survey = surveyDecks(graph, {
     ...(center ? { center_cm: center } : {}),
     ...(center && radiusM ? { radius_m: radiusM } : {}),
   });
   if (survey.deck_count === 0) {
-    return { survey, deck: null };
+    return { survey, decks: [] };
   }
   if (deckId) {
-    return { survey, deck: survey.decks.find((entry) => entry.deck_id === deckId) ?? null };
+    const chosen = survey.decks.find((entry) => entry.deck_id === deckId) ?? null;
+    return { survey, decks: chosen ? [chosen] : [] };
   }
-  // Largest first is already the survey's order, and largest is the right
-  // default: a hub that does not fit is the failure this is trying to avoid.
-  return { survey, deck: survey.decks[0] };
+  // Every deck, largest first - which is already the survey's order. A hub that
+  // outgrows one surface spills onto the next rather than refusing, because a
+  // base with several floors is the normal case and "it does not fit" is a poor
+  // answer when there is another deck right there.
+  return { survey, decks: survey.decks };
 }
 
 /**
@@ -295,7 +298,8 @@ export function composeCentralHub(graph, args = {}) {
   } = args;
 
   // --- where ---------------------------------------------------------------
-  const { survey, deck } = chooseDeck(graph, { deckId, center, radiusM });
+  const { survey, decks: candidateDecks } = chooseDecks(graph, { deckId, center, radiusM });
+  const deck = candidateDecks[0] ?? null;
   if (!deck) {
     return refuse(
       deckId
@@ -407,17 +411,48 @@ export function composeCentralHub(graph, args = {}) {
   // whichever class the world actually has. Without one, lines keep free
   // machine inputs and say so.
   const splitter = findBalancerSplitter(graph);
-  const service = resolveServiceLevel(deck, requestedServiceLevel);
   const splitCounter = { next: 1 };
-  let cursorY = deck.bounds_cm.min_y + GRID_CELL_CM;
-  let widestX = 0;
+
+  // One cursor per floor. A line is placed on the first floor with room for it,
+  // so a hub that outgrows one deck climbs to the next instead of refusing -
+  // which is how a layered base is actually built.
+  const floors = candidateDecks.map((candidate) => ({
+    deck: candidate,
+    service: resolveServiceLevel(candidate, requestedServiceLevel),
+    cursorY: candidate.bounds_cm.min_y + GRID_CELL_CM,
+    widestX: 0,
+    lines: 0,
+  }));
+  const tooLarge = [];
 
   for (const [index, line] of lines.entries()) {
     const count = Math.max(1, Number(line.step.machines_required ?? 1));
     const width = Number(line.machine.footprint.width_cm);
     const depth = Number(line.machine.footprint.depth_cm);
     const rowLength = count * width + (count - 1) * MACHINE_GAP_CM;
-    const lineX = deck.bounds_cm.min_x + GRID_CELL_CM;
+    const neededX = rowLength + CONTAINER_GAP_CM + Number(containerFootprint?.width_cm ?? GRID_CELL_CM) + GRID_CELL_CM * 2;
+    const neededY = depth + LINE_GAP_CM;
+
+    // The first floor this line fits on, checked before anything is emitted so
+    // a line is never half-placed.
+    const floor = floors.find((candidate) => {
+      const deckX = candidate.deck.bounds_cm.max_x - candidate.deck.bounds_cm.min_x;
+      const deckY = candidate.deck.bounds_cm.max_y - candidate.deck.bounds_cm.min_y;
+      const usedY = candidate.cursorY + neededY - candidate.deck.bounds_cm.min_y;
+      return neededX <= deckX && usedY <= deckY;
+    });
+    if (!floor) {
+      tooLarge.push({
+        ore: line.supply.item_name ?? line.supply.item_class,
+        machines: count,
+        needs_m: { x: Math.round(neededX / 100), y: Math.round(neededY / 100) },
+        reason: "no surveyed deck has room left for this line",
+      });
+      continue;
+    }
+    const cursorY = floor.cursorY;
+    const service = floor.service;
+    const lineX = floor.deck.bounds_cm.min_x + GRID_CELL_CM;
 
     for (let machineIndex = 0; machineIndex < count; machineIndex += 1) {
       parts.push({
@@ -428,7 +463,7 @@ export function composeCentralHub(graph, args = {}) {
         relative_location: {
           x: lineX + machineIndex * (width + MACHINE_GAP_CM),
           y: cursorY,
-          z: deck.top_z_cm,
+          z: floor.deck.top_z_cm,
         },
         yaw: 0,
       });
@@ -461,7 +496,7 @@ export function composeCentralHub(graph, args = {}) {
       relative_location: {
         x: lineX + rowLength + CONTAINER_GAP_CM,
         y: cursorY,
-        z: deck.top_z_cm,
+        z: floor.deck.top_z_cm,
       },
       yaw: 0,
     });
@@ -492,24 +527,28 @@ export function composeCentralHub(graph, args = {}) {
       intake_part_id: balancerRoot ?? (count === 1 ? machineIds[0] : null),
       balanced: Boolean(balancerRoot) || count === 1,
       row_length_cm: rowLength,
+      on_deck_id: floor.deck.deck_id,
+      on_deck_top_z_cm: floor.deck.top_z_cm,
     });
 
-    widestX = Math.max(widestX, rowLength + CONTAINER_GAP_CM + Number(containerFootprint?.width_cm ?? GRID_CELL_CM));
-    cursorY += depth + LINE_GAP_CM;
+    floor.widestX = Math.max(floor.widestX, neededX);
+    floor.cursorY += neededY;
+    floor.lines += 1;
   }
 
-  // --- does it fit? --------------------------------------------------------
-  const usedX = widestX + GRID_CELL_CM * 2;
-  const usedY = cursorY - deck.bounds_cm.min_y + GRID_CELL_CM;
-  const deckX = deck.bounds_cm.max_x - deck.bounds_cm.min_x;
-  const deckY = deck.bounds_cm.max_y - deck.bounds_cm.min_y;
-  if (usedX > deckX || usedY > deckY) {
-    return refuse("the hub does not fit on this deck", {
-      needs_m: { x: Math.round(usedX / 100), y: Math.round(usedY / 100) },
-      deck_m: { x: Math.round(deckX / 100), y: Math.round(deckY / 100) },
-      deck_id: deck.deck_id,
-      note:
-        "extend the deck, choose a larger one with deck_id, or reduce max_lines to build part of it now.",
+  // --- did every line find a floor? ---------------------------------------
+  //
+  // Fit is decided per line, before anything is emitted, so a line is never
+  // half-placed. What is left here is the set that no surveyed deck could take.
+  const used = floors.filter((floor) => floor.lines > 0);
+  if (placedLines.length === 0) {
+    return refuse("no surveyed deck has room for even one production line", {
+      too_large: tooLarge,
+      decks_considered: floors.map((floor) => ({
+        deck_id: floor.deck.deck_id,
+        size_m: floor.deck.size_m,
+      })),
+      note: "extend a deck, or reduce max_lines to build part of the hub now.",
     });
   }
 
@@ -517,6 +556,16 @@ export function composeCentralHub(graph, args = {}) {
     solver: "central_hub",
     composed: true,
     schema: "aifactory.generated-blueprint/v4",
+    floors: used.map((floor) => ({
+      deck_id: floor.deck.deck_id,
+      top_z_cm: floor.deck.top_z_cm,
+      size_m: floor.deck.size_m,
+      lines: floor.lines,
+      service_level_used: floor.service.used,
+      service_level_z_cm: floor.service.used ? floor.service.z : null,
+    })),
+    floors_used: used.length,
+    lines_without_room: tooLarge,
     deck: {
       deck_id: deck.deck_id,
       top_z_cm: deck.top_z_cm,
@@ -526,15 +575,26 @@ export function composeCentralHub(graph, args = {}) {
       already_standing_on_it: deck.standing_on_it?.total ?? 0,
     },
     lines: placedLines,
-    footprint_m: { x: Math.round(usedX / 100), y: Math.round(usedY / 100) },
+    footprint_m: {
+      x: Math.round(Math.max(...used.map((floor) => floor.widestX)) / 100),
+      y: Math.round(
+        Math.max(...used.map((floor) => floor.cursorY - floor.deck.bounds_cm.min_y)) / 100,
+      ),
+    },
     parts,
     conveyors,
     service_level: {
-      used: service.used,
-      z_cm: service.z,
+      used: used.some((floor) => floor.service.used),
+      z_cm: used.find((floor) => floor.service.used)?.service.z ?? null,
       deck_top_z_cm: deck.top_z_cm,
-      why: service.why,
-      what_sits_there: service.used
+      why: used[0]?.service.why ?? "no floor was used",
+      per_floor: used.map((floor) => ({
+        deck_id: floor.deck.deck_id,
+        used: floor.service.used,
+        z_cm: floor.service.used ? floor.service.z : null,
+        why: floor.service.why,
+      })),
+      what_sits_there: used.some((floor) => floor.service.used)
         ? "the balancer splitters; machines and containers stay on the deck, so belts rise to meet them"
         : "nothing - everything is on the deck",
     },
