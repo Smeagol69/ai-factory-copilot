@@ -952,9 +952,21 @@ export function measureFactoryPorts(graph, classPath) {
       else if (direction === "FCD_INPUT" || direction === "INPUT") inputs.push(measured);
     }
     if (inputs.length > 0 || outputs.length > 0) {
+      // Sorted lists are what callers wanting a stable name should use. The
+      // captured order is kept beside them because it is the only clue we
+      // have to the order the game builds its own connection cache in, and
+      // sorting by name destroys it.
+      const inputOrder = [...inputs];
+      const outputOrder = [...outputs];
       inputs.sort((a, b) => String(a.component_name).localeCompare(String(b.component_name)));
       outputs.sort((a, b) => String(a.component_name).localeCompare(String(b.component_name)));
-      instances.push({ actor_id: node.actor_id, inputs, outputs });
+      instances.push({
+        actor_id: node.actor_id,
+        inputs,
+        outputs,
+        input_order: inputOrder,
+        output_order: outputOrder,
+      });
     }
   }
 
@@ -980,6 +992,8 @@ export function measureFactoryPorts(graph, classPath) {
     class_path: classPath,
     inputs: instances[0].inputs,
     outputs: instances[0].outputs,
+    inputs_in_component_order: instances[0].input_order,
+    outputs_in_component_order: instances[0].output_order,
     input_capacity: inputCounts[0],
     output_capacity: outputCounts[0],
     measured_from: instances.length,
@@ -1053,6 +1067,7 @@ export function measureSplitterTopology(graph, classPath) {
     class_path: classPath,
     input: ports.inputs[0],
     outputs: ports.outputs,
+    outputs_in_component_order: ports.outputs_in_component_order,
     output_capacity: ports.output_capacity,
     local_forward: localForward,
     measured_from: ports.measured_from,

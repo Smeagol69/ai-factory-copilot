@@ -7879,3 +7879,34 @@ Then say it in the plan: the bus reports that rule-index-to-connector is the
 one thing in it not measured, and that stamping it and watching which container
 fills is the check. A bus that builds with a stated assumption beats a bus that
 refuses.
+
+**Done 2026-09-20.** The sorting bus names its outputs.
+
+Every belt now says which output it leaves by, so each endpoint resolves to
+exactly one free connector instead of three. Lane *i* takes output *i* in
+captured component order, the bus carries on out of the output after a
+splitter's lanes, and overflow leaves by the same one on the last splitter - so
+no two belts ever claim the same port. A splitter class whose outputs lack
+distinct names refuses by name rather than emitting a bus that dies at stamp
+time.
+
+`measureFactoryPorts` keeps returning name-sorted lists and gained
+`outputs_in_component_order` beside them. Nothing that wanted a stable name
+changed; the one caller that needs the ordering itself can now have it.
+
+The assumption is in the plan, not buried in a comment:
+`evidence.output_index_mapping` says what is assumed, why it cannot be measured
+from here, and the check - stamp it, run one item in, see which container
+fills. If the lanes are permuted only the rule indices need reordering.
+
+Three tests, each verified against the original code first: unnamed outputs
+fail, and so does an off-by-one that sends the bus continuation out of a lane's
+own output.
+
+**1113/1113 companion tests.**
+
+Both generators that emit links are now stampable. `generated-blueprints.mjs`,
+`actions.mjs` and `tools.mjs` carry links through rather than composing them,
+so they were never the source - but anything new that composes links needs both
+rules: a belt recipe class on every one, and a name on any endpoint with more
+than one free port.

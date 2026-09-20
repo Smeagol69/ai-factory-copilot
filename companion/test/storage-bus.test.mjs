@@ -235,3 +235,65 @@ test("an explicit item list overrides the census and says so", () => {
   assert.equal(plan.lanes[0].item_class, "/Game/Desc_Coal.Desc_Coal_C");
   assert.equal(plan.evidence.items_from, "explicit_request");
 });
+
+// ---------------------------------------------------------------------------
+// CAN THE EXPORTER BIND THIS BUS
+//
+// Every belt in a sorting bus leaves a splitter that has several free outputs,
+// and `ResolveGeneratedFactoryConnection` refuses an endpoint that does not
+// resolve to exactly one. For as long as this planner existed it named none of
+// them, so the bus refused on its first belt and was never stampable.
+
+test("every belt out of a splitter names which output it leaves by", () => {
+  const graph = makeGraph({ items: ["OreIron", "OreCopper", "Limestone", "Coal", "CateriumOre"] });
+  const plan = planStorageBus(graph, { splitter_class_path: SPLITTER });
+  assert.equal(plan.planned, true, plan.reason);
+  const perSplitter = new Map();
+  for (const link of plan.conveyors) {
+    assert.ok(
+      link.from_connector_name,
+      `${link.link_id} leaves an unnamed output, which the exporter refuses`,
+    );
+    const used = perSplitter.get(link.from_part_id) ?? new Set();
+    assert.equal(
+      used.has(link.from_connector_name),
+      false,
+      `${link.from_part_id} sends two belts out of ${link.from_connector_name}`,
+    );
+    used.add(link.from_connector_name);
+    perSplitter.set(link.from_part_id, used);
+  }
+});
+
+test("a lane leaves the output its own sort rule filters", () => {
+  // The filter and the belt have to agree, or the bus sorts iron into the
+  // copper container. Whether component order is the order the game resolves a
+  // rule index against is an assumption, and the plan says so - but the two
+  // sides of it must at least be consistent with each other.
+  const graph = makeGraph({ items: ["OreIron", "OreCopper", "Limestone", "Coal"] });
+  const plan = planStorageBus(graph, { splitter_class_path: SPLITTER });
+  assert.equal(plan.planned, true, plan.reason);
+  const order = plan.evidence.output_index_mapping.output_names_in_order;
+  assert.ok(order.length >= 2);
+  for (const lane of plan.lanes) {
+    const link = plan.conveyors.find((entry) => entry.to_part_id === lane.container_part_id);
+    assert.ok(link, `${lane.container_part_id} is belted`);
+    assert.equal(
+      link.from_connector_name,
+      order[lane.output_index],
+      `${lane.item_name} filters output ${lane.output_index} but belts out of ${link.from_connector_name}`,
+    );
+  }
+});
+
+test("no splitter is asked for more outputs than it has", () => {
+  const graph = makeGraph({ items: ["OreIron", "OreCopper", "Limestone", "Coal", "CateriumOre"] });
+  const plan = planStorageBus(graph, { splitter_class_path: SPLITTER });
+  const order = plan.evidence.output_index_mapping.output_names_in_order;
+  for (const link of plan.conveyors) {
+    assert.ok(
+      order.includes(link.from_connector_name),
+      `${link.link_id} names ${link.from_connector_name}, which is not an output this splitter has`,
+    );
+  }
+});
