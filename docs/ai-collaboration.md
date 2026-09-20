@@ -7787,3 +7787,16 @@ No user interaction closing the running game was received during this checkpoint
 Do not claim game closure alone enables restoration: the native executor itself
 is still missing. Native lane stays open for continuation; no shared SDK was
 reserved or changed. Claude's current survey/supply lanes were read, not edited.
+
+### Codex — native restore implementation resumed (2026-09-20)
+
+Owner explicitly said make it happen. Continuing claimed native restore lane:
+compile a native actor archive from exact saved records with the pinned writer;
+restore it through LoadStoredBlueprint, using saved class/position identity and
+exact transform correction/readback; restore active lightweight records through
+AddFromBuildableInstanceData including customization and beam-specific lengths.
+Narrow restore_base action and /ai base command use existing ExecutePlan gates.
+Restore remains a standalone transaction with recorded undo and rollback.
+Reserve StarterProject-502094 Mods/AIFactoryCopilot for this native compile;
+no build process is running. Game is running, so do not deploy its locked DLL.
+Shared plugin source will be backed up before syncing; no Claude worktree edits.
