@@ -1908,6 +1908,8 @@ const SOLVER_TOOL_NAMES = [
   "plan_production",
   "plan_splitter_fan_out",
   "plan_storage_bus",
+  "plan_supply_driven_production",
+  "get_extracted_supply",
   "plan_structure",
 ];
 

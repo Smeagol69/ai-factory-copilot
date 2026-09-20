@@ -21,6 +21,7 @@ import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mj
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
+import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -524,6 +525,40 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => planBeltedModule(graph, args),
+  },
+
+  {
+    name: "plan_supply_driven_production",
+    description:
+      "Sizes a factory from the miners that already exist, instead of from a target output rate. Censuses every live extractor by extracted item - each clamped to the items-per-minute of a conveyor actually captured in this world, with the unclamped mining rate reported beside it - then works out how many machines that supply supports for a named product, and returns the real production chain at that whole-machine rate. Machine counts round DOWN and the leftover ore is reported: a fractional machine would starve. Use this for 'what should I build with these miners', 'how many smelters can my iron support', or any request that starts from placed extractors rather than a wanted rate. It refuses by name when nothing is being extracted, when the product is not named, when the named ore is not mined, or when no extracted ore reduces to that product through a resolvable chain. It sizes only; it places nothing.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_name: { type: "string", description: "Display name of the product to build, for example 'Iron Ingot'." },
+        item_class: { type: "string", description: "Exact item class path, if the display name is ambiguous." },
+        ore_class: { type: "string", description: "Optional exact extracted item class to feed it; omit to try each available supply." },
+        recipe_class: { type: "string", description: "Optional exact recipe to force, rather than the preferred standard one." },
+        belt_tier: { type: "number", description: "Optional exact conveyor tier for the supply clamp." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: (graph, args) => planSupplyDrivenProduction(graph, args),
+  },
+
+  {
+    name: "get_extracted_supply",
+    description:
+      "What this world actually extracts, per item, per minute. Each extractor is clamped to the capacity of a conveyor captured in this world, so the figure is what can be delivered rather than what is mined; both numbers are returned and the clamp is flagged. Extractors whose rate cannot be resolved are named rather than dropped. Use this before sizing anything from miners, or to answer 'how much ore am I actually producing'.",
+    parameters: {
+      type: "object",
+      properties: {
+        belt_tier: { type: "number", description: "Optional exact conveyor tier to clamp against." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: (graph, args) => censusExtractedSupply(graph, args),
   },
 
   {
