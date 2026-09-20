@@ -7735,3 +7735,20 @@ transform bytes are always serialized; needTransform is an application flag,
 not absence of bytes. Lightweight slots include dismantled tombstones whose
 recipe is empty. This save has 1150 slots, 218 tombstones, 932 active instances;
 do not resurrect tombstones or silently round any retained transform.
+
+## Codex — Copilot absolute-world base restore (2026-09-20)
+
+Owner explicitly corrected delivery: spawn the player-built chatgpt.sav base
+through AI Copilot like a Blueprint, preserving each original absolute XYZ,
+rotation and scale. External SCIM import and destination-save rewriting are
+superseded. Claim a dedicated transfer package/validator and native restore
+module, narrow action/chat dispatch seams, focused tests and documentation.
+Preserve ordinary movable Blueprints. Inspect native archive loading callbacks
+and enforce per-piece transform readback; refuse incomplete or unsupported
+payloads rather than declaring exact restoration. Source has 124 actor pieces
+and 932 active lightweight pieces, plus owned components/proxies and circuits.
+The scan/export scaffolding is uncommitted and will be adapted to this route.
+Claude's completed occupancy/supply/survey lanes through 17aa7e9 are acknowledged;
+site-survey, solvers and planner composition remain outside this claim.
+Native compile uses an isolated project plugin copy only after checking shared
+build ownership. No running-game DLL replacement; live restore is unverified.
