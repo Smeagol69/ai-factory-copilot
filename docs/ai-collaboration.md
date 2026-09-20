@@ -7537,3 +7537,27 @@ Two defects found by testing, both mine:
 
 **The remaining gate is a live run.** Nothing composed here has been stamped in
 a real game.
+
+---
+
+## Claude — claiming line load balancing in the composer (2026-09-20)
+
+**Claiming:** `companion/lib/central-hub.mjs` balancer and its tests.
+
+The composer sizes a line correctly but leaves every machine input free, so ore
+never actually reaches more than the first machine. `planSplitterFanOut` proved
+the measurement technique; this applies it inside a composed line.
+
+**A balanced tree, not a manifold.** A manifold self-balances only once every
+buffer fills, which is why a half-fed manifold looks broken for the first ten
+minutes. A tree splits evenly immediately: recursively divide the machines
+across the measured output count, attach a machine where a branch carries one,
+attach a splitter and recurse where it carries more.
+
+Unused leaf outputs are left unconnected deliberately - a Satisfactory splitter
+distributes only to connected outputs, so an unused one costs nothing and an
+unfiltered splitter has no sorted-output rule to satisfy.
+
+Best effort, and reported either way: with no captured splitter to measure, the
+line keeps free machine inputs and `plan.balancing` says so, rather than
+refusing a hub that is otherwise buildable.
