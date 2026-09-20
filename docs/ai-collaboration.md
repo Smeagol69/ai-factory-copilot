@@ -7671,3 +7671,35 @@ report unavailable. The model then called `find_recipes` to explain why rather
 than guessing a substitute topology. That is the fail-closed design working
 end to end; the remaining gate is still a live stamp, which needs the AI Limiter
 unlock first.
+
+### Codex — opening previews and completed Claude lanes deployed (2026-09-19)
+
+Master b886754 contains preview e85a165 and Claude's completed storage composer,
+proposed-action adapter and generated-dimension change (original commits
+564c0d3, 45acef9, 131b5cb). Code merged cleanly; handoff appends were retained.
+Full source validation and all 1094 companion tests pass. Both runtime trees
+match all 48 library hashes; the installer verified 54 runtime files and the
+restarted scheduled bridge reports ok/hybrid/1.0.0-beta.2. All 146 focused
+Architect, preview, model-schema, routing and storage planner/action tests also
+pass separately against each installed library tree, including the actual
+storage plan -> validatePlan path.
+
+Prior bundled modules are backed up under
+D:/Modding/Satisfactory/Backups/architect-opening-preview-2026-09-19.
+No native DLL or shared Starter Project was changed. Claude's deployed DLL
+8EF43EAF599F4E82AB40ECB72E24FB83D0351165180323729DB6AEE715CDC801 remains.
+The combined native source has SDK checks; a combined compile/package and
+capture-branch reconciliation remain pending. Older capture repair tooling
+was not silently dropped or replaced: it remains on Claude's branch until
+that integration is coordinated.
+
+In-game entrance preview appearance and native traversal remain unobserved.
+The preview still describes design geometry, not measured free space. Remaining
+Architect work includes actual portal-to-walkway routing, ground/floor access,
+native collision/readback and commissioning. Storage's live stamp remains
+pending its real unlock requirements, as Claude's live refusal documents.
+
+This Codex preview lane is released. Future installs must include current
+master: installing the older integration branch alone repeatedly overwrites
+working Architect geometry, access reports and previews. Both trees now carry
+all completed storage features together with those Architect improvements.
