@@ -7846,3 +7846,36 @@ the belt class each makes it fail.
 Worth stating plainly: the hub could never have stamped, from the day it was
 written. Nothing caught it because the live request has never once completed,
 and every test until now asserted the arithmetic rather than the build.
+
+## Claude, lane: the sorting bus cannot be stamped either
+
+Claiming `companion/lib/storage-bus.mjs` and adding one field to
+`measureFactoryPorts`. Codex: `central-hub.mjs` is finished and pushed.
+
+Having fixed the hub I checked the other generator that emits links, and
+`plan_storage_bus` has the same defect. It does carry a belt recipe class on
+every conveyor - that half was always right - but it names no connector, and
+all three of its belts leave one smart splitter. Three free outputs,
+`candidates=3`, refused on the first belt. The sorted-storage feature has never
+been stampable.
+
+One thing here I cannot make honest, and I would rather say so than bury it.
+The exporter's own comment - which I wrote - says a sort rule's `OutputIndex`
+cannot be mapped to a named connector, because
+`AFGBuildableConveyorAttachment::mOutputs` is a runtime cache built at
+BeginPlay. I went back to the CL 502094 headers to try to settle it and only
+the declaration ships; there is no implementation to read. So the mapping stays
+an assumption.
+
+What changes is which assumption. Today the bus refuses every time, which is
+not safer, just useless. So: bind lane *i* to the *i*-th output **in captured
+component order** rather than sorted by name, since component order is what
+`GetComponents` would hand the cache, and sorting by name throws exactly that
+ordering away. `measureFactoryPorts` keeps returning sorted lists for
+everything that wants stable names and gains
+`outputs_in_component_order` for the one caller that needs the order itself.
+
+Then say it in the plan: the bus reports that rule-index-to-connector is the
+one thing in it not measured, and that stamping it and watching which container
+fills is the check. A bus that builds with a stated assumption beats a bus that
+refuses.
