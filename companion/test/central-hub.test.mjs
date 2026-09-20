@@ -171,7 +171,11 @@ test("it says it chose an unsorted topology rather than quietly dropping filters
   assert.match(plan.topology.why, /plan_storage_bus/);
 });
 
-test("machine inputs are left free, because the miners are outside the blueprint", () => {
+test("with no balancer, machine inputs are left free for the player to belt", () => {
+  // Scoped to the unbalanced case on purpose. Once a splitter is captured the
+  // balancer does feed the machines, and "the balancer is a tree with one
+  // intake per line" covers that - this test would otherwise quietly stop
+  // describing anything once balancing landed.
   const plan = composeCentralHub(makeWorld());
   assert.equal(plan.intake.free, true);
   const machineIds = new Set(plan.parts.filter((part) => part.role === "machine").map((part) => part.part_id));
@@ -226,4 +230,137 @@ test("the composed hub becomes one standalone blueprint action", () => {
   // An uncomposed plan emits nothing: no partial hub, ever.
   assert.deepEqual(centralHubActions({ composed: false }, { blueprint_name: "x" }), []);
   assert.deepEqual(centralHubActions(plan, {}), [], "and none without a name");
+});
+
+/** A captured splitter so the balancer has geometry to measure. */
+function splitterActor(outputs = 3) {
+  const connections = [
+    { kind: "factory", direction: "FCD_INPUT", component: "Input0", location: { x: 39900, y: 0, z: 0 }, normal: { x: -1, y: 0, z: 0 } },
+  ];
+  for (let index = 0; index < outputs; index += 1) {
+    connections.push({
+      kind: "factory", direction: "FCD_OUTPUT", component: `Output${index}`,
+      location: { x: 40100, y: index * 50, z: 0 }, normal: { x: 1, y: 0, z: 0 },
+    });
+  }
+  return {
+    actor_id: "splitter_sample",
+    kind: "buildable",
+    name: "Splitter_sample",
+    class_path: "/Game/Build_ConveyorAttachmentSplitter.Build_ConveyorAttachmentSplitter_C",
+    built_with_recipe: "/Game/Recipe_ConveyorAttachmentSplitter.Recipe_ConveyorAttachmentSplitter_C",
+    location: { x: 40000, y: 0, z: 0 },
+    rotation: { yaw: 0 },
+    bounds: { origin: { x: 40000, y: 0, z: 0 }, extent: { x: 100, y: 100, z: 100 } },
+    connections,
+    inventories: [],
+  };
+}
+
+function worldWithSplitter(options = {}) {
+  const graph = makeWorld(options);
+  const actor = splitterActor(options.splitterOutputs ?? 3);
+  graph.nodes.set(actor.actor_id, {
+    actor_id: actor.actor_id,
+    kind: "buildable",
+    role: "conveyor_attachment",
+    class_path: actor.class_path,
+    built_with_recipe: actor.built_with_recipe,
+    location_cm: actor.location,
+    inventory_by_item: new Map(),
+    raw: actor,
+  });
+  graph.snapshot.content.recipes.push({
+    class_path: "/Game/Recipe_ConveyorAttachmentSplitter.Recipe_ConveyorAttachmentSplitter_C",
+    recipe_class: "/Game/Recipe_ConveyorAttachmentSplitter.Recipe_ConveyorAttachmentSplitter_C",
+    name: "Conveyor Splitter", available: true, duration_seconds: 2,
+    ingredients: [],
+    products: [{ item_class: "/Game/Desc_ConveyorAttachmentSplitter.Desc_ConveyorAttachmentSplitter_C", amount: 1 }],
+    produced_in: ["/Game/BP_BuildGun.BP_BuildGun_C"],
+  });
+  graph.recipesByClass.set(
+    "/Game/Recipe_ConveyorAttachmentSplitter.Recipe_ConveyorAttachmentSplitter_C",
+    graph.snapshot.content.recipes.at(-1),
+  );
+  return graph;
+}
+
+test("with a splitter captured, every machine on a line is actually fed", () => {
+  // Without this only the first machine ever receives ore, which makes a
+  // correctly sized line look broken.
+  const plan = composeCentralHub(worldWithSplitter());
+  assert.equal(plan.composed, true, plan.reason);
+  assert.equal(plan.balancing.balanced, true);
+  for (const line of plan.lines) {
+    if (line.machines < 2) continue;
+    for (let index = 1; index <= line.machines; index += 1) {
+      const machineId = `${line.container_part_id.replace("_container", "")}_machine${index}`;
+      assert.ok(
+        plan.conveyors.some((link) => link.to_part_id === machineId),
+        `${machineId} is fed`,
+      );
+    }
+  }
+});
+
+test("the balancer is a tree with one intake per line", () => {
+  const plan = composeCentralHub(worldWithSplitter());
+  for (const line of plan.lines) {
+    assert.ok(line.balanced, `${line.ore} is balanced`);
+    assert.ok(line.intake_part_id, "the line has a single intake");
+    // Nothing inside the blueprint feeds that intake: it is where the player
+    // belts their miners in.
+    assert.equal(
+      plan.conveyors.some((link) => link.to_part_id === line.intake_part_id),
+      false,
+      "the line intake is free",
+    );
+  }
+});
+
+test("no splitter claims more links than its measured ports", () => {
+  // The generated-blueprint export refuses a splitter with more links than
+  // ports, so the composer must not emit one.
+  const plan = composeCentralHub(worldWithSplitter({ splitterOutputs: 3 }));
+  for (const part of plan.parts) {
+    if (part.role !== "splitter") continue;
+    const out = plan.conveyors.filter((link) => link.from_part_id === part.part_id).length;
+    const into = plan.conveyors.filter((link) => link.to_part_id === part.part_id).length;
+    assert.ok(out <= 3, `${part.part_id} uses ${out} of 3 outputs`);
+    assert.ok(into <= 1, `${part.part_id} uses ${into} of 1 input`);
+    assert.ok(out + into >= 1, `${part.part_id} participates in the topology`);
+  }
+});
+
+test("balancer splitters carry no sort rules, so nothing is left unrouted", () => {
+  // An unfiltered splitter has no sorted output to satisfy, which is why a
+  // spare leaf output costs nothing.
+  const plan = composeCentralHub(worldWithSplitter());
+  for (const part of plan.parts) {
+    if (part.role !== "splitter") continue;
+    assert.equal(part.sort_rules, undefined, `${part.part_id} is unfiltered`);
+  }
+});
+
+test("without a captured splitter the hub still composes, and says it is unbalanced", () => {
+  // Refusing an otherwise buildable hub over a missing splitter would be worse
+  // than building it with manual intakes.
+  const plan = composeCentralHub(makeWorld());
+  assert.equal(plan.composed, true, plan.reason);
+  assert.equal(plan.balancing.balanced, false);
+  assert.deepEqual(plan.balancing.missing, ["captured_splitter"]);
+  assert.match(plan.balancing.why, /build one splitter anywhere/);
+});
+
+test("every part id stays unique once balancers are added", () => {
+  const plan = composeCentralHub(worldWithSplitter());
+  const ids = plan.parts.map((part) => part.part_id);
+  assert.equal(new Set(ids).size, ids.length);
+  const links = plan.conveyors.map((link) => link.link_id);
+  assert.equal(new Set(links).size, links.length);
+  const known = new Set(ids);
+  for (const link of plan.conveyors) {
+    assert.ok(known.has(link.from_part_id), `${link.link_id} from a real part`);
+    assert.ok(known.has(link.to_part_id), `${link.link_id} to a real part`);
+  }
 });

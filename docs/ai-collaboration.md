@@ -7561,3 +7561,40 @@ unfiltered splitter has no sorted-output rule to satisfy.
 Best effort, and reported either way: with no captured splitter to measure, the
 line keeps free machine inputs and `plan.balancing` says so, rather than
 refusing a hub that is otherwise buildable.
+
+**Done 2026-09-20.** The composer balances each line.
+
+`findBalancerSplitter` takes whichever splitter class the world actually has -
+balancing involves no filters, so any will do - and measures its connector count
+through `measureSplitterTopology`. `buildBalancer` then splits the line's intake
+across its machines as a **tree**: equal shares per measured output, a machine
+where a branch carries one, another splitter where it carries more. Shares
+differ by at most one, which is as close as an integer split gets.
+
+A tree rather than a manifold because a manifold only evens out once every
+buffer has filled, so a fresh one looks broken for the first ten minutes.
+
+Unused leaf outputs are left unconnected on purpose: a splitter distributes only
+to connected outputs, and an unfiltered splitter has no sorted-output rule to
+satisfy, so a spare costs nothing. The composer stays inside the export's own
+splitter rules - it never emits more links than measured ports, and every
+splitter participates in the topology.
+
+With no captured splitter the hub still composes with free machine inputs and
+`plan.balancing` says why, rather than refusing something otherwise buildable.
+
+One test had to be re-scoped: "machine inputs are left free" passed only because
+its fixture had no splitter, so it would have quietly stopped describing
+anything once balancing landed. It now states that it covers the unbalanced case
+and points at the test that covers the balanced one.
+
+**1091/1091 companion tests.**
+
+### Web search was already there
+
+`AIFACTORY_WEB_SEARCH` defaults true and `anthropicWebSearchTool` is wired, with
+`OFFICIAL_SOURCE_DOMAINS` allowing the wiki, official docs and questions site,
+satisfactory-calculator, satisfactorytools, factoriolab, manifolder.app and the
+Steam forums. Reddit is excluded because Anthropic's crawler is blocked by it.
+The escalate patterns already route wiki and docs questions to the strong tier.
+Nothing needed building; it needed saying.

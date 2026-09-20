@@ -34,6 +34,7 @@
 
 import { findBuildRecipeForBuilding } from "./base-build.mjs";
 import { measureBuilding } from "./designer.mjs";
+import { measureSplitterTopology } from "./routing.mjs";
 import { surveyDecks } from "./site-survey.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
 
@@ -87,6 +88,102 @@ function defaultProductFor(graph, oreClass) {
       String(a.recipe.name ?? "").localeCompare(String(b.recipe.name ?? "")),
   );
   return candidates[0];
+}
+
+/**
+ * A splitter class captured in this world, with its connector count measured.
+ *
+ * Any splitter will do for balancing - no filters are involved - so this takes
+ * whichever class the player actually has, rather than demanding a specific
+ * one. Without a captured splitter there is nothing to measure and the line
+ * keeps free machine inputs; that is reported rather than refused, because a
+ * hub with a manual intake is still worth building.
+ */
+function findBalancerSplitter(graph) {
+  const seen = new Set();
+  for (const node of graph?.nodes?.values?.() ?? []) {
+    const classPath = String(node?.class_path ?? "");
+    if (!/splitter/i.test(classPath) || seen.has(classPath)) continue;
+    seen.add(classPath);
+    const topology = measureSplitterTopology(graph, classPath);
+    if (!topology?.resolved) continue;
+    const outputs = Number(topology.output_capacity ?? 0);
+    if (!(outputs >= 2)) continue;
+    const build = findBuildRecipeForBuilding(graph, classPath);
+    if (!build?.available) continue;
+    return { class_path: classPath, outputs, build, measured_from: topology.measured_from };
+  }
+  return null;
+}
+
+/**
+ * Split one incoming belt evenly across `machineIds`, as a tree.
+ *
+ * A manifold - a chain where each splitter drops one machine and passes the
+ * rest on - is simpler, but it only balances once every buffer has filled,
+ * which is why a fresh one looks broken for the first ten minutes. A tree
+ * divides evenly from the first item.
+ *
+ * Recursion: give each of the measured outputs an equal share of the machines.
+ * A share of one gets the machine directly; a larger share gets another
+ * splitter and recurses. Shares differ by at most one when the count does not
+ * divide evenly, which is the closest an integer split can come.
+ *
+ * Appends parts and conveyors, and returns the root splitter's part id - the
+ * line's single intake.
+ */
+function buildBalancer({ splitter, machineIds, linePrefix, origin, parts, conveyors, counter }) {
+  if (machineIds.length <= 1) return null;
+
+  const split = (ids, depth, branch) => {
+    const partId = `${linePrefix}_split${counter.next++}`;
+    parts.push({
+      part_id: partId,
+      role: "splitter",
+      recipe_class: splitter.build.recipe_class,
+      relative_location: {
+        x: origin.x - (depth + 1) * GRID_CELL_CM,
+        y: origin.y + branch * GRID_CELL_CM,
+        z: origin.z,
+      },
+      yaw: 0,
+    });
+
+    // Equal shares, differing by at most one.
+    const shares = [];
+    const per = Math.floor(ids.length / splitter.outputs);
+    let spare = ids.length % splitter.outputs;
+    let cursor = 0;
+    for (let index = 0; index < splitter.outputs && cursor < ids.length; index += 1) {
+      const take = per + (spare > 0 ? 1 : 0);
+      if (spare > 0) spare -= 1;
+      if (take <= 0) continue;
+      shares.push(ids.slice(cursor, cursor + take));
+      cursor += take;
+    }
+
+    for (const [index, share] of shares.entries()) {
+      if (share.length === 1) {
+        conveyors.push({
+          link_id: `${partId}_to_${share[0]}`,
+          recipe_class: null,
+          from_part_id: partId,
+          to_part_id: share[0],
+        });
+        continue;
+      }
+      const childId = split(share, depth + 1, branch + index);
+      conveyors.push({
+        link_id: `${partId}_to_${childId}`,
+        recipe_class: null,
+        from_part_id: partId,
+        to_part_id: childId,
+      });
+    }
+    return partId;
+  };
+
+  return split(machineIds, 0, 0);
 }
 
 function refuse(reason, extra = {}) {
@@ -256,6 +353,11 @@ export function composeCentralHub(graph, args = {}) {
   const parts = [];
   const conveyors = [];
   const placedLines = [];
+  // Any splitter will do - balancing involves no filters - so this takes
+  // whichever class the world actually has. Without one, lines keep free
+  // machine inputs and say so.
+  const splitter = findBalancerSplitter(graph);
+  const splitCounter = { next: 1 };
   let cursorY = deck.bounds_cm.min_y + GRID_CELL_CM;
   let widestX = 0;
 
@@ -280,6 +382,25 @@ export function composeCentralHub(graph, args = {}) {
         yaw: 0,
       });
     }
+
+    // Split the incoming ore evenly across this line's machines. Without this
+    // only the first machine is ever fed, which makes a correctly sized line
+    // look broken.
+    const machineIds = Array.from(
+      { length: count },
+      (unused, machineIndex) => `line${index + 1}_machine${machineIndex + 1}`,
+    );
+    const balancerRoot = splitter
+      ? buildBalancer({
+          splitter,
+          machineIds,
+          linePrefix: `line${index + 1}`,
+          origin: { x: lineX, y: cursorY, z: deck.top_z_cm },
+          parts,
+          conveyors,
+          counter: splitCounter,
+        })
+      : null;
 
     const containerId = `line${index + 1}_container`;
     parts.push({
@@ -317,6 +438,8 @@ export function composeCentralHub(graph, args = {}) {
       ore_consumed_per_minute: line.plan.ore_consumed_per_minute ?? null,
       ore_left_over_per_minute: line.plan.ore_left_over_per_minute ?? null,
       container_part_id: containerId,
+      intake_part_id: balancerRoot ?? (count === 1 ? machineIds[0] : null),
+      balanced: Boolean(balancerRoot) || count === 1,
       row_length_cm: rowLength,
     });
 
@@ -355,6 +478,23 @@ export function composeCentralHub(graph, args = {}) {
     footprint_m: { x: Math.round(usedX / 100), y: Math.round(usedY / 100) },
     parts,
     conveyors,
+    balancing: splitter
+      ? {
+          balanced: true,
+          splitter_class: splitter.class_path,
+          measured_outputs: splitter.outputs,
+          measured_from_instances: splitter.measured_from,
+          method:
+            "a balanced tree, not a manifold: a manifold only evens out once every buffer has " +
+            "filled, so a fresh one looks broken for the first ten minutes",
+        }
+      : {
+          balanced: false,
+          why:
+            "no splitter is captured in this world, so none could be measured. Each machine keeps a " +
+            "free input - build one splitter anywhere and ask again to have the ore split for you.",
+          missing: ["captured_splitter"],
+        },
     topology: {
       sorted: false,
       why:
@@ -363,7 +503,10 @@ export function composeCentralHub(graph, args = {}) {
     },
     intake: {
       free: true,
-      why: "machine inputs are left free: belt your miners into them after stamping",
+      per_line: placedLines.map((line) => ({ ore: line.ore, intake_part_id: line.intake_part_id })),
+      why: splitter
+        ? "belt your miners into each line's intake_part_id after stamping; the tree behind it splits the ore evenly"
+        : "belt your miners into each machine after stamping - nothing here splits the ore, see balancing",
     },
     skipped_ores: skipped,
     supply_census: census.supply,
