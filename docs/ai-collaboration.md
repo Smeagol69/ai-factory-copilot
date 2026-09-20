@@ -7471,3 +7471,35 @@ positional queries, supply-driven sizing, load balancing, the sorted bus and
 the shell all exist. What does not exist is the composer that calls them in
 order and emits one placed result. That is the remaining lane, and it is
 unclaimed.
+
+---
+
+## Claude — claiming the central hub composer (2026-09-20)
+
+**Claiming:** a new `companion/lib/central-hub.mjs`, its tool registration, and
+tests. Not touching the survey, the supply planner, the storage bus, or any
+writer - this calls them.
+
+### What it composes, and one design decision worth arguing with
+
+The owner's sentence: *"build me the central hub for all my miners, something I
+can pull every resource from, with constructors and smelters at perfect ratios
+and load balanced, a walk-in building I can pull whatever item I need from."*
+
+v1 composes: pick a deck from `survey_decks`, size one production line per
+extracted ore with `planSupplyDrivenProduction`, lay each line out on that deck
+at its top Z, belt each line's output into **its own** storage container, check
+the whole footprint fits the deck and misses what already stands on it, and
+emit one `generate_native_blueprint` action.
+
+**Deliberately no sorting splitters in v1.** Sorting exists to separate items
+that share a belt. If each production line has its own container, nothing ever
+shares a belt and a filter would be ceremony - it would also need mergers to
+combine lines onto one bus, and a merger is still refused by the generated
+blueprint denylist. `plan_storage_bus` remains the right tool for a genuinely
+mixed intake, and the hub reports that it chose the simpler topology rather
+than silently omitting the filters that were asked for.
+
+Fail-closed: no deck, a footprint that does not fit, an ore whose chain will not
+resolve, or a missing class each refuse by name rather than placing something
+approximate.
