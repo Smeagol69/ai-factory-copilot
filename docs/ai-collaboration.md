@@ -7825,3 +7825,37 @@ retain loader transforms and rollback readback. See docs/player-base-transfer.md
 Claude has additional completed companion work through e5e39db; integrate those
 completed lanes before replacing the installed companion. His active e2c02ce
 void detection lane (site-survey only) is acknowledged and left untouched.
+
+### Claude imported handoff — supply-derived production (4fe4a0a)
+
+Fail-closed like the rest: an unknown rate, an unresolvable recipe, or a
+product whose chain does not reduce to the available ore refuses by name.
+
+**Done 2026-09-19.** `companion/lib/supply-production.mjs`, exposed as two
+tools (33 total): `plan_supply_driven_production` and `get_extracted_supply`.
+
+Every other planner runs forwards from a goal rate. This runs backwards from
+the miners that exist, which is how the owner actually asks. Ore rates come
+from `solveMachineRates`; the ore-per-unit ratio comes from probing
+`solveProductionPlan` at one unit per minute with `stop_at_item_classes` set to
+the ore - the technique `resource-factory.mjs` already proved. The arithmetic
+between them was the missing part.
+
+Belt capacity is **measured from a captured conveyor**, not looked up, matching
+the discipline everywhere else; no captured belt means no clamp and the result
+says so rather than filling in a vanilla 60/min. Machine counts round **down**
+and the spare ore is reported - a fractional machine starves.
+
+Three real defects found by writing its tests, all now fixed and pinned:
+
+1. `findBestAvailableBelt` carries no capacity; I had assumed it did. Capacity
+   comes from a captured instance's own conveyor data.
+2. `solveMachineRates` returns **`unresolved_machines`**, not `unresolved`.
+   Reading the wrong key was silently undefined, so every extractor the rate
+   solver could not resolve vanished from the supply picture instead of being
+   named.
+3. `solveProductionPlan` reaches into `solvePowerCircuits`, which iterates
+   `graph.circuits` and throws on a graph without it. A probe that throws now
+   becomes a refusal naming the ore rather than taking the whole request down.
+
+**1063/1063 companion tests.** Companion-only; no rebuild needed.

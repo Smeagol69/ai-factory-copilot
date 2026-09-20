@@ -218,7 +218,22 @@ export function detectBaseGrid(graph) {
   };
 }
 
-/** Every occupied rectangle in the world, as axis-aligned boxes in centimetres. */
+/**
+ * Every occupied volume in the world, as axis-aligned boxes in centimetres.
+ *
+ * Z is carried, and that is the whole point. This test used to be XY-only,
+ * which made a foundation deck a solid obstruction in plan view: every machine
+ * the layout tried to place *on* a deck came back
+ * `blocked_by: lightweight:Build_Foundation_...`. Building on your own
+ * foundation is the ordinary case, and the planner refused it.
+ *
+ * Nothing is excluded by kind. Lightweight instances are real geometry - a
+ * wall is an obstruction whether or not it happens to be an actor - and the
+ * scanner already emits their full 3D bounds
+ * (`AIFactorySnapshot.cpp` LightweightBuildableJson). Filtering them out, which
+ * two other readers do, trades this false positive for a false negative and
+ * places machines inside walls instead.
+ */
 function occupiedBoxes(graph, { padCm = 200 } = {}) {
   const boxes = [];
   for (const node of graph.nodes.values()) {
@@ -229,15 +244,45 @@ function occupiedBoxes(graph, { padCm = 200 } = {}) {
     const ex = finite(extent.x);
     const ey = finite(extent.y);
     if (ex === null || ey === null) continue;
+    // Z is optional: a record without it keeps the old behaviour of blocking
+    // at every height, which is the safe direction when the height is unknown.
+    const oz = finite(origin.z);
+    const ez = finite(extent.z);
+    const hasZ = oz !== null && ez !== null;
     boxes.push({
       actor_id: node.actor_id,
       minX: finite(origin.x) - ex - padCm,
       maxX: finite(origin.x) + ex + padCm,
       minY: finite(origin.y) - ey - padCm,
       maxY: finite(origin.y) + ey + padCm,
+      // No pad on Z. A 2 m vertical pad would re-block every deck, which is
+      // the bug this exists to fix; the XY pad is about walking room, which
+      // has no vertical equivalent.
+      minZ: hasZ ? oz - ez : null,
+      maxZ: hasZ ? oz + ez : null,
     });
   }
   return boxes;
+}
+
+/**
+ * Does a machine standing at `z` and `heightCm` tall actually hit this box?
+ *
+ * The rule that matters: a box whose top is at or below the build plane is a
+ * *surface*, not an obstruction. That is exactly what a foundation is, and
+ * exactly what a wall or pillar is not, since those extend up through the
+ * plane and still block. It needs no deck-versus-obstruction taxonomy, only
+ * the geometry already captured.
+ */
+function overlapsVertically(box, z, heightCm) {
+  if (box.minZ === null || box.maxZ === null || z === null) return true;
+  const machineTop = z + (heightCm ?? 0);
+  // One centimetre of tolerance, because a machine sits *on* a deck and their
+  // surfaces are coincident by design.
+  const tolerance = 1;
+  if (box.maxZ <= z + tolerance) return false;
+  if (box.minZ >= machineTop - tolerance) return false;
+  return true;
 }
 
 function overlaps(box, x, y, halfWidth, halfDepth) {
@@ -368,7 +413,11 @@ export function designFactoryLayout(graph, args = {}, services = {}) {
 
       const halfWidth = row.footprint.width_cm / 2;
       const halfDepth = row.footprint.depth_cm / 2;
-      const hit = boxes.find((box) => overlaps(box, x, y, halfWidth, halfDepth));
+      const hit = boxes.find(
+        (box) =>
+          overlaps(box, x, y, halfWidth, halfDepth) &&
+          overlapsVertically(box, finite(originZ), row.footprint.height_cm),
+      );
 
       const placement = {
         step_index: rowIndex + 1,

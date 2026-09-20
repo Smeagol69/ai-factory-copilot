@@ -754,7 +754,11 @@ export function assessMegabaseSite(graph, manifest) {
   const designBox = footprint.world_aabb_cm;
   const overlaps = [];
   for (const node of graph?.nodes?.values?.() ?? []) {
-    if (node.kind !== "buildable") continue;
+    // Lightweight instances count: a foundation deck or wall is real geometry
+    // whether or not it is an actor, and skipping them reported an empty site
+    // on top of an existing base. This check is a true 3D overlap, so a deck
+    // below the design does not falsely block it.
+    if (node.kind !== "buildable" && node.kind !== "lightweight_buildable") continue;
     const bounds = node.raw?.bounds;
     const origin = bounds?.origin;
     const extent = bounds?.extent;
