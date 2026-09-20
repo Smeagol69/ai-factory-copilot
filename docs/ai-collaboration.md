@@ -7598,3 +7598,37 @@ satisfactory-calculator, satisfactorytools, factoriolab, manifolder.app and the
 Steam forums. Reddit is excluded because Anthropic's crawler is blocked by it.
 The escalate patterns already route wiki and docs questions to the strong tier.
 Nothing needed building; it needed saying.
+
+---
+
+## Claude — the composer hit the round limit, and why (2026-09-20)
+
+The live failure, now legible because provider errors finally report themselves:
+
+> Anthropic kept requesting solver tools after 6 rounds without producing an
+> answer. | model claude-sonnet-5 | 12k out | 568.6k in (495.8k cached)
+
+Not credits, not context - the tool loop never converged. Two causes, both mine:
+
+1. **Four overlapping tools invited a chain.** `survey_decks`,
+   `get_extracted_supply`, `plan_supply_driven_production` and
+   `compose_central_hub` all answer parts of one question, and the composer
+   already calls the other three internally. The model worked through them in
+   sequence and ran out of rounds. `compose_central_hub`'s description now
+   opens by saying to call it alone and not to chain the others.
+2. **The composer returned its payload twice.** `parts` and `conveyors` were in
+   the reply *and* verbatim inside `proposed_action`, so a few hundred entries
+   were resent through every remaining round. The reply now carries counts; the
+   action carries the parts.
+
+Also bounded: `surveyDecks` enumerated every occupant of every deck. On a real
+base that is hundreds of actor ids per deck. It now counts by class with three
+example ids each - the same answer about whether there is room, at a fraction of
+the size.
+
+**1092/1092 companion tests.**
+
+**The lesson worth keeping:** a tool that composes others should say so in its
+description, or the model will helpfully do the composing itself and run out of
+rounds. And a reply should never contain the same data as the action it
+proposes.

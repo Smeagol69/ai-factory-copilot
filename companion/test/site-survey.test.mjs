@@ -110,8 +110,14 @@ test("what stands on a deck is reported, but the deck itself is not an occupant"
   ];
   const survey = surveyDecks(graphOf(nodes));
   assert.equal(survey.deck_count, 1);
-  const ids = survey.decks[0].standing_on_it.map((entry) => entry.actor_id);
-  assert.deepEqual(ids, ["smelter"]);
+  // Counted by class rather than enumerated: a real base puts hundreds of
+  // buildings on one deck, and listing every actor_id made a single survey big
+  // enough to crowd out the rest of a conversation.
+  const occupants = survey.decks[0].standing_on_it;
+  assert.equal(occupants.total, 1);
+  assert.equal(occupants.distinct_classes, 1);
+  assert.equal(occupants.by_class[0].count, 1);
+  assert.deepEqual(occupants.by_class[0].example_actor_ids, ["smelter"]);
 });
 
 test("a survey can be scoped to one area", () => {

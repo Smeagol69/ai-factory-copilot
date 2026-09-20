@@ -80,6 +80,34 @@ export function deckRule(node, box) {
   return null;
 }
 
+/**
+ * What stands on a deck, counted by class rather than listed one by one.
+ *
+ * A real base puts hundreds of buildings on one deck, and enumerating every
+ * actor_id made a single survey large enough to crowd out the rest of a
+ * conversation - one request spent 568k input tokens across tool rounds and ran
+ * out of rounds before it could answer. A count per class says the same thing
+ * about whether there is room, at a fraction of the size. A handful of ids are
+ * kept so a specific occupant can still be looked up with `locate`.
+ */
+function summariseOccupants(entries) {
+  const byClass = new Map();
+  for (const entry of entries) {
+    const classPath = entry.node.class_path ?? "unknown";
+    if (!byClass.has(classPath)) byClass.set(classPath, { class_path: classPath, count: 0, example_actor_ids: [] });
+    const row = byClass.get(classPath);
+    row.count += 1;
+    if (row.example_actor_ids.length < 3) row.example_actor_ids.push(entry.node.actor_id);
+  }
+  const rows = [...byClass.values()].sort((a, b) => b.count - a.count);
+  return {
+    total: entries.length,
+    distinct_classes: rows.length,
+    by_class: rows.slice(0, 12),
+    ...(rows.length > 12 ? { classes_not_listed: rows.length - 12 } : {}),
+  };
+}
+
 const overlapsXY = (a, b, pad = ADJACENCY_TOLERANCE_CM) =>
   a.minX - pad <= b.maxX && a.maxX + pad >= b.minX &&
   a.minY - pad <= b.maxY && a.maxY + pad >= b.minY;
@@ -185,17 +213,13 @@ export function surveyDecks(graph, args = {}) {
         // What stands on this deck, so "is there room" is answerable. An
         // occupant counts when it sits at or above the surface, not merely
         // within the footprint - the deck below a deck is not an occupant.
-        standing_on_it: occupants
-          .filter(
+        standing_on_it: summariseOccupants(
+          occupants.filter(
             (entry) =>
               overlapsXY(entry.box, bounds, 0) &&
               entry.box.maxZ > bounds.topZ + SAME_LEVEL_TOLERANCE_CM,
-          )
-          .map((entry) => ({
-            actor_id: entry.node.actor_id,
-            class_path: entry.node.class_path ?? null,
-            kind: entry.node.kind ?? null,
-          })),
+          ),
+        ),
       });
     }
   }

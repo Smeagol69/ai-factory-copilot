@@ -575,7 +575,7 @@ export const SOLVER_TOOLS = [
   {
     name: "compose_central_hub",
     description:
-      "Composes a complete central hub onto a foundation deck that already exists, as one generated blueprint the player stamps. Surveys the world's decks and picks one, censuses every live extractor, sizes one production line per ore at exact recipe ratios against the ore actually deliverable, lays the lines out on that deck at its own top height, belts each line into its own storage container, and checks the whole footprint fits. Machine footprints are measured from the player's own buildings - a machine never built here refuses rather than being guessed. Use this for \"build me a central hub for my miners\", \"a walk-in building I can pull every resource from\", or any request to turn placed miners into a finished production-and-storage building. It composes only; the returned action must be committed separately, because a native blueprint write is a file and cannot be undone. Each line gets its own container, so nothing shares a belt and no sorting filter is needed; use plan_storage_bus instead when the intake is genuinely mixed. Refuses by name when there is no deck, no extractor, no measured machine, or when the hub does not fit.",
+      "CALL THIS ALONE - it is the complete answer to a central-hub request, and it already surveys decks, censuses extractors and sizes production internally. Do NOT call survey_decks, get_extracted_supply or plan_supply_driven_production first; chaining them wastes rounds and reaches the round limit without answering. Composes a complete central hub onto a foundation deck that already exists, as one generated blueprint the player stamps. Surveys the world's decks and picks one, censuses every live extractor, sizes one production line per ore at exact recipe ratios against the ore actually deliverable, lays the lines out on that deck at its own top height, belts each line into its own storage container, and checks the whole footprint fits. Machine footprints are measured from the player's own buildings - a machine never built here refuses rather than being guessed. Use this for \"build me a central hub for my miners\", \"a walk-in building I can pull every resource from\", or any request to turn placed miners into a finished production-and-storage building. It composes only; the returned action must be committed separately, because a native blueprint write is a file and cannot be undone. Each line gets its own container, so nothing shares a belt and no sorting filter is needed; use plan_storage_bus instead when the intake is genuinely mixed. Refuses by name when there is no deck, no extractor, no measured machine, or when the hub does not fit.",
     parameters: {
       type: "object",
       properties: {
@@ -604,8 +604,16 @@ export const SOLVER_TOOLS = [
       const plan = composeCentralHub(graph, args);
       if (!plan.composed) return plan;
       const name = String(args?.blueprint_name ?? "").trim() || "Central Hub";
+      // `parts` and `conveyors` are dropped from the reply because
+      // `proposed_action` already carries them verbatim. Returning both sent
+      // the same few hundred entries twice through every remaining tool round,
+      // which is how one request reached 568k input tokens and ran out of
+      // rounds before it could answer.
+      const { parts, conveyors, supply_census: supplyCensus, ...summary } = plan;
       return {
-        ...plan,
+        ...summary,
+        part_count: parts.length,
+        conveyor_count: conveyors.length,
         blueprint_name: name,
         proposed_action: centralHubActions(plan, { blueprint_name: name, commit: false })[0],
         to_build:

@@ -472,7 +472,7 @@ export function composeCentralHub(graph, args = {}) {
       size_m: deck.size_m,
       pieces: deck.pieces,
       classified_by: deck.classified_by,
-      already_standing_on_it: deck.standing_on_it.length,
+      already_standing_on_it: deck.standing_on_it?.total ?? 0,
     },
     lines: placedLines,
     footprint_m: { x: Math.round(usedX / 100), y: Math.round(usedY / 100) },
