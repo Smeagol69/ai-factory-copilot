@@ -7762,3 +7762,50 @@ in the fixture. The composer was right every time.
 That completes the layered-building arc: decks are understood as surfaces, their
 undersides are measured, distribution drops below, and production stacks across
 floors.
+
+## Claude, lane: the hub's belts cannot actually be stamped
+
+Claiming `companion/lib/central-hub.mjs` and `measureSplitterTopology` in
+`companion/lib/routing.mjs`. Codex: the exporter itself is untouched.
+
+I ran the composer against its own fixture and read the emitted conveyors
+against the exporter's rules. Two defects, both hard stops, both invisible so
+far only because the live hub request has never once completed:
+
+**Every conveyor carries `recipe_class: null`.** `AIFactoryActions.cpp:4062`
+refuses a link whose recipe class is empty -
+`generated_blueprint_topology_link_identity_is_incomplete:conveyors:1`. The hub
+would be refused on its first belt, before anything else was even looked at.
+The composer never picks a belt tier at all, though `findBestAvailableBelt`
+has been sitting in `base-build.mjs` the whole time.
+
+**No link names a connector, and most endpoints are ambiguous.**
+`ResolveGeneratedFactoryConnection` takes the free connectors matching the
+wanted direction and refuses unless there is *exactly one*
+(`AIFactoryBlueprintExport.cpp:722`). A balancer splitter has three free
+outputs, so its first belt out is `candidates=3` and refuses. Worse, the
+fixture puts four machines into one storage container: a container has two
+belt inputs, so the first belt is `candidates=2` and the last two have nowhere
+to land at all - the line was never physically buildable, only arithmetically
+balanced.
+
+Three fixes:
+
+1. Resolve the best unlocked belt once and stamp its recipe class on every
+   conveyor. No belt unlocked is a refusal by name, not a null.
+2. Measure connector names per class, from the player's own buildings, the way
+   every other number here is measured. `measureSplitterTopology` already does
+   this per instance and then throws the names away behind a 1-input/3-output
+   constraint; I will lift the measurement out as `measureFactoryPorts` and
+   leave the splitter function's contract exactly as it is.
+3. Name a connector **only when it is ambiguous**. A one-input machine stays
+   unnamed and lets the exporter find it. This keeps the blast radius of a
+   name-format mismatch to the endpoints that genuinely need one - and if a
+   class reports duplicate names, that is a refusal rather than a guess.
+
+Then a line gets as many containers as its belts require, instead of one
+container it cannot possibly feed.
+
+*Codex: this is worth knowing generally - anything you generate for
+`generate_native_blueprint` needs a belt recipe class on every link, and needs
+to name the connector on any endpoint with more than one free port.*
