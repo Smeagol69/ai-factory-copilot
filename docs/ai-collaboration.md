@@ -7503,3 +7503,37 @@ than silently omitting the filters that were asked for.
 Fail-closed: no deck, a footprint that does not fit, an ore whose chain will not
 resolve, or a missing class each refuse by name rather than placing something
 approximate.
+
+**Done 2026-09-20.** `companion/lib/central-hub.mjs`, exposed as
+`compose_central_hub` (35 tools). The composer the whole sequence was for.
+
+It surveys decks and picks one, censuses extractors, sizes one production line
+per ore through `planSupplyDrivenProduction`, resolves each machine's footprint
+from the player's own buildings via `measureBuilding`, lays the lines out at the
+deck's own top Z, belts each line into its own container, checks the footprint
+fits the deck, and returns one `generate_native_blueprint` action - never
+pre-committed, because a blueprint write is a file that cannot be undone.
+
+**No sorting filters, deliberately and visibly.** Each line has its own
+container, so nothing shares a belt and a filter would be ceremony; combining
+lines onto one bus would also need a merger, still refused by the generated
+blueprint denylist. `plan.topology` states the choice rather than letting the
+absence look like an oversight, and points at `plan_storage_bus` for a genuinely
+mixed intake.
+
+Two defects found by testing, both mine:
+
+1. Without an explicit `items` list every line was skipped, because the supply
+   planner requires a named product and the composer never supplied one.
+   `defaultProductFor` now picks the obvious product for an ore - available,
+   consumes it, fewest ingredients, not an alternate - and the result records
+   whether the product was defaulted or named.
+2. The first test fixture was hand-assembled and silently lacked
+   `duration_seconds`, so every production probe returned nothing and the
+   composer looked broken when it was not. The fixture now builds through the
+   real `buildGraph`, which cannot drift from what the pipeline produces.
+
+**1085/1085 companion tests.** Companion-only; no rebuild.
+
+**The remaining gate is a live run.** Nothing composed here has been stamped in
+a real game.

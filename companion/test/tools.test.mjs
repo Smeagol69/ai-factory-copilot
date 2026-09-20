@@ -31,6 +31,7 @@ test("exposes the roadmap solver set to the model", () => {
     "audit_blueprint_placement",
     "clear_highlight",
     "compare_blueprint_layouts",
+    "compose_central_hub",
     "design_base",
     "design_composition",
     "design_factory_layout",

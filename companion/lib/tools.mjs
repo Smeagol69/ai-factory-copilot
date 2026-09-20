@@ -23,6 +23,7 @@ import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
 import { surveyDecks } from "./site-survey.mjs";
+import { centralHubActions, composeCentralHub } from "./central-hub.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -569,6 +570,49 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => censusExtractedSupply(graph, args),
+  },
+
+  {
+    name: "compose_central_hub",
+    description:
+      "Composes a complete central hub onto a foundation deck that already exists, as one generated blueprint the player stamps. Surveys the world's decks and picks one, censuses every live extractor, sizes one production line per ore at exact recipe ratios against the ore actually deliverable, lays the lines out on that deck at its own top height, belts each line into its own storage container, and checks the whole footprint fits. Machine footprints are measured from the player's own buildings - a machine never built here refuses rather than being guessed. Use this for \"build me a central hub for my miners\", \"a walk-in building I can pull every resource from\", or any request to turn placed miners into a finished production-and-storage building. It composes only; the returned action must be committed separately, because a native blueprint write is a file and cannot be undone. Each line gets its own container, so nothing shares a belt and no sorting filter is needed; use plan_storage_bus instead when the intake is genuinely mixed. Refuses by name when there is no deck, no extractor, no measured machine, or when the hub does not fit.",
+    parameters: {
+      type: "object",
+      properties: {
+        center_cm: {
+          type: "object",
+          description: "Optional area to build in; the largest deck near it is chosen.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y"],
+          additionalProperties: false,
+        },
+        radius_m: { type: "number", description: "Optional radius in metres around center_cm." },
+        deck_id: { type: "string", description: "Exact deck_id from survey_decks, to choose a specific surface." },
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional exact product class paths, one per line. Omit to make the obvious product for each ore.",
+        },
+        max_lines: { type: "number", description: "Most production lines to compose. Default 6." },
+        container_class_path: { type: "string", description: "Optional exact storage container class." },
+        blueprint_name: { type: "string", description: "Name for the generated blueprint. Defaults to Central Hub." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: (graph, args) => {
+      const plan = composeCentralHub(graph, args);
+      if (!plan.composed) return plan;
+      const name = String(args?.blueprint_name ?? "").trim() || "Central Hub";
+      return {
+        ...plan,
+        blueprint_name: name,
+        proposed_action: centralHubActions(plan, { blueprint_name: name, commit: false })[0],
+        to_build:
+          "pass proposed_action to perform_actions with commit set true; it must be the only committed " +
+          "write in that request, because a native blueprint write is a file and cannot be undone.",
+      };
+    },
   },
 
   {
