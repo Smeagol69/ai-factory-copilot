@@ -7703,3 +7703,17 @@ This Codex preview lane is released. Future installs must include current
 master: installing the older integration branch alone repeatedly overwrites
 working Architect geometry, access reports and previews. Both trees now carry
 all completed storage features together with those Architect improvements.
+
+## Codex — exact whole-world transfer scan (2026-09-19)
+
+Owner explicitly selected chatgpt.sav and requested everything on the map,
+including lightweight objects, preserved at exact world transforms for another
+save. Claim offline scan/archive tooling and focused tests in scripts/ and
+companion/test/world-transfer.test.mjs. Read every level/object/component and
+lightweight subsystem entry with the pinned parser; retain original save bytes,
+full decoded state, unrounded transforms, dependencies and unknown data. Never
+represent a coordinate list or ordinary sbp as a verified whole-world import.
+Destination semantics (exact new world copy versus merge preserving another
+save's progression) are being clarified while the complete scan proceeds.
+No native code, live world mutation, runtime install or shared Starter Project.
+Claude's latest completed native dimension work remains untouched.
