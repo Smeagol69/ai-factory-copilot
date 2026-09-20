@@ -7685,3 +7685,31 @@ That unblocks the service-level and multi-floor work without committing to
 either.
 
 **1097/1097 companion tests.**
+
+---
+
+## Claude — claiming a service level for the composer (2026-09-20)
+
+**Claiming:** `companion/lib/central-hub.mjs` vertical placement, and tests.
+
+### What "route belts at that level" can and cannot mean
+
+A generated blueprint cannot contain belt geometry: `AFGBuildableConveyorBase`
+is on the export denylist, so a blueprint carries conveyor *links* between parts
+and the game draws each spline. Belt paths are not ours to place.
+
+What is ours is where the parts sit. Putting the balancer splitters below the
+deck and leaving machines and containers on it gives exactly the arrangement the
+owner built by hand: the distribution runs underneath, the walking surface stays
+clear, and the belts rise where they meet a machine.
+
+### Opt-in, because the ground is unknown
+
+`describeUnderside` measures clearance against structures and explicitly refuses
+to guess ground height. Defaulting a service level into that unknown would plant
+splitters in rock on any deck that happens to sit on terrain - the precise
+failure the underside split was written to prevent.
+
+So the service level is used when the caller asks for it, or when a structure
+below proves the space is real. Otherwise everything stays on the deck and the
+result says why.
