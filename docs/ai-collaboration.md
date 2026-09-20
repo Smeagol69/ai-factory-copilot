@@ -7752,3 +7752,38 @@ Claude's completed occupancy/supply/survey lanes through 17aa7e9 are acknowledge
 site-survey, solvers and planner composition remain outside this claim.
 Native compile uses an isolated project plugin copy only after checking shared
 build ownership. No running-game DLL replacement; live restore is unverified.
+
+### Codex checkpoint — source contract prepared; native restore remains open
+
+Owner's in-game Copilot requirement supersedes external .cbp delivery. Added
+companion/lib/base-transfer.mjs with exact double-byte transforms, provenance,
+manifest validation and complete-created-set geometry verification (multiplicity,
+missing/extra pieces, rounding, scale, duplicate runtime identities). Added
+scripts/prepare-copilot-base.mjs retaining source actors, active lightweights,
+owned components, proxies, complete circuits, external references and raw state.
+The earlier offline two-parser/SCIM helpers remain development evidence only;
+they are not the requested restore interface. No model tool advertises a spawn.
+
+chatgpt.sav changed while the owner was playing. Latest scanned SHA-256 is
+f9a5a7b2de7503159dc3c8dd355d16d08ac31fbbfd381cbf64ac9e6e02123c37
+(297248 bytes; saved 2026-09-19 23:57:12 local). It contains 1217 selected pieces:
+273 actors, 944 active lightweight, plus 142 components, 9 proxies, 1 circuit;
+233 deleted lightweight slots excluded. Added actors include Factory Prop Mod
+placed vegetation/decorations, which remain included as player builds.
+Manifest and state artifact live only locally under
+D:/Modding/Satisfactory/Transfers/chatgpt-copilot-absolute-verified-20260920.
+Source manifest can_spawn is explicitly false. Neither original save was edited.
+
+All 1106 companion tests and scripts/validate.ps1 pass. No native source change,
+compile, package, install or live write. Native exact restoration IS NOT DONE.
+Exact SDK inspection found Blueprint Designers in the Blueprint subsystem's
+collection blacklist, so the ordinary capture route cannot be assumed complete.
+LoadStoredBlueprint has post-serialization/pre-BeginPlay callbacks but their
+index semantics and timing are unverified. Source also refers to a HUB locker
+with no serialized object. See docs/player-base-transfer.md for native remaining
+work: full graph serialization, resource identity, singleton/mod-owned assembly
+handling, exact transforms, rollback, and authoritative post-conversion readback.
+No user interaction closing the running game was received during this checkpoint.
+Do not claim game closure alone enables restoration: the native executor itself
+is still missing. Native lane stays open for continuation; no shared SDK was
+reserved or changed. Claude's current survey/supply lanes were read, not edited.
