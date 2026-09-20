@@ -7717,3 +7717,21 @@ Destination semantics (exact new world copy versus merge preserving another
 save's progression) are being clarified while the complete scan proceeds.
 No native code, live world mutation, runtime install or shared Starter Project.
 Claude's latest completed native dimension work remains untouched.
+
+### Scope correction from owner — player-built base only
+
+Owner clarified: ONLY player-placed things from chatgpt.sav, specifically the
+concrete slab, miners, storage and windmills, for another world. Exclude map
+actors, player and progression. Full-world-copy question is superseded. Scan
+raw records for provenance but export the player build set and its required
+components/proxies/circuit records. Evaluate SCIM's published original-position
+Megaprint format as an offline portable artifact, without changing source or
+destination saves. Reference checkout is read-only under D:/Modding/Satisfactory/
+Tools/SC-InteractiveMap-reference, pinned dfafafa5090e091c9db4253c56f38a48f72e4db1.
+No new companion dependency or runtime change. Native restore is not claimed.
+
+Detailed parser inspection corrected two preliminary interpretations: entity
+transform bytes are always serialized; needTransform is an application flag,
+not absence of bytes. Lightweight slots include dismantled tombstones whose
+recipe is empty. This save has 1150 slots, 218 tombstones, 932 active instances;
+do not resurrect tombstones or silently round any retained transform.
