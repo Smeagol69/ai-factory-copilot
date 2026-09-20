@@ -1400,6 +1400,12 @@ export async function askAnthropic(context, env = process.env) {
     `Anthropic kept requesting solver tools after ${maximumSolverRounds} rounds without producing an answer.`,
   );
   } catch (error) {
+    // The OpenAI path has always carried this; Anthropic's did not, which is
+    // why a round-limit failure said that it looped without saying what it
+    // looped over. Which solvers were called, in order, is the whole
+    // diagnosis - without it the only options are guessing or paying for
+    // another attempt.
+    if (error && error.solver_calls === undefined) error.solver_calls = solverCalls;
     throw annotateProviderError(
       error,
       providerFailureMetadata("anthropic", model, cacheUsage, lastResponseId),

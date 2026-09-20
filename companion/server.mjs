@@ -95,6 +95,11 @@ function describeProviderFailure(message, info) {
         (Number.isFinite(output) && output > 0 ? `, ${Math.round(output / 1000)}k out` : ""),
     );
   }
+  // The sequence of solvers is the diagnosis for a loop that never converged:
+  // it shows what the model kept reaching for instead of answering.
+  if (Array.isArray(info?.solver_calls) && info.solver_calls.length > 0) {
+    parts.push(`called ${info.solver_calls.join(" -> ")}`);
+  }
   if (info?.response_id) parts.push(`response ${info.response_id}`);
   return parts.join(" | ");
 }
@@ -108,6 +113,9 @@ function providerFailureDetails(error, selectedProvider) {
   const cache = error?.cache ?? null;
   return {
     kind: error?.code ?? "provider_error",
+    solver_calls: Array.isArray(error?.solver_calls)
+      ? error.solver_calls.map((entry) => entry?.name).filter(Boolean)
+      : null,
     provider: error?.provider ?? selectedProvider,
     model: error?.model ?? null,
     response_id: error?.response_id ?? null,
