@@ -7632,3 +7632,35 @@ the size.
 description, or the model will helpfully do the composing itself and run out of
 rounds. And a reply should never contain the same data as the action it
 proposes.
+
+---
+
+## Claude — claiming void detection under decks (2026-09-20)
+
+**Claiming:** `companion/lib/site-survey.mjs` deck underside reporting, and its
+tests.
+
+### Why
+
+The owner builds the way good Satisfactory bases are built: belts in a service
+layer *under* the foundation deck, so the walking surface stays clean, with
+processes stacked in floors above. The composer cannot do any of that, and the
+first reason is that the survey throws away the underside - it reports
+`top_z_cm` and nothing else, so nothing downstream can know there is space
+below at all.
+
+### What is measurable, and what is not
+
+**Authoritative:** the deck's own bottom, from bounds already captured, and the
+highest *built* thing under its footprint. "Nothing built below for N metres" is
+a fact the snapshot supports.
+
+**Not available:** ground height under an arbitrary deck. Terrain is probed
+(`min_ground_z` / `max_ground_z` in `AIFactorySnapshot.cpp`) but only for site
+candidates, and probing is deliberately bounded per capture. A deck floating
+over open desert and one sitting on rock look identical to this data.
+
+So the underside reports structural clearance as measured, and ground as
+explicitly unknown rather than inferred. A service level planned into rock
+because "nothing was below" would be exactly the kind of confident wrong answer
+this project refuses everywhere else.
