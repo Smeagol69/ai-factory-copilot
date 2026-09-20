@@ -186,6 +186,55 @@ function buildBalancer({ splitter, machineIds, linePrefix, origin, parts, convey
   return split(machineIds, 0, 0);
 }
 
+/** How far below a deck's underside the distribution layer sits. */
+const SERVICE_DROP_CM = 400;
+
+/**
+ * Where the balancer splitters go.
+ *
+ * Under the deck when that space is real, which is how a good base is built:
+ * distribution runs beneath, the walking surface stays clear, and belts rise
+ * where they meet a machine. Belt paths themselves are not ours to place - a
+ * blueprint carries links and the game draws each spline - so the level is
+ * expressed by where the splitters sit.
+ *
+ * Refused by default when the space is merely *unoccupied*. `describeUnderside`
+ * measures clearance against structures and will not guess ground height, so an
+ * unblocked underside may equally be open air or solid rock. Dropping splitters
+ * into that on every deck would be the exact failure that separation exists to
+ * prevent, so it needs either an explicit request or a structure below proving
+ * the gap is real.
+ */
+function resolveServiceLevel(deck, requested) {
+  const underside = deck?.underside ?? null;
+  if (!underside) {
+    return { z: deck.top_z_cm, used: false, why: "this deck reports no underside" };
+  }
+  const measured = Number(underside.structural_clearance_cm);
+  const provenGap = Number.isFinite(measured) && measured > SERVICE_DROP_CM + 200;
+
+  if (requested === false) {
+    return { z: deck.top_z_cm, used: false, why: "a service level was not asked for" };
+  }
+  if (!provenGap && requested !== true) {
+    return {
+      z: deck.top_z_cm,
+      used: false,
+      why:
+        "nothing is built under this deck, but ground height is unknown here, so the space may be " +
+        "open air or solid rock. Pass service_level true to place the distribution below anyway.",
+    };
+  }
+  return {
+    z: deck.underside.bottom_z_cm - SERVICE_DROP_CM,
+    used: true,
+    why: provenGap
+      ? `${underside.structural_clearance_m} m of measured space below this deck`
+      : "requested explicitly; the space below is unoccupied but its ground is unknown",
+    proven: provenGap,
+  };
+}
+
 function refuse(reason, extra = {}) {
   return { solver: "central_hub", composed: false, reason, ...extra };
 }
@@ -242,6 +291,7 @@ export function composeCentralHub(graph, args = {}) {
     items: requestedItems = null,
     max_lines: maxLines = 6,
     container_class_path: requestedContainer = null,
+    service_level: requestedServiceLevel = null,
   } = args;
 
   // --- where ---------------------------------------------------------------
@@ -357,6 +407,7 @@ export function composeCentralHub(graph, args = {}) {
   // whichever class the world actually has. Without one, lines keep free
   // machine inputs and say so.
   const splitter = findBalancerSplitter(graph);
+  const service = resolveServiceLevel(deck, requestedServiceLevel);
   const splitCounter = { next: 1 };
   let cursorY = deck.bounds_cm.min_y + GRID_CELL_CM;
   let widestX = 0;
@@ -395,7 +446,7 @@ export function composeCentralHub(graph, args = {}) {
           splitter,
           machineIds,
           linePrefix: `line${index + 1}`,
-          origin: { x: lineX, y: cursorY, z: deck.top_z_cm },
+          origin: { x: lineX, y: cursorY, z: service.z },
           parts,
           conveyors,
           counter: splitCounter,
@@ -478,6 +529,15 @@ export function composeCentralHub(graph, args = {}) {
     footprint_m: { x: Math.round(usedX / 100), y: Math.round(usedY / 100) },
     parts,
     conveyors,
+    service_level: {
+      used: service.used,
+      z_cm: service.z,
+      deck_top_z_cm: deck.top_z_cm,
+      why: service.why,
+      what_sits_there: service.used
+        ? "the balancer splitters; machines and containers stay on the deck, so belts rise to meet them"
+        : "nothing - everything is on the deck",
+    },
     balancing: splitter
       ? {
           balanced: true,

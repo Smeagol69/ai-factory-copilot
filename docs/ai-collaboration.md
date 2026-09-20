@@ -7713,3 +7713,25 @@ failure the underside split was written to prevent.
 So the service level is used when the caller asks for it, or when a structure
 below proves the space is real. Otherwise everything stays on the deck and the
 result says why.
+
+**Done 2026-09-20.** The composer can put its distribution layer under the deck.
+
+`resolveServiceLevel` drops the balancer splitters to
+`deck.underside.bottom_z_cm - 400`, leaving machines and containers on the
+surface, so belts rise to meet them - the arrangement the owner built by hand.
+Belt paths themselves stay the game's: a blueprint carries links, not conveyor
+geometry.
+
+**It refuses by default when the space is only unoccupied.** An underside with
+nothing built below may be open air or solid rock, because ground height is not
+knowable here, so the default keeps everything on the deck and the result says
+how to override. A *measured* gap - another structure below - is proof enough to
+go down without asking. `service_level: true` forces it and records that the
+ground was unknown when it did.
+
+One test had to be re-scoped again: "at the deck's own height" asserted every
+part sat on the surface, which was about to become false for splitters. It now
+states it covers the no-service-level case. That is the second test in this
+lane which would have silently stopped describing anything - worth watching for.
+
+**1102/1102 companion tests.**

@@ -595,6 +595,7 @@ export const SOLVER_TOOLS = [
         },
         max_lines: { type: "number", description: "Most production lines to compose. Default 6." },
         container_class_path: { type: "string", description: "Optional exact storage container class." },
+        service_level: { type: "boolean", description: "Put the balancer splitters below the deck so the walking surface stays clear. Defaults to doing so only when a structure below proves the space is real, because ground height under a deck is not known." },
         blueprint_name: { type: "string", description: "Name for the generated blueprint. Defaults to Central Hub." },
       },
       required: [],

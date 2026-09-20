@@ -121,11 +121,15 @@ function makeWorld({ cols = 14, rows = 14, ores = [[ORE_IRON, 120], [ORE_COPPER,
   return buildGraph({ actors, content: { availability_known: true, recipes, items } });
 }
 
-test("a hub is composed onto a real deck, at the deck's own height", () => {
+test("with no service level, everything stands on the deck surface", () => {
+  // Scoped to the no-service-level case deliberately: once the distribution
+  // drops below, balancer splitters sit lower by design, and the service-level
+  // tests cover that. Left unscoped this would have quietly stopped describing
+  // anything the moment the service level landed.
   const plan = composeCentralHub(makeWorld());
   assert.equal(plan.composed, true, plan.reason);
   assert.ok(plan.deck.deck_id, "it chose a deck");
-  // Everything stands on the surface, not inside it.
+  assert.equal(plan.service_level.used, false);
   for (const part of plan.parts) {
     assert.equal(part.relative_location.z, plan.deck.top_z_cm, `${part.part_id} sits on the deck`);
   }
@@ -363,4 +367,75 @@ test("every part id stays unique once balancers are added", () => {
     assert.ok(known.has(link.from_part_id), `${link.link_id} from a real part`);
     assert.ok(known.has(link.to_part_id), `${link.link_id} to a real part`);
   }
+});
+
+/** A world whose deck has a second deck below it, proving the gap is real. */
+function worldWithProvenGap() {
+  const graph = worldWithSplitter();
+  // A lower deck 20 m beneath, so the underside clearance is measured rather
+  // than merely unoccupied.
+  for (let cx = 0; cx < 6; cx += 1) {
+    for (let cy = 0; cy < 6; cy += 1) {
+      const id = `low_${cx}_${cy}`;
+      graph.nodes.set(id, {
+        actor_id: id,
+        kind: "lightweight_buildable",
+        class_path: "/Game/Build_Foundation.Build_Foundation_C",
+        location_cm: { x: cx * 800, y: cy * 800, z: -2000 },
+        inventory_by_item: new Map(),
+        raw: {
+          name: id, kind: "lightweight_buildable",
+          location: { x: cx * 800, y: cy * 800, z: -2000 },
+          bounds: { origin: { x: cx * 800, y: cy * 800, z: -2000 }, extent: { x: 400, y: 400, z: 100 } },
+        },
+      });
+    }
+  }
+  return graph;
+}
+
+test("a measured gap below puts the distribution under the deck", () => {
+  const plan = composeCentralHub(worldWithProvenGap());
+  assert.equal(plan.composed, true, plan.reason);
+  assert.equal(plan.service_level.used, true);
+  assert.ok(plan.service_level.z_cm < plan.deck.top_z_cm, "the service level is below the deck");
+  assert.match(plan.service_level.why, /measured space below/);
+});
+
+test("machines and containers stay on the deck; only the splitters drop", () => {
+  // The whole point: the walking surface stays clear and belts rise to meet
+  // what is on it.
+  const plan = composeCentralHub(worldWithProvenGap());
+  for (const part of plan.parts) {
+    if (part.role === "splitter") {
+      assert.equal(part.relative_location.z, plan.service_level.z_cm, `${part.part_id} is below`);
+    } else {
+      assert.equal(part.relative_location.z, plan.deck.top_z_cm, `${part.part_id} is on the deck`);
+    }
+  }
+});
+
+test("an unproven void is refused by default, and says how to override", () => {
+  // Nothing is built below, but ground height is unknown - the space may be
+  // open air or solid rock. Dropping splitters into that by default is the
+  // failure the underside split exists to prevent.
+  const plan = composeCentralHub(worldWithSplitter());
+  assert.equal(plan.composed, true, plan.reason);
+  assert.equal(plan.service_level.used, false);
+  assert.match(plan.service_level.why, /ground height is unknown/);
+  assert.match(plan.service_level.why, /service_level true/);
+});
+
+test("an explicit request places below even when the ground is unknown", () => {
+  // The player can see their own base; this is their call to make.
+  const plan = composeCentralHub(worldWithSplitter(), { service_level: true });
+  assert.equal(plan.service_level.used, true);
+  assert.match(plan.service_level.why, /requested explicitly/);
+  assert.match(plan.service_level.why, /ground is unknown/);
+});
+
+test("service_level false keeps everything up, even with a measured gap", () => {
+  const plan = composeCentralHub(worldWithProvenGap(), { service_level: false });
+  assert.equal(plan.service_level.used, false);
+  assert.match(plan.service_level.why, /not asked for/);
 });
