@@ -1347,9 +1347,14 @@ export function solveSiteSelection(
 
   // Existing buildings are an obstruction the terrain probe deliberately does
   // not measure, because their bounds are already in the snapshot.
+  //
+  // Lightweight instances count. Foundations and walls are not actors, so a
+  // `kind === "buildable"` test skipped them entirely and this reported a
+  // clear site on ground already covered by somebody's base. The scanner
+  // emits their full 3D bounds, so there is nothing to infer.
   const buildableBoxes = [];
   for (const node of graph.nodes.values()) {
-    if (node.kind !== "buildable") continue;
+    if (node.kind !== "buildable" && node.kind !== "lightweight_buildable") continue;
     const bounds = node.raw?.bounds;
     const origin = bounds?.origin;
     const extent = bounds?.extent;
