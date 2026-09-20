@@ -7910,3 +7910,11 @@ Both generators that emit links are now stampable. `generated-blueprints.mjs`,
 so they were never the source - but anything new that composes links needs both
 rules: a belt recipe class on every one, and a name on any endpoint with more
 than one free port.
+
+**Note.** The `generate_native_blueprint` schema in `tools.mjs` has said all
+along: *"Omit connector names only when each endpoint has exactly one free
+compatible port; ambiguity is refused."* Both planners ignored their own
+documented contract. I have made the two connector fields say the concrete case
+- a splitter has three outputs, name one; two belts must never name the same
+one - because a model composing a blueprint ad hoc hits this first and spends
+solver rounds discovering it.

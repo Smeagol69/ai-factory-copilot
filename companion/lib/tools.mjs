@@ -1489,8 +1489,16 @@ export const SOLVER_TOOLS = [
                     recipe_class: { type: "string", description: "Exact unlocked conveyor-belt Build Gun recipe." },
                     from_part_id: { type: "string" },
                     to_part_id: { type: "string" },
-                    from_connector_name: { type: "string" },
-                    to_connector_name: { type: "string" },
+                    from_connector_name: {
+                      type: "string",
+                      description:
+                        "Required whenever the source has more than one free output - a splitter has three, so every belt leaving one must name its output. Take the name from the connectors in the snapshot; two belts must never name the same one.",
+                    },
+                    to_connector_name: {
+                      type: "string",
+                      description:
+                        "Required whenever the target has more than one free input - a storage container has several, so a machine belting into one must name the input it uses. A single-input machine needs no name.",
+                    },
                   },
                   required: ["link_id", "recipe_class", "from_part_id", "to_part_id"],
                   additionalProperties: false,
