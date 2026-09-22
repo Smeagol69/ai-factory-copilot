@@ -8080,3 +8080,38 @@ Latest on-disk chatgpt.sav was saved September 20 at 15:53:28 local, 300729 byte
 
 A real Factory Prop Mod grass foundation ByteProperty exposed optional value.type: undefined metadata recreated by the parser but omitted by JSON preparation. Archive comparison now normalizes only undefined object fields, preserving all defined values, signed zero, array entries and binary payloads. Strict saved-property, special-payload, trailing-byte and transform checks still run. Errors retain before/after evidence as a cause for diagnosis. Regression added; all 1175 tests pass. Offline compiler change only: no companion restart or native rebuild required. Live import and save/reload proof remain pending.
 
+
+### Codex — native restore deployment repair claim (2026-09-22)
+
+Live check returned unsupported_action. Loaded DLL path/hash matches the prior deployment, but its binary lacks the native-base schema and BaseTransfers strings present in the Editor DLL. Prior green Shipping/package checks did not establish that the restore implementation was linked. Claiming packaging validation and the shared Starter plugin/build slot to force a current native rebuild, verify linked restore markers, and redeploy after game exit. No gameplay source change planned unless the fresh build exposes one.
+
+### Codex — repaired Shipping restore deployment (2026-09-22)
+
+The user's live check exposed a stale native Shipping build: unsupported_action
+before mutation. The loaded DLL really was the previously documented 5ECDD450...
+artifact, but it lacked the native restore schema/loader strings. The Editor
+DLL contained them. Earlier successful compilation and package hashes therefore
+did not establish that the Shipping action dispatcher/loader had been rebuilt.
+Those deployment claims are superseded by this checkpoint.
+
+Verified every SDK source file against this worktree, refreshed SDK source
+mtimes, and rebuilt all three native Shipping unity units with NoUBTMakefiles
+and NoUBA (169.19s, successful). No gameplay source changes were needed. The
+new binary passes native loader capability-marker checks; the old binary fails
+that same check. This checks linked capability, not successful gameplay.
+
+package-local.ps1 now builds Shipping explicitly and refuses a DLL lacking the
+restore action/schema/precondition markers before UAT deployment. It checks
+built, archived and deployed DLL SHA-256 equality afterward. StageOnly can
+prepare an archive without copying into a running game; this run used normal
+deployment after the owner closed the game.
+
+Shipping and Editor builds, UAT cook/archive/deploy, PowerShell syntax check,
+stale-DLL rejection, fresh-DLL acceptance and all 1175 companion tests pass.
+Deployed DLL SHA-256: 10C121C75CF04CBACCBDA7CBD877942F2BA273E3C9E897F2907CCA9B44C5355C
+Archive SHA-256: C1BFB0041B2AC9108BFC2E5DE8A98A51B7D9F4A47C7017D01C47011ED8DECEE1
+Old DLL backup: D:/Modding/Satisfactory/Backups/pre-native-restore-repair-20260922.
+The private chatgpt package remains 1314 pieces and its archive checksum matches.
+Bundled companion sources match the current repo; no provider call was made.
+Shared SDK/build reservation released. User can relaunch and retry check base
+chatgpt. Successful preflight/import and save/reload remain unverified.
