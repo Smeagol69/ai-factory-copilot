@@ -7,7 +7,8 @@ The source save is not edited. Map actors and progression are not copied.
 ## In the game
 
 After the updated mod and companion are installed, load the destination save.
-Enable Copilot write actions and the game's no-build-cost mode. The original
+Enable Copilot write actions. Saved-base transfers charge no materials and work
+with no-build-cost mode turned off; they do not change that setting. The original
 base region must be clear and the required mods must be installed.
 
 In the Copilot panel:

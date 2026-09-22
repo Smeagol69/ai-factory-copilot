@@ -70,7 +70,7 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
     {
         if (Arguments.Num() != 3 || (Arguments[1] != TEXT("check") && Arguments[1] != TEXT("restore")))
         {
-            Sender->SendChatMessage(TEXT("/ai base check <name> | /ai base restore <name>. Restores the recorded absolute coordinates; requires write actions and no-build-cost mode."));
+            Sender->SendChatMessage(TEXT("/ai base check <name> | /ai base restore <name>. Restores the recorded absolute coordinates without material charges; requires write actions."));
             return EExecutionStatus::UNCOMPLETED;
         }
         AFGPlayerController* Controller = Sender->GetPlayer();

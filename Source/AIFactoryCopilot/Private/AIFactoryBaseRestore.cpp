@@ -9,7 +9,6 @@
 #include "FGBuildableSubsystem.h"
 #include "FGCharacterPlayer.h"
 #include "FGCircuitConnectionComponent.h"
-#include "FGInventoryComponent.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "Resources/FGResourceNode.h"
 #include "Dom/JsonObject.h"
@@ -223,10 +222,9 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     if (Map.IsEmpty() || !Context.World->GetMapName().EndsWith(Map)) return Refuse(TEXT("base_map_does_not_match_destination"));
     double Build;
     if (!BaseNumber(Source, TEXT("build_version"), Build) || Build != 502094) return Refuse(TEXT("base_package_game_build_not_supported"));
-    UFGInventoryComponent* Inventory = Context.Player->GetInventory();
-    // Save-state transfer is a creative import, not a recipe purchase. Never
-    // invent a material price for copied inventories, mod actors or assemblies.
-    if (!Inventory || !Inventory->GetNoBuildCost()) return Refuse(TEXT("base_restore_requires_no_build_cost_mode"));
+    // The owner authorizes saved-base transfers without material charges.
+    // This native import does not use construction purchases or change the
+    // player's/session's no-build-cost setting. Normal write gates still apply.
     auto* Blueprint = AFGBlueprintSubsystem::Get(Context.World);
     auto* Light = AFGLightweightBuildableSubsystem::Get(Context.World);
     if (!Blueprint || !Light) return Refuse(TEXT("base_restore_subsystem_missing"));
@@ -292,6 +290,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     FAIFactoryActionResult Result; Result.Action = Action; Result.bAccepted = true; Result.bDryRun = Context.bDryRun;
     Result.Predicted = MakeShared<FJsonObject>(); Result.Predicted->SetStringField(TEXT("base_name"), PackageName);
     Result.Predicted->SetNumberField(TEXT("pieces"), Count); Result.Predicted->SetStringField(TEXT("placement"), TEXT("absolute_saved_transforms_no_snapping"));
+    Result.Predicted->SetStringField(TEXT("cost_policy"), TEXT("saved_base_transfer_no_material_charge"));
     if (Context.bDryRun) { Result.Status = TEXT("dry_run"); return Result; }
 
     // Unique private descriptor name; never overwrite an existing user Blueprint.

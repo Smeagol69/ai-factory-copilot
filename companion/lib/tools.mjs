@@ -1456,7 +1456,7 @@ export const SOLVER_TOOLS = [
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
-              base_name: { type: "string", description: "restore_base only: exact local saved-base package name supplied by the player. Restores all saved absolute transforms, accepts no offset or rotation, requires no-build-cost mode, and must be a standalone write. Never invent package names or claim success before the native result." },
+              base_name: { type: "string", description: "restore_base only: exact local saved-base package name supplied by the player. Restores all saved absolute transforms without material charges or requiring no-build-cost mode, accepts no offset or rotation, and must be a standalone write. Never invent package names or claim success before the native result." },
               blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. generate_native_blueprint: the name of the new native Blueprint file. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {

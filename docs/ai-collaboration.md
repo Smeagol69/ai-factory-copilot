@@ -8115,3 +8115,30 @@ The private chatgpt package remains 1314 pieces and its archive checksum matches
 Bundled companion sources match the current repo; no provider call was made.
 Shared SDK/build reservation released. User can relaunch and retry check base
 chatgpt. Successful preflight/import and save/reload remain unverified.
+
+### Codex — unconditional transfer cost claim (2026-09-22)
+
+Owner explicitly requested saved-base restore bypass no-build-cost mode and spawn anyway. Claiming native restore/chat help, bridge tool help, packaging capability marker and transfer docs. Removing only the inventory no-cost requirement; transfer does not charge materials or toggle global/player cheats. Existing server/write/commit, package, asset, occupancy and readback/rollback checks stay. Reserving shared SDK/build slot for deployment.
+
+### Codex — free saved-base transfer deployed (2026-09-22)
+
+Owner explicitly asked to bypass the no-build-cost requirement. Removed that
+inventory gate from native restore. Transfers load the saved archive without
+material charges and do not toggle any player/session setting. Dry-run and
+commit predictions now report saved_base_transfer_no_material_charge. Existing
+server authority, write enablement, explicit commit, asset/map/checksum/occupancy,
+exact-transform readbacks and rollback checks are unchanged. Chat/tool help and
+transfer documentation reflect the new behavior. Older no-cost-mode instructions
+above are superseded. Packaging verifies the new cost-policy marker.
+
+All 1175 tests pass, including the updated native source contract. Shipping and
+Editor compiled; StageOnly packaging passed, then normal UAT deployment passed
+after the owner closed the game. Built/archive/deployed DLL hashes match.
+Installed DLL contains the new policy and has no old no-cost refusal string.
+Both installed companion tool files match repo; clean companion install verified
+58 runtime files, with health ok. No paid provider request used.
+
+DLL SHA-256: 798C6E4A69BD97876012DA53F434E66CFB8281FED9DC26F58536D6609B0684AB
+Archive SHA-256: 15BC8CFEE2EFCFA6BE9AC5A7C685D999E4A4E970541B9327E27BA13653F10DB5
+Shared SDK/build reservation released. Relaunch and run check base chatgpt,
+then restore base chatgpt. Actual import/save-reload remains unverified.

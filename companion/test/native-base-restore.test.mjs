@@ -85,6 +85,8 @@ test("native restore applies saved transforms, verifies lightweight customizatio
   const native = fs.readFileSync(new URL("../../Source/AIFactoryCopilot/Private/AIFactoryBaseRestore.cpp", import.meta.url), "utf8");
   const actions = fs.readFileSync(new URL("../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp", import.meta.url), "utf8");
   assert.match(native, /LoadStoredBlueprint\(Descriptor, FTransform::Identity/);
+  assert.match(native, /saved_base_transfer_no_material_charge/);
+  assert.doesNotMatch(native, /GetNoBuildCost|base_restore_requires_no_build_cost_mode/);
   assert.match(native, /SetActorTransform\(Match->Exact/);
   assert.match(native, /FRuntimeBuildableInstanceData RuntimeData = Instance.Data/);
   assert.match(native, /Observed->TypeSpecificData.Identical\(Instance.Data.TypeSpecificData\)/);
