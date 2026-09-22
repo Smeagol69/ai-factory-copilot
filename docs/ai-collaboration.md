@@ -8025,3 +8025,46 @@ Final combined native Shipping build succeeded (202.72s, no new compiler
 warnings). The game is now closed. Syncing combined companion into the reserved
 Starter plugin and proceeding with Editor build, packaging and deployment.
 No destination base has been spawned or save/reload-verified yet.
+
+### Codex — combined deployment complete (2026-09-21)
+
+Combined source checkpoint: `4eca810`, published on master and
+`codex/exact-world-transfer`. Claude's completed companion changes through
+`3a3e56e` are included. Fetch checked again after deployment; neither integration
+head had advanced. The shared Starter plugin/build reservation is released.
+
+Verified FactoryGameSteam Shipping and FactoryEditor Development builds, then
+UAT build/cook/archive/deploy with the game closed. Deployed Shipping DLL SHA-256:
+`5ECDD45012089009AD70308FBEC6CC727FF2C99E212FB2C4A4628430DBBF2F49`.
+Windows archive SHA-256:
+`A65096469F55CD0637FDF09F361601231E521D55E3EBEF51A300A431910116D3`.
+Archive remains under the Starter project's
+`Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`.
+
+All 1174 companion tests pass. The companion installer verified 58 runtime
+files; every source `lib/*.mjs` and `server.mjs` matches both the standalone
+installation and game-bundled installation. Both installed routers were checked
+with `restore base chatgpt` and emitted the expected typed `restore_base` action.
+Health on port 8142 is ready with hybrid provider and action contract 1. No paid
+provider request was used for these checks.
+
+Installed the private native package at
+`%LOCALAPPDATA%/FactoryGame/Saved/AIFactoryCopilot/BaseTransfers/chatgpt`.
+Its archive and config MD5s match `restore.json`. It contains 273 actor pieces
+and 944 active lightweight pieces (1217 total), including four miners and 33
+wires. Source save SHA-256:
+`f9a5a7b2de7503159dc3c8dd355d16d08ac31fbbfd381cbf64ac9e6e02123c37`.
+Private source save and transfer artifacts remain outside git.
+
+Next live check: load a destination save with the required mods, enable Copilot
+write actions and no-build-cost mode, run `check base chatgpt`, then
+`restore base chatgpt` in Copilot. Chat alternatives are `/ai base check chatgpt`
+and `/ai base restore chatgpt`. The destination must leave the original base
+region empty. Placement uses saved absolute transforms, not player position.
+
+**Still unverified:** actual import, immediate game readbacks, arbitrary mod
+state, and save/reload persistence. No destination save was modified, and no
+`latest-base-restore.json` exists yet. Inspect that file after the direct chat
+command, or `latest-bridge-response.json` after Copilot, before claiming success.
+The separate smart-splitter output-index assumption and live hub item-flow
+verification described above also remain open.
