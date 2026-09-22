@@ -8068,3 +8068,15 @@ state, and save/reload persistence. No destination save was modified, and no
 command, or `latest-bridge-response.json` after Copilot, before claiming success.
 The separate smart-splitter output-index assumption and live hub item-flow
 verification described above also remain open.
+
+### Codex — rescan claim (2026-09-22)
+
+Rescanning the owner's updated chatgpt save and refreshing its private restore package. The scan found 1314 pieces, but native archive property readback refuses actor 116. Claiming scripts/lib/native-base-archive.mjs and its focused tests to diagnose and correct serialization while retaining strict verification. No native SDK/build reservation needed.
+
+
+### Codex — chatgpt rescan installed (2026-09-22)
+
+Latest on-disk chatgpt.sav was saved September 20 at 15:53:28 local, 300729 bytes, SHA-256 0acd438b380733f5afbeabbae1a8e66e5fe8e2c49771e81b56455e7ca6f0ee23. Rescan retained 283 actors, 1031 active lightweight pieces (1314 total), 146 owned components, four miners and 33 wires; excluded 90 dismantled lightweight slots. Prepared and compiled artifacts are under D:/Modding/Satisfactory/Transfers with suffix 20260922. Installed the verified package as BaseTransfers/chatgpt and retained the previous package as BaseTransfers/chatgpt-backup-20260922. Verified source SHA immediately before installation and all three installed file hashes afterward. Source save unchanged.
+
+A real Factory Prop Mod grass foundation ByteProperty exposed optional value.type: undefined metadata recreated by the parser but omitted by JSON preparation. Archive comparison now normalizes only undefined object fields, preserving all defined values, signed zero, array entries and binary payloads. Strict saved-property, special-payload, trailing-byte and transform checks still run. Errors retain before/after evidence as a cause for diagnosis. Regression added; all 1175 tests pass. Offline compiler change only: no companion restart or native rebuild required. Live import and save/reload proof remain pending.
+

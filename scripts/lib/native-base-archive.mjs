@@ -6,6 +6,18 @@ const require = createRequire(new URL("../../companion/package.json", import.met
 const { Parser } = require("@etothepii/satisfactory-file-parser");
 const digest = bytes => createHash("md5").update(bytes).digest("hex");
 const clone = structuredClone;
+// Preparation persists decoded state as JSON, which omits undefined object
+// fields. The parser recreates optional metadata such as ByteProperty's
+// value.type as undefined. Compare their persisted meaning without changing
+// any defined value (including -0), array entry, or binary payload.
+const persistedShape = value => {
+  if (Array.isArray(value)) return value.map(persistedShape);
+  if (value && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined)
+      .map(([key, child]) => [key, persistedShape(child)]));
+  }
+  return value;
+};
 
 /** An engine-loadable actor stream, never a recipe reconstruction. Lightweight
  * data stays in its native instance format and is restored by the subsystem.
@@ -79,10 +91,10 @@ export function compileNativeBaseArchive(manifest, state, save) {
   for (let i = 0; i < objects.length; i++) {
     const before = objects[i], after = parsed.objects[i];
     if (before.instanceName !== after.instanceName || before.typePath !== after.typePath ||
-        !isDeepStrictEqual(before.properties, after.properties) ||
-        !isDeepStrictEqual(before.specialProperties, after.specialProperties) ||
+        !isDeepStrictEqual(persistedShape(before.properties), persistedShape(after.properties)) ||
+        !isDeepStrictEqual(persistedShape(before.specialProperties), persistedShape(after.specialProperties)) ||
         !isDeepStrictEqual(before.trailingData, after.trailingData)) {
-      throw new Error("Native saved-state readback differs: " + before.instanceName);
+      throw new Error("Native saved-state readback differs: " + before.instanceName, { cause: { before, after } });
     }
   }
   const keys = new Set();

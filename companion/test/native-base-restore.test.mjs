@@ -41,6 +41,19 @@ test("native actor archive roundtrips saved properties and carries exact doubles
   assert.deepEqual(f, before);
 });
 
+test("native archive preserves byte properties after JSON preparation omits undefined enum metadata", () => {
+  const f = fixture();
+  f.state.actors[0].raw_record.properties.mColorSlot = {
+    type: "ByteProperty", name: "mColorSlot",
+    propertyTagType: { name: "ByteProperty", children: [] }, value: { value: 18 },
+  };
+  const before = structuredClone(f);
+  // The archive compiler reparses and compares every saved property. The
+  // parser adds value.type: undefined for a byte without an enum type.
+  assert.ok(compileNativeBaseArchive(f.manifest, f.state, f.save).sbp.length > 0);
+  assert.deepEqual(f, before);
+});
+
 test("native packaging refuses unsupported versions, incomplete state and ambiguous loader identity", () => {
   const f = fixture(); f.save.header.saveVersion = 59;
   assert.throws(() => compileNativeBaseArchive(f.manifest, f.state, f.save), /version/);
