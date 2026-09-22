@@ -906,14 +906,23 @@ function connectorName(component) {
  * look like one six-output splitter. This keeps instances separate and accepts
  * the capacity only when every captured example agrees.
  */
-export function measureSplitterTopology(graph, classPath) {
-  if (!classPath) {
-    return {
-      resolved: false,
-      reason: "give splitter_class_path so its connector topology can be measured",
-      missing: ["splitter_class_path"],
-    };
-  }
+/**
+ * Measures a class's factory connectors - names included - from the player's
+ * own buildings.
+ *
+ * `measureConnectors` answers "where does a belt meet this building" and pools
+ * offsets across every instance. This answers the different question the
+ * blueprint exporter forces on us: what each connector is called, and how many
+ * of each direction one building has. The exporter refuses a generated link
+ * whose endpoint has more than one free matching connector unless the link
+ * names the one it means, so generating a blueprint needs names, not offsets.
+ *
+ * Measured per instance rather than pooled, because the count per building is
+ * the whole point of asking. Instances that disagree refuse: a class whose
+ * connector count is not consistent is one we cannot generate against.
+ */
+export function measureFactoryPorts(graph, classPath) {
+  if (!classPath) return { resolved: false, kind: "no_class_path" };
 
   const instances = [];
   for (const node of graph?.nodes?.values?.() ?? []) {
@@ -943,19 +952,26 @@ export function measureSplitterTopology(graph, classPath) {
       else if (direction === "FCD_INPUT" || direction === "INPUT") inputs.push(measured);
     }
     if (inputs.length > 0 || outputs.length > 0) {
+      // Sorted lists are what callers wanting a stable name should use. The
+      // captured order is kept beside them because it is the only clue we
+      // have to the order the game builds its own connection cache in, and
+      // sorting by name destroys it.
+      const inputOrder = [...inputs];
+      const outputOrder = [...outputs];
       inputs.sort((a, b) => String(a.component_name).localeCompare(String(b.component_name)));
       outputs.sort((a, b) => String(a.component_name).localeCompare(String(b.component_name)));
-      instances.push({ actor_id: node.actor_id, inputs, outputs });
+      instances.push({
+        actor_id: node.actor_id,
+        inputs,
+        outputs,
+        input_order: inputOrder,
+        output_order: outputOrder,
+      });
     }
   }
 
   if (instances.length === 0) {
-    return {
-      resolved: false,
-      reason: "no captured splitter of that class exists, so its connectors are unknown",
-      missing: ["captured_splitter_connector_topology"],
-      class_path: classPath,
-    };
+    return { resolved: false, kind: "no_instances", class_path: classPath };
   }
 
   const inputCounts = [...new Set(instances.map((instance) => instance.inputs.length))];
@@ -963,41 +979,9 @@ export function measureSplitterTopology(graph, classPath) {
   if (inputCounts.length !== 1 || outputCounts.length !== 1) {
     return {
       resolved: false,
-      reason: "captured splitters of that class disagree on connector counts",
+      kind: "disagree",
       observed_input_counts: inputCounts,
       observed_output_counts: outputCounts,
-      measured_from: instances.length,
-      class_path: classPath,
-    };
-  }
-  if (inputCounts[0] !== 1 || outputCounts[0] < 2) {
-    return {
-      resolved: false,
-      reason:
-        "this planner requires a measured one-input splitter with at least two outputs; " +
-        `captured topology was ${inputCounts[0]} input(s), ${outputCounts[0]} output(s)`,
-      measured_from: instances.length,
-      class_path: classPath,
-    };
-  }
-
-  const topology = instances[0];
-  const outputCentroid = topology.outputs.reduce(
-    (sum, output) => add(sum, output.offset_cm),
-    { x: 0, y: 0, z: 0 },
-  );
-  outputCentroid.x /= topology.outputs.length;
-  outputCentroid.y /= topology.outputs.length;
-  outputCentroid.z /= topology.outputs.length;
-  const localForward = normalize({
-    x: outputCentroid.x - topology.inputs[0].offset_cm.x,
-    y: outputCentroid.y - topology.inputs[0].offset_cm.y,
-    z: 0,
-  });
-  if (!localForward) {
-    return {
-      resolved: false,
-      reason: "captured splitter geometry does not establish an input-to-output facing direction",
       measured_from: instances.length,
       class_path: classPath,
     };
@@ -1006,11 +990,87 @@ export function measureSplitterTopology(graph, classPath) {
   return {
     resolved: true,
     class_path: classPath,
-    input: topology.inputs[0],
-    outputs: topology.outputs,
+    inputs: instances[0].inputs,
+    outputs: instances[0].outputs,
+    inputs_in_component_order: instances[0].input_order,
+    outputs_in_component_order: instances[0].output_order,
+    input_capacity: inputCounts[0],
     output_capacity: outputCounts[0],
-    local_forward: localForward,
     measured_from: instances.length,
+    source: "per_instance_captured_connector_topology",
+    certainty: "authoritative_for_captured_class",
+  };
+}
+
+export function measureSplitterTopology(graph, classPath) {
+  const ports = measureFactoryPorts(graph, classPath);
+  if (!ports.resolved) {
+    if (ports.kind === "no_class_path") {
+      return {
+        resolved: false,
+        reason: "give splitter_class_path so its connector topology can be measured",
+        missing: ["splitter_class_path"],
+      };
+    }
+    if (ports.kind === "no_instances") {
+      return {
+        resolved: false,
+        reason: "no captured splitter of that class exists, so its connectors are unknown",
+        missing: ["captured_splitter_connector_topology"],
+        class_path: classPath,
+      };
+    }
+    return {
+      resolved: false,
+      reason: "captured splitters of that class disagree on connector counts",
+      observed_input_counts: ports.observed_input_counts,
+      observed_output_counts: ports.observed_output_counts,
+      measured_from: ports.measured_from,
+      class_path: classPath,
+    };
+  }
+
+  if (ports.input_capacity !== 1 || ports.output_capacity < 2) {
+    return {
+      resolved: false,
+      reason:
+        "this planner requires a measured one-input splitter with at least two outputs; " +
+        `captured topology was ${ports.input_capacity} input(s), ${ports.output_capacity} output(s)`,
+      measured_from: ports.measured_from,
+      class_path: classPath,
+    };
+  }
+
+  const outputCentroid = ports.outputs.reduce(
+    (sum, output) => add(sum, output.offset_cm),
+    { x: 0, y: 0, z: 0 },
+  );
+  outputCentroid.x /= ports.outputs.length;
+  outputCentroid.y /= ports.outputs.length;
+  outputCentroid.z /= ports.outputs.length;
+  const localForward = normalize({
+    x: outputCentroid.x - ports.inputs[0].offset_cm.x,
+    y: outputCentroid.y - ports.inputs[0].offset_cm.y,
+    z: 0,
+  });
+  if (!localForward) {
+    return {
+      resolved: false,
+      reason: "captured splitter geometry does not establish an input-to-output facing direction",
+      measured_from: ports.measured_from,
+      class_path: classPath,
+    };
+  }
+
+  return {
+    resolved: true,
+    class_path: classPath,
+    input: ports.inputs[0],
+    outputs: ports.outputs,
+    outputs_in_component_order: ports.outputs_in_component_order,
+    output_capacity: ports.output_capacity,
+    local_forward: localForward,
+    measured_from: ports.measured_from,
     source: "per_instance_captured_connector_topology",
     certainty: "authoritative_for_captured_splitter_class",
   };

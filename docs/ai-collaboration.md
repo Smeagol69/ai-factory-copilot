@@ -7859,3 +7859,169 @@ Three real defects found by writing its tests, all now fixed and pinned:
    becomes a refusal naming the ore rather than taking the whole request down.
 
 **1063/1063 companion tests.** Companion-only; no rebuild needed.
+
+### Claude imported handoff — deck survey (17aa7e9)
+
+
+---
+
+## Claude — claiming the deck survey and spatial query (2026-09-20)
+
+**Claiming:** a new `companion/lib/site-survey.mjs`, `center_cm`/`radius_m` on
+`solveActorLookup` in `companion/lib/solvers.mjs`, the `locate` tool schema in
+`companion/lib/tools.mjs`, and tests.
+
+### Why
+
+The owner's requirement: *"it needs to know the placement of all foundations
+and have a good understanding of everything placed in order to make proper
+placements."*
+
+The data is already captured - `AIFactorySnapshot.cpp` emits every lightweight
+instance with full 3D bounds, whole-world - and yesterday's occupancy fix
+stopped a deck falsely blocking what stands on it. Two things are still
+missing:
+
+1. **No position-aware query.** `solveActorLookup` takes no centre and no
+   radius; it sorts by distance to the *player* and caps at ten. Nothing can
+   answer "what is at these coordinates".
+2. **No notion of a surface.** A planner can see two thousand foundation boxes
+   but not *"there is a 40 x 60 m deck at Z 8100"*. A list of boxes is not a
+   build surface, and picking where a hub goes needs the surface.
+
+### Approach
+
+Cluster deck-like lightweight instances into contiguous surfaces: bucket by top
+Z, then union adjacent footprints, and report each cluster's extent, top Z,
+piece count and what already stands on it.
+
+"Deck-like" is decided by **two** independent rules, and which one matched is
+reported so it stays auditable: a class-name match, or a geometry heuristic
+(thin in Z relative to its XY footprint). The second rule is what makes modded
+foundations work - this save has `DodNFPiece4m` and ConcreteConstruction
+pieces that no vanilla name test would catch.
+
+**Done 2026-09-20.** `companion/lib/site-survey.mjs` plus a position-aware
+`locate` (34 tools).
+
+`survey_decks` clusters deck-like lightweight pieces into contiguous build
+surfaces, each reported with its extent in metres and cells, its **top** Z, the
+piece count, and what stands on it. Clustering is by top height first and XY
+adjacency second, so a balcony above a deck stays a separate surface rather
+than merging into one blob.
+
+**Two independent rules classify a deck, and which matched is reported.** A
+class-name match covers the obvious cases; a geometry rule - thin relative to
+its footprint - covers everything else. The second is not a nicety: this save's
+base is built from `DodNFPiece4m` and ConcreteConstruction parts that no
+vanilla name test matches, and a name-only survey would have reported empty
+ground on top of the owner's factory. A wall fails both rules and stays an
+obstruction, which is what the collision test needs.
+
+`solveActorLookup` now takes `center_cm` and `radius_m`, sorts by distance from
+that centre rather than from the player, and accepts a centre as a search term
+on its own. `locate`'s `kind` enum gained `lightweight_buildable`. Before this
+nothing could answer "what is at these coordinates" at all.
+
+Two defects in my own test fixtures, both worth recording because they are easy
+to repeat: `buildGraph` sets `raw: actor`, so `kind` and `location` live inside
+`raw`, not on the node - a fixture that put them only on the node matched
+nothing. And `solveActorLookup` reads `raw.location`, not `node.location_cm`.
+
+**1074/1074 companion tests.** Companion-only; no rebuild needed.
+
+**Where the one-prompt hub now stands:** scanning, deck understanding,
+positional queries, supply-driven sizing, load balancing, the sorted bus and
+the shell all exist. What does not exist is the composer that calls them in
+order and emits one placed result. That is the remaining lane, and it is
+unclaimed.
+
+### Claude imported handoff — hub composer (37689d2)
+
+
+---
+
+## Claude — claiming the central hub composer (2026-09-20)
+
+**Claiming:** a new `companion/lib/central-hub.mjs`, its tool registration, and
+tests. Not touching the survey, the supply planner, the storage bus, or any
+writer - this calls them.
+
+### What it composes, and one design decision worth arguing with
+
+The owner's sentence: *"build me the central hub for all my miners, something I
+can pull every resource from, with constructors and smelters at perfect ratios
+and load balanced, a walk-in building I can pull whatever item I need from."*
+
+v1 composes: pick a deck from `survey_decks`, size one production line per
+extracted ore with `planSupplyDrivenProduction`, lay each line out on that deck
+at its top Z, belt each line's output into **its own** storage container, check
+the whole footprint fits the deck and misses what already stands on it, and
+emit one `generate_native_blueprint` action.
+
+**Deliberately no sorting splitters in v1.** Sorting exists to separate items
+that share a belt. If each production line has its own container, nothing ever
+shares a belt and a filter would be ceremony - it would also need mergers to
+combine lines onto one bus, and a merger is still refused by the generated
+blueprint denylist. `plan_storage_bus` remains the right tool for a genuinely
+mixed intake, and the hub reports that it chose the simpler topology rather
+than silently omitting the filters that were asked for.
+
+Fail-closed: no deck, a footprint that does not fit, an ore whose chain will not
+resolve, or a missing class each refuse by name rather than placing something
+approximate.
+
+**Done 2026-09-20.** `companion/lib/central-hub.mjs`, exposed as
+`compose_central_hub` (35 tools). The composer the whole sequence was for.
+
+It surveys decks and picks one, censuses extractors, sizes one production line
+per ore through `planSupplyDrivenProduction`, resolves each machine's footprint
+from the player's own buildings via `measureBuilding`, lays the lines out at the
+deck's own top Z, belts each line into its own container, checks the footprint
+fits the deck, and returns one `generate_native_blueprint` action - never
+pre-committed, because a blueprint write is a file that cannot be undone.
+
+**No sorting filters, deliberately and visibly.** Each line has its own
+container, so nothing shares a belt and a filter would be ceremony; combining
+lines onto one bus would also need a merger, still refused by the generated
+blueprint denylist. `plan.topology` states the choice rather than letting the
+absence look like an oversight, and points at `plan_storage_bus` for a genuinely
+mixed intake.
+
+Two defects found by testing, both mine:
+
+1. Without an explicit `items` list every line was skipped, because the supply
+   planner requires a named product and the composer never supplied one.
+   `defaultProductFor` now picks the obvious product for an ore - available,
+   consumes it, fewest ingredients, not an alternate - and the result records
+   whether the product was defaulted or named.
+2. The first test fixture was hand-assembled and silently lacked
+   `duration_seconds`, so every production probe returned nothing and the
+   composer looked broken when it was not. The fixture now builds through the
+   real `buildGraph`, which cannot drift from what the pipeline produces.
+
+**1085/1085 companion tests.** Companion-only; no rebuild.
+
+**The remaining gate is a live run.** Nothing composed here has been stamped in
+a real game.
+
+### Codex — combined with Claude through 3a3e56e (2026-09-21)
+
+Owner requested continued combined work. Integrated completed companion changes
+7fc092c, 4fe4a0a, 17aa7e9, 37689d2, bb617eb, a386789, e5e39db, 094ac71,
+a12e6df, c1e10c3, 76facae, 3c07354, 3f7b903, 3a3e56e. This preserves the
+existing Architect geometry/revisions/previews and Codex native base restore,
+alongside deck/underside survey, supply-driven planning, multi-floor hub/service
+layer, balancing, stampable named belt endpoints, sorted bus and provider error
+and loop diagnostics. Code integrated cleanly. Append-only handoff conflicts
+were concatenated; original complete Claude handoffs remain on his branch.
+
+All 1174 companion tests pass. Sorting-rule OutputIndex -> connector order still
+has Claude's explicit assumption; the native header exposes protected mOutputs
+without a public accessor or reflection property. Integration does not turn that
+assumption into measured evidence. Stamp/item-flow proof remains required.
+
+Final combined native Shipping build succeeded (202.72s, no new compiler
+warnings). The game is now closed. Syncing combined companion into the reserved
+Starter plugin and proceeding with Editor build, packaging and deployment.
+No destination base has been spawned or save/reload-verified yet.

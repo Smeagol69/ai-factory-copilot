@@ -23,6 +23,8 @@ import { compileArchitectAccess } from "./architect-access.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
+import { surveyDecks } from "./site-survey.mjs";
+import { centralHubActions, composeCentralHub } from "./central-hub.mjs";
 import { compileArchitectPromotion } from "./architect-promotion.mjs";
 import {
   planBeltedModule,
@@ -448,11 +450,20 @@ export const SOLVER_TOOLS = [
       type: "object",
       properties: {
         actor_id: { type: "string", description: "Exact actor_id, or the trailing name portion of one." },
+        center_cm: {
+          type: "object",
+          description:
+            "Search around a position rather than around the player. Results are sorted by distance from this point, which is what makes \"what is at these coordinates\" answerable.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y"],
+          additionalProperties: false,
+        },
+        radius_m: { type: "number", description: "Optional radius in metres around center_cm; matches outside it are dropped." },
         name_contains: { type: "string", description: "Substring of the actor's name, e.g. \"ResourceNode12\"." },
         resource_name: { type: "string", description: "Resource held, e.g. \"Iron Ore\", \"Coal\"." },
         kind: {
           type: "string",
-          enum: ["resource_node", "buildable", "item_pickup", "player", "vehicle"],
+          enum: ["resource_node", "buildable", "lightweight_buildable", "item_pickup", "player", "vehicle"],
           description: "Restrict to one kind of actor.",
         },
         limit: { type: "number", description: "Maximum matches to return. Defaults to 10, nearest first." },
@@ -563,6 +574,81 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => censusExtractedSupply(graph, args),
+  },
+
+  {
+    name: "compose_central_hub",
+    description:
+      "CALL THIS ALONE - it is the complete answer to a central-hub request, and it already surveys decks, censuses extractors and sizes production internally. Do NOT call survey_decks, get_extracted_supply or plan_supply_driven_production first; chaining them wastes rounds and reaches the round limit without answering. Composes a complete central hub onto a foundation deck that already exists, as one generated blueprint the player stamps. Surveys the world's decks and picks one, censuses every live extractor, sizes one production line per ore at exact recipe ratios against the ore actually deliverable, lays the lines out on that deck at its own top height, belts each line into its own storage container, and checks the whole footprint fits. Machine footprints are measured from the player's own buildings - a machine never built here refuses rather than being guessed. Use this for \"build me a central hub for my miners\", \"a walk-in building I can pull every resource from\", or any request to turn placed miners into a finished production-and-storage building. It composes only; the returned action must be committed separately, because a native blueprint write is a file and cannot be undone. Each line gets its own container, so nothing shares a belt and no sorting filter is needed; use plan_storage_bus instead when the intake is genuinely mixed. Refuses by name when there is no deck, no extractor, no measured machine, or when the hub does not fit.",
+    parameters: {
+      type: "object",
+      properties: {
+        center_cm: {
+          type: "object",
+          description: "Optional area to build in; the largest deck near it is chosen.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y"],
+          additionalProperties: false,
+        },
+        radius_m: { type: "number", description: "Optional radius in metres around center_cm." },
+        deck_id: { type: "string", description: "Exact deck_id from survey_decks, to choose a specific surface." },
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional exact product class paths, one per line. Omit to make the obvious product for each ore.",
+        },
+        max_lines: { type: "number", description: "Most production lines to compose. Default 6." },
+        container_class_path: { type: "string", description: "Optional exact storage container class." },
+        service_level: { type: "boolean", description: "Put the balancer splitters below the deck so the walking surface stays clear. Defaults to doing so only when a structure below proves the space is real, because ground height under a deck is not known." },
+        blueprint_name: { type: "string", description: "Name for the generated blueprint. Defaults to Central Hub." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: (graph, args) => {
+      const plan = composeCentralHub(graph, args);
+      if (!plan.composed) return plan;
+      const name = String(args?.blueprint_name ?? "").trim() || "Central Hub";
+      // `parts` and `conveyors` are dropped from the reply because
+      // `proposed_action` already carries them verbatim. Returning both sent
+      // the same few hundred entries twice through every remaining tool round,
+      // which is how one request reached 568k input tokens and ran out of
+      // rounds before it could answer.
+      const { parts, conveyors, supply_census: supplyCensus, ...summary } = plan;
+      return {
+        ...summary,
+        part_count: parts.length,
+        conveyor_count: conveyors.length,
+        blueprint_name: name,
+        proposed_action: centralHubActions(plan, { blueprint_name: name, commit: false })[0],
+        to_build:
+          "pass proposed_action to perform_actions with commit set true; it must be the only committed " +
+          "write in that request, because a native blueprint write is a file and cannot be undone.",
+      };
+    },
+  },
+
+  {
+    name: "survey_decks",
+    description:
+      "The buildable surfaces that already exist, as decks rather than as a list of boxes. Clusters foundation-like pieces into contiguous surfaces and reports each one's extent in metres and grid cells, its top Z, how many pieces form it, and what already stands on it. Use this before placing anything onto an existing base - it answers \"where is there room, and at what height\", which a list of two thousand foundation instances does not. Deck-like is decided by class name OR by geometry (thin relative to its footprint), and which rule matched is reported, so modded foundations are found rather than missed. Pass center_cm and radius_m to survey one area. A deck is a surface, not a promise the game will accept a build there; clearance remains the hologram's decision.",
+    parameters: {
+      type: "object",
+      properties: {
+        center_cm: {
+          type: "object",
+          description: "Optional centre to survey around, in centimetres.",
+          properties: { x: { type: "number" }, y: { type: "number" }, z: { type: "number" } },
+          required: ["x", "y"],
+          additionalProperties: false,
+        },
+        radius_m: { type: "number", description: "Optional radius in metres around center_cm." },
+        min_cells: { type: "number", description: "Ignore surfaces smaller than this many 8 m cells. Default 4." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: (graph, args) => surveyDecks(graph, args),
   },
 
   {
@@ -1413,8 +1499,16 @@ export const SOLVER_TOOLS = [
                     recipe_class: { type: "string", description: "Exact unlocked conveyor-belt Build Gun recipe." },
                     from_part_id: { type: "string" },
                     to_part_id: { type: "string" },
-                    from_connector_name: { type: "string" },
-                    to_connector_name: { type: "string" },
+                    from_connector_name: {
+                      type: "string",
+                      description:
+                        "Required whenever the source has more than one free output - a splitter has three, so every belt leaving one must name its output. Take the name from the connectors in the snapshot; two belts must never name the same one.",
+                    },
+                    to_connector_name: {
+                      type: "string",
+                      description:
+                        "Required whenever the target has more than one free input - a storage container has several, so a machine belting into one must name the input it uses. A single-input machine needs no name.",
+                    },
                   },
                   required: ["link_id", "recipe_class", "from_part_id", "to_part_id"],
                   additionalProperties: false,

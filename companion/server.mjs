@@ -68,6 +68,42 @@ function hasTokenUsage(usage) {
   ].some((name) => Number(usage?.[name] ?? 0) > 0);
 }
 
+/**
+ * Why the provider failed, in one line the player can act on.
+ *
+ * This used to say only "did not complete", which made every provider failure
+ * look identical: an exhausted credit balance, a context overflow and a network
+ * drop all produced the same sentence. Three separate failures on this project
+ * were diagnosed by guessing before this existed, and the underlying message
+ * was captured the whole time - it simply was never shown.
+ *
+ * Token usage is included when the provider reported it, because a very large
+ * input is often the explanation by itself.
+ */
+function describeProviderFailure(message, info) {
+  const parts = [];
+  const text = String(message ?? "").trim();
+  parts.push(text || "no error message was returned");
+  if (info?.kind && info.kind !== "provider_error") parts.push(`kind ${info.kind}`);
+  if (info?.model) parts.push(`model ${info.model}`);
+  const usage = info?.usage ?? null;
+  const input = Number(usage?.input_tokens ?? usage?.prompt_tokens);
+  const output = Number(usage?.output_tokens ?? usage?.completion_tokens);
+  if (Number.isFinite(input) && input > 0) {
+    parts.push(
+      `${Math.round(input / 1000)}k tokens in` +
+        (Number.isFinite(output) && output > 0 ? `, ${Math.round(output / 1000)}k out` : ""),
+    );
+  }
+  // The sequence of solvers is the diagnosis for a loop that never converged:
+  // it shows what the model kept reaching for instead of answering.
+  if (Array.isArray(info?.solver_calls) && info.solver_calls.length > 0) {
+    parts.push(`called ${info.solver_calls.join(" -> ")}`);
+  }
+  if (info?.response_id) parts.push(`response ${info.response_id}`);
+  return parts.join(" | ");
+}
+
 function providerFailureDetails(error, selectedProvider) {
   const preflight =
     !error?.provider &&
@@ -77,6 +113,9 @@ function providerFailureDetails(error, selectedProvider) {
   const cache = error?.cache ?? null;
   return {
     kind: error?.code ?? "provider_error",
+    solver_calls: Array.isArray(error?.solver_calls)
+      ? error.solver_calls.map((entry) => entry?.name).filter(Boolean)
+      : null,
     provider: error?.provider ?? selectedProvider,
     model: error?.model ?? null,
     response_id: error?.response_id ?? null,
@@ -949,9 +988,11 @@ export function createBridgeServer({ env = process.env } = {}) {
             reply:
               providerFailureInfo.kind === "solver_grounding_required"
                 ? formatGroundingFailureReply(context.question, fallback.reply)
-                : `The configured ${provider} request did not complete. No model-proposed action ` +
-                  `was kept. The verified diagnostic below may not answer the original question, ` +
-                  `but it preserves live evidence instead of dropping the request.\n\n${fallback.reply}`,
+                : `The configured ${provider} request did not complete: ` +
+                  `${describeProviderFailure(providerFailure, providerFailureInfo)}. ` +
+                  `No model-proposed action was kept. The verified diagnostic below may not answer ` +
+                  `the original question, but it preserves live evidence instead of dropping the ` +
+                  `request.\n\n${fallback.reply}`,
           };
         }
       }

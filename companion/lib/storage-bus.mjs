@@ -37,7 +37,7 @@
  */
 
 import { findBestAvailableBelt, findBuildRecipeForBuilding } from "./base-build.mjs";
-import { measureSplitterTopology } from "./routing.mjs";
+import { measureFactoryPorts, measureSplitterTopology } from "./routing.mjs";
 
 /** One 8 m build grid cell, in centimetres. */
 const GRID_CELL_CM = 800;
@@ -238,6 +238,41 @@ export function planStorageBus(graph, args = {}) {
     });
   }
 
+  // --- which connector is which --------------------------------------------
+  //
+  // The exporter refuses an endpoint that does not resolve to exactly one free
+  // connector, and every belt in this bus leaves a splitter with several. So
+  // each link has to name the output it means, and lane `i` takes output `i`
+  // so that a rule's index and the belt it filters agree.
+  //
+  // In captured component order, deliberately. A rule's OutputIndex is
+  // resolved by the game against `mOutputs`, a cache built at BeginPlay that
+  // class defaults do not expose - only its declaration ships. Component order
+  // is the closest thing to it we can observe, and sorting by name throws that
+  // ordering away. This is the one number in this plan that is assumed rather
+  // than measured, and the plan says so.
+  const outputNames = (topology.outputs_in_component_order ?? topology.outputs)
+    .map((output) => output.component_name);
+  const namedOutputs = outputNames.every(Boolean) &&
+    new Set(outputNames).size === outputNames.length;
+  if (!namedOutputs) {
+    return refuse(
+      "this splitter's outputs do not have distinct names, so no belt could say which one it leaves by",
+      {
+        splitter_class_path: topology.class_path,
+        observed_output_names: outputNames,
+        missing: ["distinct_splitter_output_connector_names"],
+      },
+    );
+  }
+  const containerPorts = measureFactoryPorts(graph, containerClassPath);
+  const containerInputName = (index) => {
+    if (!containerPorts.resolved) return null;
+    const list = containerPorts.inputs;
+    if (list.length <= 1) return null;
+    return list[index]?.component_name ?? null;
+  };
+
   // --- layout -------------------------------------------------------------
   const chain = assignLanes(items.length, outputCount);
   const parts = [];
@@ -251,6 +286,7 @@ export function planStorageBus(graph, args = {}) {
 
   let itemCursor = 0;
   let previousSplitterId = null;
+  let previousSplitterLanes = 0;
   for (const splitter of chain) {
     const splitterPartId = `splitter_${splitter.index + 1}`;
     const splitterX = base.x + splitter.index * SPLITTER_PITCH_CM;
@@ -269,11 +305,16 @@ export function planStorageBus(graph, args = {}) {
 
     // The bus carries on from the previous splitter into this one.
     if (previousSplitterId) {
+      // The previous splitter's lanes took outputs 0..lanes-1, so the bus
+      // carries on out of the one after them.
       conveyors.push({
         link_id: `bus_${splitter.index}`,
         recipe_class: belt.recipe_class,
         from_part_id: previousSplitterId,
         to_part_id: splitterPartId,
+        from_connector_name: outputNames[previousSplitterLanes],
+        // A splitter has one input, so the receiving end needs no name.
+        to_connector_name: null,
       });
     }
 
@@ -300,6 +341,8 @@ export function planStorageBus(graph, args = {}) {
         recipe_class: belt.recipe_class,
         from_part_id: splitterPartId,
         to_part_id: containerPartId,
+        from_connector_name: outputNames[lane],
+        to_connector_name: containerInputName(0),
       });
       // The rule's output index is positional: the game resolves it against
       // the splitter's own output ordering, which is a runtime cache and not
@@ -319,6 +362,7 @@ export function planStorageBus(graph, args = {}) {
     }
 
     previousSplitterId = splitterPartId;
+    previousSplitterLanes = splitter.lanes;
   }
 
   // --- overflow -----------------------------------------------------------
@@ -340,11 +384,15 @@ export function planStorageBus(graph, args = {}) {
     },
     yaw: 0,
   });
+  // The last splitter's lanes took outputs 0..lanes-1; overflow leaves by the
+  // one after them, the same output a further splitter would have used.
   conveyors.push({
     link_id: "lane_overflow",
     recipe_class: belt.recipe_class,
     from_part_id: lastSplitter.part_id,
     to_part_id: overflowPartId,
+    from_connector_name: outputNames[previousSplitterLanes],
+    to_connector_name: containerInputName(0),
   });
 
   // Splitters that ended up with no rules carry an even split, which is legal
@@ -381,6 +429,19 @@ export function planStorageBus(graph, args = {}) {
         alternatives: containerCandidates.slice(1, 4).map((entry) => entry.class_path),
       },
       belt: { tier: belt.tier, recipe: belt.recipe_class, name: belt.name },
+      // The one thing in this plan that is not measured. Everything else here
+      // was read off the player's own buildings; this was reasoned about.
+      output_index_mapping: {
+        assumed: "a sort rule's output index selects the output in captured component order",
+        output_names_in_order: outputNames,
+        why:
+          "the game resolves a rule's index against mOutputs, a cache built at BeginPlay that " +
+          "class defaults do not expose - only its declaration ships, so the mapping cannot be " +
+          "measured from here. Component order is the closest observable thing to it.",
+        how_to_check:
+          "stamp the bus, run one item into it, and see which container fills. If it is the wrong " +
+          "one, the lanes are permuted and the rule indices need reordering - nothing else is wrong.",
+      },
       items_from: Array.isArray(requestedItems) && requestedItems.length > 0
         ? "explicit_request"
         : "captured_extractors",
