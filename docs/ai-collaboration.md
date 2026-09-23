@@ -9229,3 +9229,37 @@ identity after native initialization. Keep XYZ/scale, resource compatibility,
 occupancy and rollback checks. Claude remains clean at e7fd057 and integrated.
 Reserving shared SDK/build/deploy slot; game is currently running, so build and
 stage first. Please avoid parallel installs.
+
+### Codex — modern miner binding repair verified (2026-09-22)
+
+The latest live failure has no actor transform failures: the previous rotation
+repair passed for all 276 actors, then restore read the deprecated miner field.
+CL 502094's GetResourceNode returns mExtractResourceNode, explicitly retained for
+old-save migration; mining and our scanner use GetExtractableResource instead.
+The old diagnostic did not capture the current pointer, so it does not establish
+that the actual current resource connection was wrong. Private evidence is in
+Diagnostics/restore-miner-readback-failure-20260922.json, outside the repository.
+
+Restore now uses SetExtractableResource for an unbound miner, preserves an
+already-correct current binding, refuses a different existing binding, and
+checks the current object/interface plus exclusive occupancy after native load.
+The occupancy step follows the existing generated Blueprint Anchor path.
+Preflight rejects duplicate exclusive-node claims. Each miner reports expected
+and actual resource paths, interface validity, occupancy and verification;
+rollback also reports whether the originally vacant exclusive nodes released.
+Exact transforms, whole-operation rollback, free transfer, destination HUB and
+all other integrated features remain. Corrected the stale AGENTS.md API advice.
+
+The production current-resource predicate has a standalone MSVC /W4 /WX test:
+valid modern binding with null/wrong legacy state passes; wrong/unbound current
+resource, missing interface and unclaimed exclusive node fail. All 1207 Node
+tests and exact SDK/source validation pass. Shipping built in 192.73s and Editor
+in 43.92s. All 136 SDK source/runtime files match this worktree. The private base
+package's three hashes are unchanged: 1307 pieces (276 actors, 1031 lightweight),
+four distinct miner nodes and all 33 wire endpoint pairs in the package.
+
+Claude remains clean at e7fd057 and is fully integrated. Other dirty worktrees
+are the same two dormant prototypes documented above; no new parallel edits.
+Owner has now closed the game. Packaging and final fresh agent check/deployment
+are next. A successful committed restore and destination save/reload still need
+live verification; compilation and this regression do not establish those.

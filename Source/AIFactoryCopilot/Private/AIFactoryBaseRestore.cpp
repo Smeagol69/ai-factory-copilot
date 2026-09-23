@@ -1,4 +1,5 @@
 #include "AIFactoryBaseRestore.h"
+#include "AIFactoryBaseResourceBinding.h"
 #include "AIFactoryBaseTransformMatch.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableBlueprintDesigner.h"
@@ -258,6 +259,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     double Count, ActorCount;
     if (!BaseNumber(Package, TEXT("piece_count"), Count) || !BaseNumber(Package, TEXT("actor_count"), ActorCount) || Count != ActorRows->Num() + LightRows->Num() || ActorCount != ActorRows->Num() || Count <= 0) return Refuse(TEXT("base_piece_count_mismatch"));
     TArray<FBaseActor> Actors; TArray<FBaseLight> Lights; TSet<FString> Ids; FBox Bounds(ForceInit);
+    TSet<AFGResourceNode*> ExclusiveNodes;
     for (const auto& Value : *ActorRows)
     {
         const FBaseJson* Json = nullptr;
@@ -289,6 +291,11 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
             if (!Extractor || !Extractor->IsAllowedOnResource(Resource)) return Refuse(TEXT("original_resource_node_incompatible:") + NodePath);
             if (Actor.Node->IsOccupied()) return Refuse(TEXT("original_resource_node_occupied:") + NodePath);
             if (!Extractor->CanOccupyResource(Resource)) return Refuse(TEXT("original_resource_node_cannot_be_occupied:") + NodePath);
+            if (Actor.Node->CanBecomeOccupied())
+            {
+                if (ExclusiveNodes.Contains(Actor.Node)) return Refuse(TEXT("multiple_saved_miners_claim_same_resource_node:") + NodePath);
+                ExclusiveNodes.Add(Actor.Node);
+            }
         }
     }
     // Canonically equivalent quaternions (including opposite signs) cannot
@@ -358,6 +365,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     FString Failure;
     TArray<TSharedPtr<FJsonValue>> LoaderReadback;
     TArray<TSharedPtr<FJsonValue>> TransformFailures;
+    TArray<TSharedPtr<FJsonValue>> ResourceReadback;
     TArray<AFGBuildable*> Loaded;
     if (!Descriptor) Failure = TEXT("native_base_archive_not_readable");
     else
@@ -393,8 +401,29 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
                     else if (Actor.Node)
                     {
                         auto* Extractor = Cast<AFGBuildableResourceExtractorBase>(Actor.Created);
-                        if (!Extractor) Failure = TEXT("saved_extractor_class_mismatch");
-                        else Extractor->SetResourceNode(Actor.Node);
+                        if (!Extractor) { if (Failure.IsEmpty()) Failure = TEXT("saved_extractor_class_mismatch:") + Actor.Id; continue; }
+                        UObject* Bound = Extractor->GetExtractableResource().GetObject();
+                        if (Bound && Bound != Actor.Node)
+                        {
+                            if (Failure.IsEmpty()) Failure = TEXT("restored_miner_bound_to_unexpected_resource:") + Actor.Id;
+                            continue;
+                        }
+                        if (!Bound)
+                        {
+                            if (Actor.Node->IsOccupied())
+                            {
+                                if (Failure.IsEmpty()) Failure = TEXT("original_resource_node_became_occupied:") + Actor.Id;
+                                continue;
+                            }
+                            const TScriptInterface<IFGExtractableResourceInterface> Resource(Actor.Node);
+                            Extractor->SetExtractableResource(Resource);
+                        }
+                        // This node was vacant at preflight and is unique in
+                        // the import. Mirror the existing resource-anchor path:
+                        // claim it only after exact modern-interface readback.
+                        const auto Resource = Extractor->GetExtractableResource();
+                        if (Resource.GetObject() == Actor.Node && Resource.GetInterface() && Actor.Node->CanBecomeOccupied())
+                            Actor.Node->SetIsOccupied(true);
                     }
             });
     }
@@ -417,7 +446,18 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
         if (Actor.Node)
         {
             auto* Extractor = Cast<AFGBuildableResourceExtractorBase>(Actor.Created);
-            if (!Extractor || Extractor->GetResourceNode() != Actor.Node) Failure = TEXT("restored_miner_resource_readback_failed");
+            const auto Resource = Extractor ? Extractor->GetExtractableResource() : TScriptInterface<IFGExtractableResourceInterface>();
+            const bool Verified = AIFactoryBaseResourceBinding::Matches(Extractor, Actor.Node);
+            FBaseJson Binding = MakeShared<FJsonObject>();
+            Binding->SetStringField(TEXT("source_id"), Actor.Id);
+            Binding->SetStringField(TEXT("runtime_id"), Actor.Created->GetPathName());
+            Binding->SetStringField(TEXT("expected_resource_node"), Actor.Node->GetPathName());
+            Binding->SetStringField(TEXT("actual_extractable_resource"), IsValid(Resource.GetObject()) ? Resource.GetObject()->GetPathName() : TEXT(""));
+            Binding->SetBoolField(TEXT("extractable_interface_valid"), Resource.GetInterface() != nullptr);
+            Binding->SetBoolField(TEXT("node_occupied"), Actor.Node->IsOccupied());
+            Binding->SetBoolField(TEXT("verified"), Verified);
+            ResourceReadback.Add(MakeShared<FJsonValueObject>(Binding));
+            if (!Verified && Failure.IsEmpty()) Failure = TEXT("restored_miner_resource_readback_failed:") + Actor.Id;
         }
     }
     // Resolve the recorded component identity, not merely a circuit count.
@@ -465,6 +505,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
         Result.Observed = MakeShared<FJsonObject>(); Result.Observed->SetBoolField(TEXT("rollback_attempted"), true);
         Result.Observed->SetArrayField(TEXT("native_loader_readback"), LoaderReadback);
         Result.Observed->SetArrayField(TEXT("exact_transform_readback_failures"), TransformFailures);
+        Result.Observed->SetArrayField(TEXT("resource_node_readback"), ResourceReadback);
         bool RolledBack = true;
         for (AFGBuildable* Actor : NewActors) if (IsValid(Actor) && !Actor->IsActorBeingDestroyed()) RolledBack = false;
         for (const auto& Pair : NewLights)
@@ -473,6 +514,9 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
             if (Data && Data->IsValid()) RolledBack = false;
         }
         Result.Observed->SetBoolField(TEXT("created_buildables_removed"), RolledBack);
+        bool NodesReleased = true;
+        for (AFGResourceNode* Node : ExclusiveNodes) if (IsValid(Node) && Node->IsOccupied()) NodesReleased = false;
+        Result.Observed->SetBoolField(TEXT("resource_nodes_released"), NodesReleased);
         return Result;
     }
     OutUndo.Action = Action; OutUndo.Player = Context.Player; OutUndo.RecordedAt = FDateTime::UtcNow(); OutUndo.Description = TEXT("Restored base ") + PackageName;
@@ -496,6 +540,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
         Readback.Add(MakeShared<FJsonValueObject>(Row));
     }
     Result.Observed = MakeShared<FJsonObject>(); Result.Observed->SetArrayField(TEXT("pieces"), Readback);
+    Result.Observed->SetArrayField(TEXT("resource_node_readback"), ResourceReadback);
     Result.Observed->SetBoolField(TEXT("all_saved_transforms_match"), true); Result.Observed->SetNumberField(TEXT("piece_count"), Readback.Num());
     Result.Observed->SetStringField(TEXT("scope"), TEXT("created_by_this_restore")); Result.Observed->SetBoolField(TEXT("complete"), true); Result.Observed->SetStringField(TEXT("map_name"), Map);
     Result.Warnings.Add(TEXT("Immediate native geometry, miner and power-wire readback passed. Save/reload persistence and arbitrary mod state require a live check."));

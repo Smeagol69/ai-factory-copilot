@@ -25,3 +25,15 @@ one-to-one match of every actor using the production comparer. Keep save data an
 runtime diagnostics outside the repository. This replay verifies actor identity
 matching; it does not claim construction, lightweight spawning or save/reload
 persistence succeeded in the game.
+
+## Current miner resource binding
+
+`base-resource-binding.cpp` exercises the production resource-readback predicate
+with separate current and legacy fields. A current binding must work with a null
+legacy field; a matching legacy field must never hide a wrong/unbound current
+resource, missing interface or unclaimed exclusive node.
+
+```powershell
+cl /nologo /std:c++17 /EHsc /W4 /WX tests/native/base-resource-binding.cpp "/Fe:$env:TEMP/aifactory-base-resource-binding.exe" "/Fo:$env:TEMP/aifactory-base-resource-binding.obj"
+& "$env:TEMP/aifactory-base-resource-binding.exe"
+```

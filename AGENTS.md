@@ -125,7 +125,10 @@ succeed; only the final copy fails.
   not found.
 - **`ModiferKeyForNewLine`** — the engine misspells "Modifier". Spell it their way.
 - **`GetExtractableResourceActor()` is protected.** Use the public
-  `GetResourceNode()`.
+  `GetExtractableResource().GetObject()` and validate `GetInterface()`.
+  `GetResourceNode()` is deprecated old-save migration state in CL 502094 and
+  can be null on a working miner. Bind through `SetExtractableResource()` and
+  verify the current interface plus node occupancy.
 - **`RP_Inpure`**, not `RP_Impure`. The engine misspells this too.
 - **Thinking tokens come out of `max_tokens`.** A small budget spends the whole
   allowance reasoning and truncates the answer. Anthropic default is 16000.
