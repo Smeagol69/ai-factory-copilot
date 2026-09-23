@@ -44,6 +44,7 @@ test("observe caches changed same-revision data while saved-base commands remain
   const observe = () => post("/v1/observe", { schema: "aifactory.observe", schema_version: 1, world_snapshot: snapshot });
   const first = await observe();
   assert.equal(first.schema, "aifactory.observe.ack");
+  assert.equal(first.schema_version, 1);
   assert.equal(first.stored, true);
   assert.equal(first.actions, undefined);
   assert.equal(first.reply, undefined);
@@ -71,4 +72,42 @@ test("observe caches changed same-revision data while saved-base commands remain
     assert.equal(answer.actions[0].action, "restore_base");
     assert.equal(answer.actions[0].commit, commit);
   }
+});
+
+test("observe reports failed persistence and accepts a retry at the same revision", async t => {
+  const tempRoot = fs.realpathSync(os.tmpdir());
+  const scratch = fs.mkdtempSync(path.join(tempRoot, "aifactory-observe-retry-"));
+  const directory = path.join(scratch, "snapshots");
+  fs.writeFileSync(directory, "a file blocking the cache directory");
+  const server = createBridgeServer({ env: { AI_PROVIDER: "mock", AIFACTORY_ROUTING_LOG: "off",
+    AIFACTORY_TERRAIN_CACHE: "off", AIFACTORY_SNAPSHOT_CACHE: directory } });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    assert.equal(path.dirname(fs.realpathSync(scratch)), tempRoot);
+    fs.rmSync(scratch, { recursive: true, force: true });
+  });
+  const snapshot = buildFactorySnapshot();
+  snapshot.world = { ...snapshot.world, map: "Persistent_Level", session_name: "isolated retry" };
+  const observe = async () => {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/v1/observe`, {
+      method: "POST", headers: { "content-type": "application/json", "X-AIFactory-Schema": "1" },
+      body: JSON.stringify({ schema: "aifactory.observe", schema_version: 1, world_snapshot: snapshot }),
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const failed = await observe();
+  assert.equal(failed.schema, "aifactory.observe.ack");
+  assert.equal(failed.schema_version, 1);
+  assert.equal(failed.stored, false, "HTTP 200 alone is not proof the capture reached disk");
+  assert.equal(failed.reason, "snapshot_cache_write_failed");
+  assert.equal(failed.actions, undefined);
+  fs.unlinkSync(directory);
+  const retried = await observe();
+  assert.equal(retried.stored, true, "a failed capture must not poison deduplication for its retry");
+  assert.deepEqual(createSnapshotCache({ directory }).read(retried.save_id).snapshot, snapshot);
+  const unchanged = await observe();
+  assert.equal(unchanged.stored, false);
+  assert.equal(unchanged.reason, "snapshot_cache_world_is_unchanged");
 });

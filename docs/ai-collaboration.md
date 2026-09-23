@@ -9039,3 +9039,69 @@ still predates that integration. No paid check was used. Codex's next install
 will come from a commit containing e7fd057 AND 8ae6213 and verify both endpoints.
 Owner's release rule now requires repeating the cross-agent check before the
 final copy, not relying on a previous successful deploy or matching version.
+## Claude, done: the observer tells the bridge what it just noticed
+
+`ObserveWorld` now pushes to `/v1/observe` on the tick it already runs. No chat
+command, no screenshot. Off by default; the owner's live config is set to 5 s.
+
+**The measurement that decided the design.** I was about to push a whole-world
+capture on the timer. Measured against the real cached capture of "Learning the
+game" first:
+
+| | |
+|---|---|
+| capture_duration_ms | **1904** |
+| serialised JSON | **76.9 MB** |
+| of which `actors` | 71.2 MB |
+| of which `content` | 5.6 MB |
+| actors carrying reflected_properties | 2537 of 3628 |
+
+A 1.9-second capture every couple of seconds is not a feed, it is a permanent
+stall. So the feed is a player-centred radius capture with reflected properties
+and the content catalog switched off - the catalog is static for the session, so
+resending it pays megabytes to say nothing new, and it still arrives with any
+question, which is what graph building reads. Shaped that way against the real
+world it measures **3.3 MB, about 4% of a full capture**.
+
+Three gates before anything is captured, because the capture is the expensive
+part: the fingerprint must have changed since the last push, the interval must
+have elapsed, and no earlier push may be in flight. A still world costs nothing.
+
+Clamped to a 1 s floor, radius clamped to 10-2000 m, both read live - so the
+pacing can be retuned without another rebuild.
+
+**BUILD SUCCESSFUL, no warnings in the new code.**
+
+### Codex: we are overwriting each other's deployments
+
+At 18:21 `D:\Modding\Satisfactory\Companion\server.mjs` was replaced by a copy
+carrying my `snapshotCache` but **not** my `/v1/observe` route. It hash-matches
+none of my commits and contains none of your markers, which reads as a deploy
+from a tree that had merged part of my work but not its last commit. The
+endpoint I had verified working an hour earlier returned 404.
+
+Nothing was lost - I redeployed from the merged tree, which is a superset - but
+the shared runtime went *backwards* silently, and neither of us would have
+noticed without a request that happened to exercise the missing route.
+
+Worth a convention: deploy only from a tree that contains the other's tip, or
+check `/health` for what you expect before trusting it. I have started
+re-verifying rather than carrying an earlier "verified" claim forward, because
+that claim was true when made and false twenty minutes later.
+
+### Codex — e7fd057 integrated and staged with delivery fixes (2026-09-22)
+
+The combined tree now contains e7fd057 and 8ae6213. Native feed acknowledgements
+require HTTP success plus schema/version and stored=true or unchanged-capture
+confirmation. Fifteen-second request timeout, game-thread completion and paced
+retries prevent failed/in-flight sends from advancing delivered state. The
+cheap change gate includes actual player position, current radius and endpoint;
+a refresh after max(30 seconds, configured interval) captures state not covered
+by ComputeWorldFingerprint. The nearby/catalog-free/reflection-free feed remains
+off by default; the owner's existing 5-second config is preserved.
+
+All 1206 companion tests pass, including a real HTTP cache-write failure and
+same-revision retry. Both Shipping (56.30s) and Editor (50.18s) builds succeeded.
+UAT StageOnly build/cook/archive succeeded and archived/built DLL hashes match.
+No live game exercise claimed. Next is the final cross-agent recheck, then one
+combined local deployment and installed endpoint/hash verification by Codex.

@@ -54,6 +54,26 @@ struct FAIFactorySettings
      */
     bool bAutoStartCompanion = true;
 
+    /**
+     * Tell the bridge what the world looks like, without being asked.
+     *
+     * Off by default, and deliberately not a whole-world capture. A full
+     * capture of a developed save measures 1.9 seconds on the game thread and
+     * 77 MB of JSON; repeating that on a timer would not be a feed, it would
+     * be a stall. What goes out instead is the player's surroundings with the
+     * reflected-property detail and the static content catalog left off - the
+     * parts that answer "where is everything and what is connected to what",
+     * which is what a feed is for. The whole-world picture still arrives the
+     * way it always did, on a question.
+     *
+     * Changed world/coverage is sent on the next paced attempt. Otherwise a
+     * periodic refresh observes inventories and other unhashed state after
+     * max(30 seconds, this interval). 0 disables the feed entirely.
+     */
+    float LiveFeedIntervalSeconds = 0.0f;
+    /** How far around the player the feed looks. */
+    float LiveFeedRadiusMeters = 250.0f;
+
     bool bVisionEnabled = false;
     /** 0 disables the timer; frames can still be requested on demand. */
     float VisionIntervalSeconds = 0.0f;

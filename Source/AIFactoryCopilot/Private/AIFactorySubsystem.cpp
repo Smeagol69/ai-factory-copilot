@@ -455,6 +455,21 @@ void AAIFactorySubsystem::ObserveWorld()
         MarkWorldDirty();
     }
 
+    // Pace attempts, including failed requests, without queuing captures.
+    // PushLiveFeed also checks the player's coverage and acknowledged state.
+    {
+        const FAIFactorySettings Current = FAIFactorySettings::Load();
+        if (Current.LiveFeedIntervalSeconds > 0.0f && !bLiveFeedInFlight)
+        {
+            const double Now = FPlatformTime::Seconds();
+            if (Now - LastLiveFeedSeconds >= Current.LiveFeedIntervalSeconds)
+            {
+                LastLiveFeedSeconds = Now;
+                PushLiveFeed(Current);
+            }
+        }
+    }
+
     // Native FMapMarker only controls whether the compass icon is in range; it
     // does not provide the resource scanner's dynamic text. Keep the Copilot's
     // own marker names synchronized to the exact live player distance instead.
@@ -1069,6 +1084,154 @@ FString AAIFactorySubsystem::GetBridgeSessionId(UCommandSender* Sender) const
         IsValid(World) ? *World->GetMapName() : TEXT("unknown-map"),
         *SessionName,
         IsValid(Sender) ? *Sender->GetSenderName() : TEXT("unknown-player"));
+}
+
+FString AAIFactorySubsystem::GetBridgeObserveUrl(const FString& BridgeUrl) const
+{
+    FString Url = BridgeUrl;
+    constexpr int32 AskPathLength = 7;
+    if (Url.EndsWith(TEXT("/v1/ask"), ESearchCase::IgnoreCase))
+    {
+        Url.LeftChopInline(AskPathLength);
+        Url += TEXT("/v1/observe");
+        return Url;
+    }
+    if (!Url.EndsWith(TEXT("/")))
+    {
+        Url += TEXT("/");
+    }
+    Url += TEXT("v1/observe");
+    return Url;
+}
+
+/**
+ * Tell the bridge what the world looks like, unasked.
+ *
+ * The observer already ticks and already knows whether anything changed, so
+ * this rides it rather than owning a timer - the same reasoning vision uses.
+ *
+ * Captures are paced and single-flight. The cheap buildable fingerprint does
+ * not include inventories, lightweight pieces or player movement. Include the
+ * capture coverage in the change gate, and refresh at least every 30 seconds
+ * (or the configured interval if longer) to observe the remaining state.
+ */
+void AAIFactorySubsystem::PushLiveFeed(const FAIFactorySettings& Current)
+{
+    if (bLiveFeedInFlight)
+    {
+        return;
+    }
+
+    AFGCharacterPlayer* Character = FindLocalPlayerCharacter();
+    if (!IsValid(Character))
+    {
+        // Nobody to centre on. A dedicated server with no one connected is a
+        // legitimate state, not an error to log every tick.
+        return;
+    }
+
+    FAIFactorySnapshotRequest Request;
+    Request.bUseRadius = true;
+    Request.RadiusMeters = Current.LiveFeedRadiusMeters;
+    Request.Center = Character->GetActorLocation();
+    const FString ObserveUrl = GetBridgeObserveUrl(Current.BridgeUrl);
+    uint32 FeedFingerprint = HashCombineFast(WorldFingerprint, GetTypeHash(Request.Center));
+    FeedFingerprint = HashCombineFast(FeedFingerprint, GetTypeHash(Request.RadiusMeters));
+    FeedFingerprint = HashCombineFast(FeedFingerprint, GetTypeHash(ObserveUrl));
+    const double RefreshSeconds = FMath::Max(30.0, static_cast<double>(Current.LiveFeedIntervalSeconds));
+    if (bHasLiveFeedAcknowledgement && FeedFingerprint == LastLiveFeedFingerprint &&
+        FPlatformTime::Seconds() - LastLiveFeedAcknowledgedSeconds < RefreshSeconds)
+    {
+        return;
+    }
+    // Both off deliberately. Reflected properties are most of the payload -
+    // 2,537 of 3,628 actors carried them in the capture this was measured
+    // against - and the content catalog is static for the session, so a feed
+    // that resends it is paying megabytes to say nothing new. The catalog
+    // still arrives with any question, which is what graph building reads.
+    Request.bIncludeContentCatalog = false;
+    Request.bIncludeReflectedProperties = false;
+
+    const FAIFactorySnapshotResult Snapshot = BuildSnapshot(Request);
+    TSharedPtr<FJsonObject> SnapshotObject;
+    const TSharedRef<TJsonReader<>> SnapshotReader = TJsonReaderFactory<>::Create(Snapshot.Json);
+    if (!FJsonSerializer::Deserialize(SnapshotReader, SnapshotObject) || !SnapshotObject.IsValid())
+    {
+        return;
+    }
+
+    const TSharedRef<FJsonObject> Payload = MakeShared<FJsonObject>();
+    Payload->SetStringField(TEXT("schema"), TEXT("aifactory.observe"));
+    Payload->SetNumberField(TEXT("schema_version"), 1);
+    Payload->SetObjectField(TEXT("world_snapshot"), SnapshotObject.ToSharedRef());
+
+    FString Body;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Body);
+    if (!FJsonSerializer::Serialize(Payload, Writer))
+    {
+        return;
+    }
+
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(ObserveUrl);
+    HttpRequest->SetTimeout(15.0f);
+    HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnGameThread);
+    HttpRequest->SetVerb(TEXT("POST"));
+    HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    HttpRequest->SetHeader(TEXT("X-AIFactory-Schema"), TEXT("1"));
+    HttpRequest->SetContentAsString(Body);
+
+    const TWeakObjectPtr<AAIFactorySubsystem> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis, FeedFingerprint](FHttpRequestPtr, FHttpResponsePtr Response, const bool bConnectedSuccessfully)
+        {
+            AAIFactorySubsystem* Self = WeakThis.Get();
+            if (!Self)
+            {
+                return;
+            }
+            Self->bLiveFeedInFlight = false;
+            bool bAcknowledged = false;
+            if (bConnectedSuccessfully && Response.IsValid() &&
+                Response->GetResponseCode() >= 200 && Response->GetResponseCode() < 300)
+            {
+                TSharedPtr<FJsonObject> Ack;
+                const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Response->GetContentAsString());
+                if (FJsonSerializer::Deserialize(Reader, Ack) && Ack.IsValid())
+                {
+                    FString Schema;
+                    FString Reason;
+                    double Version = 0;
+                    bool bStored = false;
+                    Ack->TryGetStringField(TEXT("reason"), Reason);
+                    bAcknowledged = Ack->TryGetStringField(TEXT("schema"), Schema) &&
+                        Schema == TEXT("aifactory.observe.ack") &&
+                        Ack->TryGetNumberField(TEXT("schema_version"), Version) && Version == 1 &&
+                        Ack->TryGetBoolField(TEXT("stored"), bStored) &&
+                        (bStored || Reason == TEXT("snapshot_cache_world_is_unchanged"));
+                }
+            }
+            if (bAcknowledged)
+            {
+                // Only an acknowledged capture may suppress future attempts.
+                // Capture the sent fingerprint, not whatever the world is now.
+                Self->LastLiveFeedFingerprint = FeedFingerprint;
+                Self->LastLiveFeedAcknowledgedSeconds = FPlatformTime::Seconds();
+                Self->bHasLiveFeedAcknowledgement = true;
+            }
+            else
+            {
+                // Retry on the next paced attempt, including HTTP/cache errors.
+                UE_LOG(LogAIFactoryCopilot, Verbose,
+                    TEXT("Live feed was not acknowledged; a paced retry remains pending."));
+            }
+        });
+
+    bLiveFeedInFlight = true;
+    if (!HttpRequest->ProcessRequest())
+    {
+        bLiveFeedInFlight = false;
+    }
 }
 
 FString AAIFactorySubsystem::GetBridgeResetUrl() const

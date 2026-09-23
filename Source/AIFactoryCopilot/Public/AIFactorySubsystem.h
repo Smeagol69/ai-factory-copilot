@@ -62,6 +62,15 @@ private:
 
     /** Wall clock of the last vision frame, so the observer can pace captures. */
     double LastVisionCaptureSeconds = 0.0;
+    /** Last attempt, including failures, so retries cannot outrun the interval. */
+    double LastLiveFeedSeconds = 0.0;
+    /** Last successful bridge ack; bounds the age of unhashed inventory state. */
+    double LastLiveFeedAcknowledgedSeconds = 0.0;
+    bool bHasLiveFeedAcknowledgement = false;
+    /** Acknowledged buildable state, player coverage, radius and endpoint. */
+    uint32 LastLiveFeedFingerprint = 0;
+    /** One push at a time; a slow bridge must not queue captures behind it. */
+    bool bLiveFeedInFlight = false;
     FTimerHandle ObserverTimer;
     FTimerHandle StartupSelfTestTimer;
     FDelegateHandle ActorSpawnedHandle;
@@ -78,5 +87,7 @@ private:
     void AttachActorObserver(AActor* Actor);
     FString GetBridgeSessionId(UCommandSender* Sender) const;
     FString GetBridgeResetUrl() const;
+    FString GetBridgeObserveUrl(const FString& BridgeUrl) const;
+    void PushLiveFeed(const FAIFactorySettings& Current);
     static void SendChatInChunks(UCommandSender* Sender, const FString& Message);
 };

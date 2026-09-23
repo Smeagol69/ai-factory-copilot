@@ -74,6 +74,8 @@ FAIFactorySettings FAIFactorySettings::Load()
     Json->TryGetBoolField(TEXT("visionEnabled"), Settings.bVisionEnabled);
     Json->TryGetBoolField(TEXT("visionIncludeUI"), Settings.bVisionIncludeUI);
     ReadNumber(Json, TEXT("visionIntervalSeconds"), Settings.VisionIntervalSeconds);
+    ReadNumber(Json, TEXT("liveFeedIntervalSeconds"), Settings.LiveFeedIntervalSeconds);
+    ReadNumber(Json, TEXT("liveFeedRadiusMeters"), Settings.LiveFeedRadiusMeters);
     ReadNumber(Json, TEXT("visionFrameHistory"), Settings.VisionFrameHistory);
     ReadNumber(Json, TEXT("terrainFootprintMeters"), Settings.TerrainFootprintMeters);
     ReadNumber(Json, TEXT("terrainResolution"), Settings.TerrainResolution);
@@ -97,9 +99,14 @@ FAIFactorySettings FAIFactorySettings::Load()
     // whole-world capture inside a single frame's budget.
     Settings.TerrainFootprintMeters = FMath::Clamp(Settings.TerrainFootprintMeters, 1.0f, 500.0f);
     Settings.TerrainResolution = FMath::Clamp(Settings.TerrainResolution, 1, 16);
-    // A floor of two seconds. Below that the capture cost stops being
-    // background noise and starts being felt, and no assistant needs to see
-    // the world more often than a person can change it.
+    if (Settings.LiveFeedIntervalSeconds > 0.0f)
+    {
+        // A floor of one second, because the capture itself costs real frame
+        // time and a feed that outruns its own capture only queues stalls.
+        Settings.LiveFeedIntervalSeconds = FMath::Clamp(Settings.LiveFeedIntervalSeconds, 1.0f, 600.0f);
+    }
+    Settings.LiveFeedRadiusMeters = FMath::Clamp(Settings.LiveFeedRadiusMeters, 10.0f, 2000.0f);
+    // A floor of two seconds for vision; faster captures add frame cost.
     if (Settings.VisionIntervalSeconds > 0.0f)
     {
         Settings.VisionIntervalSeconds = FMath::Clamp(Settings.VisionIntervalSeconds, 2.0f, 600.0f);
