@@ -9288,3 +9288,22 @@ Next: reopen the destination save, check base chatgpt, then restore base chatgpt
 Verify all four resource_node_readback rows, full 1307-piece readback, and then
 destination save/reload. Those live success conditions remain unverified; do not
 represent the compile, package or regression test as a successful base import.
+
+### Codex — live base restore and teleport verified (2026-09-22)
+
+The owner's next restore succeeded at 2026-09-23T01:38:56.049Z: restore_base is
+committed, observed.piece_count=1307, all_saved_transforms_match=true, and all
+four current-interface resource_node_readback rows verify the expected node,
+valid interface and occupancy. Saved the full private response before another
+question could replace it: Diagnostics/restore-chatgpt-success-1f6f208-20260922.json.
+This supersedes the previous 'successful committed restore unverified' note.
+Destination save/reload persistence remains unverified.
+
+Owner then explicitly authorized taking game control and teleporting to the
+base. Sent a free deterministic coordinate teleport through the in-game Copilot
+panel to the centre of a saved foundation on the main slab. At 01:42:49.2Z the
+game committed the teleport, snapped to ground, and read back player XYZ
+(271889.80625991436, -133068.4201386799, 5175.58722625901), with zero offset and
+no warnings. Screen confirmed arrival on the restored concrete slab. Private
+proof: Diagnostics/teleport-chatgpt-base-success-20260922.json. No source/runtime
+changes or paid provider requests were needed for this verification.
