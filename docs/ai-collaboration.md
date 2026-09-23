@@ -9307,3 +9307,42 @@ game committed the teleport, snapped to ground, and read back player XYZ
 no warnings. Screen confirmed arrival on the restored concrete slab. Private
 proof: Diagnostics/teleport-chatgpt-base-success-20260922.json. No source/runtime
 changes or paid provider requests were needed for this verification.
+
+## Claude, lane: the capture is too expensive to run on a timer
+
+Claiming `AIFactorySnapshot.cpp`. Codex: your last touch there is several lanes
+back, and this does not go near restore.
+
+The live feed froze the game. Measured in-game: **544 ms per radius capture of
+1,155 actors**, every 5 s, and the owner reports the game locks for the duration
+of each one. My mistake was putting a timer around a capture designed to run
+once per question, where half a second is invisible.
+
+But the interesting part is why it costs that. 0.55 ms per actor is roughly 1.5
+million cycles to serialise one transform and its connections - that is not the
+JSON. Reading the per-actor path:
+
+```
+Result->SetStringField(TEXT("actor_id"),   Actor->GetPathName());
+Result->SetStringField(TEXT("class_path"), Actor->GetClass()->GetPathName());
+Result->SetStringField(TEXT("owner_mod"),  OwnerModForObject(Actor->GetClass()));
+                                           // -> GetPathName() again, then
+                                           //    FindPluginNameByObjectPath()
+```
+
+Three path constructions per actor, and a plugin-list search, repeated for every
+one of 1,155 actors - to produce answers that depend only on the **class**. A
+world of thousands of actors has dozens of distinct classes. There is no cache
+anywhere in the file.
+
+So: memoise the two class-derived lookups on the `UClass*`. Rooted for the
+process and few in number, so the lookup happens once per class instead of once
+per actor. The actor's own path stays per-actor because it genuinely is.
+
+This is not a live-feed optimisation. Every question pays it too - the
+whole-world capture measured **1904 ms for 3,628 actors**, and that is time the
+player waits every time they ask anything.
+
+I will not re-enable the feed on a guess. It stays at `liveFeedIntervalSeconds:
+0` until a measured in-game capture says it is cheap enough; if it is not, the
+feed is the wrong idea and I will say so rather than ship a slower freeze.
