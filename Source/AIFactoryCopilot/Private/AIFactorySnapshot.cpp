@@ -139,9 +139,53 @@ namespace
         return Owner.IsEmpty() ? TEXT("Unknown") : Owner;
     }
 
+    /**
+     * A class's path and owning mod, worked out once per class.
+     *
+     * Both answers depend only on the class, but the capture asked for them
+     * once per actor: a path construction for the class, a second one inside
+     * the owner lookup, and then a plugin-list search - repeated for every
+     * actor in the world. A developed save holds thousands of actors and
+     * dozens of distinct classes, so nearly all of that work was spent
+     * recomputing answers already known.
+     *
+     * Keyed on the class object, which is rooted and outlives every instance
+     * of it, so a cached pointer cannot dangle. Both maps are only ever
+     * touched from the game thread, which is the only place a capture runs.
+     */
     FString ClassPath(const UClass* Class)
     {
-        return IsValid(Class) ? Class->GetPathName() : FString();
+        if (!IsValid(Class))
+        {
+            return FString();
+        }
+        static TMap<const UClass*, FString> PathMemo;
+        if (const FString* Hit = PathMemo.Find(Class))
+        {
+            return *Hit;
+        }
+        const FString Path = Class->GetPathName();
+        PathMemo.Add(Class, Path);
+        return Path;
+    }
+
+    FString OwnerModForClass(const UClass* Class)
+    {
+        if (!IsValid(Class))
+        {
+            return TEXT("Unknown");
+        }
+        static TMap<const UClass*, FString> OwnerMemo;
+        if (const FString* Hit = OwnerMemo.Find(Class))
+        {
+            return *Hit;
+        }
+        // Reuses the cached class path rather than building a second one.
+        const FString Owner =
+            UBlueprintAssetHelperLibrary::FindPluginNameByObjectPath(ClassPath(Class), true);
+        const FString Value = Owner.IsEmpty() ? TEXT("Unknown") : Owner;
+        OwnerMemo.Add(Class, Value);
+        return Value;
     }
 
     FString KindForActor(AActor* Actor)
@@ -169,7 +213,7 @@ namespace
             return false;
         }
 
-        const FString Owner = OwnerModForObject(Actor->GetClass());
+        const FString Owner = OwnerModForClass(Actor->GetClass());
         return !Owner.IsEmpty() &&
             Owner != TEXT("Unknown") &&
             Owner != TEXT("FactoryGame") &&
@@ -541,7 +585,7 @@ namespace
                     ClassPath(UserWidget->GetClass()));
                 Entry->SetStringField(
                     TEXT("owner_mod"),
-                    OwnerModForObject(UserWidget->GetClass()));
+                    OwnerModForClass(UserWidget->GetClass()));
                 if (const UPanelWidget* Parent = Widget->GetParent())
                 {
                     Entry->SetStringField(TEXT("parent_name"), Parent->GetName());
@@ -801,8 +845,8 @@ namespace
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetStringField(TEXT("actor_id"), Actor->GetPathName());
         Result->SetStringField(TEXT("name"), Actor->GetName());
-        Result->SetStringField(TEXT("class_path"), Actor->GetClass()->GetPathName());
-        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(Actor->GetClass()));
+        Result->SetStringField(TEXT("class_path"), ClassPath(Actor->GetClass()));
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForClass(Actor->GetClass()));
         Result->SetStringField(TEXT("kind"), Kind);
         Result->SetObjectField(TEXT("location"), VectorJson(Actor->GetActorLocation()));
         Result->SetObjectField(TEXT("rotation"), RotatorJson(Actor->GetActorRotation()));
@@ -981,7 +1025,7 @@ namespace
         Result->SetStringField(TEXT("name"), FString::Printf(TEXT("%s_%d"), *ClassName, Index));
         Result->SetStringField(TEXT("class_path"),
             IsValid(BuildableClass) ? BuildableClass->GetPathName() : FString());
-        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(BuildableClass));
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForClass(BuildableClass));
         Result->SetStringField(TEXT("kind"), TEXT("lightweight_buildable"));
         Result->SetObjectField(TEXT("location"), VectorJson(Instance.Transform.GetLocation()));
         Result->SetObjectField(TEXT("rotation"), RotatorJson(Instance.Transform.Rotator()));
@@ -1009,7 +1053,7 @@ namespace
         Result->SetStringField(TEXT("actor_id"), Buildable->GetPathName());
         Result->SetStringField(TEXT("name"), Buildable->GetName());
         Result->SetStringField(TEXT("class_path"), Buildable->GetClass()->GetPathName());
-        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(Buildable->GetClass()));
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForClass(Buildable->GetClass()));
         Result->SetStringField(TEXT("kind"), TEXT("buildable"));
         Result->SetObjectField(TEXT("location"), VectorJson(Buildable->GetActorLocation()));
         Result->SetObjectField(TEXT("rotation"), RotatorJson(Buildable->GetActorRotation()));
@@ -1188,7 +1232,7 @@ namespace
         Result->SetStringField(TEXT("actor_id"), Node->GetPathName());
         Result->SetStringField(TEXT("name"), Node->GetName());
         Result->SetStringField(TEXT("class_path"), Node->GetClass()->GetPathName());
-        Result->SetStringField(TEXT("owner_mod"), OwnerModForObject(Node->GetClass()));
+        Result->SetStringField(TEXT("owner_mod"), OwnerModForClass(Node->GetClass()));
         Result->SetStringField(TEXT("kind"), TEXT("resource_node"));
         Result->SetObjectField(TEXT("location"), VectorJson(Node->GetActorLocation()));
         Result->SetBoolField(TEXT("occupied"), Node->IsOccupied());
@@ -1269,7 +1313,7 @@ namespace
         Result->SetStringField(TEXT("actor_class_path"),
             IsValid(HitActor) ? HitActor->GetClass()->GetPathName() : TEXT(""));
         Result->SetStringField(TEXT("actor_owner_mod"),
-            IsValid(HitActor) ? OwnerModForObject(HitActor->GetClass()) : TEXT(""));
+            IsValid(HitActor) ? OwnerModForClass(HitActor->GetClass()) : TEXT(""));
         Result->SetStringField(TEXT("actor_kind"), IsValid(HitActor) ? KindForActor(HitActor) : TEXT(""));
         Result->SetStringField(TEXT("component_path"),
             IsValid(HitComponent) ? HitComponent->GetPathName() : TEXT(""));
@@ -1417,7 +1461,7 @@ namespace
             PreferredTarget->SetStringField(TEXT("actor_id"), PreferredActor->GetPathName());
             PreferredTarget->SetStringField(TEXT("actor_name"), PreferredActor->GetName());
             PreferredTarget->SetStringField(TEXT("actor_class_path"), PreferredActor->GetClass()->GetPathName());
-            PreferredTarget->SetStringField(TEXT("actor_owner_mod"), OwnerModForObject(PreferredActor->GetClass()));
+            PreferredTarget->SetStringField(TEXT("actor_owner_mod"), OwnerModForClass(PreferredActor->GetClass()));
             PreferredTarget->SetStringField(TEXT("actor_kind"), KindForActor(PreferredActor));
             PreferredTarget->SetObjectField(TEXT("actor_snapshot"), FocusActorJson(PreferredActor, Settings, World, TerrainBudget));
         }
