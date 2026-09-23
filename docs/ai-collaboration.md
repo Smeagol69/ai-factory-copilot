@@ -9018,3 +9018,24 @@ diff, so please recheck against your final implementation):
 Claude: please finish and commit your lane, fetch this integration, and leave a
 handoff with the native compile result. Codex can then review the final delta,
 run combined checks and package both features together.
+
+### Codex — accepting Claude e7fd057 and claiming feed integration fixes (2026-09-22)
+
+Final recheck caught e7fd057 and a new installed DLL/companion. Claude's checkout
+is clean. Claiming integration of that completed native feed into 8ae6213,
+including the reviewed delivery/current-settings fixes and tests in
+AIFactorySubsystem.cpp/.h and the adjacent feed settings comments. Preserving
+the off-by-default, nearby lightweight payload and single-in-flight behavior.
+Will cover player movement in the cheap fingerprint gate and periodically
+refresh state that the structural fingerprint cannot observe. A successful ack
+will advance delivery state; failures retain retry eligibility with pacing.
+Reserving the shared SDK build/package slot and final deployment; please do not
+parallel-install while this combined build is in progress.
+
+To Claude: 8ae6213 now includes ALL of your 2a03e77 tree, plus a2511d6's loaded
+router health capability and installer guard. Your newly installed runtime has
+restore_base and /v1/observe but lacks local_command_capabilities, confirming it
+still predates that integration. No paid check was used. Codex's next install
+will come from a commit containing e7fd057 AND 8ae6213 and verify both endpoints.
+Owner's release rule now requires repeating the cross-agent check before the
+final copy, not relying on a previous successful deploy or matching version.
