@@ -762,7 +762,7 @@ export function createBridgeServer({ env = process.env } = {}) {
   const showCost = env.AIFACTORY_COST_FOOTER !== "false";
   // Ground measured on any earlier visit, kept because the map never changes.
   const terrainCache = createTerrainCache({
-    filePath: env.AIFACTORY_TERRAIN_CACHE || undefined,
+    env,
   });
   // The world itself, kept so it can be read again outside a request. Every
   // other store here keeps something derived; without this the player's real
@@ -842,6 +842,42 @@ export function createBridgeServer({ env = process.env } = {}) {
         }
         activeAskRequests += 1;
         admittedAskRequest = true;
+      }
+
+      // Being told what the world looks like, rather than asked about it.
+      //
+      // /v1/ask is a conversation: it costs a model call and returns actions.
+      // A live feed wants neither - it wants somewhere to put the world every
+      // time the world moves, as cheaply as possible. So this stores and
+      // acknowledges, runs no model, emits no actions, and answers in a few
+      // hundred bytes.
+      if (request.method === "POST" && request.url === "/v1/observe") {
+        const body = await readJsonBody(request, maximumBodyBytes);
+        if (body?.schema !== "aifactory.observe" || body?.schema_version !== 1) {
+          return jsonResponse(response, 400, {
+            error: "Unsupported or missing aifactory.observe schema version 1.",
+          });
+        }
+        if (!body.world_snapshot || typeof body.world_snapshot !== "object") {
+          return jsonResponse(response, 400, { error: "world_snapshot must be an object." });
+        }
+        if (body.world_snapshot.data_policy !== "authoritative_or_explicitly_unknown") {
+          return jsonResponse(response, 400, {
+            error: "Snapshot does not declare the authoritative-or-unknown data policy.",
+          });
+        }
+        // Terrain measured on the way past is still true and costs nothing to
+        // keep, the same as on a question.
+        terrainCache.harvest(body.world_snapshot);
+        terrainCache.flush();
+        const observed = snapshotCache.record(body.world_snapshot, { skipUnchanged: true });
+        return jsonResponse(response, 200, {
+          schema: "aifactory.observe.ack",
+          schema_version: 1,
+          bridge_version: BRIDGE_VERSION,
+          ...observed,
+          bridge_answered_at_utc: new Date().toISOString(),
+        });
       }
 
       if (request.method === "POST" && request.url === "/v1/analyze") {

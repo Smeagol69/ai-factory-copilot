@@ -896,7 +896,11 @@ namespace
      * blueprint sits on its own base the way a designer-built one does.
      * Rotation is identity: any rotation here would turn the whole capture.
      */
-    bool ComputeCaptureOrigin(const TArray<AFGBuildable*>& Members, FTransform& OutOrigin)
+    bool ComputeCaptureFrame(
+        const TArray<AFGBuildable*>& Members,
+        const FIntVector& DesignerDimensions,
+        FTransform& OutOrigin,
+        FIntVector& OutDimensions)
     {
         FBox Bounds(ForceInit);
         for (const AFGBuildable* Member : Members)
@@ -930,6 +934,37 @@ namespace
             return false;
         }
         OutOrigin = FTransform(FQuat::Identity, Snapped, FVector::OneVector);
+
+        /**
+         * Declare a box that actually contains the capture.
+         *
+         * Measured across a real library: all 49 blueprints saved by the game's
+         * own Designer fit inside the dimensions they declare, without a single
+         * exception. Six of this mod's captures did not -- one held 80 x 160 m
+         * of content in a blueprint claiming 48 x 48 m -- because the dimensions
+         * were copied from whichever designer happened to be standing in the
+         * world rather than measured from the selection.
+         *
+         * One extra cell is added per axis because the bounds are taken from
+         * actor origins, and a piece at the edge extends past its own origin.
+         * The designer's dimensions are the floor, never the ceiling, so a small
+         * capture still declares exactly what it declared before and only an
+         * oversized one grows. These are fallback dimensions only: native
+         * component bounds below are the measured envelope when available.
+         */
+        const FVector Size = Bounds.GetSize();
+        const double MaxOriginExtent = static_cast<double>(MAX_int32 - 1) * AIFactoryGridCellCm;
+        if (Size.X > MaxOriginExtent || Size.Y > MaxOriginExtent || Size.Z > MaxOriginExtent)
+        {
+            return false;
+        }
+        const auto CellsFor = [](const double Extent) {
+            return FMath::Max(1, FMath::CeilToInt32((Extent + AIFactoryGridCellCm) / AIFactoryGridCellCm));
+        };
+        OutDimensions = FIntVector(
+            FMath::Max(DesignerDimensions.X, CellsFor(Size.X)),
+            FMath::Max(DesignerDimensions.Y, CellsFor(Size.Y)),
+            FMath::Max(DesignerDimensions.Z, CellsFor(Size.Z)));
         return true;
     }
 
@@ -2400,10 +2435,12 @@ FAIFactoryActionResult ExportSelection(
         }
 
         FTransform CaptureOrigin;
+        FIntVector CaptureDimensions = Designer->GetBlueprintDimensions();
         AFGBlueprintSubsystem* WriteSubsystem =
             AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
-        const bool bRecentred =
-            IsValid(WriteSubsystem) && Members.Num() > 0 && ComputeCaptureOrigin(Members, CaptureOrigin);
+        const bool bRecentred = IsValid(WriteSubsystem) && Members.Num() > 0 &&
+            ComputeCaptureFrame(
+                Members, Designer->GetBlueprintDimensions(), CaptureOrigin, CaptureDimensions);
 
         if (IsValid(WriteSubsystem) && !bRecentred)
         {
@@ -2414,13 +2451,14 @@ FAIFactoryActionResult ExportSelection(
 
         if (bRecentred)
         {
+            ExpectedCaptureDimensions = CaptureDimensions;
             FString DimensionsReason;
             const bool bMeasuredDimensions = ComputeCaptureDimensions(
                 Members, CaptureOrigin, ExpectedCaptureDimensions, DimensionsReason);
             Predicted->SetBoolField(TEXT("capture_dimensions_measured"), bMeasuredDimensions);
             Predicted->SetStringField(TEXT("capture_dimensions_source"), bMeasuredDimensions
                 ? TEXT("native_selection_bounds_in_800_cm_cells")
-                : TEXT("designer_dimensions_fallback_selection_extent_unknown"));
+                : TEXT("actor_origin_envelope_fallback_native_bounds_unknown"));
             if (!bMeasuredDimensions)
             {
                 if (DimensionsReason != TEXT("") &&
@@ -2431,8 +2469,8 @@ FAIFactoryActionResult ExportSelection(
                     return Result;
                 }
                 // Preserve the existing capture fallback for modded objects
-                // without usable bounds, but never present the Designer's box
-                // as a measurement of this selection.
+                // without usable bounds. The origin envelope expands oversized
+                // selections, but does not claim measured mesh extents.
                 Predicted->SetStringField(TEXT("capture_dimensions_unknown_reason"), DimensionsReason);
             }
             const TSharedRef<FJsonObject> DimensionsJson = MakeShared<FJsonObject>();
@@ -2480,6 +2518,12 @@ FAIFactoryActionResult ExportSelection(
             OriginJson->SetNumberField(TEXT("y"), OriginLocation.Y);
             OriginJson->SetNumberField(TEXT("z"), OriginLocation.Z);
             Predicted->SetObjectField(TEXT("blueprint_origin_cm"), OriginJson);
+
+            const TSharedRef<FJsonObject> DimensionJson = MakeShared<FJsonObject>();
+            DimensionJson->SetNumberField(TEXT("x"), ExpectedCaptureDimensions.X);
+            DimensionJson->SetNumberField(TEXT("y"), ExpectedCaptureDimensions.Y);
+            DimensionJson->SetNumberField(TEXT("z"), ExpectedCaptureDimensions.Z);
+            Predicted->SetObjectField(TEXT("declared_dimensions_cells"), DimensionJson);
         }
         Predicted->SetNumberField(TEXT("adopted"), Membership.Num());
         Predicted->SetNumberField(TEXT("skipped"), Skipped);

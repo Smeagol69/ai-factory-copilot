@@ -20,6 +20,18 @@ work there before writing code.** Summary of the agreement:
 - Run `cd companion; npm test` before you commit. 383 tests as of 2026-08-03.
 - Finish with a handoff: what changed, what was verified, what is still open.
 
+### Standing release rule from the owner (2026-09-22)
+
+Before every release or deployment, fetch the latest remote changes and read
+Claude's latest commits, handoff, and worktree status/diff, including uncommitted
+work. Review other active Codex worktrees too. Resolve overlapping changes in
+your own integration branch and verify the combined result before installing.
+Never edit another agent's checkout or package its unfinished changes. Record
+the integrated commit and one deployment owner in `docs/ai-collaboration.md`;
+hold deployment when overlapping work remains unresolved. Repeat this check
+immediately before the final copy or publication, since either agent may have
+continued working during the build.
+
 ## What this is
 
 An SML mod plus a localhost Node companion. The mod captures authoritative game

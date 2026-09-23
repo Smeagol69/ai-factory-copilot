@@ -64,9 +64,8 @@ const OFF_SWITCHES = new Set(["0", "false", "off", "none"]);
 /**
  * Where the cache lives, or null when it is switched off or has nowhere to go.
  *
- * Takes `env` as a parameter rather than reading `process.env` inside, because
- * the terrain cache does the opposite and the test suite consequently reads and
- * writes the player's real cache file. Threading it through is the difference.
+ * Takes `env` as a parameter so isolated server/test instances never fall back
+ * to the player's real cache directory.
  */
 export function resolveSnapshotCacheDirectory(env = process.env) {
   const configured = String(env?.AIFACTORY_SNAPSHOT_CACHE ?? "").trim();
@@ -85,6 +84,20 @@ function boundedText(value, limit) {
 
 function stableJson(value) {
   return JSON.stringify(value, Object.keys(value).sort());
+}
+
+// A structural revision does not track player movement or every inventory /
+// machine change. Compare the captured data too; omit only capture timing so
+// repeated identical observations can still avoid compression and disk writes.
+function captureFingerprint(snapshot) {
+  const captured = { ...snapshot };
+  for (const key of ["generated_at_utc", "capture_started_at_utc", "capture_completed_at_utc", "capture_duration_ms"]) delete captured[key];
+  if (captured.interaction_context) {
+    captured.interaction_context = { ...captured.interaction_context };
+    delete captured.interaction_context.captured_at_utc;
+    delete captured.interaction_context.world_time_seconds;
+  }
+  return crypto.createHash("sha256").update(JSON.stringify(captured)).digest("hex");
 }
 
 /**
@@ -141,6 +154,11 @@ function writeAtomically(filePath, buffer) {
 export function createSnapshotCache({ directory, now = () => new Date() } = {}) {
   const root = directory ?? null;
   const configured = Boolean(root);
+  // What each save looked like the last time it was written, so a live feed
+  // ticking once a second does not rewrite megabytes for a world that has not
+  // moved. Kept in memory deliberately: reading it back off disk would mean
+  // decompressing the very file the check exists to avoid writing.
+  const lastWritten = new Map();
 
   function pathFor(saveId, slot) {
     return path.join(root, `${saveId}-${slot}.json.gz`);
@@ -150,12 +168,32 @@ export function createSnapshotCache({ directory, now = () => new Date() } = {}) 
    * Keep this capture. Returns what happened - never throws, because a cache
    * miss is not worth failing the player's question over.
    */
-  function record(snapshot) {
+  function record(snapshot, { skipUnchanged = false } = {}) {
     if (!configured) return { stored: false, reason: "snapshot_cache_is_not_configured" };
     const save = identifySave(snapshot);
     if (!save.identified) return { stored: false, reason: save.reason };
 
     const wholeWorld = describesWholeWorld(snapshot);
+
+    // Suppress identical captures, not merely equal structural revisions.
+    // Player position and machine/inventory state may change independently.
+    const revision = snapshot?.world_revision ?? null;
+    let fingerprint;
+    try { fingerprint = captureFingerprint(snapshot); }
+    catch (error) {
+      return { stored: false, reason: "snapshot_cache_could_not_compress", diagnostic: String(error?.message ?? error) };
+    }
+    if (skipUnchanged && revision !== null) {
+      const previous = lastWritten.get(save.save_id);
+      if (previous && previous.revision === revision && previous.whole_world === wholeWorld && previous.fingerprint === fingerprint) {
+        return {
+          stored: false,
+          reason: "snapshot_cache_world_is_unchanged",
+          save_id: save.save_id,
+          world_revision: revision,
+        };
+      }
+    }
     const envelope = {
       schema: CACHE_SCHEMA,
       save: { map: save.map, save_session_name: save.save_session_name, save_id: save.save_id },
@@ -201,6 +239,7 @@ export function createSnapshotCache({ directory, now = () => new Date() } = {}) 
       };
     }
 
+    lastWritten.set(save.save_id, { revision, whole_world: wholeWorld, fingerprint });
     return {
       stored: true,
       save_id: save.save_id,

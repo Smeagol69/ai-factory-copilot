@@ -194,3 +194,56 @@ test("listing reports what is on disk without opening it", () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// A LIVE FEED OFFERS THE SAME WORLD OVER AND OVER
+//
+// The observer ticks once a second whether or not anything moved. Writing ~6 MB
+// twice per tick for a world that has not changed buys nothing but disk wear,
+// so an unchanged revision is skipped - but only when the caller asks for that,
+// because a question is a deliberate moment and worth keeping either way.
+
+test("an unchanged world is not rewritten when the caller asks to skip", () => {
+  const directory = scratch();
+  try {
+    const cache = createSnapshotCache({ directory, now: AT });
+    const first = cache.record(snapshot({ revision: 7 }), { skipUnchanged: true });
+    assert.equal(first.stored, true);
+
+    const again = cache.record(snapshot({ revision: 7 }), { skipUnchanged: true });
+    assert.equal(again.stored, false);
+    assert.match(again.reason, /unchanged/);
+    assert.equal(again.save_id, first.save_id);
+
+    const moved = cache.record(snapshot({ revision: 8 }), { skipUnchanged: true });
+    assert.equal(moved.stored, true, "a world that moved is written");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("without the flag the same world is stored again, because a question is deliberate", () => {
+  const directory = scratch();
+  try {
+    const cache = createSnapshotCache({ directory, now: AT });
+    assert.equal(cache.record(snapshot({ revision: 7 })).stored, true);
+    assert.equal(cache.record(snapshot({ revision: 7 })).stored, true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("a nearby capture at the same revision does not count as unchanged", () => {
+  // Same revision, different coverage: the whole-world slot is still missing
+  // this one, so skipping it would leave the wide view stale forever.
+  const directory = scratch();
+  try {
+    const cache = createSnapshotCache({ directory, now: AT });
+    cache.record(snapshot({ revision: 7, radius: 250 }), { skipUnchanged: true });
+    const wide = cache.record(snapshot({ revision: 7 }), { skipUnchanged: true });
+    assert.equal(wide.stored, true);
+    assert.deepEqual(wide.slots_written, ["latest", "world"]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

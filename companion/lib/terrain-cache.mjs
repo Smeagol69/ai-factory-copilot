@@ -41,8 +41,11 @@ const MEASURED_VERDICTS = new Set([
 const CACHE_SCHEMA = 1;
 
 export function defaultCachePath(env = process.env) {
+  const configured = String(env.AIFACTORY_TERRAIN_CACHE ?? "").trim();
+  if (configured) return ["off", "false", "none", "0"].includes(configured.toLowerCase()) ? null : path.resolve(configured);
+  if (!env.LOCALAPPDATA) return null;
   return path.join(
-    env.LOCALAPPDATA ?? ".",
+    env.LOCALAPPDATA,
     "FactoryGame/Saved/AIFactoryCopilot/terrain-cache.json",
   );
 }
@@ -53,13 +56,13 @@ export function defaultCachePath(env = process.env) {
  * alongside so a key that somehow moves can be detected rather than trusted.
  */
 export function createTerrainCache(options = {}) {
-  const filePath = options.filePath ?? defaultCachePath();
+  const filePath = options.filePath === undefined ? defaultCachePath(options.env ?? process.env) : options.filePath;
   const now = options.now ?? (() => Date.now());
   let entries = new Map();
   let loadError = null;
 
   try {
-    if (fs.existsSync(filePath)) {
+    if (filePath && fs.existsSync(filePath)) {
       const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
       if (parsed?.schema === CACHE_SCHEMA && parsed.entries && typeof parsed.entries === "object") {
         entries = new Map(Object.entries(parsed.entries));
@@ -150,6 +153,7 @@ export function createTerrainCache(options = {}) {
 
     /** Writes only when something changed, so an idle session touches no disk. */
     flush() {
+      if (!filePath) return false;
       if (!dirty) return false;
       try {
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
