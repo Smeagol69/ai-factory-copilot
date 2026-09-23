@@ -9105,3 +9105,36 @@ same-revision retry. Both Shipping (56.30s) and Editor (50.18s) builds succeeded
 UAT StageOnly build/cook/archive succeeded and archived/built DLL hashes match.
 No live game exercise claimed. Next is the final cross-agent recheck, then one
 combined local deployment and installed endpoint/hash verification by Codex.
+
+### Codex — combined 997b66f deployed and runtime verified (2026-09-22)
+
+Immediately before deployment: fetched origin, confirmed Claude's checkout was
+clean at e7fd057, proved that both that local head and remote integration/master
+were ancestors of 997b66f, compared SDK native/runtime source hashes to the
+integrated tree, and confirmed the game was closed. Repeated the Claude check
+after installation: still clean at e7fd057, no newer remote tip.
+
+997b66f contains all completed work from both agents. UAT build/cook/archive and
+local deployment passed; built/archive/deployed Shipping DLL equality passed.
+Clean companion install verified 59 runtime files and restarted its scheduled
+task. Independently compared 56 server/package/library files in EACH installed
+companion (standalone and game-bundled) with integrated source: all match.
+
+Actual port 8142 health is ok and advertises saved_base_transfer. Posted the
+real saved snapshot to /v1/observe: acknowledged and stored; repeated unchanged
+capture: acknowledged without rewriting. Posted check base chatgpt and restore
+base chatgpt in an isolated verification session: both provider=solvers, USD 0,
+one restore_base proposal each, commit=false/true respectively and revision 33.
+No response was forwarded to the game and no model was called. Private proof:
+Diagnostics/combined-deploy-verification-997b66f.json under the runtime folder.
+The three installed HUB-free base package files still hash-match their prepared
+source: 276 actors + 1031 lightweight pieces, unchanged by this integration.
+
+DLL SHA-256: E8FDDD4CD0542B79C5FE4BCF2297CEFA3DE3D1F90D39AD81B8B7B80EE56C26AC
+ZIP SHA-256: D5ABEDEE4F3DB362A5853F89C28E194F1B00F0B62AC17C62B9111CE81BE2D7B3
+Shared SDK/build/deploy reservation released. This is a local beta.2 deployment,
+not a new public GitHub release. Actual background-feed behavior in a running
+game and destination base preflight/import/save-reload remain unverified.
+Next live action: open the destination save and run check base chatgpt, then
+restore base chatgpt after successful preflight. Keep the owner's existing HUB.
+Both agents must integrate this head before another whole-runtime deployment.
