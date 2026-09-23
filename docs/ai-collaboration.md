@@ -9138,3 +9138,21 @@ game and destination base preflight/import/save-reload remain unverified.
 Next live action: open the destination save and run check base chatgpt, then
 restore base chatgpt after successful preflight. Keep the owner's existing HUB.
 Both agents must integrate this head before another whole-runtime deployment.
+
+### Codex — native restore rotation readback repair claim (2026-09-22)
+
+Owner's live check base chatgpt passed preflight; committed restore failed on
+native_actor_has_unexpected_class_or_transform for Blueprint Designer Mk3.
+Captured native_loader_readback contains all 276 actors and rollback reports
+created_buildables_removed=true. First mismatch has identical XYZ and scale;
+native rotation is the normalized saved float quaternion. Raw component delta
+is 2.73e-8; normalized comparison differs only by double arithmetic roundoff.
+Current BaseExact incorrectly demands component equality across that native
+normalization. Claiming AIFactoryBaseRestore.cpp, focused transform comparison
+and archive identity regression coverage, diagnostics and documentation. Keep
+XYZ/scale equality exact, retain unique actor matching and full rollback, and
+verify native transform setter behavior against the engine source before fixing.
+Replay every actual loader row, including coincident N-gon pieces and wires.
+Claude checked clean at e7fd057, already integrated in master/134375c. Reserving
+the shared SDK build/package slot for this correction; game currently running,
+so stage the verified build before any deployment. No parallel installs please.
