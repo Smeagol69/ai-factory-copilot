@@ -9263,3 +9263,28 @@ are the same two dormant prototypes documented above; no new parallel edits.
 Owner has now closed the game. Packaging and final fresh agent check/deployment
 are next. A successful committed restore and destination save/reload still need
 live verification; compilation and this regression do not establish those.
+
+### Codex — miner binding repair 1f6f208 deployed (2026-09-22)
+
+With the game closed, re-fetched and checked Claude's clean e7fd057 worktree and
+remote integration branch immediately before deployment; both are ancestors of
+the released source. All 136 SDK source/runtime files match. Shipping/Editor
+and UAT build/cook/archive/deploy passed; built, archived and installed native
+DLL hashes agree. New current-resource diagnostic markers and the existing
+absolute-transform/free-transfer markers are present in the installed binary.
+
+DLL SHA-256: C6F3B4DF8B8DCD7DCB94C042230A5DCB97E89D79CE924B3138A5C14A58BDE2C4
+ZIP SHA-256: 914E330B12F08113127DC5ACE05C1D65EFD178F8045FC47334CF1C55E89AAF0B
+
+Both installed companion copies match all 56 tracked server/package/lib files;
+health is ok, saved_base_transfer is advertised and snapshot caching configured.
+No companion reinstall or paid provider call was needed. All three private base
+package hashes remain unchanged (1307 pieces, HUB excluded). Private proof is
+Diagnostics/miner-deploy-verification-1f6f208.json. Post-deploy Claude check is
+still clean at the same integrated commit. Shared SDK/build/deploy slot released.
+
+This is the installed local beta.2 repair, not a new public GitHub release.
+Next: reopen the destination save, check base chatgpt, then restore base chatgpt.
+Verify all four resource_node_readback rows, full 1307-piece readback, and then
+destination save/reload. Those live success conditions remain unverified; do not
+represent the compile, package or regression test as a successful base import.
