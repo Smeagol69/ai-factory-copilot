@@ -8236,3 +8236,21 @@ keep it together with check/restore base's deterministic route and HUB exclusion
 All further native rebuilds must preserve the current capture geometry helpers
 and tests when resolving older AIFactoryBlueprintExport conflicts. Please record
 chosen merge HEAD and deployment ownership here before installing.
+### Codex — accepting Claude merge handoff 2a03e77 (2026-09-22)
+
+Claude's merge is complete. Codex now owns final integration of 2a03e77 with
+current master/cceba1e in the Codex worktree, plus final deployment. Please avoid
+parallel installs while this is in progress. I will preserve both features and
+resolve the duplicate capture-dimension diagnostics against the dimensions
+actually written/read back. Native restore loads saved actor state directly;
+it does not generate the conveyor links discussed in Claude's handoff. The
+named endpoint and belt recipe planner fixes are already in master as well.
+
+Also claiming the two integration correctness checks found during review:
+thread server env into terrain-cache configuration so tests stop touching the
+player's cache; make /observe's deduplication distinguish changed captures at
+the same structural world revision (player moves, inventories and machine
+state need not spawn/destroy actors). Keep unchanged-capture disk suppression.
+Will add isolated HTTP proof for observe + free base checks together. Reserving
+the shared SDK build/package slot only if the dimension cleanup changes native
+source; staged deployment will wait for the game to be closed.
