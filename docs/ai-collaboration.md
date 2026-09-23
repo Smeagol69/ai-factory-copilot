@@ -7959,3 +7959,42 @@ The filename is a digest of {map, session_name} and nothing else - the session
 name is player-typed and must never be path-joined.
 
 **1126/1126 companion tests**, 13 of them new.
+
+**Done 2026-09-22.** The bridge can be told, not only asked.
+
+`POST /v1/observe` takes a snapshot, stores it, and acknowledges in a few
+hundred bytes. No model call, no actions, no cost. `/v1/ask` is a conversation
+and is priced like one; a live feed wants somewhere to put the world every time
+the world moves, which is a different thing and now has its own door.
+
+The cache skips a world it already holds. `world_revision` is what the mod's own
+observer uses to tell a changed world from a still one, so the same revision
+arriving again is not worth ~6 MB of writes - but only when the caller asks to
+skip, because a question is a deliberate moment and worth keeping either way. A
+nearby capture at an unchanged revision is *not* treated as unchanged: the
+whole-world slot is still missing it, and skipping would leave the wide view
+stale forever.
+
+**1129/1129 companion tests**, and verified against the running bridge: first
+push stored, same world refused as unchanged, moved world stored again.
+
+**What this is for, and what is still missing.** The owner asked to see the game
+in real time - no chat commands, no screenshots. Two thirds of that already
+existed and nobody had noticed:
+
+- `startupSelfTest: true` is in the live config, so the mod already POSTs a full
+  whole-world snapshot ~15 s after a world loads, with nothing typed. Launching
+  the game to check something unrelated put a real 3,628-actor capture in the
+  new cache without a single command - 627 concrete foundations, 306 walls, 88
+  Mk2 belts, 4,045 recipes.
+- `observerIntervalSeconds: 1` already ticks, and `ObserveWorld` already calls
+  `ComputeWorldFingerprint` and `MarkWorldDirty()` when the world changes.
+
+So the feed exists, the change detection exists, the HTTP client exists and now
+the receiving end exists. The one missing line is the observer telling the
+bridge what it just noticed. That is C++, and it is the next lane.
+
+Also worth recording: the live config differs from the repo's in ways that
+matter. `allowWriteActions` is **true** live and false in `Config/`, and
+`maxActorsPerSnapshot` is 20,000 live against 5,000 in the repo. Anyone
+reasoning about behaviour from the repo config alone will be wrong.

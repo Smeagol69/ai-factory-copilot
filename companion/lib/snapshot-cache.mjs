@@ -141,6 +141,11 @@ function writeAtomically(filePath, buffer) {
 export function createSnapshotCache({ directory, now = () => new Date() } = {}) {
   const root = directory ?? null;
   const configured = Boolean(root);
+  // What each save looked like the last time it was written, so a live feed
+  // ticking once a second does not rewrite megabytes for a world that has not
+  // moved. Kept in memory deliberately: reading it back off disk would mean
+  // decompressing the very file the check exists to avoid writing.
+  const lastWritten = new Map();
 
   function pathFor(saveId, slot) {
     return path.join(root, `${saveId}-${slot}.json.gz`);
@@ -150,12 +155,29 @@ export function createSnapshotCache({ directory, now = () => new Date() } = {}) 
    * Keep this capture. Returns what happened - never throws, because a cache
    * miss is not worth failing the player's question over.
    */
-  function record(snapshot) {
+  function record(snapshot, { skipUnchanged = false } = {}) {
     if (!configured) return { stored: false, reason: "snapshot_cache_is_not_configured" };
     const save = identifySave(snapshot);
     if (!save.identified) return { stored: false, reason: save.reason };
 
     const wholeWorld = describesWholeWorld(snapshot);
+
+    // `world_revision` moves whenever the world does - it is why the mod's own
+    // observer can tell a changed world from a still one. A feed may therefore
+    // offer the same world many times over, and rewriting it each time buys
+    // nothing but disk wear.
+    const revision = snapshot?.world_revision ?? null;
+    if (skipUnchanged && revision !== null) {
+      const previous = lastWritten.get(save.save_id);
+      if (previous && previous.revision === revision && previous.whole_world === wholeWorld) {
+        return {
+          stored: false,
+          reason: "snapshot_cache_world_is_unchanged",
+          save_id: save.save_id,
+          world_revision: revision,
+        };
+      }
+    }
     const envelope = {
       schema: CACHE_SCHEMA,
       save: { map: save.map, save_session_name: save.save_session_name, save_id: save.save_id },
@@ -201,6 +223,7 @@ export function createSnapshotCache({ directory, now = () => new Date() } = {}) 
       };
     }
 
+    lastWritten.set(save.save_id, { revision, whole_world: wholeWorld });
     return {
       stored: true,
       save_id: save.save_id,
