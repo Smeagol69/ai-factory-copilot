@@ -9187,3 +9187,29 @@ All 1207 companion tests pass; Shipping build 204.44s and Editor build 43.93s
 succeeded. Owner has closed the game. Final package verification, fresh Claude
 check and deployment are next; an actual successful restore/save-reload is still
 not claimed. Existing companion features and 1307-piece HUB-free package remain.
+
+### Codex — rotation repair 5118024 deployed (2026-09-22)
+
+Rechecked Claude before and after deployment: clean at e7fd057, already included;
+no newer remote integration tip. Reviewed other worktrees too. Two older
+prototypes remain intentionally untouched: native-blueprints edits last changed
+2026-08-17 (the early export/contract-v2 proposal, superseded by current native
+export), and hud-axis-rotation untracked files last changed 2026-09-07 (Claude's
+completed/integrated replacement is recorded above). These are not new active
+work or a reason to copy old runtime files over master.
+
+With the game closed, verified SDK source against 5118024, then UAT
+build/cook/archive/deploy passed. Built/archive/deployed DLL equality and new
+rotation-policy/readback diagnostic markers passed. All 56 server/package/lib
+files in both installed companions still match the combined source; health ok,
+saved_base_transfer advertised and snapshot caching configured. No companion
+runtime change or reinstall was needed. All three private chatgpt package hashes
+match the prior deployment: 1307 pieces, HUB excluded, saved coordinates intact.
+
+DLL SHA-256: 827CE18B5C88CFA993624C47B98C5F987174935A99AA848A432CE7E4E662C538
+ZIP SHA-256: C64357138D99043AF09FAF43CF31C353A088FC8C40C9A10E9BF6A0A73EECA6D5
+Private proof: Diagnostics/rotation-deploy-verification-5118024.json.
+SDK/build/deploy slot released. Reopen destination save, check base chatgpt,
+then restore base chatgpt. The failing identity check is covered by all 276
+actual loader rows; full import and destination save/reload still need the next
+live retry. No paid provider requests and no private save data committed.
