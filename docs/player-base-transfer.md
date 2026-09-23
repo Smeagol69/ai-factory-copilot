@@ -54,6 +54,14 @@ transforms beside the native actor archive's float transform headers. Native
 loading identifies each actor by its exact archived class/transform and applies
 the original transform before BeginPlay. Ambiguous identities refuse packaging.
 
+XYZ and scale are compared with exact numeric equality. Rotations are compared
+as normalized quaternions (including equivalent opposite signs), with a 1e-12
+component tolerance for double arithmetic roundoff. Native loading normalizes
+the float save rotation and may convert it through Unreal's Euler rotation;
+requiring the unnormalized quaternion bytes would reject the same orientation.
+Original saved transform bits remain in the package. This rotation policy never
+permits an XYZ offset or a scale difference and is reported in action diagnostics.
+
 Lightweight records load through AddFromBuildableInstanceData, including full
 customization and the saved beam-length dynamic struct. Other dynamic struct
 formats refuse explicitly. Dismantled slots are excluded. The engine's Designer

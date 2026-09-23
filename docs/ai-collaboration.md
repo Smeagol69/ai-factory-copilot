@@ -9156,3 +9156,34 @@ Replay every actual loader row, including coincident N-gon pieces and wires.
 Claude checked clean at e7fd057, already integrated in master/134375c. Reserving
 the shared SDK build/package slot for this correction; game currently running,
 so stage the verified build before any deployment. No parallel installs please.
+
+### Codex — rotation normalization repair verified before deployment (2026-09-22)
+
+The failure was orientation representation, not displacement or a wrong class.
+The Designer's saved quaternion (-0.4226182699203491, 0.9063078165054321)
+became (-0.42261825717221485, 0.9063077891669691) in native loading. Engine
+SceneComponent.cpp confirms SetActorTransform ultimately passes rotation through
+the component's quaternion/rotator cache. Saved float quaternions are near-unit,
+not exactly unit. Exact raw component comparison was invalid across this path.
+
+Normalize validated rotations before native assignment; compare normalized
+orientation with 1e-12 component tolerance (and opposite-sign equivalence),
+while keeping XYZ and scale equality exact. Original transform bits/package
+files stay untouched. Diagnostics state the policy explicitly and include
+expected/observed transforms for any later final-readback failure. Packaging and
+native preflight reject coincident same-class actors whose canonical rotations
+are ambiguous, including q/-q pairs; differently rotated N-gon pieces remain.
+
+Extracted the production numeric comparison to AIFactoryBaseTransformMatch.h.
+Compiled its standalone C++ regression/replay harness with MSVC /W4 /WX. It
+accepts the actual normalization and sign flip; rejects changed orientation,
+invalid/nonunit rotations, and one-ULP changes on every XYZ/scale axis. Replayed
+all 276 actual native loader rows: one unique match each, exact XYZ and scale,
+including the coincident N-gon pieces and wires. Every actor source XYZ/scale
+also equals its archive values. Private failure evidence is retained in runtime
+Diagnostics/restore-normalization-failure-20260922.json; no save data committed.
+
+All 1207 companion tests pass; Shipping build 204.44s and Editor build 43.93s
+succeeded. Owner has closed the game. Final package verification, fresh Claude
+check and deployment are next; an actual successful restore/save-reload is still
+not claimed. Existing companion features and 1307-piece HUB-free package remain.

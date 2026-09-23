@@ -6,6 +6,16 @@ const require = createRequire(new URL("../../companion/package.json", import.met
 const { Parser } = require("@etothepii/satisfactory-file-parser");
 const digest = bytes => createHash("md5").update(bytes).digest("hex");
 const clone = structuredClone;
+// Match native orientation identity after the float archive's quaternion is
+// normalized. XYZ and scale remain exact; q and -q name the same orientation.
+const ROTATION_COMPONENT_TOLERANCE = 1e-12;
+const normalizedRotation = rotation => {
+  const values = [rotation.x, rotation.y, rotation.z, rotation.w];
+  const length = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  return values.map(value => value / length);
+};
+const sameRotation = (a, b) => a.every((value, i) => Math.abs(value - b[i]) <= ROTATION_COMPONENT_TOLERANCE) ||
+  a.every((value, i) => Math.abs(value + b[i]) <= ROTATION_COMPONENT_TOLERANCE);
 // Preparation persists decoded state as JSON, which omits undefined object
 // fields. The parser recreates optional metadata such as ByteProperty's
 // value.type as undefined. Compare their persisted meaning without changing
@@ -97,7 +107,7 @@ export function compileNativeBaseArchive(manifest, state, save) {
       throw new Error("Native saved-state readback differs: " + before.instanceName, { cause: { before, after } });
     }
   }
-  const keys = new Set();
+  const keys = new Map();
   const nativeActors = actors.map(piece => {
     const object = parsed.objects.find(object => object.instanceName === renames.get(piece.id));
     if (!object || object.typePath !== piece.class_path) throw new Error("Native archive lost an actor");
@@ -106,10 +116,13 @@ export function compileNativeBaseArchive(manifest, state, save) {
       if (object.transform[group][axis] !== Math.fround(t[group][axis])) throw new Error("Unexpected native transform encoding");
     }
     const loadPosition = object.transform.translation;
-    const key = JSON.stringify([piece.class_path, object.transform]);
+    const key = JSON.stringify([piece.class_path, object.transform.translation, object.transform.scale3d]);
+    const rotation = normalizedRotation(object.transform.rotation);
+    const coincident = keys.get(key) ?? [];
     // Callback identity must be unique before any BeginPlay-side effects.
-    if (keys.has(key)) throw new Error("Ambiguous native actor load identity: " + piece.id);
-    keys.add(key);
+    if (coincident.some(prior => sameRotation(prior, rotation))) throw new Error("Ambiguous native actor load identity: " + piece.id);
+    coincident.push(rotation);
+    keys.set(key, coincident);
     const original = state.actors.find(row => row.instance_name === piece.id).raw_record;
     const endpoint = ref => {
       const component = state.components.find(row => row.instance_name === ref?.pathName);

@@ -78,6 +78,22 @@ test("native package preserves the saved node level separately from its relative
   assert.equal(result.runtime.actors[0].resource_node_level, ref.levelName);
 });
 
+test("coincident actors with opposite quaternion signs cannot masquerade as distinct native identities", () => {
+  const f = fixture(), second = structuredClone(f.state.actors[0]);
+  second.instance_name += "2";
+  second.raw_record.instanceName = second.instance_name;
+  second.raw_record.transform.rotation.w = -1;
+  f.state.actors.push(second);
+  f.manifest = createBaseTransfer(f.manifest.source, [...f.manifest.pieces,
+    { ...f.manifest.pieces[0], id: second.instance_name, transform: second.raw_record.transform }]);
+  assert.throws(() => compileNativeBaseArchive(f.manifest, f.state, f.save), /Ambiguous/);
+  // Coincident pieces facing different directions remain distinct and allowed.
+  second.raw_record.transform.rotation = { x: 0, y: 0, z: 1, w: 0 };
+  f.manifest = createBaseTransfer(f.manifest.source, [f.manifest.pieces[0],
+    { ...f.manifest.pieces[0], id: second.instance_name, transform: second.raw_record.transform }]);
+  assert.equal(compileNativeBaseArchive(f.manifest, f.state, f.save).runtime.actor_count, 2);
+});
+
 test("Copilot restores a named base locally, stamps the revision and cannot accept model coordinates", () => {
   const graph = buildGraph(buildFactorySnapshot()), emitted = [];
   const reply = answerLocally("restore base chatgpt", graph, { actions: { emit: actions => emitted.push(...actions) } });

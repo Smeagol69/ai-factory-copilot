@@ -1,4 +1,5 @@
 #include "AIFactoryBaseRestore.h"
+#include "AIFactoryBaseTransformMatch.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableBlueprintDesigner.h"
 #include "Buildables/FGBuildableConveyorBase.h"
@@ -78,14 +79,24 @@ namespace
                 V[Index++] = Number;
             }
         }
-        const FQuat Rotation(V[3], V[4], V[5], V[6]);
+        FQuat Rotation(V[3], V[4], V[5], V[6]);
         if (FMath::Abs(Rotation.SizeSquared() - 1.0) > 0.00001) return false;
+        // Preserve the saved XYZ/scale exactly. Supply the engine a unit
+        // quaternion for the same saved orientation; raw save bits stay in Json.
+        Rotation.Normalize();
         Out = FTransform(Rotation, FVector(V[0], V[1], V[2]), FVector(V[7], V[8], V[9]));
         return !Out.ContainsNaN();
     }
     bool BaseExact(const FTransform& A, const FTransform& B)
     {
-        return A.GetLocation() == B.GetLocation() && A.GetScale3D() == B.GetScale3D() && A.GetRotation().Equals(B.GetRotation(), 0.0);
+        auto Components = [](const FTransform& T)
+        {
+            const FVector P = T.GetLocation(), S = T.GetScale3D();
+            const FQuat Q = T.GetRotation();
+            return AIFactoryBaseTransformMatch::FComponents{
+                {P.X, P.Y, P.Z}, {Q.X, Q.Y, Q.Z, Q.W}, {S.X, S.Y, S.Z}};
+        };
+        return AIFactoryBaseTransformMatch::Matches(Components(A), Components(B));
     }
     FBaseJson BaseTransformJson(const FTransform& Transform)
     {
@@ -280,6 +291,12 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
             if (!Extractor->CanOccupyResource(Resource)) return Refuse(TEXT("original_resource_node_cannot_be_occupied:") + NodePath);
         }
     }
+    // Canonically equivalent quaternions (including opposite signs) cannot
+    // distinguish coincident same-class actors. Refuse before native spawning.
+    for (int32 I = 0; I < Actors.Num(); ++I)
+        for (int32 J = 0; J < I; ++J)
+            if (Actors[I].Class == Actors[J].Class && BaseExact(Actors[I].Archive, Actors[J].Archive))
+                return Refuse(TEXT("ambiguous_native_actor_identity_in_package:") + Actors[I].Id);
     for (const auto& Value : *LightRows)
     {
         const FBaseJson* Json = nullptr;
@@ -309,6 +326,9 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     Result.Predicted->SetNumberField(TEXT("pieces"), Count); Result.Predicted->SetStringField(TEXT("placement"), TEXT("absolute_saved_transforms_no_snapping"));
     Result.Predicted->SetStringField(TEXT("cost_policy"), TEXT("saved_base_transfer_no_material_charge"));
     Result.Predicted->SetStringField(TEXT("resource_resolution"), TEXT("source_save_reference_in_destination_world"));
+    Result.Predicted->SetStringField(TEXT("position_and_scale_comparison"), TEXT("exact_saved_values"));
+    Result.Predicted->SetStringField(TEXT("rotation_comparison"), TEXT("normalized_quaternion_equivalence"));
+    Result.Predicted->SetNumberField(TEXT("rotation_component_tolerance"), AIFactoryBaseTransformMatch::RotationComponentTolerance);
     TArray<TSharedPtr<FJsonValue>> NodeBindings;
     for (const FBaseActor& Actor : Actors) if (Actor.Node)
     {
@@ -337,6 +357,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     UFGBlueprintDescriptor* Descriptor = Read ? Blueprint->GetBlueprintDescriptorByNameString(NativeName) : nullptr;
     FString Failure;
     TArray<TSharedPtr<FJsonValue>> LoaderReadback;
+    TArray<TSharedPtr<FJsonValue>> TransformFailures;
     TArray<AFGBuildable*> Loaded;
     if (!Descriptor) Failure = TEXT("native_base_archive_not_readable");
     else
@@ -361,7 +382,9 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
                     }
                 if (!Match) { if (Failure.IsEmpty()) Failure = TEXT("native_actor_has_unexpected_class_or_transform:") + Buildable->GetClass()->GetPathName(); return; }
                 Match->Created = Buildable;
-                Buildable->SetActorTransform(Match->Exact, false, nullptr, ETeleportType::TeleportPhysics);
+                NativeRow->SetStringField(TEXT("source_id"), Match->Id);
+                if (!Buildable->SetActorTransform(Match->Exact, false, nullptr, ETeleportType::TeleportPhysics) && Failure.IsEmpty())
+                    Failure = TEXT("native_actor_transform_set_failed:") + Match->Id;
             },
             [&]()
             {
@@ -380,7 +403,16 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     TMap<FString, AFGBuildable*> CreatedById;
     for (FBaseActor& Actor : Actors)
     {
-        if (!IsValid(Actor.Created) || !BaseExact(Actor.Exact, Actor.Created->GetActorTransform())) { if (Failure.IsEmpty()) Failure = TEXT("native_actor_exact_transform_readback_failed:") + Actor.Id; continue; }
+        if (!IsValid(Actor.Created) || !BaseExact(Actor.Exact, Actor.Created->GetActorTransform()))
+        {
+            if (Failure.IsEmpty()) Failure = TEXT("native_actor_exact_transform_readback_failed:") + Actor.Id;
+            FBaseJson Mismatch = MakeShared<FJsonObject>();
+            Mismatch->SetStringField(TEXT("source_id"), Actor.Id);
+            Mismatch->SetObjectField(TEXT("expected_transform"), BaseTransformJson(Actor.Exact));
+            if (IsValid(Actor.Created)) Mismatch->SetObjectField(TEXT("observed_transform"), BaseTransformJson(Actor.Created->GetActorTransform()));
+            TransformFailures.Add(MakeShared<FJsonValueObject>(Mismatch));
+            continue;
+        }
         CreatedById.Add(Actor.Id, Actor.Created);
         if (Actor.Node)
         {
@@ -432,6 +464,7 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
         Result.bAccepted = false; Result.Status = TEXT("failed"); Result.Reason = Failure;
         Result.Observed = MakeShared<FJsonObject>(); Result.Observed->SetBoolField(TEXT("rollback_attempted"), true);
         Result.Observed->SetArrayField(TEXT("native_loader_readback"), LoaderReadback);
+        Result.Observed->SetArrayField(TEXT("exact_transform_readback_failures"), TransformFailures);
         bool RolledBack = true;
         for (AFGBuildable* Actor : NewActors) if (IsValid(Actor) && !Actor->IsActorBeingDestroyed()) RolledBack = false;
         for (const auto& Pair : NewLights)
