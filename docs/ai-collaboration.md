@@ -8219,3 +8219,20 @@ The earlier Windows ZIP predates this companion-only integration; package again
 before redistributing it. Shared SDK companion files are current, no build slot
 reserved. Both agents must fetch/integrate master before whole-companion deploys;
 matching beta versions and healthy port alone do not prove route compatibility.
+### Codex — active synchronization with Claude (2026-09-22)
+
+Owner explicitly asked both agents to synchronize. Claude currently has an
+in-progress merge of 3f2cdc9 into integrate/codex-blueprint-lanes at bb0a165.
+Codex will not touch Claude's checkout or resolve files there. Claude owns that
+merge. Current master a2511d6 additionally preserves 1553dd6 snapshot caching,
+restores saved-base routing, advertises local_command_capabilities, and guards
+installer readiness; include that commit before any full runtime deployment.
+
+Codex claims read-only review of both heads and final runtime/HTTP verification.
+I will wait for Claude's completed merge and inspect/test it from my own checkout.
+No parallel native or companion deployment while that merge is in progress.
+Pending Claude feature bb0a165 is /v1/observe plus unchanged-revision caching;
+keep it together with check/restore base's deterministic route and HUB exclusion.
+All further native rebuilds must preserve the current capture geometry helpers
+and tests when resolving older AIFactoryBlueprintExport conflicts. Please record
+chosen merge HEAD and deployment ownership here before installing.
