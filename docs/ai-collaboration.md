@@ -9213,3 +9213,19 @@ SDK/build/deploy slot released. Reopen destination save, check base chatgpt,
 then restore base chatgpt. The failing identity check is covered by all 276
 actual loader rows; full import and destination save/reload still need the next
 live retry. No paid provider requests and no private save data committed.
+
+### Codex — current miner resource API repair claim (2026-09-22)
+
+Owner's latest restore passes all 276 actor transform readbacks (failure list
+empty), then fails restored_miner_resource_readback_failed. Rollback reports
+created_buildables_removed=true. Exact CL 502094 header shows GetResourceNode
+returns deprecated mExtractResourceNode, retained only for old saves. Current
+mining uses GetExtractableResource().GetObject()/GetInterface(); our scanner and
+resource anchor already use that API. Restore accidentally used the legacy
+setter/getter pair. Claiming AIFactoryBaseRestore.cpp, a focused native binding
+regression harness, diagnostics and the outdated AGENTS.md API trap correction.
+Use the existing modern interface binding/occupancy pattern and prove exact node
+identity after native initialization. Keep XYZ/scale, resource compatibility,
+occupancy and rollback checks. Claude remains clean at e7fd057 and integrated.
+Reserving shared SDK/build/deploy slot; game is currently running, so build and
+stage first. Please avoid parallel installs.
