@@ -5,16 +5,21 @@ import { selectPlayerBase } from "./lib/player-base-transfer.mjs";
 import { createBaseTransfer, validateBaseTransfer } from "../companion/lib/base-transfer.mjs";
 
 const args = process.argv.slice(2), options = {};
-for (let i = 0; i < args.length; i += 2) {
-  if (!["--save", "--snapshot", "--output"].includes(args[i]) || !args[i+1] || options[args[i]]) {
-    throw new Error("Usage: --save <source.sav> --snapshot <captured.json> --output <new-directory>");
+let excludeHub = false;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--exclude-hub") {
+    if (excludeHub) throw new Error("Duplicate --exclude-hub");
+    excludeHub = true; continue;
   }
-  options[args[i]] = resolve(args[i+1]);
+  if (!["--save", "--snapshot", "--output"].includes(args[i]) || !args[i+1] || options[args[i]]) {
+    throw new Error("Usage: --save <source.sav> --snapshot <captured.json> --output <new-directory> [--exclude-hub]");
+  }
+  options[args[i]] = resolve(args[i+1]); i++;
 }
 if (Object.keys(options).length !== 3) throw new Error("save, snapshot and output are required");
 const bytes = readFileSync(options["--save"]), saveHash = sha256(bytes);
 const snapshotBytes = readFileSync(options["--snapshot"]);
-const save = parseWorld(bytes), selection = selectPlayerBase(save, JSON.parse(snapshotBytes));
+const save = parseWorld(bytes), selection = selectPlayerBase(save, JSON.parse(snapshotBytes), { excludeHub });
 const pieces = [
   ...selection.actors.map(row => ({ id: row.instance_name, kind: "actor", class_path: row.class_path,
     transform: row.transform, source_record_index: row.record_index })),
@@ -65,6 +70,7 @@ const stateBytes = Buffer.from(JSON.stringify(records, (_key, value) => Object.i
 manifest.saved_state = { file: "saved-build-state.json", sha256: sha256(stateBytes) };
 manifest.external_references = externalReferences;
 manifest.source_mod_metadata = save.header.modMetadata;
+manifest.selection = { exclude_hub: excludeHub, excluded_hub_actors: selection.excluded_hub_actors };
 manifest.counts = { actors: selection.actors.length, lightweight: selection.lightweight.length,
   owned_components: components.length, proxy_records: metadata.filter(row => row.class_path.endsWith(".FGBlueprintProxy")).length,
   power_circuits: metadata.filter(row => row.class_path.endsWith(".FGPowerCircuit")).length,

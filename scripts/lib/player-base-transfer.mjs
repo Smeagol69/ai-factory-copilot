@@ -23,7 +23,7 @@ function scimTransform(object) {
 /** Build identity comes from captured building classes/recipes and ownership,
  * never a radius or a class-name substring. Map-placed actors are excluded.
  */
-export function selectPlayerBase(save, snapshot) {
+export function selectPlayerBase(save, snapshot, { excludeHub = false } = {}) {
   const scan = inspectParsedWorld(save);
   const knownClasses = new Set((snapshot?.content?.items ?? [])
     .map((item) => item.building?.class_path).filter(Boolean));
@@ -80,7 +80,36 @@ export function selectPlayerBase(save, snapshot) {
     if (names.has(record.instance_name)) throw new Error("Duplicate source object identity: " + record.instance_name);
     names.add(record.instance_name);
   }
-  return { actors, lightweight: active, deleted_lightweight: deleted, scan };
+  const omitted = new Set();
+  if (excludeHub) {
+    // Exact vanilla HUB class and saved ownership fields, as declared in
+    // FGBuildableTradingPost.h. Never remove nearby or similarly named objects.
+    for (const hub of actors.filter(row => row.class_path === "/Game/FactoryGame/Buildable/Factory/TradingPost/Build_TradingPost.Build_TradingPost_C")) {
+      omitted.add(hub.instance_name);
+      for (const key of ["mGenerators", "mStorage", "mHubTerminal", "mWorkBench", "mLocker", "mPioneerPotty"]) {
+        const field = hub.raw_record.properties?.[key];
+        for (const ref of field?.values ?? [field?.value]) if (ref?.pathName) omitted.add(ref.pathName);
+      }
+    }
+    do {
+      changed = false;
+      for (const row of scan.records) if (!omitted.has(row.instance_name) &&
+          (omitted.has(row.parent_entity_name) || omitted.has(row.raw_record.parentObject?.pathName))) {
+        omitted.add(row.instance_name); changed = true;
+      }
+    } while (changed);
+    const audit = (value, owner) => {
+      if (!value || typeof value !== "object") return;
+      if (omitted.has(value.pathName)) throw new Error("Retained base references excluded HUB assembly: " + owner + " -> " + value.pathName);
+      Object.values(value).forEach(child => audit(child, owner));
+    };
+    for (const row of scan.records) if (!omitted.has(row.instance_name) &&
+        (selected.has(row.instance_name) || selected.has(row.parent_entity_name))) audit(row.raw_record, row.instance_name);
+    active.forEach(row => audit(row.raw_instance, "lightweight:" + row.record_index));
+  }
+  return { actors: actors.filter(row => !omitted.has(row.instance_name)), lightweight: active,
+    deleted_lightweight: deleted, scan,
+    excluded_hub_actors: actors.filter(row => omitted.has(row.instance_name)).map(row => row.instance_name) };
 }
 
 /** SCIM's reader supplies its own object/property representation. Independently

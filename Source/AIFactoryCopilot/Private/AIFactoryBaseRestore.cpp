@@ -8,6 +8,7 @@
 #include "FGFactoryBlueprintTypes.h"
 #include "FGBuildableSubsystem.h"
 #include "FGCharacterPlayer.h"
+#include "FGObjectReference.h"
 #include "FGCircuitConnectionComponent.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "Resources/FGResourceNode.h"
@@ -257,10 +258,26 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
         const FString NodePath = BaseString(*Json, TEXT("resource_node"));
         if (!NodePath.IsEmpty())
         {
-            for (TActorIterator<AFGResourceNode> It(Context.World); It; ++It) if (It->GetPathName() == NodePath) { Actor.Node = *It; break; }
+            // Save paths are level-relative (Persistent_Level:PersistentLevel.X),
+            // whereas GetPathName() includes the full /Game/... package. Let
+            // the game's save resolver bind the reference in this world.
+            FObjectReferenceDisc NodeReference;
+            NodeReference.PathName = NodePath;
+            if (!(*Json)->TryGetStringField(TEXT("resource_node_level"), NodeReference.LevelName))
+            {
+                // Older transfer packages retained only the path. The known
+                // persistent-map prefix is sufficient; never guess a sublevel.
+                if (!NodePath.StartsWith(Map + TEXT(":"))) return Refuse(TEXT("saved_resource_node_level_missing:") + NodePath);
+                NodeReference.LevelName = Map;
+            }
+            Actor.Node = NodeReference.Resolve<AFGResourceNode>(Context.World);
+            if (!IsValid(Actor.Node) || Actor.Node->GetWorld() != Context.World)
+                return Refuse(TEXT("original_resource_node_not_loaded_or_missing:") + NodePath);
             auto* Extractor = Cast<AFGBuildableResourceExtractorBase>(Actor.Class->GetDefaultObject());
             TScriptInterface<IFGExtractableResourceInterface> Resource(Actor.Node);
-            if (!Actor.Node || !Extractor || !Extractor->CanOccupyResource(Resource) || !Extractor->IsAllowedOnResource(Resource)) return Refuse(TEXT("original_resource_node_missing_occupied_or_incompatible:") + NodePath);
+            if (!Extractor || !Extractor->IsAllowedOnResource(Resource)) return Refuse(TEXT("original_resource_node_incompatible:") + NodePath);
+            if (Actor.Node->IsOccupied()) return Refuse(TEXT("original_resource_node_occupied:") + NodePath);
+            if (!Extractor->CanOccupyResource(Resource)) return Refuse(TEXT("original_resource_node_cannot_be_occupied:") + NodePath);
         }
     }
     for (const auto& Value : *LightRows)
@@ -291,6 +308,17 @@ FAIFactoryActionResult AIFactoryBaseRestore::Restore(const FAIFactoryActionConte
     Result.Predicted = MakeShared<FJsonObject>(); Result.Predicted->SetStringField(TEXT("base_name"), PackageName);
     Result.Predicted->SetNumberField(TEXT("pieces"), Count); Result.Predicted->SetStringField(TEXT("placement"), TEXT("absolute_saved_transforms_no_snapping"));
     Result.Predicted->SetStringField(TEXT("cost_policy"), TEXT("saved_base_transfer_no_material_charge"));
+    Result.Predicted->SetStringField(TEXT("resource_resolution"), TEXT("source_save_reference_in_destination_world"));
+    TArray<TSharedPtr<FJsonValue>> NodeBindings;
+    for (const FBaseActor& Actor : Actors) if (Actor.Node)
+    {
+        FBaseJson Binding = MakeShared<FJsonObject>();
+        Binding->SetStringField(TEXT("source_id"), Actor.Id);
+        Binding->SetStringField(TEXT("saved_resource_node"), BaseString(Actor.Json, TEXT("resource_node")));
+        Binding->SetStringField(TEXT("resolved_resource_node"), Actor.Node->GetPathName());
+        NodeBindings.Add(MakeShared<FJsonValueObject>(Binding));
+    }
+    Result.Predicted->SetArrayField(TEXT("resource_node_bindings"), NodeBindings);
     if (Context.bDryRun) { Result.Status = TEXT("dry_run"); return Result; }
 
     // Unique private descriptor name; never overwrite an existing user Blueprint.

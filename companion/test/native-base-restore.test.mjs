@@ -66,6 +66,18 @@ test("native packaging refuses unsupported versions, incomplete state and ambigu
   assert.throws(() => compileNativeBaseArchive(g.manifest, g.state, g.save), /Ambiguous/);
 });
 
+test("native package preserves the saved node level separately from its relative actor path", () => {
+  const f = fixture();
+  const ref = { levelName: "SavedResourceSublevel", pathName: "SavedResourceSublevel:PersistentLevel.BP_ResourceNode200" };
+  f.state.actors[0].raw_record.properties.mExtractableResource = {
+    type: "ObjectProperty", name: "mExtractableResource",
+    propertyTagType: { name: "ObjectProperty", children: [] }, value: ref,
+  };
+  const result = compileNativeBaseArchive(f.manifest, f.state, f.save);
+  assert.equal(result.runtime.actors[0].resource_node, ref.pathName);
+  assert.equal(result.runtime.actors[0].resource_node_level, ref.levelName);
+});
+
 test("Copilot restores a named base locally, stamps the revision and cannot accept model coordinates", () => {
   const graph = buildGraph(buildFactorySnapshot()), emitted = [];
   const reply = answerLocally("restore base chatgpt", graph, { actions: { emit: actions => emitted.push(...actions) } });
@@ -87,6 +99,9 @@ test("native restore applies saved transforms, verifies lightweight customizatio
   assert.match(native, /LoadStoredBlueprint\(Descriptor, FTransform::Identity/);
   assert.match(native, /saved_base_transfer_no_material_charge/);
   assert.doesNotMatch(native, /GetNoBuildCost|base_restore_requires_no_build_cost_mode/);
+  assert.match(native, /NodeReference.Resolve<AFGResourceNode>\(Context.World\)/);
+  assert.doesNotMatch(native, /GetPathName\(\) == NodePath/);
+  assert.match(native, /original_resource_node_occupied:/);
   assert.match(native, /SetActorTransform\(Match->Exact/);
   assert.match(native, /FRuntimeBuildableInstanceData RuntimeData = Instance.Data/);
   assert.match(native, /Observed->TypeSpecificData.Identical\(Instance.Data.TypeSpecificData\)/);

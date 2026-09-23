@@ -22,6 +22,9 @@ The game's chat equivalents are `/ai base check chatgpt` and
 `/ai base restore chatgpt`. A check runs preflight only. A restore is one
 server-side transaction and supports the existing `undo` command. A destination
 with a HUB already built refuses importing a second saved HUB.
+Prepare with `--exclude-hub` to leave out the source HUB and its integrated parts
+while keeping the destination HUB. The owner's installed `chatgpt` package uses
+this option.
 
 No selection, aim point, terrain snapping, recentering or offset is used.
 Coordinates come from the installed package, never from the language model.
@@ -39,6 +42,10 @@ Install the native directory as
 Saved/AIFactoryCopilot/BaseTransfers/chatgpt containing restore.json, actors.sbp
 and actors.sbpcfg. These private actor archives are loaded by the restore action;
 they are not movable Build Gun Blueprints.
+
+The optional preparation flag `--exclude-hub` records all omitted HUB assembly
+actors. Other saved coordinates are unchanged. A retained connection into an
+excluded assembly refuses preparation rather than silently dropping that link.
 
 The compiler retains saved actor/component properties and connections, redirects
 internal identities, and reparses the result to compare every property, special

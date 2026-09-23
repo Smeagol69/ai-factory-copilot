@@ -55,6 +55,24 @@ test("base selection excludes player, map actors and dismantled lightweight slot
   assert.equal(census.records.find((record) => record.instance_name === "MapNode").apply_saved_transform, false);
 });
 
+test("optional HUB exclusion follows saved ownership and preserves unrelated buildings and lightweight pieces", () => {
+  const f = fixture();
+  const hub = entity("Hub", "/Game/FactoryGame/Buildable/Factory/TradingPost/Build_TradingPost.Build_TradingPost_C");
+  const child = entity("IntegratedPart"), independent = entity("IndependentPart");
+  hub.properties.mGenerators = { values: [{ pathName: child.instanceName }] };
+  hub.properties.mBuiltWithRecipe = { value: { pathName: "/Fixture/HubRecipe" } };
+  f.save.levels.Persistent_Level.objects.push(hub, child, independent);
+  const before = structuredClone(f);
+  const result = selectPlayerBase(f.save, f.snapshot, { excludeHub: true });
+  assert.deepEqual(result.excluded_hub_actors, ["Hub", "IntegratedPart"]);
+  assert.deepEqual(result.actors.map(a => a.instance_name), [ID, "IndependentPart"]);
+  assert.equal(result.lightweight.length, 1);
+  assert.deepEqual(f, before);
+  assert.equal(selectPlayerBase(f.save, f.snapshot).actors.length, 4);
+  f.building.properties.connectedHubPart = { value: { pathName: child.instanceName } };
+  assert.throws(() => selectPlayerBase(f.save, f.snapshot, { excludeHub: true }), /references excluded HUB assembly/);
+});
+
 test("Megaprint contains every selected actor, component and active instance without changing transforms", () => {
   const { save, snapshot, state } = fixture();
   const before = structuredClone({ save, snapshot, state });

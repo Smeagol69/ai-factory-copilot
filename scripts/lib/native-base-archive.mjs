@@ -118,6 +118,7 @@ export function compileNativeBaseArchive(manifest, state, save) {
     };
     return { ...piece, archive_name: object.instanceName, archive_location: loadPosition, archive_transform: object.transform,
       resource_node: original.properties?.mExtractableResource?.value?.pathName ?? "",
+      resource_node_level: original.properties?.mExtractableResource?.value?.levelName ?? "",
       ...(original.specialProperties?.type === "PowerLineSpecialProperties" ? {
         wire: { from: endpoint(original.specialProperties.source), to: endpoint(original.specialProperties.target) },
       } : {}) };
@@ -138,6 +139,7 @@ export function compileNativeBaseArchive(manifest, state, save) {
     archive_md5: digest(sbp), config_md5: digest(config), actor_count: actors.length,
     piece_count: manifest.piece_count, actors: nativeActors, lightweight, adaptations,
     external_references: manifest.external_references, required_assets: [...requiredAssets].sort(),
+    selection: manifest.selection ?? { exclude_hub: false, excluded_hub_actors: [] },
     geometry_verified: false, state_connections_verified: false,
     placement_policy: "absolute_saved_transforms_no_snapping" } };
 }

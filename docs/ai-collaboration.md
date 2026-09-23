@@ -8142,3 +8142,47 @@ DLL SHA-256: 798C6E4A69BD97876012DA53F434E66CFB8281FED9DC26F58536D6609B0684AB
 Archive SHA-256: 15BC8CFEE2EFCFA6BE9AC5A7C685D999E4A4E970541B9327E27BA13653F10DB5
 Shared SDK/build reservation released. Relaunch and run check base chatgpt,
 then restore base chatgpt. Actual import/save-reload remains unverified.
+
+### Codex — saved resource reference repair claim (2026-09-22)
+
+Owner's live preflight now reaches miner validation and refuses Node200. Found native code compares saved relative Persistent_Level:PersistentLevel paths directly with runtime full /Game/... paths. Claiming native node resolution, compiler node reference metadata, regression tests and package refresh. Use SDK FObjectReferenceDisc in destination world; retain occupancy/compatibility and split errors. Reserving shared SDK/build slot.
+
+
+Owner additionally instructed: do not transfer the HUB. Extending this claim to preparation's explicit --exclude-hub option and player-base selection tests. Exclude the HUB assembly via saved ownership fields (SDK FGBuildableTradingPost), keep other coordinates unchanged, refuse dangling retained references rather than silently sever connections.
+
+### Codex — node resolver and HUB-free transfer deployed (2026-09-22)
+
+Fixed saved-node identity matching: source references use level-relative
+Persistent_Level:PersistentLevel paths; runtime GetPathName includes /Game/...
+and cannot equal them directly. Native restore now uses FObjectReferenceDisc
+with saved LevelName/PathName and Resolve in the destination world (verified
+against the exact SDK header). Checks the resolved world, compatibility and
+occupancy separately, with distinct refusal reasons and successful-preflight
+saved-to-runtime node binding diagnostics. Older persistent-map packages retain
+a narrow prefix-based level fallback; unknown sublevels are never guessed.
+
+Owner explicitly said not to transfer the HUB. Added preparation --exclude-hub,
+following exact vanilla HUB class and SDK-declared saved assembly fields, then
+owned actor/component descendants. Retained links into omitted parts refuse
+preparation. This save has none. Default preparation still includes the HUB.
+Installed chatgpt now excludes seven actors: HUB, two integrated generators,
+integrated storage, terminal, workbench and potty; owned components excluded too.
+It contains 276 actors + 1031 lightweight pieces = 1307, with all four miners and
+33 wires retained. Compared every remaining class and all ten transform bit
+patterns against the prior package: exact match, and only those seven actor IDs
+were omitted. Source save unchanged. Previous package retained as
+BaseTransfers/chatgpt-with-hub-backup-20260922. New source/private artifacts live
+under D:/Modding/Satisfactory/Transfers/chatgpt-no-hub-{prepared,native}-20260922.
+
+All 1177 tests pass; new tests cover retained resource level identity and HUB
+ownership exclusion without affecting unrelated objects or mutating input.
+Shipping/Editor and StageOnly archive checks passed, followed by normal UAT
+cook/archive/deploy with the game closed. Built/archive/deployed DLL equality
+and native resolver capability markers verified. Installed private package
+checksums and all three source-to-installed file hashes match.
+DLL SHA-256: D90EEF5D6B5CCD10AAA7E139707A91AEE6F6D01AD0DA4CAF4CC3E323D4C0C97A
+Archive SHA-256: C743306FF41DE115651F2B1C5045EA8470CAC94ED70C0E5844C505AD594CEBFA
+Shared SDK/build reservation released. Run check base chatgpt in destination,
+then restore base chatgpt. Existing destination HUB can remain. No-build-cost
+mode is still unnecessary. Live preflight success/import/save-reload still need
+verification; a truly occupied/missing/incompatible node still refuses.

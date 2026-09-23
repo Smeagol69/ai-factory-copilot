@@ -54,7 +54,7 @@ function Assert-NativeBaseRestoreBinary([string]$DllPath) {
     # while restore_base alone also exists in chat code without the dispatcher.
     $even = [Text.Encoding]::Unicode.GetString($bytes)
     $odd = [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1)
-    foreach ($marker in @('restore_base', 'aifactory.native-base/v1', 'saved_base_transfer_no_material_charge')) {
+    foreach ($marker in @('restore_base', 'aifactory.native-base/v1', 'saved_base_transfer_no_material_charge', 'source_save_reference_in_destination_world')) {
         if (-not ($even.Contains($marker) -or $odd.Contains($marker))) {
             throw "Shipping module lacks native restore marker '$marker': $DllPath. Force a fresh module rebuild; do not deploy this binary."
         }
