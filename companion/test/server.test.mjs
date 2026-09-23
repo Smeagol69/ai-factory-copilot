@@ -44,6 +44,7 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.schema, "aifactory.bridge.health");
   assert.equal(body.bridge_version, BRIDGE_VERSION);
   assert.equal(body.action_contract_version, ACTION_CONTRACT_VERSION);
+  assert.ok(body.local_command_capabilities.includes("saved_base_transfer"));
   assert.equal(body.provider, "mock");
   assert.equal(body.readiness.ready, true);
   assert.equal(body.loopback_only, true);
@@ -63,6 +64,28 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.equal(body.outside_references.requested_but_unavailable, true);
   assert.equal(body.outside_references.restricted_to_configured_sources, false);
   assert.ok(body.outside_references.source_domains.includes("docs.ficsit.app"));
+});
+
+test("saved-base checks and restores stay free through HTTP even with prior chat history", async () => {
+  const snapshot = buildFactorySnapshot();
+  for (const [question, commit] of [["check base chatgpt", false], ["restore base chatgpt", true], ["check base chatgpt", false]]) {
+    const response = await fetch(`${baseUrl}/v1/ask`, {
+      method: "POST", headers: JSON_HEADERS,
+      body: JSON.stringify({ schema: "aifactory.ask", schema_version: 1,
+        session_id: "saved-base-http-contract", question, world_snapshot: snapshot }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.provider, "solvers");
+    assert.equal(body.answered_by, "local_solver");
+    assert.equal(body.local.solver, "restore_base");
+    assert.equal(body.cost.usd, 0);
+    assert.equal(body.actions.length, 1);
+    assert.equal(body.actions[0].action, "restore_base");
+    assert.equal(body.actions[0].base_name, "chatgpt");
+    assert.equal(body.actions[0].commit, commit);
+    assert.equal(body.actions[0].expect_world_revision, String(snapshot.world_revision));
+  }
 });
 
 test("ask endpoint accepts an authoritative snapshot", async () => {

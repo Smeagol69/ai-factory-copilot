@@ -3139,6 +3139,8 @@ export function explainRoutingMiss(question) {
  * Returns null when it does not — the caller then falls through to the model,
  * which is always the safe direction to fail.
  */
+export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer"]);
+
 export function answerLocally(question, graph, services) {
   const baseRestore = String(question ?? "").trim().match(/^(check|restore|spawn)\s+(?:saved\s+)?base\s+([A-Za-z0-9_-]{1,80})(?:\s+(?:at\s+)?(?:its\s+)?(?:original|saved|exact)\s+(?:coordinates|xyz|position))?[.!]?$/i);
   if (baseRestore) {

@@ -458,6 +458,12 @@ try {
         $taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName
         throw "Companion task is not ready. LastTaskResult=$($taskInfo.LastTaskResult). See '$resolvedInstallRoot\Logs\companion.log'."
     }
+    # Same beta version can describe different development checkouts. A healthy
+    # old bridge once charged for a saved-base command after a parallel deploy.
+    # Require the running process to advertise the deterministic command lane.
+    if (@($health.local_command_capabilities) -notcontains 'saved_base_transfer') {
+        throw 'Running companion lacks local saved-base commands (or local routing is disabled). Refusing to report this deployment ready.'
+    }
 
     foreach ($runtimeFile in $runtimeFiles) {
         $installedPath = Join-Path $resolvedInstallRoot $runtimeFile.Relative

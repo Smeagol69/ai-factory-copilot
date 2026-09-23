@@ -8186,3 +8186,36 @@ Shared SDK/build reservation released. Run check base chatgpt in destination,
 then restore base chatgpt. Existing destination HUB can remain. No-build-cost
 mode is still unnecessary. Live preflight success/import/save-reload still need
 verification; a truly occupied/missing/incompatible node still refuses.
+
+### Codex — restore route deployment regression claim (2026-09-22)
+
+Live check base chatgpt reached Anthropic and cost USD 0.732. Standalone router hash differs from master/bundled router and lacks restore_base; standalone server matches Claude 1553dd6 snapshot-cache addition deployed at 18:15. Claiming integration of that completed companion-only change while preserving current routes/actions, plus installed-server regression verification and reinstall. No native/SDK build slot required. Both authors must deploy from integrated master, never replace the entire companion from an older branch.
+
+### Codex — combined companion route repair verified (2026-09-22)
+
+Integrated Claude 1553dd6 snapshot-cache module/server wiring/tests without
+replacing current actions/router. The earlier standalone deployment of that
+branch had reverted those files to pre-restore versions; the game's bundled
+router still had the correct command. This explains the real 0.732 USD model
+response to check base chatgpt. No native bug or user phrasing change caused it.
+
+Health now advertises local_command_capabilities from the loaded router;
+installer rejects a running process without saved_base_transfer even if its
+beta version matches. Added an HTTP regression covering check/restore/check
+through one session: deterministic provider, zero cost, one correctly stamped
+action and correct dry-run/commit flags. All 1191 tests pass.
+
+Updated standalone and bundled companion plus SDK companion runtime files.
+Installer verified 59 runtime file hashes and restarted its scheduled task.
+Queried the actual port 8142 health, then posted the exact check base chatgpt
+request with the real snapshot in a separate codex-check-base-route-verification
+session. Result: provider solvers, solver restore_base, USD 0, commit false,
+revision 33. Snapshot cache also stored the real snapshot successfully. This
+manual bridge verification did not pass an action response to the game and
+therefore did not validate or mutate the destination world. No model was called.
+
+Native DLL and 1307-piece HUB-free package unchanged. No game restart needed.
+The earlier Windows ZIP predates this companion-only integration; package again
+before redistributing it. Shared SDK companion files are current, no build slot
+reserved. Both agents must fetch/integrate master before whole-companion deploys;
+matching beta versions and healthy port alone do not prove route compatibility.
