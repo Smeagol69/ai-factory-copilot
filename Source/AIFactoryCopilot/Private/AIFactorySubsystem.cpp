@@ -455,6 +455,22 @@ void AAIFactorySubsystem::ObserveWorld()
         MarkWorldDirty();
     }
 
+    // Rides the observer for the same reason vision does, and reads the
+    // fingerprint that was just computed rather than computing its own.
+    {
+        const FAIFactorySettings Current = FAIFactorySettings::Load();
+        if (Current.LiveFeedIntervalSeconds > 0.0f && WorldFingerprint != LastLiveFeedFingerprint)
+        {
+            const double Now = FPlatformTime::Seconds();
+            if (Now - LastLiveFeedSeconds >= Current.LiveFeedIntervalSeconds)
+            {
+                LastLiveFeedSeconds = Now;
+                LastLiveFeedFingerprint = WorldFingerprint;
+                PushLiveFeed();
+            }
+        }
+    }
+
     // Native FMapMarker only controls whether the compass icon is in range; it
     // does not provide the resource scanner's dynamic text. Keep the Copilot's
     // own marker names synchronized to the exact live player distance instead.
@@ -1069,6 +1085,110 @@ FString AAIFactorySubsystem::GetBridgeSessionId(UCommandSender* Sender) const
         IsValid(World) ? *World->GetMapName() : TEXT("unknown-map"),
         *SessionName,
         IsValid(Sender) ? *Sender->GetSenderName() : TEXT("unknown-player"));
+}
+
+FString AAIFactorySubsystem::GetBridgeObserveUrl() const
+{
+    FString Url = Settings.BridgeUrl;
+    constexpr int32 AskPathLength = 7;
+    if (Url.EndsWith(TEXT("/v1/ask"), ESearchCase::IgnoreCase))
+    {
+        Url.LeftChopInline(AskPathLength);
+        Url += TEXT("/v1/observe");
+        return Url;
+    }
+    if (!Url.EndsWith(TEXT("/")))
+    {
+        Url += TEXT("/");
+    }
+    Url += TEXT("v1/observe");
+    return Url;
+}
+
+/**
+ * Tell the bridge what the world looks like, unasked.
+ *
+ * The observer already ticks and already knows whether anything changed, so
+ * this rides it rather than owning a timer - the same reasoning vision uses.
+ *
+ * Three gates before anything is captured, because the capture is the
+ * expensive part: the world must have actually changed since the last push,
+ * the interval must have elapsed, and no earlier push may still be in flight.
+ * A still world therefore costs nothing at all.
+ */
+void AAIFactorySubsystem::PushLiveFeed()
+{
+    if (bLiveFeedInFlight)
+    {
+        return;
+    }
+
+    AFGCharacterPlayer* Character = FindLocalPlayerCharacter();
+    if (!IsValid(Character))
+    {
+        // Nobody to centre on. A dedicated server with no one connected is a
+        // legitimate state, not an error to log every tick.
+        return;
+    }
+
+    FAIFactorySnapshotRequest Request;
+    Request.bUseRadius = true;
+    Request.RadiusMeters = Settings.LiveFeedRadiusMeters;
+    Request.Center = Character->GetActorLocation();
+    // Both off deliberately. Reflected properties are most of the payload -
+    // 2,537 of 3,628 actors carried them in the capture this was measured
+    // against - and the content catalog is static for the session, so a feed
+    // that resends it is paying megabytes to say nothing new. The catalog
+    // still arrives with any question, which is what graph building reads.
+    Request.bIncludeContentCatalog = false;
+    Request.bIncludeReflectedProperties = false;
+
+    const FAIFactorySnapshotResult Snapshot = BuildSnapshot(Request);
+    TSharedPtr<FJsonObject> SnapshotObject;
+    const TSharedRef<TJsonReader<>> SnapshotReader = TJsonReaderFactory<>::Create(Snapshot.Json);
+    if (!FJsonSerializer::Deserialize(SnapshotReader, SnapshotObject) || !SnapshotObject.IsValid())
+    {
+        return;
+    }
+
+    const TSharedRef<FJsonObject> Payload = MakeShared<FJsonObject>();
+    Payload->SetStringField(TEXT("schema"), TEXT("aifactory.observe"));
+    Payload->SetNumberField(TEXT("schema_version"), 1);
+    Payload->SetObjectField(TEXT("world_snapshot"), SnapshotObject.ToSharedRef());
+
+    FString Body;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Body);
+    FJsonSerializer::Serialize(Payload, Writer);
+
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+    HttpRequest->SetURL(GetBridgeObserveUrl());
+    HttpRequest->SetVerb(TEXT("POST"));
+    HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    HttpRequest->SetHeader(TEXT("X-AIFactory-Schema"), TEXT("1"));
+    HttpRequest->SetContentAsString(Body);
+
+    const TWeakObjectPtr<AAIFactorySubsystem> WeakThis(this);
+    HttpRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr, FHttpResponsePtr Response, const bool bConnectedSuccessfully)
+        {
+            if (AAIFactorySubsystem* Self = WeakThis.Get())
+            {
+                Self->bLiveFeedInFlight = false;
+            }
+            if (!bConnectedSuccessfully)
+            {
+                // The bridge being down is an ordinary state for a feed nobody
+                // is reading. Logged once per failure at verbose, not spammed.
+                UE_LOG(LogAIFactoryCopilot, Verbose,
+                    TEXT("Live feed could not reach the bridge."));
+            }
+        });
+
+    bLiveFeedInFlight = true;
+    if (!HttpRequest->ProcessRequest())
+    {
+        bLiveFeedInFlight = false;
+    }
 }
 
 FString AAIFactorySubsystem::GetBridgeResetUrl() const

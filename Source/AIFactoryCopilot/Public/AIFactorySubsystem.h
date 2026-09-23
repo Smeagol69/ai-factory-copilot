@@ -62,6 +62,16 @@ private:
 
     /** Wall clock of the last vision frame, so the observer can pace captures. */
     double LastVisionCaptureSeconds = 0.0;
+    /** Wall clock of the last live-feed push, paced the same way. */
+    double LastLiveFeedSeconds = 0.0;
+    /**
+     * The world as the feed last described it. A still world is worth nothing
+     * to send twice, and sending it anyway would spend 1.9 s of frame time
+     * saying nothing changed.
+     */
+    uint32 LastLiveFeedFingerprint = 0;
+    /** One push at a time; a slow bridge must not queue captures behind it. */
+    bool bLiveFeedInFlight = false;
     FTimerHandle ObserverTimer;
     FTimerHandle StartupSelfTestTimer;
     FDelegateHandle ActorSpawnedHandle;
@@ -78,5 +88,7 @@ private:
     void AttachActorObserver(AActor* Actor);
     FString GetBridgeSessionId(UCommandSender* Sender) const;
     FString GetBridgeResetUrl() const;
+    FString GetBridgeObserveUrl() const;
+    void PushLiveFeed();
     static void SendChatInChunks(UCommandSender* Sender, const FString& Message);
 };
