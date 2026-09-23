@@ -14,6 +14,7 @@ import {
 } from "./lib/pricing.mjs";
 import { answerLocally, explainRoutingMiss } from "./lib/router.mjs";
 import { createTerrainCache } from "./lib/terrain-cache.mjs";
+import { createSnapshotCache, resolveSnapshotCacheDirectory } from "./lib/snapshot-cache.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
 import { analyzeSnapshot, buildGraph } from "./lib/solvers.mjs";
 import {
@@ -763,6 +764,13 @@ export function createBridgeServer({ env = process.env } = {}) {
   const terrainCache = createTerrainCache({
     filePath: env.AIFACTORY_TERRAIN_CACHE || undefined,
   });
+  // The world itself, kept so it can be read again outside a request. Every
+  // other store here keeps something derived; without this the player's real
+  // base is visible only for the life of one question, and planners end up
+  // tested against fixtures that agree with them.
+  const snapshotCache = createSnapshotCache({
+    directory: resolveSnapshotCacheDirectory(env),
+  });
   const recordRoutingOutcome = makeRoutingRecorder(env);
   let activeAskRequests = 0;
 
@@ -792,6 +800,11 @@ export function createBridgeServer({ env = process.env } = {}) {
           conveyor_speed_divisor: conveyorSpeedDivisor,
           blueprint_library: Boolean(listBlueprints),
           blueprint_layout_inspection: Boolean(inspectBlueprint),
+          snapshot_cache: {
+            configured: snapshotCache.configured,
+            directory: snapshotCache.directory,
+            saves_held: snapshotCache.list().length,
+          },
           vision: {
             enabled: envFlag(env.AIFACTORY_VISION, true),
             directory_configured: Boolean(defaultVisionDirectory(env)),
@@ -913,6 +926,11 @@ export function createBridgeServer({ env = process.env } = {}) {
       const harvested = terrainCache.harvest(body.world_snapshot);
       const restored = terrainCache.apply(body.world_snapshot);
       terrainCache.flush();
+
+      // Kept after the terrain cache has taken its readings, so what lands on
+      // disk is the snapshot as the solvers will see it. Never throws: a cache
+      // miss is not worth failing the player's question over.
+      const snapshotCacheResult = snapshotCache.record(body.world_snapshot);
 
       // The solvers read the complete snapshot; only the model's view is reduced.
       // A whole-world content catalog runs to hundreds of thousands of tokens and
@@ -1130,6 +1148,7 @@ export function createBridgeServer({ env = process.env } = {}) {
         // Visible because it is the number that says whether travelling is
         // buying coverage: sites filled from cache are sites that used to score
         // blind.
+        snapshot_cache: snapshotCacheResult,
         terrain_cache: {
           newly_measured: harvested.learned,
           re_measured: harvested.refreshed,

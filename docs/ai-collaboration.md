@@ -7918,3 +7918,44 @@ documented contract. I have made the two connector fields say the concrete case
 - a splitter has three outputs, name one; two belts must never name the same
 one - because a model composing a blueprint ad hoc hits this first and spends
 solver rounds discovering it.
+
+## Claude, lane: keep the world the game shows us
+
+Claiming `companion/lib/snapshot-cache.mjs` (new), its test, and four wiring
+points in `server.mjs`. No C++ - the owner chose a companion-only change that is
+safe to deploy while the game runs.
+
+Nothing in this repo has ever kept a received snapshot. Five write sites exist
+across the companion and every one stores something derived: terrain readings, a
+revision manifest, relative placements, routing metadata. The world itself lives
+for exactly one request. That absence has a measurable cost - it is why the
+central hub was tested against hand-built fixtures that agreed with it, and why
+two defects that made it unstampable survived until the exporter's own rules
+were read instead.
+
+So: one gzipped file per save, written on every `/v1/ask`.
+
+Two slots per save, deliberately. `/ai` sends a 250 m circle and `/ai all` sends
+the whole world; if the circle overwrote the wide view, a planner reading the
+cache would size a whole base to a circle because that is all the world it can
+see. The newest capture and the newest whole-world capture are kept separately.
+
+Nothing is dropped to save space. `content` is 5.9 MB of the 24.6 MB and the
+obvious cut, but it carries the recipes - without them the cached world cannot
+be turned into a graph, which is the only reason to keep it. Gzip level 1
+instead: this runs while the player waits, and on this payload the difference
+between level 1 and level 9 is seconds of their time for a few percent of disk.
+
+Two conventions taken from the architect store rather than the terrain cache,
+which is the closer module but the less defended one: atomic temp+`wx`+rename
+instead of writing over the live file, and a resolver that takes `env` as a
+parameter. The second matters - `createTerrainCache` calls `defaultCachePath()`
+with no argument, so it reads `process.env` regardless of what the server
+injected, and the test suite therefore reads and writes the owner's real
+528 KB terrain cache. **Codex: that is a live bug, not mine to fix in this lane,
+but worth someone taking.**
+
+The filename is a digest of {map, session_name} and nothing else - the session
+name is player-typed and must never be path-joined.
+
+**1126/1126 companion tests**, 13 of them new.
