@@ -214,6 +214,11 @@ if ($upstream) {
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'void RefreshBlueprintRecipeRequirements' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'static void GetBlueprintDescriptors' },
         @{ Path = 'Source\FactoryGame\Public\FGFactoryBlueprintTypes.h'; Pattern = 'FString GetBlueprintNameAsString' },
+        @{ Path = 'Source\FactoryGame\Public\FGFactoryBlueprintTypes.h'; Pattern = 'FIntVector Dimensions' },
+        @{ Path = 'Source\FactoryGame\Public\Buildables\FGBuildableBlueprintDesigner.h'; Pattern = 'size \(in 800 unit increments\)' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'FBlueprintHeader WriteBlueprintToArchive\(const FBlueprintRecord& record, const FTransform& blueprintOrigin, const TArray< class AFGBuildable\* >& buildables, FIntVector dimensions' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'bool WriteBlueprintToDisk\( const FBlueprintRecord& record \)' },
+        @{ Path = 'Source\FactoryGame\Public\FGBlueprintSubsystem.h'; Pattern = 'FBlueprintHeader\* GetHeaderByName\( const FString& name \)' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'CollectBuildables' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'AreProxyBuildingsRegisteredAndValid' },
         @{ Path = 'Source\FactoryGame\Public\FGBlueprintProxy.h'; Pattern = 'GetLightweightClassAndIndices' },
@@ -291,7 +296,7 @@ if ($gameRoot) {
 
 Push-Location (Join-Path $root 'companion')
 try {
-    $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+    $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $nodeCommand) {
         throw 'Node.js 20 or newer is required to validate the companion dependency lockfile.'
     }
@@ -310,7 +315,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "npm ci failed with exit code $LASTEXITCODE while validating the companion."
     }
-    & node --test
+    & $nodeCommand.Source --test
     if ($LASTEXITCODE -ne 0) {
         throw "Companion tests failed with exit code $LASTEXITCODE."
     }

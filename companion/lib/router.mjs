@@ -3140,6 +3140,16 @@ export function explainRoutingMiss(question) {
  * which is always the safe direction to fail.
  */
 export function answerLocally(question, graph, services) {
+  const baseRestore = String(question ?? "").trim().match(/^(check|restore|spawn)\s+(?:saved\s+)?base\s+([A-Za-z0-9_-]{1,80})(?:\s+(?:at\s+)?(?:its\s+)?(?:original|saved|exact)\s+(?:coordinates|xyz|position))?[.!]?$/i);
+  if (baseRestore) {
+    const commit = baseRestore[1].toLowerCase() !== "check";
+    const proposal = { action: "restore_base", base_name: baseRestore[2], commit };
+    const emitted = emitValidatedPlan(graph, services, [proposal]);
+    return localAnswer(emitted
+      ? `Requested ${commit ? "restoration" : "validation"} of base **${baseRestore[2]}** at every saved absolute transform. The game will report the result.`
+      : "The base restore request could not be validated; no action was sent.",
+    "restore_base", Date.now(), "Coordinates come exclusively from the local saved-base package; the model supplies no placement coordinates.");
+  }
   // Cheapest possible check first: input that cannot mean anything never
   // reaches a model.
   if (isUnactionableInput(question)) {

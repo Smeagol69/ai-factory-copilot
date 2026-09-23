@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   SEMANTIC_ROLE_CENSUS,
   assessComposition,
+  assessGeneratedBlueprintComposition,
   assessPromotedComposition,
   buildingNameFromRecipeClass,
   impliedPartsForElement,
@@ -224,4 +225,56 @@ test("the promotion compiler still refuses a manifest it cannot promote", () => 
   const refused = compileArchitectPromotion(null, null, {});
   assert.equal(refused.compiled, false);
   assert.ok(Array.isArray(refused.blockers) && refused.blockers.length > 0);
+});
+
+test("composition follows the captured building, including a misleading mod recipe name", () => {
+  const graph = { snapshot: { content: {
+    recipes: [{ class_path: "Recipe_ConstructorMk1", products: [{ item_class: "mod-wall" }] }],
+    items: [{ class_path: "mod-wall", building: { class_path: "/Mod/Build_Wall_Concrete.Build_Wall_Concrete_C" } }],
+  } } };
+  const result = assessPromotedComposition([{ recipe_class: "Recipe_ConstructorMk1" }], undefined, { graph });
+  assert.equal(result.planned_machines, 0);
+  assert.equal(result.planned_by_role.enclosure, 1);
+  assert.equal(result.classification_complete, true);
+  assert.match(result.evidence, /captured_recipe_buildable_classes/);
+});
+
+test("native composition counts every spline section once, including modded pipes", () => {
+  const graph = { snapshot: { content: {
+    recipes: ["machine", "belt", "wire", "pipe"].map((kind) => ({ class_path: kind, products: [{ item_class: kind }] })),
+    items: [
+      { class_path: "machine", building: { class_path: "/Game/Build_ConstructorMk1.Build_ConstructorMk1_C" } },
+      ...["belt", "wire", "pipe"].map((kind) => ({ class_path: kind, building: { class_path: `/Mod/Build_Alien_${kind}.Build_Alien_${kind}_C` } })),
+    ],
+  } } };
+  const result = assessGeneratedBlueprintComposition({
+    buildables: [{ recipe_class: "machine" }, { recipe_class: "machine" }],
+    conveyors: [{ recipe_class: "belt" }],
+    power_wires: [{ recipe_class: "wire" }, { recipe_class: "wire" }],
+    pipelines: [{ recipe_class: "pipe" }],
+  }, graph);
+  assert.equal(result.planned_buildings, 6);
+  assert.equal(result.planned_machines, 2);
+  assert.equal(result.planned_by_role.power, 2);
+  assert.equal(result.planned_by_role.logistics, 2);
+  assert.equal(result.production_share, 0.3333);
+  assert.equal(result.classification_complete, true);
+  assert.deepEqual(result.native_record_counts, { buildables: 2, conveyors: 1, power_wires: 2, pipelines: 1 });
+});
+
+test("missing and ambiguous recipe products remain counted but unclassified", () => {
+  const graph = { snapshot: { content: {
+    recipes: [{ class_path: "Recipe_ConstructorMk1", products: [{ item_class: "a" }, { item_class: "b" }] }],
+    items: [
+      { class_path: "a", building: { class_path: "/Game/Build_ConstructorMk1.Build_ConstructorMk1_C" } },
+      { class_path: "b", building: { class_path: "/Game/Build_Wall.Build_Wall_C" } },
+    ],
+  } } };
+  const result = assessPromotedComposition([{ recipe_class: "Recipe_ConstructorMk1" }, { recipe_class: "Recipe_SmelterMk1" }, {}], undefined, { graph });
+  assert.equal(result.planned_buildings, 3);
+  assert.equal(result.planned_machines, 0);
+  assert.equal(result.planned_by_role.unclassified, 3);
+  assert.equal(result.classification_complete, false);
+  assert.equal(result.meets_reference_composition, false);
+  assert.deepEqual(result.unresolved_recipe_classes, ["Recipe_ConstructorMk1", "Recipe_SmelterMk1", "missing_recipe_class"]);
 });

@@ -1,4 +1,9 @@
 #include "AIFactoryChatCommand.h"
+#include "AIFactoryActions.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "AIFactoryBlueprintResourceAnchor.h"
 #include "AIFactoryBlueprintResourceAnchorPlacement.h"
 #include "AIFactoryVision.h"
@@ -61,6 +66,31 @@ EExecutionStatus AAIFactoryChatCommand::ExecuteCommand_Implementation(
     }
 
     const FString Subcommand = Arguments[0].ToLower();
+    if (Subcommand == TEXT("base"))
+    {
+        if (Arguments.Num() != 3 || (Arguments[1] != TEXT("check") && Arguments[1] != TEXT("restore")))
+        {
+            Sender->SendChatMessage(TEXT("/ai base check <name> | /ai base restore <name>. Restores the recorded absolute coordinates without material charges; requires write actions."));
+            return EExecutionStatus::UNCOMPLETED;
+        }
+        AFGPlayerController* Controller = Sender->GetPlayer();
+        AFGCharacterPlayer* Player = IsValid(Controller) ? Cast<AFGCharacterPlayer>(Controller->GetPawn()) : nullptr;
+        if (!Player) return EExecutionStatus::UNCOMPLETED;
+        const FString Revision = FString::Printf(TEXT("%llu"), static_cast<unsigned long long>(Subsystem->GetWorldRevision()));
+        TSharedPtr<FJsonObject> Spec = MakeShared<FJsonObject>();
+        Spec->SetStringField(TEXT("action"), TEXT("restore_base")); Spec->SetStringField(TEXT("base_name"), Arguments[2]);
+        Spec->SetBoolField(TEXT("commit"), Arguments[1] == TEXT("restore")); Spec->SetStringField(TEXT("expect_world_revision"), Revision);
+        TArray<TSharedPtr<FJsonValue>> Results;
+        const FString Summary = AIFactoryActions::ExecutePlan(Player->GetWorld(), Player,
+            {MakeShared<FJsonValueObject>(Spec)}, Subsystem->GetSettings().bAllowWriteActions, Revision, Results);
+        Sender->SendChatMessage(Summary);
+        FString Report;
+        FJsonSerializer::Serialize(Results, TJsonWriterFactory<>::Create(&Report));
+        const FString ReportPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AIFactoryCopilot/Diagnostics/latest-base-restore.json"));
+        IFileManager::Get().MakeDirectory(*FPaths::GetPath(ReportPath), true);
+        FFileHelper::SaveStringToFile(Report, *ReportPath);
+        return EExecutionStatus::COMPLETED;
+    }
     if (Subcommand == TEXT("status"))
     {
         const FAIFactorySettings& Settings = Subsystem->GetSettings();

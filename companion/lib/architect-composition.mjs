@@ -252,19 +252,45 @@ export function buildingNameFromRecipeClass(recipeClass) {
  * no geometry estimate in between. When the two assessments disagree, this one
  * is the truth about what gets built.
  */
-export function assessPromotedComposition(actions, catalog = BLUEPRINT_REFERENCE_CATALOG) {
+export function assessPromotedComposition(actions, catalog = BLUEPRINT_REFERENCE_CATALOG, { graph = null, topologyRoles = new Map() } = {}) {
   const reference = referenceRoleMix(catalog);
   const counts = {};
   const unclassified = new Set();
+  const unresolvedRecipes = new Set();
   let planned = 0;
 
   for (const action of actions ?? []) {
-    const name = buildingNameFromRecipeClass(action?.recipe_class);
-    if (!name) continue;
+    const recipeClass = String(action?.recipe_class ?? "");
+    let name;
+    if (graph) {
+      // Mod recipes do not have to share a name with the building they create.
+      // Use the captured recipe -> item descriptor -> building class relation,
+      // and keep missing/ambiguous evidence unknown instead of guessing.
+      const recipe = graph.recipesByClass?.get(recipeClass) ??
+        graph.snapshot?.content?.recipes?.find((entry) => entry.class_path === recipeClass);
+      const classes = new Set();
+      for (const product of recipe?.products ?? []) {
+        const item = graph.itemsByClass?.get(product.item_class) ??
+          graph.snapshot?.content?.items?.find((entry) => entry.class_path === product.item_class);
+        if (item?.building?.class_path) classes.add(item.building.class_path);
+      }
+      if (classes.size === 1) {
+        const classPath = [...classes][0];
+        name = classPath.slice(Math.max(classPath.lastIndexOf("/"), classPath.lastIndexOf(".")) + 1)
+          .replace(/^Build_/, "").replace(/_C$/, "");
+      } else {
+        unresolvedRecipes.add(recipeClass || "missing_recipe_class");
+        name = "";
+      }
+    } else {
+      name = buildingNameFromRecipeClass(recipeClass);
+    }
     planned += 1;
-    const role = classifyBuildable(name);
+    // The native spline collection establishes its role even for modded class
+    // names. These roles are supplied by the compiled-payload adapter only.
+    const role = topologyRoles.get(action) ?? classifyBuildable(name);
     counts[role] = (counts[role] ?? 0) + 1;
-    if (role === "unclassified") unclassified.add(name);
+    if (role === "unclassified") unclassified.add(name || recipeClass || "missing_recipe_class");
   }
 
   const machines = counts.production ?? 0;
@@ -289,8 +315,10 @@ export function assessPromotedComposition(actions, catalog = BLUEPRINT_REFERENCE
     planned_machines: machines,
     planned_by_role: counts,
     unclassified_buildings: [...unclassified].sort(),
+    unresolved_recipe_classes: [...unresolvedRecipes].sort(),
+    classification_complete: unclassified.size === 0 && unresolvedRecipes.size === 0,
     roles,
-    meets_reference_composition: machines > 0 && shortRoles.length === 0,
+    meets_reference_composition: machines > 0 && shortRoles.length === 0 && unclassified.size === 0 && unresolvedRecipes.size === 0,
     shortfall_roles: shortRoles.map((entry) => entry.role),
     production_share:
       planned > 0 ? Math.round((machines / planned) * 10000) / 10000 : null,
@@ -298,8 +326,25 @@ export function assessPromotedComposition(actions, catalog = BLUEPRINT_REFERENCE
       reference.total_buildings > 0
         ? Math.round(((reference.counts.production ?? 0) / reference.total_buildings) * 10000) / 10000
         : null,
-    evidence: "classified_from_promoted_action_recipe_classes_against_decoded_reference_census",
+    evidence: graph
+      ? "classified_from_captured_recipe_buildable_classes_against_decoded_reference_census"
+      : "classified_from_promoted_action_recipe_classes_against_decoded_reference_census",
     caveat:
-      "Counts the buildings promotion plans, classified by the building each recipe produces. It does not prove any of them can be placed: terrain, clearance, cost and Build Gun validity are still the game's to decide.",
+      "Counts planned records; roles use the reference library's class-name classifier. Unclassified records may include production machines, so their presence makes the production denominator incomplete. These advisory reference ratios are not construction requirements. Terrain, clearance, cost and Build Gun validity remain the game's to decide.",
+  };
+}
+
+/** Count the final native payload, including spline records outside actions. */
+export function assessGeneratedBlueprintComposition(compiled, graph, catalog = BLUEPRINT_REFERENCE_CATALOG) {
+  const sections = ["buildables", "conveyors", "power_wires", "pipelines"];
+  const entries = sections.flatMap((section) => compiled?.[section] ?? []);
+  const topologyRoles = new Map([
+    ...(compiled?.conveyors ?? []).map((entry) => [entry, "logistics"]),
+    ...(compiled?.power_wires ?? []).map((entry) => [entry, "power"]),
+    ...(compiled?.pipelines ?? []).map((entry) => [entry, "logistics"]),
+  ]);
+  return {
+    ...assessPromotedComposition(entries, catalog, { graph, topologyRoles }),
+    native_record_counts: Object.fromEntries(sections.map((section) => [section, compiled?.[section]?.length ?? 0])),
   };
 }

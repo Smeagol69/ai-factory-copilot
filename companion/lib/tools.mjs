@@ -17,8 +17,9 @@ import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
-import { compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
+import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
+import { compileArchitectAccess } from "./architect-access.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
@@ -65,6 +66,7 @@ function architectDesignRequest(args = {}) {
     target_rate_per_minute: args.target_rate_per_minute,
     origin: args.origin,
     style: args.style,
+    enclosure_mode: args.enclosure_mode ?? "perimeter",
     design_family_id: args.design_family_id,
     match_design_family_fingerprint: args.match_design_family_fingerprint,
     commissioning_phases: args.commissioning_phases,
@@ -103,6 +105,8 @@ function compileArchitectDesignRequest(graph, request, services = {}) {
   }
   const manifest = compileMegabaseConcept(graph, layout, {
     style: request.style,
+    // Requests saved before this option existed compiled front-only facades.
+    enclosure_mode: request.enclosure_mode ?? "front_facade",
     design_family_id: request.design_family_id,
     match_design_family_fingerprint: request.match_design_family_fingerprint,
     commissioning_phases: request.commissioning_phases,
@@ -782,18 +786,18 @@ export const SOLVER_TOOLS = [
         },
         style: {
           type: "string",
-          enum: [
-            "elevated_industrial_campus",
-            "terraced_megafactory",
-            "curvilinear_future_campus",
-          ],
-          description: "Architectural grammar to compile. It changes massing, not game facts.",
+          enum: [...MEGABASE_STYLES],
+          description: "Architectural grammar to compile. Choose radial_hub_campus for halls arranged around a central landmark with a shared frame per hall. It changes massing, not game facts.",
         },
         design_family_id: {
           type: "string",
           maxLength: 80,
           description:
             "Stable human-readable identity shared by buildings that must use the same style parameters and exact captured role recipes. Defaults to the style grammar.",
+        },
+        enclosure_mode: {
+          type: "string", enum: ["perimeter", "front_facade"],
+          description: "Defaults to perimeter: four glazed faces with symmetric first-storey access bays. Choose front_facade for the original open-sided concept. Bays are design intent; walkways, transport and native clearance still need validation.",
         },
         match_design_family_fingerprint: {
           type: "string",
@@ -875,6 +879,12 @@ export const SOLVER_TOOLS = [
             terrace_step_cells: { type: "integer" },
             terrace_level_floors: { type: "integer" },
             curve_amplitude_cells: { type: "integer" },
+            ring_clearance_cells: { type: "integer", minimum: 0,
+              description: "Radial style: extra spacing between the full platform envelopes." },
+            ring_entrance_degrees: { type: "integer", minimum: 0, maximum: 180,
+              description: "Radial style: arc left open as the campus entrance." },
+            hall_facing: { type: "integer", enum: [1, -1],
+              description: "Radial style: 1 faces hall fronts toward the hub, -1 faces them outward." },
             tower_width_cells: { type: "integer" },
             tower_depth_cells: { type: "integer" },
             tower_floors: { type: "integer" },
@@ -885,16 +895,7 @@ export const SOLVER_TOOLS = [
           type: "object",
           description:
             "Optional recipe classes selected for semantic architecture roles. Each is independently checked against the captured available recipe catalog; a guessed class remains unresolved.",
-          properties: {
-            foundation: { type: "string" },
-            support_column: { type: "string" },
-            walkway: { type: "string" },
-            rail: { type: "string" },
-            wall: { type: "string" },
-            window: { type: "string" },
-            sloped_roof: { type: "string" },
-            lighting: { type: "string" },
-          },
+          properties: Object.fromEntries(SEMANTIC_ROLES.map((role) => [role, { type: "string" }])),
           additionalProperties: false,
         },
       },
@@ -906,6 +907,7 @@ export const SOLVER_TOOLS = [
       const compiled = compileArchitectDesignRequest(graph, designRequest, services ?? {});
       if (!compiled.compiled) return compiled.result;
       const { manifest, vertical } = compiled;
+      const accessCatalog = compileArchitectAccess(manifest);
       let architectRevision = null;
       if (args.architect_session_name) {
         const store = services?.architect;
@@ -938,6 +940,7 @@ export const SOLVER_TOOLS = [
         if (!preview.compiled) {
           return {
             ...manifest,
+            access_catalog: accessCatalog,
             vertical_module: vertical,
             ...(architectRevision ? { architect_revision: architectRevision } : {}),
             architect_preview: preview,
@@ -946,6 +949,7 @@ export const SOLVER_TOOLS = [
         services?.actions?.emit?.([preview.action]);
         return {
           ...manifest,
+          access_catalog: accessCatalog,
           vertical_module: vertical,
           ...(architectRevision ? { architect_revision: architectRevision } : {}),
           architect_preview: {
@@ -961,6 +965,7 @@ export const SOLVER_TOOLS = [
       }
       return {
         ...manifest,
+        access_catalog: accessCatalog,
         vertical_module: vertical,
         ...(architectRevision ? { architect_revision: architectRevision } : {}),
       };
@@ -1018,10 +1023,13 @@ export const SOLVER_TOOLS = [
         return store.list({ session_name: args.session_name });
       }
       if (args.operation === "get") {
-        return store.getRevision({
+        const stored = store.getRevision({
           session_name: args.session_name,
           revision_id: args.revision_id,
         });
+        return stored.ok
+          ? { ...stored, access_catalog: compileArchitectAccess(stored.revision.manifest) }
+          : stored;
       }
       if (args.operation === "compare") {
         return store.compare({
@@ -1077,6 +1085,7 @@ export const SOLVER_TOOLS = [
           return {
             ok: true,
             operation: "preview",
+            access_catalog: compileArchitectAccess(recompiled.manifest),
             revision: verified.revision,
             evidence: verified.evidence,
             architect_preview: {
@@ -1440,13 +1449,14 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
+                enum: ["place_building", "place_blueprint", "restore_base", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item"],
               },
               commit: {
                 type: "boolean",
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
+              base_name: { type: "string", description: "restore_base only: exact local saved-base package name supplied by the player. Restores all saved absolute transforms without material charges or requiring no-build-cost mode, accepts no offset or rotation, and must be a standalone write. Never invent package names or claim success before the native result." },
               blueprint_name: { type: "string", description: "place_blueprint or preview_blueprint: exact saved-blueprint name from list_blueprints. generate_native_blueprint: the name of the new native Blueprint file. preview_blueprint must be the only action and only arms the requesting player's native Build Gun." },
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {

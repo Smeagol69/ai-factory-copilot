@@ -5,6 +5,62 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Architect in-game previews now leave declared facade entrances visibly open.
+  Bounded wall sections preserve upper glazing, overlapping openings and rotated
+  hall geometry through the existing draw-only renderer. Legacy facades without
+  openings remain unchanged; oversized expanded previews refuse as a whole.
+- Architect design, stored-option inspection, preview and promotion reports now
+  expose exact declared entrance corners, dimensions and outward directions.
+  Geometry follows the facade's shared hall frame and native panel convention;
+  saved manifest identities stay unchanged. Walkway connections and measured
+  clearance remain explicitly unverified.
+- New model-requested Architect designs now default to four-sided glazed hall
+  enclosures with centered first-storey access bays. Facade orientation composes
+  with the hall's frame, and native generation omits the declared bay panels
+  while keeping upper glazing. `enclosure_mode: front_facade` retains the original
+  open-sided layout; saved requests lacking this option recompile as before.
+  Access bays do not imply connected walkways or verified vehicle clearance.
+- The model-facing Architect tool now exposes the radial style, ring spacing,
+  entrance arc, inward/outward facing and the existing sign role. Provider tool
+  schemas share the compiler's style/role lists so implemented capabilities do
+  not remain hidden from the assistant.
+- New radial Architect designs keep each hall, platform, facade, roof and pylon
+  in one shared placement frame. Half-cell pivots centre odd-sized halls exactly
+  on the ring; the landmark is centred at the hub. Ring spacing now includes
+  complete platform diagonals and the central tower, with conservative service
+  clearance. The documented outward-facing option (`hall_facing: -1`) is now
+  accepted. Existing saved designs and the other architectural families retain
+  their geometry; native collision/readback and commissioning remain required.
+- Architect site planning now includes each element's angle in its footprint
+  and checks production-hall overlap using oriented volumes. Rotated wings no
+  longer disappear from obstruction screening, and separated diagonal halls
+  are not rejected just because their enclosing rectangles overlap. Terrain
+  coverage requires the captured probe square to contain the entire design,
+  including offset wings and corners; missing geometry or probe locations stay
+  unknown. These checks still describe semantic volumes, not native mesh collision.
+- Architect native Blueprint generation now preserves each section's validated
+  angle around its recorded origin across foundations, machines, facades,
+  roofs, supports, walkways/rails and landmark towers. Rotated sections no
+  longer fail solely because their angle differs from the campus grid. Exact
+  connector alignment, unlock, geometry and native readback gates still apply;
+  existing unrotated layouts retain their coordinates and rounding.
+- Captured Blueprints now record dimensions from every selected buildable's
+  native bounds, including lightweight structures, in the game's 8 m cells.
+  The envelope accounts for the snapped pivot and uses the measured base in Z,
+  so large captures no longer inherit an unrelated Designer's 32 m box. Missing
+  modded bounds keep the existing export fallback with an explicit unknown
+  extent; invalid origins and unrepresentable dimensions refuse the write.
+  Native archive dimensions, disk-write success, and disk-header dimensions
+  are checked before export is reported successful. Existing files are unchanged.
+- Architect composition now counts the final generated Blueprint's buildings,
+  conveyors, power wires and pipelines. Building classification follows the
+  captured recipe/descriptor/class relation; missing or ambiguous evidence is
+  reported, and typed spline records retain their known transport/power role.
+  Composition remains advisory and does not change placement or design identity.
+- Validation and Starter Project staging select one Node executable when PATH
+  contains multiple Node installations, instead of joining their paths into an
+  invalid command.
+
 - Added a **sign** semantic role, so an AI Architect design can label itself.
   The reference census showed real builds place roughly three signs per
   production machine while the vocabulary could not express a single one.

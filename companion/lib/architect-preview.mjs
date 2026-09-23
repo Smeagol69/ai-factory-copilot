@@ -15,8 +15,7 @@ const SUPPORTED_KINDS = new Set([
 ]);
 
 function finite(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return Number.isFinite(value) ? value : null;
 }
 
 function vector(value, { positive = false } = {}) {
@@ -43,6 +42,88 @@ function previewIdentity(manifest, elements) {
     elements,
   };
   return `sha256:${createHash("sha256").update(JSON.stringify(payload)).digest("hex")}`;
+}
+
+// Sweep only opening boundaries, not every cell of a potentially huge facade.
+// Union overlapping openings and merge identical wall spans vertically. The
+// result uses the existing box renderer; no new game-side drawing primitive.
+function facadeSections(element, geometry, grid) {
+  const openings = element.openings;
+  const unit = finite(grid?.unit_cm);
+  const floor = finite(grid?.floor_height_cm);
+  const width = element.size_cells?.x;
+  const height = element.size_cells?.z;
+  if (!Array.isArray(openings) || openings.length > MAX_ARCHITECT_PREVIEW_ELEMENTS ||
+      unit === null || unit <= 0 || floor === null || floor <= 0 ||
+      !Number.isSafeInteger(width) || width < 1 ||
+      !Number.isSafeInteger(height) || height < 1 ||
+      geometry.size_cm.x !== width * unit || geometry.size_cm.z !== height * floor ||
+      openings.some((opening) =>
+        ![opening?.start_cell, opening?.width_cells, opening?.base_floor, opening?.height_floors]
+          .every(Number.isSafeInteger) ||
+        opening.start_cell < 0 || opening.width_cells < 1 ||
+        opening.base_floor < 0 || opening.height_floors < 1 ||
+        opening.start_cell + opening.width_cells > width ||
+        opening.base_floor + opening.height_floors > height)) {
+    return { compiled: false, reason: "manifest_facade_openings_are_invalid", element_id: element.id };
+  }
+  if (openings.length === 0) return { compiled: true, elements: [geometry] };
+  const levels = [...new Set([0, height, ...openings.flatMap((opening) =>
+    [opening.base_floor, opening.base_floor + opening.height_floors])])].sort((a, b) => a - b);
+  const sections = [];
+  let previous = new Map();
+  for (let index = 0; index < levels.length - 1; index += 1) {
+    const bottom = levels[index];
+    const top = levels[index + 1];
+    const blocked = openings.filter((opening) =>
+      opening.base_floor <= bottom && opening.base_floor + opening.height_floors >= top)
+      .map((opening) => [opening.start_cell, opening.start_cell + opening.width_cells])
+      .sort((a, b) => a[0] - b[0]);
+    const spans = [];
+    let cursor = 0;
+    for (const [start, end] of blocked) {
+      if (start > cursor) spans.push([cursor, start]);
+      cursor = Math.max(cursor, end);
+    }
+    if (cursor < width) spans.push([cursor, width]);
+    const current = new Map();
+    for (const [start, end] of spans) {
+      const key = `${start}:${end}`;
+      const section = previous.get(key);
+      if (section) section.top = top;
+      else sections.push({ start, end, bottom, top });
+      current.set(key, section ?? sections.at(-1));
+    }
+    previous = current;
+    if (sections.length > MAX_ARCHITECT_PREVIEW_ELEMENTS) {
+      return { compiled: false, reason: "facade_sections_exceed_architect_preview_element_limit", element_id: element.id };
+    }
+  }
+  const radians = geometry.yaw_degrees * Math.PI / 180;
+  const rounded = (value) => Math.round(value * 1000) / 1000;
+  const prefix = createHash("sha256").update(geometry.id).digest("hex").slice(0, 24);
+  return {
+    compiled: true,
+    elements: sections.map((section, index) => {
+      // Native panels are centred at column * unit. Their left edge is a
+      // half-cell earlier; the portal's plane is halfway through this volume.
+      const dx = (section.start - 0.5) * unit;
+      return {
+        ...geometry,
+        id: `facade-${prefix}-${index + 1}`,
+        origin_cm: {
+          x: rounded(geometry.origin_cm.x + dx * Math.cos(radians)),
+          y: rounded(geometry.origin_cm.y + dx * Math.sin(radians)),
+          z: geometry.origin_cm.z + section.bottom * floor,
+        },
+        size_cm: {
+          x: (section.end - section.start) * unit,
+          y: geometry.size_cm.y,
+          z: (section.top - section.bottom) * floor,
+        },
+      };
+    }),
+  };
 }
 
 /**
@@ -72,20 +153,41 @@ export function compileArchitectPreview(manifest, options = {}) {
   }
 
   const elements = [];
+  const sourceIds = new Set();
   for (const element of manifest.elements) {
     const id = boundedText(element?.id, 96);
     const kind = boundedText(element?.kind, 48);
     const origin = vector(element?.world_origin_cm);
     const size = vector(element?.world_size_cm, { positive: true });
     const yaw = finite(element?.world_yaw_degrees);
-    if (!id || !kind || !SUPPORTED_KINDS.has(kind) || !origin || !size || yaw === null) {
+    if (!id || sourceIds.has(id) || !kind || !SUPPORTED_KINDS.has(kind) || !origin || !size || yaw === null) {
       return {
         compiled: false,
         reason: "manifest_element_is_not_bounded_preview_geometry",
         element_id: element?.id ?? null,
       };
     }
-    elements.push({ id, kind, origin_cm: origin, size_cm: size, yaw_degrees: yaw });
+    sourceIds.add(id);
+    const geometry = { id, kind, origin_cm: origin, size_cm: size, yaw_degrees: yaw };
+    if (element.openings !== undefined) {
+      if (kind !== "glazed_facade") {
+        return { compiled: false, reason: "manifest_openings_require_a_facade", element_id: id };
+      }
+      const sections = facadeSections(element, geometry, manifest.grid);
+      if (!sections.compiled) return sections;
+      elements.push(...sections.elements);
+    } else elements.push(geometry);
+    if (elements.length > MAX_ARCHITECT_PREVIEW_ELEMENTS) {
+      return { compiled: false, reason: "facade_sections_exceed_architect_preview_element_limit",
+        maximum_elements: MAX_ARCHITECT_PREVIEW_ELEMENTS };
+    }
+  }
+  if (elements.length === 0) {
+    return { compiled: false, reason: "manifest_has_no_retained_preview_geometry" };
+  }
+  if (new Set(elements.map((element) => element.id)).size !== elements.length ||
+      elements.some((element) => !vector(element.origin_cm) || !vector(element.size_cm, { positive: true }))) {
+    return { compiled: false, reason: "derived_preview_geometry_is_invalid" };
   }
 
   const overlay = boundedText(options.overlay ?? ARCHITECT_PREVIEW_OVERLAY, 64);

@@ -6,6 +6,7 @@ import { compileArchitectPromotion } from "../lib/architect-promotion.mjs";
 import { buildGraph } from "../lib/graph.mjs";
 import {
   captureUnlockConstraints,
+  elementOriginToWorld,
   gridPointToWorld,
   validateMegabaseManifest,
 } from "../lib/megabase.mjs";
@@ -973,6 +974,8 @@ test("single-link Architect machines receive a capacity-safe pole with an extern
   assert.equal(promoted.internal_power.external_connection.reserved_links, 1);
   assert.equal(promoted.native_blueprint.counts.buildables, 7);
   assert.equal(promoted.native_blueprint.counts.power_wires, 2);
+  assert.equal(promoted.composition_budget.planned_buildings, 10, "seven ordinary actors, one conveyor and two wire actors");
+  assert.equal(promoted.composition_budget.planned_by_role.power, 3, "one pole plus both wires");
   const independentlyValidated = validateAction(graph, promoted.action);
   assert.equal(independentlyValidated.valid, true, JSON.stringify(independentlyValidated));
   assert.equal(independentlyValidated.checks.captured_power_capacity_checked_endpoints, 3);
@@ -990,6 +993,10 @@ test("one-to-one rate-matched fluid dependencies compile through native v3 pipel
   assert.equal(promoted.native_blueprint.schema, "aifactory.generated-blueprint/v3");
   assert.equal(promoted.native_blueprint.counts.pipelines, 1);
   assert.equal(promoted.native_blueprint.counts.conveyors, 0);
+  assert.equal(promoted.composition_budget.planned_buildings,
+    promoted.action.buildables.length + promoted.action.power_wires.length + promoted.action.pipelines.length);
+  assert.equal(promoted.composition_budget.planned_by_role.logistics, 1, "the native pipeline is counted even with a modded name");
+  assert.equal(promoted.composition_budget.native_record_counts.pipelines, 1);
   assert.equal(promoted.internal_pipelines.compiled, true);
   assert.equal(promoted.internal_pipelines.evidence[0].lane_rate_m3_per_minute, 120);
   assert.equal(promoted.internal_pipelines.evidence[0].pipeline_capacity_m3_per_minute, 300);
@@ -1072,49 +1079,255 @@ test("Architect fluid promotion refuses ambiguous recipe-to-port identity", () =
   assert.equal(refused.action, undefined);
 });
 
-test("promotion refuses rotated elements instead of building them square", () => {
-  // Every promotion adapter takes its rotation from manifest.grid.yaw_degrees,
-  // never from the element. A rotated element reaching them would be built at
-  // the campus angle: correct in the preview, silently wrong in the world, and
-  // discoverable only by looking at it. So it must be refused by name.
+function promoteForRotationTest(graph, manifest) {
+  const result = compileArchitectPromotion(graph, manifest, {
+    revision_id: REVISION,
+    selected_revision_id: REVISION,
+    blueprint_name: "Architect Element Rotation",
+    commit: false,
+  });
+  assert.equal(result.compiled, true, JSON.stringify(result.blockers));
+  assert.equal(result.action.commit, false);
+  assert.equal(result.operational_readiness.ready, false);
+  const checked = validateAction(graph, result.action);
+  assert.equal(checked.valid, true, JSON.stringify(checked));
+  return result;
+}
+
+function setElementRotation(manifest, element, offset) {
+  element.yaw_offset_degrees = offset;
+  element.world_yaw_degrees = (Number(manifest.grid.yaw_degrees) + offset) % 360;
+}
+
+test("native facades leave declared first-storey bays open and retain the upper glazing", () => {
+  const graph = promotionGraph();
+  const manifest = shellManifest(graph);
+  const face = manifest.elements.find((element) => element.kind === "glazed_facade");
+  manifest.elements = [face];
+  manifest.program.groups = [];
+  manifest.program.external_outputs = [];
+  face.orientation_offset_degrees = 90;
+  face.world_yaw_degrees = 180;
+  face.openings = [{ start_cell: 1, width_cells: 2, base_floor: 0, height_floors: 1 }];
+  const result = promoteForRotationTest(graph, manifest);
+  const parts = result.action.buildables;
+  // Four columns x two storeys x two 2m panels, less the four opening panels.
+  assert.equal(parts.length, 12);
+  assert.equal(parts.filter((part) => part.recipe_class === WALL_RECIPE).length, 8);
+  assert.equal(parts.filter((part) => part.recipe_class === WINDOW_RECIPE).length, 4);
+  const ground = parts.filter((part) => part.relative_location.z < 800);
+  assert.equal(ground.length, 4);
+  assert.deepEqual([...new Set(ground.map((part) => part.relative_location.x))].sort((a, b) => a - b), [-3200, -800]);
+  assert.ok(parts.every((part) => part.yaw === 180));
+  const portal = result.access_catalog.portals[0];
+  assert.equal(result.access_catalog.compiled, true);
+  assert.equal(portal.width_cm, 1600);
+  assert.equal(portal.height_cm, 400);
+  assert.deepEqual(portal.lower_edge_center_cm, {
+    x: face.world_origin_cm.x - 1200, y: face.world_origin_cm.y - 400,
+    z: face.world_origin_cm.z,
+  });
+  assert.equal(result.access_catalog.circulation.reachable, null);
+});
+
+test("malformed facade openings refuse promotion before any parts are emitted", () => {
+  const graph = promotionGraph();
+  for (const openings of [null, [null], [{ start_cell: -1, width_cells: 1, base_floor: 0, height_floors: 1 }],
+    [{ start_cell: 1, width_cells: 4, base_floor: 0, height_floors: 1 }],
+    [{ start_cell: 1, width_cells: 1, base_floor: 1, height_floors: 2 }]]) {
+    const manifest = shellManifest(graph);
+    manifest.elements.find((element) => element.kind === "glazed_facade").openings = openings;
+    const refused = compileArchitectPromotion(graph, manifest, {
+      revision_id: REVISION, selected_revision_id: REVISION, blueprint_name: "Invalid Bay",
+    });
+    assert.equal(refused.compiled, false);
+    assert.ok(refused.blockers.includes("architect_manifest_validation_failed"));
+    assert.equal(refused.action, undefined);
+  }
+});
+
+test("platform promotion uses the shared frame even when its yaw offset is zero", () => {
   const graph = promotionGraph();
   const manifest = platformManifest(graph);
-
-  const target = manifest.elements[0];
-  target.yaw_offset_degrees = 41.5;
-  target.world_yaw_degrees = ((Number(manifest.grid.yaw_degrees) + 41.5) % 360 + 360) % 360;
-
-  const refused = compileArchitectPromotion(graph, manifest, {
-    revision_id: REVISION,
-    selected_revision_id: REVISION,
-    blueprint_name: "Rotated Hall",
-    commit: true,
-  });
-
-  assert.equal(refused.compiled, false);
-  assert.ok(
-    refused.blockers.some((blocker) =>
-      blocker.startsWith("architect_rotated_elements_have_no_native_adapter:")),
-    refused.blockers.join(","),
-  );
-  // Naming the element matters: "something is rotated" is not actionable.
-  assert.ok(
-    refused.blockers.some((blocker) => blocker.includes(target.id)),
-    refused.blockers.join(","),
-  );
+  const platform = manifest.elements[0];
+  platform.placement_frame = {
+    local_pivot_cells: { x: 0.5, y: 0.5 }, campus_pivot_cells: { x: 0, y: 0 },
+  };
+  for (const [offset, expected] of [
+    [0, { x: -1200, y: -1200, z: 200 }],
+    [90, { x: 1200, y: -1200, z: 200 }],
+  ]) {
+    setElementRotation(manifest, platform, offset);
+    platform.world_origin_cm = elementOriginToWorld(platform, manifest.grid, manifest.anchor_cm);
+    const promoted = promoteForRotationTest(graph, manifest);
+    assert.deepEqual(promoted.action.buildables[0].relative_location, expected);
+  }
 });
 
-test("an unrotated manifest still promotes, so the guard is not blanket", () => {
+for (const kind of [
+  "structural_platform", "production_zone", "glazed_facade", "sloped_roof_intent",
+  "support_pylon", "skybridge", "vertical_landmark",
+]) {
+  test(`native ${kind} rotates every part a quarter turn about its own origin`, () => {
+    const graph = promotionGraph();
+    const manifest = fullMassingManifest(graph);
+    const element = manifest.elements.find((entry) => entry.kind === kind);
+    // Isolate one adapter so every resulting part belongs to this element.
+    manifest.elements = [element];
+    if (kind !== "production_zone") {
+      manifest.program.groups = [];
+      manifest.program.external_outputs = [];
+    }
+    const baseline = promoteForRotationTest(graph, manifest).action.buildables;
+    setElementRotation(manifest, element, 90);
+    const rotated = promoteForRotationTest(graph, manifest).action.buildables;
+    assert.equal(rotated.length, baseline.length);
+    const pivot = {
+      x: element.world_origin_cm.x - manifest.anchor_cm.x,
+      y: element.world_origin_cm.y - manifest.anchor_cm.y,
+    };
+    baseline.forEach((before, index) => {
+      const after = rotated[index];
+      // A positive quarter turn maps (dx, dy) to (-dy, dx), no trig needed.
+      assert.deepEqual(after.relative_location, {
+        x: pivot.x - (before.relative_location.y - pivot.y),
+        y: pivot.y + (before.relative_location.x - pivot.x),
+        z: before.relative_location.z,
+      }, `${kind} part ${index}`);
+      assert.equal((after.yaw - before.yaw + 360) % 360, 90);
+      assert.equal(after.recipe_class, before.recipe_class);
+      assert.equal(after.production_recipe_class, before.production_recipe_class);
+    });
+  });
+}
+
+test("a rotated Y-axis skybridge keeps both rails beside its walkway", () => {
   const graph = promotionGraph();
-  const promoted = compileArchitectPromotion(graph, platformManifest(graph), {
-    revision_id: REVISION,
-    selected_revision_id: REVISION,
-    blueprint_name: "Unrotated Control",
-    commit: true,
-  });
-  assert.equal(promoted.compiled, true, JSON.stringify(promoted.blockers));
-  assert.ok(
-    !promoted.blockers.some((blocker) => blocker.includes("rotated")),
-    promoted.blockers.join(","),
-  );
+  const manifest = fullMassingManifest(graph);
+  const bridge = manifest.elements.find((entry) => entry.kind === "skybridge");
+  bridge.size_cells = { x: 1, y: 3, z: 1 };
+  bridge.world_size_cm = { x: 800, y: 2400, z: 400 };
+  manifest.elements = [bridge];
+  manifest.program.groups = [];
+  manifest.program.external_outputs = [];
+  setElementRotation(manifest, bridge, 90);
+  const parts = promoteForRotationTest(graph, manifest).action.buildables;
+  const pivot = {
+    x: bridge.world_origin_cm.x - manifest.anchor_cm.x,
+    y: bridge.world_origin_cm.y - manifest.anchor_cm.y,
+    z: bridge.world_origin_cm.z - manifest.anchor_cm.z,
+  };
+  for (let index = 0; index < 3; index += 1) {
+    const [walkway, railA, railB] = parts.slice(index * 3, index * 3 + 3);
+    assert.deepEqual(walkway.relative_location, { ...pivot, y: pivot.y - index * 800 });
+    assert.deepEqual(railA.relative_location, { ...walkway.relative_location, x: pivot.x - 400 });
+    assert.deepEqual(railB.relative_location, { ...walkway.relative_location, x: pivot.x + 400 });
+    assert.ok([walkway, railA, railB].every((part) => part.yaw === 270));
+  }
 });
+
+test("fractional element angles preserve the recorded pivot and leave other elements unchanged", () => {
+  const graph = promotionGraph();
+  const manifest = platformManifest(graph);
+  const target = manifest.elements[0];
+  const untouched = structuredClone(target);
+  untouched.id = "unrotated-platform";
+  untouched.local = { x: 12, y: 8, z: 0 };
+  untouched.world_origin_cm = gridPointToWorld(untouched.local, manifest.grid, manifest.anchor_cm);
+  manifest.elements.push(untouched);
+  const before = promoteForRotationTest(graph, manifest).action.buildables;
+  setElementRotation(manifest, target, 315); // 90 + 315 wraps to 45 degrees.
+  const after = promoteForRotationTest(graph, manifest).action.buildables;
+  assert.deepEqual(after.slice(4), before.slice(4));
+  assert.ok(after.slice(0, 4).every((part) => part.yaw === 45));
+  assert.deepEqual(after[0].relative_location, { x: -1600, y: -800, z: 200 });
+  // 800 / sqrt(2) = 565.685425 cm; production rounds to the nearest .001 cm.
+  for (const [index, expected] of [
+    [1, { x: -2165.685, y: -234.315, z: 200 }],
+    [2, { x: -1034.315, y: -234.315, z: 200 }],
+  ]) {
+    for (const axis of ["x", "y", "z"]) {
+      assert.ok(Math.abs(after[index].relative_location[axis] - expected[axis]) < 1e-8);
+    }
+  }
+  setElementRotation(manifest, target, 41.5);
+  const fractional = promoteForRotationTest(graph, manifest).action.buildables;
+  assert.ok(fractional.slice(0, 4).every((part) => part.yaw === 131.5));
+  assert.deepEqual(fractional.slice(4), before.slice(4));
+});
+
+test("unrotated foundations retain the original grid rounding at fractional campus yaw", () => {
+  const graph = promotionGraph();
+  const manifest = platformManifest(graph);
+  manifest.grid.yaw_degrees = 17.25;
+  manifest.anchor_cm = { x: 10000.123, y: 20000.456, z: 1000 };
+  const element = manifest.elements[0];
+  element.world_yaw_degrees = 17.25;
+  element.world_origin_cm = gridPointToWorld(element.local, manifest.grid, manifest.anchor_cm);
+  const parts = promoteForRotationTest(graph, manifest).action.buildables;
+  let index = 0;
+  for (let x = 0; x < 2; x += 1) {
+    for (let y = 0; y < 2; y += 1) {
+      const expected = gridPointToWorld({ x: element.local.x + x, y: element.local.y + y, z: 0 },
+        manifest.grid, manifest.anchor_cm);
+      assert.deepEqual(parts[index++].relative_location, {
+        x: expected.x - manifest.anchor_cm.x,
+        y: expected.y - manifest.anchor_cm.y,
+        z: 200,
+      });
+    }
+  }
+});
+
+test("inconsistent or missing element angles still refuse the entire native action", () => {
+  const graph = promotionGraph();
+  for (const yaw of [undefined, NaN, Infinity, 180]) {
+    const manifest = platformManifest(graph);
+    manifest.elements[0].world_yaw_degrees = yaw;
+    const refused = compileArchitectPromotion(graph, manifest, {
+      revision_id: REVISION, selected_revision_id: REVISION, blueprint_name: "Invalid Angle",
+    });
+    assert.equal(refused.compiled, false);
+    assert.ok(refused.blockers.includes("architect_manifest_validation_failed"));
+    assert.equal(refused.action, undefined);
+  }
+});
+
+for (const [name, graphBuilder, manifestBuilder, resultKey, countKey] of [
+  ["conveyor", promotionGraph, directTopologyManifest, "internal_conveyors", "conveyors"],
+  ["pipeline", fluidPromotionGraph, directFluidTopologyManifest, "internal_pipelines", "pipelines"],
+]) {
+  test(`rotated ${name} lanes use transformed connectors and retain native validation`, () => {
+    const graph = graphBuilder();
+    const manifest = manifestBuilder(graph);
+    const zones = manifest.elements.filter((element) => element.kind === "production_zone");
+    // Turn both machines +90 degrees, and move the consumer from local +Y
+    // to local -X. Its input still faces the producer's output, 2400 cm away.
+    zones[1].local = { ...zones[0].local, x: zones[0].local.x - 4 };
+    zones[1].world_origin_cm = gridPointToWorld(zones[1].local, manifest.grid, manifest.anchor_cm);
+    zones.forEach((element) => setElementRotation(manifest, element, 90));
+    const promoted = promoteForRotationTest(graph, manifest);
+    assert.equal(promoted[resultKey].compiled, true);
+    assert.equal(promoted.native_blueprint.counts[countKey], 1);
+    assert.equal(promoted.internal_power.wires, 1);
+    const machines = promoted.action.buildables.filter((part) => part.production_recipe_class);
+    assert.equal(machines.length, 2);
+    assert.ok(machines.every((part) => part.yaw === 180));
+    assert.deepEqual(machines.map((part) => part.relative_location), [
+      { x: -2800, y: -2000, z: 400 }, { x: -2800, y: -5200, z: 400 },
+    ]);
+    // Rotate only the consumer back: the saved port pair no longer lines up.
+    // Keep the hall clear of its neighbour so this still exercises the route
+    // gate rather than the earlier oriented-volume collision gate.
+    zones[1].local.x -= 4;
+    zones[1].world_origin_cm = gridPointToWorld(zones[1].local, manifest.grid, manifest.anchor_cm);
+    setElementRotation(manifest, zones[1], 0);
+    const refused = compileArchitectPromotion(graph, manifest, {
+      revision_id: REVISION, selected_revision_id: REVISION, blueprint_name: "Misaligned Ports",
+    });
+    assert.equal(refused.compiled, false);
+    assert.ok(refused.blockers.some((blocker) => blocker.includes("requires_explicit_multi_leg_route")),
+      JSON.stringify(refused.blockers));
+    assert.equal(refused.action, undefined);
+  });
+}

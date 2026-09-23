@@ -1,0 +1,17 @@
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { resolve, join } from "node:path";
+import { parseWorld, sha256 } from "./lib/world-transfer.mjs";
+import { compileNativeBaseArchive } from "./lib/native-base-archive.mjs";
+const [manifestDirectory, saveFile, outputDirectory] = process.argv.slice(2);
+if (!manifestDirectory || !saveFile || !outputDirectory) throw new Error("Usage: <prepared-directory> <source.sav> <new-output-directory>");
+const source = resolve(manifestDirectory), output = resolve(outputDirectory);
+const manifest = JSON.parse(readFileSync(join(source, "source-manifest.json")));
+const stateBytes = readFileSync(join(source, manifest.saved_state.file));
+const saveBytes = readFileSync(resolve(saveFile));
+if (sha256(saveBytes) !== manifest.source.save_sha256 || sha256(stateBytes) !== manifest.saved_state.sha256) throw new Error("Source/package changed; prepare again");
+const { sbp, config, runtime } = compileNativeBaseArchive(manifest, JSON.parse(stateBytes), parseWorld(saveBytes));
+mkdirSync(output);
+writeFileSync(join(output, "actors.sbp"), sbp, { flag: "wx" });
+writeFileSync(join(output, "actors.sbpcfg"), config, { flag: "wx" });
+writeFileSync(join(output, "restore.json"), JSON.stringify(runtime, null, 2), { flag: "wx" });
+console.log(JSON.stringify({ output, actors: runtime.actor_count, pieces: runtime.piece_count, bytes: sbp.length, adaptations: runtime.adaptations }));

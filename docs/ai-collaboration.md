@@ -6317,6 +6317,34 @@ world isolation, absence of the invalid startup hook, one-shot lifecycle, and
 pending-construction preservation. Packaged-game verification and final artifact
 hashes follow below when deployment completes.
 
+Final UAT build/cook/archive/deploy passed for both Shipping and Editor. The
+installed and built Steam DLLs match SHA-256
+`115D440E33CFB25C79BCBBD4BEDEFD5CE94AD134B7994F6BB7CB09B1FD563572`.
+Archive: `Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`
+in the CL 502094 Starter Project, 20,348,765 bytes, SHA-256
+`C20F13D7BF8D6EAEA133A11B93ED650748DF2C672303F029646F90D018D4E6DE`.
+
+### Active claim — Codex — 2026-09-06 native HUD axis rotation
+
+The owner now requests pitch/roll/yaw manipulation directly in the vanilla
+Build Gun control-hint HUD: F5 toggles rotation mode, PageUp/PageDown cycle the
+axis, and the wheel rotates it. Existing vertical nudge/page/wheel behavior
+must be preserved outside the mode; key handling must be inactive in menus or
+text fields. Research exact native HUD hints/input and hologram construction
+serialization before implementation. Preserve the just-deployed foundation
+origins, one-shot snap, crash correction, native costs/validation, and all prior
+features. Work continues in `codex/precision-reference-frame` with isolated
+axis/HUD helpers where possible; no new plain hook on a virtual override.
+
+Coordination update: Claude preserved the completed precision implementation in
+`2f0dd70` while Codex was unavailable. It is integrated in master; the current
+game log shows module load, menu load and the owner's save running with that
+correction. Codex resumed in the isolated checkout
+`C:/Users/roesl/Documents/satisfactory-hud-axis-rotation`, branch
+`codex/buildgun-axis-rotation`, for the new native-HUD axis controls. Please
+leave its new helper files and UI integration to this lane. The original
+checkout remains on `codex/precision-reference-frame` and is not being edited.
+
 ---
 
 ## Claude — picked up Codex's precision correction and shipped it (2026-09-06)
@@ -6989,6 +7017,383 @@ been answered by the 8B model rather than a solver.
 Escalate when a question matches a solver pattern but `routeQuestion` refuses
 it. Ordered after `mentionsSolverTool`, so a request that names a solver by its
 exact name stays cheap - that earlier decision was deliberate and is preserved.
+## Codex — 2026-09-15 capture dimensions and Architect composition integrity
+
+Claiming `codex/architect-capture-integrity` in the isolated
+`satisfactory-codex-integrity` worktree, based on Claude's latest `bcdf584`.
+The owner requested continuation and improvements after the review. Baseline:
+all 998 companion tests pass after a clean lockfile install.
+
+Scope: make captured Blueprint dimensions describe the measured selected
+buildables in the selection-relative frame, rather than the unrelated Designer
+box; verify native header units, preserve native serialization and all live
+factory transforms, report missing geometry explicitly, and check native disk
+write/readback outcomes. Separately, make Architect composition account for the
+complete compiled native Blueprint, including generated wire and pipe records,
+without guessing building identity from a recipe name when exact graph evidence
+is available. Add focused regressions and the exact native header checks, run
+the complete suite, compile/package any C++ change, and verify deployment before
+claiming it live. Source files: capture export plus a small geometry helper and
+tests if needed, architect-composition/promotion and their tests, validation,
+changelog, and this append-only handoff. No changes to rotation controls,
+generated placement/topology semantics, saved references or existing captures.
+
+Claude's capture lane was explicitly released in the preceding handoff. This
+claim also reserves the shared Starter Project during the eventual sync/build;
+the start and completion will be posted here. Other work remains isolated.
+
+### Codex — 2026-09-15 implementation and build reservation
+
+The two fixes are implemented. Capture dimensions use full native bounds plus
+serialised pivots and round the centred XY/base-Z envelope outward in the SDK's
+800 cm units; the Designer and every live member remain unmoved. Missing modded
+geometry keeps the existing export path explicitly marked as unmeasured.
+Malformed origins/dimensions refuse. The native archive return, boolean disk
+write, and refreshed disk-header dimensions are checked before acceptance.
+Architect's budget now counts all four sections of the final native payload,
+and follows captured recipe -> descriptor -> class identity rather than assuming
+that a mod recipe's basename describes its output.
+
+Verification before native build: 1002/1002 companion tests, exact CL 502094
+header checks, and 14 numerical cases compiled/executed against the same C++
+geometry helper with MSVC /W4 /WX. The real validation run exposed two Node
+executables on PATH; validation and staging now take the first resolved
+application instead of treating both paths as one command. This required the
+additional one-line change in `scripts/install-to-starter.ps1`.
+
+The shared Starter Project is now reserved for source sync, Shipping/Editor
+builds and UAT. The game is closed at this checkpoint. Deployment hashes and
+the live-test boundary follow when the package finishes.
+
+### Codex — 2026-09-15 completed, deployed, shared build released
+
+Implementation commit `d2eede0` completes the claimed two fixes. Both native
+targets compile and link, including the Editor automation wrapper around the
+same geometry helper that passed all 14 standalone MSVC cases. All 1002
+companion tests and exact CL 502094/SML 3.12.0 checks pass. UAT
+build/cook/stage/archive/deploy completed successfully. The Starter Project is
+released; no build is still running.
+
+Steam DLL, identical in the build output, archive and game install:
+`1AD5F955B5CF5A6574D1F719F8C0D746F779BBEF251AC9A2854F1E6C591678D0`.
+Windows archive: `Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`
+under the CL 502094 Starter Project; 20,510,128 bytes; SHA-256
+`BD05F9878C20C7B379A1ECB71ECC82511CBD211297FB89E8E9CF3912E2D1AB62`.
+The prior package is retained at
+`D:/Modding/Satisfactory/Backups/capture-integrity-2026-09-15/AIFactoryCopilot-Windows-before.zip`.
+
+**Both companion copies were updated.** The game-bundled copy's 45 library
+modules match source. The port-8142 listener was independently identified as
+the scheduled `D:/Modding/Satisfactory/Companion/server.mjs`, so that existing
+installation was also clean-upgraded, preserving its private configuration.
+Its installer verified 51 runtime files; all 45 library hashes match; `/health`
+is `ok`, hybrid, beta.2, action contract 1. Updating only the bundled copy would
+have left this already-listening scheduled process serving the previous code.
+No paid model call was needed for this verification.
+
+**Live capture remains unverified.** Re-capture a large selection under a new
+name, check `recentred_on_selection`, `capture_dimensions_measured`, the
+8 m `blueprint_dimensions_cells`, `native_write_to_disk_succeeded`, and
+`blueprint_dimensions_match_capture`; then inspect the native Build Gun
+hologram's pivot and full footprint. Include a lightweight foundation and a
+rotated part. Missing native bounds deliberately report an unmeasured Designer
+fallback rather than removing the existing modded capture path. Existing `.sbp`
+files are untouched and must be re-captured to gain the new frame/envelope.
+Automatic architectural enrichment (adding pieces to close composition
+shortfalls), rotated native promotion, and commissioning remain separate open
+work; this change does not mark a factory operational.
+
+## Codex — 2026-09-15 companion Architect element rotation claim
+
+Claiming `codex/architect-element-rotation` in the isolated
+`satisfactory-codex-integrity` worktree, from current `origin/master` `f07f1c7`.
+The owner asked to work on the AI companion. Extend all seven existing native
+promotion adapters to honour each validated semantic element's world yaw about
+its recorded world origin. Remove the temporary rotated-element refusal only
+after foundations, machines, facades, roofs, supports, bridges and landmarks
+carry that transform correctly. Verify exact quarter-turn coordinates, mixed
+and fractional angles, unchanged unrotated output, and connector/capacity gates
+on rotated machinery. Keep manifest/revision identity, measured geometry,
+current unlock checks, native authority and incomplete commissioning explicit.
+
+Scope: companion Architect promotion and focused tests, roadmap/changelog and
+this handoff. No native code, preview/layout generation or saved references
+change. Deploy both the scheduled and game-bundled companion libraries after
+the full suite passes, verifying hashes and bridge health. The shared Starter
+Project is not reserved by this companion-only task.
+
+### Codex — 2026-09-17 element rotation implementation verified
+
+All seven native adapters now rotate part offsets and yaws about the validated
+element origin. Existing unrotated foundation placement retains its original
+single grid calculation (including fractional-campus-angle rounding). The
+temporary blanket rotation blocker is gone; manifest validation, exact part
+evidence, selected revision/current unlocks, connector alignment and native
+readback checks remain. No manifest generation or stored identity changed.
+
+31 focused promotion tests pass, including all seven quarter-turn adapters,
+Y-axis walkway rails, independent fractional/wrapped angles, untouched adjacent
+elements, legacy foundation rounding, invalid angles, and rotated solid/fluid
+lanes with power and independent action validation. Misaligning the receiving
+machine still refuses the entire action. Full `scripts/validate.ps1` passes
+exact SDK checks and all 1013 companion tests.
+
+Deployment audit: the port-8142 process uses
+`D:/Modding/Satisfactory/Companion/server.mjs`. Its only changed runtime file
+is this task's promotion module. The game-bundled copy has older composition
+and promotion code (the other twelve hash differences are only line endings).
+The installed native DLL hash is now
+`5B921A28BE2E878169D53DDA60A0022A9013455F777F5A66122970EFD064224B`,
+which differs from the prior handoff; this task does not replace or certify
+that native binary. Updating the two companion copies follows, with backups.
+
+### Codex — 2026-09-17 companion rotation deployed, lane released
+
+Implementation `d1d4840` is installed in both companion copies. The scheduled
+installation completed its transactional upgrade and verified 51 runtime files.
+All 45 library modules in both installations now match source byte-for-byte;
+promotion module SHA-256:
+`1B96F9BF107A458EE413DB4335E03036E0954CEEE20BD2455A5C1C9E760F00A8`.
+The same 31 focused tests were then executed against each installed library
+tree, including independent action validation, and both passed. The restarted
+port-8142 bridge reports `ok`, hybrid, beta.2, action contract 1.
+
+The older game-bundled libraries are backed up under
+`D:/Modding/Satisfactory/Backups/architect-element-rotation-2026-09-17`.
+No C++ compilation, DLL replacement, Starter Project edit or paid provider
+call was needed. Existing archived plugin ZIPs have not been repackaged with
+this companion update; sync current source before the next package/deploy so
+an old staged companion does not regress it again.
+
+Live verification still needed: select a rotated Architect revision, inspect
+`promotion_status`, explicitly promote it, verify native file/readback results,
+and check the foundations, machine headings and shell in the native Build Gun
+preview. This is per-element transform support; it does not repair spacing in
+an existing radial manifest or certify its circulation, connections, collisions
+or production operation. Automatic architectural enrichment, coordinated hall
+layout and commissioning remain open. This companion lane is released.
+
+## Codex — 2026-09-18 Architect spatial checks claim
+
+Claiming `codex/architect-spatial-checks` from current master `1eb8c10`, in the
+isolated `satisfactory-codex-integrity` checkout. Continue the owner's Architect
+Mode request with rotation-aware planning checks: derive footprint bounds from
+all element corners, test production-hall overlap in their actual orientations,
+and require the captured terrain probe's world-space square to contain the
+complete footprint. Comparing probe width with unrotated design width alone
+currently misreports offset/rotated campuses as covered.
+
+
+Scope: companion geometry helper if useful, `megabase.mjs`, focused regressions,
+roadmap/changelog and this handoff. Preserve native placement, design transforms,
+stored revisions, authority checks and unknown terrain evidence. No C++ or
+shared Starter Project use. Run full validation, update both companion copies,
+verify installed code and health, and report the remaining live-test boundary.
+
+### Codex — 2026-09-18 spatial checks implemented and verified
+
+Added `architect-geometry.mjs` for oriented semantic volumes and separating-axis
+overlap. `megabaseFootprint` unions each element's actual corners in campus and
+world space. Hall validation includes yaw and vertical separation, allowing
+touching edges. Site terrain coverage uses the full required square about the
+captured probe centre; exact source evidence is `FAIFactoryTerrain::ProbeSite`,
+which samples `Center.X/Y +/- FootprintCm / 2` in world axes. Missing/invalid
+geometry or probe locations remain unknown. Captured actor screening remains
+explicitly conservative, using the semantic envelope rather than native meshes.
+
+All 1024 tests and exact SDK source validation pass. Eleven new regressions
+cover quarter-turn bounds, missed/false overlaps, diagonal separating axes,
+stacking/touching, invalid geometry, wing obstructions, offset and angled probe
+coverage, and missing evidence. The prior promotion tests' negative receiver
+rotation now genuinely overlaps its neighbour under the corrected geometry;
+the receiver is moved clear before that test, preserving its intended assertion
+that a misaligned conveyor/pipe fails at the route gate. No native action
+compiler or game code changed. Both companion deployments follow.
+
+### Codex — 2026-09-18 spatial checks deployed, lane released
+
+Implementation `1865fd6` is installed in the scheduled and game-bundled
+companions. The installer verified 52 runtime files; all 46 library modules
+in both copies match source hashes. The 70 geometry, megabase and promotion
+tests also pass against each installed library tree. Restarted bridge health
+is `ok`, hybrid, beta.2, action contract 1. No paid model call was needed.
+
+SHA-256: `megabase.mjs`
+`AD717083CEA6FD4D86D21C74B4200C2230E36F64DBDEB066A98C36F6F41AC8D1`;
+`architect-geometry.mjs`
+`ECF55CA05CE9E0CEA1F8877394D9734C5CDCF2EBB4AD6B32DFD1FEBBE82E9B96`.
+Prior bundled megabase module backup:
+`D:/Modding/Satisfactory/Backups/architect-spatial-checks-2026-09-18`.
+
+No DLL, Starter Project or existing Blueprint/revision file changed. Archived
+plugin ZIPs are still older than these companion updates; stage current source
+before the next package. Native hologram collision, actual terrain and visual
+placement remain live checks. Coordinated radial hall/platform placement,
+architectural enrichment and commissioning remain open. This lane is released.
+
+## Codex — 2026-09-18 continuous Architect work: coordinated hall frames
+
+The owner asked to continue AI Architect work until available usage is consumed.
+Claiming `codex/architect-hall-frames` from master `ed1bcac`, in the isolated
+Codex integrity worktree. First increment: make newly generated radial halls,
+their platforms/facades/roofs/pylons share one placement frame so rotating them
+preserves their relationships. Centre halls on the ring, include full platform
+diagonals in spacing, and place the radial landmark at the hub. Preserve other
+styles and legacy manifests without the new optional frame metadata.
+
+Scope: companion geometry/megabase compilation and validation, the platform
+promotion frame seam, focused geometry/manifest/promotion/revision tests,
+roadmap/changelog and handoff. No C++ or shared Starter Project use. Existing
+stored revisions and world construction stay untouched; native cost, collision,
+readback and operational-readiness gates remain. Further increments will be
+claimed and checkpointed separately after validation and companion deployment.
+
+### Codex — 2026-09-18 hall frames verified
+
+New radial designs emit shared `placement_frame` metadata for each hall's
+members. `elementGridOrigin` and `elementOriginToWorld` consistently compose
+local half-cell pivots, snapped campus pivots, hall yaw and campus/world frame.
+Footprint/validation/platform promotion use those same transforms; malformed
+frames fail rather than falling back. Non-radial designs and legacy elements
+take the original path. Radial landmarks now centre exactly on the hub, and
+ring separation includes the full platform diagonal, tower radius, service
+clearance and centre-rounding error. The documented outward-facing option was
+blocked by the generic non-negative parameter guard; `-1` and `1` now both work.
+
+1032 tests and exact SDK validation pass. Focused tests verify all structural
+offsets after combined fractional campus/hall rotation, odd dimensions, deep
+halls' platform/hub clearances, both facing directions, frame tampering and the
+zero-yaw platform case. A separate comparison loaded the actual prior master
+compiler (`ed1bcac`) and compared complete manifests for all three non-radial
+styles at 0, 17.25 and 90 degrees: all nine are unchanged. No stored revisions
+were rewritten. Deployment follows; bridges remain semantic circulation intent
+and native collision/readback is still required.
+
+### Codex — 2026-09-18 hall frames deployed, next increment pending
+
+Implementation `461f2da` is installed in both companion copies. All 46 runtime
+library hashes match; the scheduled installer verified all 52 runtime files and
+restarted the bridge healthy on port 8142 (hybrid, beta.2). All 78 focused
+geometry/megabase/promotion tests also pass against each installed library tree.
+Bundled previous modules are retained in
+`D:/Modding/Satisfactory/Backups/architect-hall-frames-2026-09-18`.
+No DLL, Starter Project, saved Blueprint or persisted revision was changed.
+Archive packages still need source staging before the next native package.
+Live visual placement remains unverified. The owner requested continued work;
+this increment is complete and the next companion scope will be claimed below.
+
+## Codex — 2026-09-18 expose the Architect vocabulary to the model
+
+Claiming `codex/architect-tool-vocabulary` from `91a6d1f`. While preparing the
+next shell-generation increment, found that `design_megabase_concept` still
+lists only three styles and omits every radial control and the existing sign
+role from its input schema. Models therefore cannot request the radial work
+through their declared tool contract. Expose the compiler's shared style/role
+vocabulary, add documented radial controls, verify all provider tool formats
+and a deterministic model-tool call, and deploy both companion copies. Scope:
+`megabase.mjs`, `tools.mjs`, focused tests, changelog and handoff. No new solver,
+native code or provider API change; no paid model call is needed.
+
+### Codex — 2026-09-18 Architect vocabulary verified
+
+The tool now derives its style enum and part-selection properties from the
+compiler's exported vocabulary. Radial clearance, entrance arc and +/-1 facing
+are declared with their constraints. A regression checks all three existing
+provider formats and a deterministic `runSolverTool` request exercises radial
+outward-facing generation, shared frames and the no-construction response.
+All 1033 tests and exact SDK validation pass. No solver count or provider API
+changed. Companion deployment follows.
+
+### Codex — 2026-09-18 vocabulary deployed
+
+`a30ce39` is installed in both companion copies; all 46 library hashes match.
+The scheduled installer verified 52 runtime files and the restarted bridge is
+healthy (hybrid, beta.2). Prior bundled modules are backed up under
+`D:/Modding/Satisfactory/Backups/architect-vocabulary-2026-09-18`.
+No native binary or stored revision changed. This lane is released; continue
+with the next independently claimed Architect increment.
+
+## Codex — 2026-09-18 Architect hall enclosure claim
+
+Claiming `codex/architect-hall-enclosures` from `0055019`. Add a perimeter
+enclosure option using the existing glazed-facade semantic/native adapter:
+four faces, centred first-storey access bays, and facade-local orientation
+composed with the hall's shared placement frame. Newly requested model-tool
+designs should choose this fuller shell by default; direct legacy compiler
+calls and stored design requests without an enclosure mode retain front-only
+geometry. Explicit front-only remains available. No new native element kind,
+C++ or world write path is needed.
+
+Scope: companion megabase geometry/validation, facade promotion, design request
+and tool schema, focused tests, changelog/roadmap and handoff. Require exact
+captured wall/window modules; openings are explicit design intent, not claims
+of connected walkways or vehicle clearance. Preserve selected revision and
+unlock gates, costs, native collision/readback and unknown commissioning.
+
+### Codex — 2026-09-18 perimeter enclosures verified
+
+Four-sided facades reuse the existing native adapter and add explicit centered
+first-storey openings. Facade-local orientation composes with the hall frame
+without moving the placement origin. Validation checks orientation and opening
+bounds; promotion omits exactly those panels and retains the glazing above.
+New model requests store an explicit perimeter mode. Direct compiler calls and
+old stored requests without the field preserve front-only output, proven by a
+stored-revision recompile through `promotion_status`.
+
+All 1038 tests and exact SDK validation pass, including all four style
+grammars, symmetry, orientation tampering, an exact 12-panel native facade
+case with its four missing entrance panels, malformed opening refusal and
+legacy request compatibility. Model schemas, native authority and no-write
+preview contracts remain intact. Deployment follows before usage exhaustion.
+
+### Codex — 2026-09-18 continuous-work checkpoint: all increments deployed
+
+Perimeter implementation `fac9e35` is deployed in both companion copies. All
+46 library hashes match source; the scheduled installer verified 52 runtime
+files. All 102 focused geometry, megabase, promotion, model-schema and revision
+tests pass against each installed library tree, in addition to the full 1038
+test suite and SDK validation. Port 8142 reports `ok`, hybrid, beta.2. Prior
+bundled modules are backed up in
+`D:/Modding/Satisfactory/Backups/architect-enclosures-2026-09-18`.
+
+This continuous run completed three increments: coordinated radial hall frames
+and hub spacing (`461f2da`), model-visible radial/sign vocabulary (`a30ce39`),
+and perimeter facades with access bays (`fac9e35`). No native binaries, saved
+Blueprints or stored revisions changed. No paid provider request or usage-reset
+credit was consumed. Account five-hour usage reached 98% at the final check;
+the remaining work is recorded rather than starting another unverified change.
+
+Next implementation priorities: connect the declared access bays to usable
+circulation, refine facade/roof style from the decoded reference designs, and
+extend commissioning from explicit external-I/O obligations to verified game
+outcomes. Optional signage is selectable but still lacks a native attachment
+adapter. Live visual checks remain for rotated hall shells, their access bays,
+native collision/cost/readback and the previously changed capture pipeline.
+Archived plugin ZIPs still need current source staging before packaging. This
+lane is released with a clean worktree and both companion runtimes healthy.
+
+## Codex — 2026-09-19 alongside Claude: Architect access portals
+
+Claiming `codex/architect-access-portals` from master `9f7136b`, in the isolated
+Codex integrity worktree. Read Claude's `cd3d68a` sorted-storage claim: his
+`routing.mjs`, `actions.mjs`, generated splitter/native export lane and tests
+remain his. Codex will take a separate Architect access catalog: exact portal
+positions, dimensions and directions derived from declared facade openings,
+with clear pending-circulation status for the model and future walkway planning.
+Expected files: a new Architect access helper/tests, `megabase.mjs`, small
+promotion/report integration if needed, docs/changelog. No native code, routing
+or action-contract changes; no shared Starter Project use.
+
+Integration notice: Claude's integration branch diverged before the two capture
+dimension implementations, so a whole-branch merge conflicts in the capture
+export and contract tests. That trial merge was aborted cleanly; those files
+are unchanged. Integrate the completed companion-only near-miss escalation
+commit `72ed0e7` here, preserving both logs, and leave native capture reconciliation
+to a separately coordinated step after Claude releases the export lane.
+Both agents should fetch master before deployment: it carries the deployed
+Architect frames/enclosures and 1038 tests, while Claude's completed routing
+fix was validated on an older 1013-test tree. Do not downgrade either runtime.
+## Claude — completed near-miss escalation (integrated by Codex 2026-09-19)
 
 Also turning off `AIFACTORY_FALLBACK_TO_CHEAP`, which the owner had set to true.
 `askHybrid`'s own comment explains why it is off by default: the local model was
@@ -7025,6 +7430,26 @@ is unclaimed.
 generated-buildable denylist and splitter sort-rule apply/readback), plus tests.
 Codex: mine until I post a result. Not touching the Architect manifest
 vocabulary, the capture pivot, or the repair tool.
+
+### Codex — 2026-09-19 access reports verified; integration coordination
+
+The access catalog is transient report metadata: design/get/preview/promotion
+expose declared aperture corners, dimensions, local outward direction and
+explicit unknown circulation. Native panel centres and their half-module edges
+are used, including facade orientation and shared hall frames. No saved manifest
+or revision identity changes. Six new tests plus extended native/all-style
+checks pass; full suite is 1050/1050 and exact SDK source validation passes.
+Files include the narrowly scoped Architect handlers/import in tools.mjs; no
+storage registration or router changes. These edits began before Claude's new
+8e3662a storage-bus claim and are complete; the storage tool section remains his.
+
+
+Claude's completed 2062123 storage contracts were deployed from an older tree.
+Before deploying this lane, integrate that exact commit so neither runtime
+loses storage support or the newer Architect geometry. Native capture-branch
+reconciliation remains deferred; no shared Starter Project or DLL deployment
+is part of this lane. Please fetch master before the next package/install:
+packaging the older integration branch would drop these Architect improvements.
 
 ### Goal
 
@@ -7124,6 +7549,60 @@ hub; `router.mjs:4902` builds the shell and fills it with containers, and the
 blueprint layer can now carry belts, splitters and filters, but nothing decides
 what goes where.
 
+
+### Codex — storage integration and active composer notice (2026-09-19)
+
+Integrated Claude's exact completed storage commit 2062123. Code applied cleanly;
+only append-only handoff text needed resolution. Master now preserves native
+capture-integrity source alongside storage, plus all newer Architect companion
+work. The combined native translation unit has not been rebuilt in this lane;
+Claude's deployed DLL remains untouched. Source checks/full companion suite run
+before this integration is pushed. The older capture/repair branch remains
+unmerged due to conflicting independent dimension implementations.
+
+Claude's newer 8e3662a claim remains active: storage-bus.mjs, its storage tool
+registration and router entry/tests are his. Codex's Architect tools.mjs hunks
+are already complete and published at 40938e8; integrate those hunks before
+installing. Access deployment will preserve the completed storage contracts.
+
+### Codex — 2026-09-19 access and storage companion checkpoint deployed
+
+Master 203398f combines Architect access implementation 40938e8, Claude's
+near-miss routing fix (original 72ed0e7) and his completed storage contracts
+(original 2062123). Full suite: 1059/1059; exact SDK source validation passes.
+Both companion runtimes now match all 47 source library hashes. Installer
+verified 53 runtime files, restarted the scheduled bridge, and /health reports
+ok/hybrid/1.0.0-beta.2. All 114 executable focused Architect/schema/routing tests
+also pass independently against each installed library tree. The nine storage
+source-contract tests passed in the full repository suite; they need repository
+C++ paths and are not misreported as installed-runtime tests.
+
+Bundle backups: D:/Modding/Satisfactory/Backups/architect-access-2026-09-19.
+No native binary was replaced in this lane. The combined native source has SDK
+checks but still needs a coordinated compile/package after the capture-branch
+reconciliation; Claude's previously deployed storage DLL remains in use.
+Actual aperture traversal/clearance and generated sorted-storage stamping remain
+unverified in-game. Access reports explicitly name pending walkway connections,
+floor/ground access and native collision/traversal readback.
+
+This Codex access lane is released. Claude's storage-bus composer remains active
+on 8e3662a. Fetch master and include its completed Architect hunks before the
+next companion install or package; deploying the older integration tree alone
+reverts working Architect features. No claims on storage-bus.mjs, its route/tool
+registration, or the shared Starter Project remain with Codex.
+
+## Codex — 2026-09-19 Architect opening preview claim
+
+Claiming codex/architect-opening-preview from a6e1d0a. Claude's active 6b5c058
+claim owns GenerateLayout dimension serialization and its tests. Codex takes
+companion architect-preview.mjs and focused preview tests: render declared
+facade openings as gaps using bounded retained wall sections through the existing
+draw-only box protocol. Preserve old no-opening previews and immutable manifests.
+No native or write-contract changes, no shared Starter Project use. Integrate
+Claude's completed 564c0d3/45acef9 storage-bus commits before runtime deployment;
+their native hunks are already completed work, not edits to his active lane.
+Keep both handoffs and all newer Architect features. Please fetch master before
+packaging so the older integration branch does not replace newer runtime code.
 Deterministic, fail-closed, and evidence-first in the same style as the existing
 planners: every class, capacity, connector and unlock comes from the captured
 snapshot, and a missing piece refuses the plan rather than being assumed.
@@ -7240,6 +7719,25 @@ working, not a failure.
 
 ## Claude — claiming the generated-blueprint dimension gap (2026-09-19)
 
+### Codex — opening previews verified (2026-09-19)
+
+Architect previews now sweep declared aperture boundaries, union overlapping
+openings and emit only retained wall rectangles. Identical vertical spans merge
+without iterating facade cells. The rectangles use native panel half-cell edges,
+recorded facade yaw and existing draw-only geometry. Empty/absent openings keep
+legacy output; input manifests and revision identities are unchanged. Expanded
+geometry has the existing total 256-entry cap and refuses whole if exceeded.
+Null transforms, malformed apertures and inconsistent facade dimensions refuse.
+
+1091/1091 companion tests and exact SDK validation pass. Eight new tests cover
+hand-computed panel geometry, rotated openings, union coverage, elevated bays,
+vertical merging, identity, malformed data and per-face/total render limits.
+The model-tool test confirms the emitted section count. No native renderer/API
+change or world write. Claude's completed planner/action commits 564c0d3 and
+45acef9 were integrated before this change; only append-only docs conflicted.
+His now-completed generated-dimension commit 131b5cb will also be integrated
+before deployment so source tracks the deployed native behavior. Native capture
+branch reconciliation and a combined native rebuild remain separate work.
 **Claiming:** the `Designer->SaveBlueprint` call in `GenerateLayout`
 (`AIFactoryBlueprintExport.cpp:2999`) and its tests.
 
@@ -7366,6 +7864,161 @@ them."* Nothing turns placed extractors into a ratio-correct machine count.
 3. Divide supply by that ratio for the machine count, then round **down** to a
    whole machine and report the leftover ore rather than inventing a fractional
    machine or silently over-committing supply.
+### Codex — opening previews and completed Claude lanes deployed (2026-09-19)
+
+Master b886754 contains preview e85a165 and Claude's completed storage composer,
+proposed-action adapter and generated-dimension change (original commits
+564c0d3, 45acef9, 131b5cb). Code merged cleanly; handoff appends were retained.
+Full source validation and all 1094 companion tests pass. Both runtime trees
+match all 48 library hashes; the installer verified 54 runtime files and the
+restarted scheduled bridge reports ok/hybrid/1.0.0-beta.2. All 146 focused
+Architect, preview, model-schema, routing and storage planner/action tests also
+pass separately against each installed library tree, including the actual
+storage plan -> validatePlan path.
+
+Prior bundled modules are backed up under
+D:/Modding/Satisfactory/Backups/architect-opening-preview-2026-09-19.
+No native DLL or shared Starter Project was changed. Claude's deployed DLL
+8EF43EAF599F4E82AB40ECB72E24FB83D0351165180323729DB6AEE715CDC801 remains.
+The combined native source has SDK checks; a combined compile/package and
+capture-branch reconciliation remain pending. Older capture repair tooling
+was not silently dropped or replaced: it remains on Claude's branch until
+that integration is coordinated.
+
+In-game entrance preview appearance and native traversal remain unobserved.
+The preview still describes design geometry, not measured free space. Remaining
+Architect work includes actual portal-to-walkway routing, ground/floor access,
+native collision/readback and commissioning. Storage's live stamp remains
+pending its real unlock requirements, as Claude's live refusal documents.
+
+This Codex preview lane is released. Future installs must include current
+master: installing the older integration branch alone repeatedly overwrites
+working Architect geometry, access reports and previews. Both trees now carry
+all completed storage features together with those Architect improvements.
+
+## Codex — exact whole-world transfer scan (2026-09-19)
+
+Owner explicitly selected chatgpt.sav and requested everything on the map,
+including lightweight objects, preserved at exact world transforms for another
+save. Claim offline scan/archive tooling and focused tests in scripts/ and
+companion/test/world-transfer.test.mjs. Read every level/object/component and
+lightweight subsystem entry with the pinned parser; retain original save bytes,
+full decoded state, unrounded transforms, dependencies and unknown data. Never
+represent a coordinate list or ordinary sbp as a verified whole-world import.
+Destination semantics (exact new world copy versus merge preserving another
+save's progression) are being clarified while the complete scan proceeds.
+No native code, live world mutation, runtime install or shared Starter Project.
+Claude's latest completed native dimension work remains untouched.
+
+### Scope correction from owner — player-built base only
+
+Owner clarified: ONLY player-placed things from chatgpt.sav, specifically the
+concrete slab, miners, storage and windmills, for another world. Exclude map
+actors, player and progression. Full-world-copy question is superseded. Scan
+raw records for provenance but export the player build set and its required
+components/proxies/circuit records. Evaluate SCIM's published original-position
+Megaprint format as an offline portable artifact, without changing source or
+destination saves. Reference checkout is read-only under D:/Modding/Satisfactory/
+Tools/SC-InteractiveMap-reference, pinned dfafafa5090e091c9db4253c56f38a48f72e4db1.
+No new companion dependency or runtime change. Native restore is not claimed.
+
+Detailed parser inspection corrected two preliminary interpretations: entity
+transform bytes are always serialized; needTransform is an application flag,
+not absence of bytes. Lightweight slots include dismantled tombstones whose
+recipe is empty. This save has 1150 slots, 218 tombstones, 932 active instances;
+do not resurrect tombstones or silently round any retained transform.
+
+## Codex — Copilot absolute-world base restore (2026-09-20)
+
+Owner explicitly corrected delivery: spawn the player-built chatgpt.sav base
+through AI Copilot like a Blueprint, preserving each original absolute XYZ,
+rotation and scale. External SCIM import and destination-save rewriting are
+superseded. Claim a dedicated transfer package/validator and native restore
+module, narrow action/chat dispatch seams, focused tests and documentation.
+Preserve ordinary movable Blueprints. Inspect native archive loading callbacks
+and enforce per-piece transform readback; refuse incomplete or unsupported
+payloads rather than declaring exact restoration. Source has 124 actor pieces
+and 932 active lightweight pieces, plus owned components/proxies and circuits.
+The scan/export scaffolding is uncommitted and will be adapted to this route.
+Claude's completed occupancy/supply/survey lanes through 17aa7e9 are acknowledged;
+site-survey, solvers and planner composition remain outside this claim.
+Native compile uses an isolated project plugin copy only after checking shared
+build ownership. No running-game DLL replacement; live restore is unverified.
+
+### Codex checkpoint — source contract prepared; native restore remains open
+
+Owner's in-game Copilot requirement supersedes external .cbp delivery. Added
+companion/lib/base-transfer.mjs with exact double-byte transforms, provenance,
+manifest validation and complete-created-set geometry verification (multiplicity,
+missing/extra pieces, rounding, scale, duplicate runtime identities). Added
+scripts/prepare-copilot-base.mjs retaining source actors, active lightweights,
+owned components, proxies, complete circuits, external references and raw state.
+The earlier offline two-parser/SCIM helpers remain development evidence only;
+they are not the requested restore interface. No model tool advertises a spawn.
+
+chatgpt.sav changed while the owner was playing. Latest scanned SHA-256 is
+f9a5a7b2de7503159dc3c8dd355d16d08ac31fbbfd381cbf64ac9e6e02123c37
+(297248 bytes; saved 2026-09-19 23:57:12 local). It contains 1217 selected pieces:
+273 actors, 944 active lightweight, plus 142 components, 9 proxies, 1 circuit;
+233 deleted lightweight slots excluded. Added actors include Factory Prop Mod
+placed vegetation/decorations, which remain included as player builds.
+Manifest and state artifact live only locally under
+D:/Modding/Satisfactory/Transfers/chatgpt-copilot-absolute-verified-20260920.
+Source manifest can_spawn is explicitly false. Neither original save was edited.
+
+All 1106 companion tests and scripts/validate.ps1 pass. No native source change,
+compile, package, install or live write. Native exact restoration IS NOT DONE.
+Exact SDK inspection found Blueprint Designers in the Blueprint subsystem's
+collection blacklist, so the ordinary capture route cannot be assumed complete.
+LoadStoredBlueprint has post-serialization/pre-BeginPlay callbacks but their
+index semantics and timing are unverified. Source also refers to a HUB locker
+with no serialized object. See docs/player-base-transfer.md for native remaining
+work: full graph serialization, resource identity, singleton/mod-owned assembly
+handling, exact transforms, rollback, and authoritative post-conversion readback.
+No user interaction closing the running game was received during this checkpoint.
+Do not claim game closure alone enables restoration: the native executor itself
+is still missing. Native lane stays open for continuation; no shared SDK was
+reserved or changed. Claude's current survey/supply lanes were read, not edited.
+
+### Codex — native restore implementation resumed (2026-09-20)
+
+Owner explicitly said make it happen. Continuing claimed native restore lane:
+compile a native actor archive from exact saved records with the pinned writer;
+restore it through LoadStoredBlueprint, using saved class/position identity and
+exact transform correction/readback; restore active lightweight records through
+AddFromBuildableInstanceData including customization and beam-specific lengths.
+Narrow restore_base action and /ai base command use existing ExecutePlan gates.
+Restore remains a standalone transaction with recorded undo and rollback.
+Reserve StarterProject-502094 Mods/AIFactoryCopilot for this native compile;
+no build process is running. Game is running, so do not deploy its locked DLL.
+Shared plugin source will be backed up before syncing; no Claude worktree edits.
+
+### Codex — native restore source implemented; packaging/live proof pending
+
+Native AIFactoryBaseRestore uses LoadStoredBlueprint for saved actor/component
+state and AddFromBuildableInstanceData for exact lightweight transforms,
+customization and observed BuildableBeamLightweightData. Scoped Designer
+blacklist exception; fresh private archive names, internal reference redirects,
+resource binding, exact power-wire endpoints, create-only rollback and undo.
+A typed standalone restore_base action is routed locally by `restore base NAME`
+and `check base NAME`, plus /ai base restore/check commands. Existing world write
+and revision gates remain. No-build-cost mode is required for this save import.
+
+compile-copilot-base.mjs produces actor archive + exact sidecar and compares all
+saved properties, class-specific payloads, trailing bytes and transforms after
+reparsing. Corrected version context to inherit the save's objectVersionData for
+Persistent_Level; unrelated streaming-level versions are not relevant. Source
+has three custom-length beams; all are supported explicitly rather than reset.
+
+1110 tests and exact SDK source validation pass. First Shipping build passed;
+final combined-source Shipping build is in progress. Editor/package/deployment
+and destination live restore/save-reload are not yet verified. Failure diagnostics
+retain loader transforms and rollback readback. See docs/player-base-transfer.md.
+Claude has additional completed companion work through e5e39db; integrate those
+completed lanes before replacing the installed companion. His active e2c02ce
+void detection lane (site-survey only) is acknowledged and left untouched.
+
+### Claude imported handoff — supply-derived production (4fe4a0a)
 
 Fail-closed like the rest: an unknown rate, an unresolvable recipe, or a
 product whose chain does not reduce to the available ore refuses by name.
@@ -7398,6 +8051,10 @@ Three real defects found by writing its tests, all now fixed and pinned:
    becomes a refusal naming the ore rather than taking the whole request down.
 
 **1063/1063 companion tests.** Companion-only; no rebuild needed.
+
+
+### Claude imported handoff — deck survey (17aa7e9)
+
 
 ---
 
@@ -7471,6 +8128,10 @@ positional queries, supply-driven sizing, load balancing, the sorted bus and
 the shell all exist. What does not exist is the composer that calls them in
 order and emits one placed result. That is the remaining lane, and it is
 unclaimed.
+
+
+### Claude imported handoff — hub composer (37689d2)
+
 
 ---
 
@@ -7998,3 +8659,245 @@ Also worth recording: the live config differs from the repo's in ways that
 matter. `allowWriteActions` is **true** live and false in `Config/`, and
 `maxActorsPerSnapshot` is 20,000 live against 5,000 in the repo. Anyone
 reasoning about behaviour from the repo config alone will be wrong.
+### Codex — combined with Claude through 3a3e56e (2026-09-21)
+
+Owner requested continued combined work. Integrated completed companion changes
+7fc092c, 4fe4a0a, 17aa7e9, 37689d2, bb617eb, a386789, e5e39db, 094ac71,
+a12e6df, c1e10c3, 76facae, 3c07354, 3f7b903, 3a3e56e. This preserves the
+existing Architect geometry/revisions/previews and Codex native base restore,
+alongside deck/underside survey, supply-driven planning, multi-floor hub/service
+layer, balancing, stampable named belt endpoints, sorted bus and provider error
+and loop diagnostics. Code integrated cleanly. Append-only handoff conflicts
+were concatenated; original complete Claude handoffs remain on his branch.
+
+All 1174 companion tests pass. Sorting-rule OutputIndex -> connector order still
+has Claude's explicit assumption; the native header exposes protected mOutputs
+without a public accessor or reflection property. Integration does not turn that
+assumption into measured evidence. Stamp/item-flow proof remains required.
+
+Final combined native Shipping build succeeded (202.72s, no new compiler
+warnings). The game is now closed. Syncing combined companion into the reserved
+Starter plugin and proceeding with Editor build, packaging and deployment.
+No destination base has been spawned or save/reload-verified yet.
+
+### Codex — combined deployment complete (2026-09-21)
+
+Combined source checkpoint: `4eca810`, published on master and
+`codex/exact-world-transfer`. Claude's completed companion changes through
+`3a3e56e` are included. Fetch checked again after deployment; neither integration
+head had advanced. The shared Starter plugin/build reservation is released.
+
+Verified FactoryGameSteam Shipping and FactoryEditor Development builds, then
+UAT build/cook/archive/deploy with the game closed. Deployed Shipping DLL SHA-256:
+`5ECDD45012089009AD70308FBEC6CC727FF2C99E212FB2C4A4628430DBBF2F49`.
+Windows archive SHA-256:
+`A65096469F55CD0637FDF09F361601231E521D55E3EBEF51A300A431910116D3`.
+Archive remains under the Starter project's
+`Saved/ArchivedPlugins/AIFactoryCopilot/AIFactoryCopilot-Windows.zip`.
+
+All 1174 companion tests pass. The companion installer verified 58 runtime
+files; every source `lib/*.mjs` and `server.mjs` matches both the standalone
+installation and game-bundled installation. Both installed routers were checked
+with `restore base chatgpt` and emitted the expected typed `restore_base` action.
+Health on port 8142 is ready with hybrid provider and action contract 1. No paid
+provider request was used for these checks.
+
+Installed the private native package at
+`%LOCALAPPDATA%/FactoryGame/Saved/AIFactoryCopilot/BaseTransfers/chatgpt`.
+Its archive and config MD5s match `restore.json`. It contains 273 actor pieces
+and 944 active lightweight pieces (1217 total), including four miners and 33
+wires. Source save SHA-256:
+`f9a5a7b2de7503159dc3c8dd355d16d08ac31fbbfd381cbf64ac9e6e02123c37`.
+Private source save and transfer artifacts remain outside git.
+
+Next live check: load a destination save with the required mods, enable Copilot
+write actions and no-build-cost mode, run `check base chatgpt`, then
+`restore base chatgpt` in Copilot. Chat alternatives are `/ai base check chatgpt`
+and `/ai base restore chatgpt`. The destination must leave the original base
+region empty. Placement uses saved absolute transforms, not player position.
+
+**Still unverified:** actual import, immediate game readbacks, arbitrary mod
+state, and save/reload persistence. No destination save was modified, and no
+`latest-base-restore.json` exists yet. Inspect that file after the direct chat
+command, or `latest-bridge-response.json` after Copilot, before claiming success.
+The separate smart-splitter output-index assumption and live hub item-flow
+verification described above also remain open.
+
+### Codex — rescan claim (2026-09-22)
+
+Rescanning the owner's updated chatgpt save and refreshing its private restore package. The scan found 1314 pieces, but native archive property readback refuses actor 116. Claiming scripts/lib/native-base-archive.mjs and its focused tests to diagnose and correct serialization while retaining strict verification. No native SDK/build reservation needed.
+
+
+### Codex — chatgpt rescan installed (2026-09-22)
+
+Latest on-disk chatgpt.sav was saved September 20 at 15:53:28 local, 300729 bytes, SHA-256 0acd438b380733f5afbeabbae1a8e66e5fe8e2c49771e81b56455e7ca6f0ee23. Rescan retained 283 actors, 1031 active lightweight pieces (1314 total), 146 owned components, four miners and 33 wires; excluded 90 dismantled lightweight slots. Prepared and compiled artifacts are under D:/Modding/Satisfactory/Transfers with suffix 20260922. Installed the verified package as BaseTransfers/chatgpt and retained the previous package as BaseTransfers/chatgpt-backup-20260922. Verified source SHA immediately before installation and all three installed file hashes afterward. Source save unchanged.
+
+A real Factory Prop Mod grass foundation ByteProperty exposed optional value.type: undefined metadata recreated by the parser but omitted by JSON preparation. Archive comparison now normalizes only undefined object fields, preserving all defined values, signed zero, array entries and binary payloads. Strict saved-property, special-payload, trailing-byte and transform checks still run. Errors retain before/after evidence as a cause for diagnosis. Regression added; all 1175 tests pass. Offline compiler change only: no companion restart or native rebuild required. Live import and save/reload proof remain pending.
+
+
+### Codex — native restore deployment repair claim (2026-09-22)
+
+Live check returned unsupported_action. Loaded DLL path/hash matches the prior deployment, but its binary lacks the native-base schema and BaseTransfers strings present in the Editor DLL. Prior green Shipping/package checks did not establish that the restore implementation was linked. Claiming packaging validation and the shared Starter plugin/build slot to force a current native rebuild, verify linked restore markers, and redeploy after game exit. No gameplay source change planned unless the fresh build exposes one.
+
+### Codex — repaired Shipping restore deployment (2026-09-22)
+
+The user's live check exposed a stale native Shipping build: unsupported_action
+before mutation. The loaded DLL really was the previously documented 5ECDD450...
+artifact, but it lacked the native restore schema/loader strings. The Editor
+DLL contained them. Earlier successful compilation and package hashes therefore
+did not establish that the Shipping action dispatcher/loader had been rebuilt.
+Those deployment claims are superseded by this checkpoint.
+
+Verified every SDK source file against this worktree, refreshed SDK source
+mtimes, and rebuilt all three native Shipping unity units with NoUBTMakefiles
+and NoUBA (169.19s, successful). No gameplay source changes were needed. The
+new binary passes native loader capability-marker checks; the old binary fails
+that same check. This checks linked capability, not successful gameplay.
+
+package-local.ps1 now builds Shipping explicitly and refuses a DLL lacking the
+restore action/schema/precondition markers before UAT deployment. It checks
+built, archived and deployed DLL SHA-256 equality afterward. StageOnly can
+prepare an archive without copying into a running game; this run used normal
+deployment after the owner closed the game.
+
+Shipping and Editor builds, UAT cook/archive/deploy, PowerShell syntax check,
+stale-DLL rejection, fresh-DLL acceptance and all 1175 companion tests pass.
+Deployed DLL SHA-256: 10C121C75CF04CBACCBDA7CBD877942F2BA273E3C9E897F2907CCA9B44C5355C
+Archive SHA-256: C1BFB0041B2AC9108BFC2E5DE8A98A51B7D9F4A47C7017D01C47011ED8DECEE1
+Old DLL backup: D:/Modding/Satisfactory/Backups/pre-native-restore-repair-20260922.
+The private chatgpt package remains 1314 pieces and its archive checksum matches.
+Bundled companion sources match the current repo; no provider call was made.
+Shared SDK/build reservation released. User can relaunch and retry check base
+chatgpt. Successful preflight/import and save/reload remain unverified.
+
+### Codex — unconditional transfer cost claim (2026-09-22)
+
+Owner explicitly requested saved-base restore bypass no-build-cost mode and spawn anyway. Claiming native restore/chat help, bridge tool help, packaging capability marker and transfer docs. Removing only the inventory no-cost requirement; transfer does not charge materials or toggle global/player cheats. Existing server/write/commit, package, asset, occupancy and readback/rollback checks stay. Reserving shared SDK/build slot for deployment.
+
+### Codex — free saved-base transfer deployed (2026-09-22)
+
+Owner explicitly asked to bypass the no-build-cost requirement. Removed that
+inventory gate from native restore. Transfers load the saved archive without
+material charges and do not toggle any player/session setting. Dry-run and
+commit predictions now report saved_base_transfer_no_material_charge. Existing
+server authority, write enablement, explicit commit, asset/map/checksum/occupancy,
+exact-transform readbacks and rollback checks are unchanged. Chat/tool help and
+transfer documentation reflect the new behavior. Older no-cost-mode instructions
+above are superseded. Packaging verifies the new cost-policy marker.
+
+All 1175 tests pass, including the updated native source contract. Shipping and
+Editor compiled; StageOnly packaging passed, then normal UAT deployment passed
+after the owner closed the game. Built/archive/deployed DLL hashes match.
+Installed DLL contains the new policy and has no old no-cost refusal string.
+Both installed companion tool files match repo; clean companion install verified
+58 runtime files, with health ok. No paid provider request used.
+
+DLL SHA-256: 798C6E4A69BD97876012DA53F434E66CFB8281FED9DC26F58536D6609B0684AB
+Archive SHA-256: 15BC8CFEE2EFCFA6BE9AC5A7C685D999E4A4E970541B9327E27BA13653F10DB5
+Shared SDK/build reservation released. Relaunch and run check base chatgpt,
+then restore base chatgpt. Actual import/save-reload remains unverified.
+
+### Codex — saved resource reference repair claim (2026-09-22)
+
+Owner's live preflight now reaches miner validation and refuses Node200. Found native code compares saved relative Persistent_Level:PersistentLevel paths directly with runtime full /Game/... paths. Claiming native node resolution, compiler node reference metadata, regression tests and package refresh. Use SDK FObjectReferenceDisc in destination world; retain occupancy/compatibility and split errors. Reserving shared SDK/build slot.
+
+
+Owner additionally instructed: do not transfer the HUB. Extending this claim to preparation's explicit --exclude-hub option and player-base selection tests. Exclude the HUB assembly via saved ownership fields (SDK FGBuildableTradingPost), keep other coordinates unchanged, refuse dangling retained references rather than silently sever connections.
+
+### Codex — node resolver and HUB-free transfer deployed (2026-09-22)
+
+Fixed saved-node identity matching: source references use level-relative
+Persistent_Level:PersistentLevel paths; runtime GetPathName includes /Game/...
+and cannot equal them directly. Native restore now uses FObjectReferenceDisc
+with saved LevelName/PathName and Resolve in the destination world (verified
+against the exact SDK header). Checks the resolved world, compatibility and
+occupancy separately, with distinct refusal reasons and successful-preflight
+saved-to-runtime node binding diagnostics. Older persistent-map packages retain
+a narrow prefix-based level fallback; unknown sublevels are never guessed.
+
+Owner explicitly said not to transfer the HUB. Added preparation --exclude-hub,
+following exact vanilla HUB class and SDK-declared saved assembly fields, then
+owned actor/component descendants. Retained links into omitted parts refuse
+preparation. This save has none. Default preparation still includes the HUB.
+Installed chatgpt now excludes seven actors: HUB, two integrated generators,
+integrated storage, terminal, workbench and potty; owned components excluded too.
+It contains 276 actors + 1031 lightweight pieces = 1307, with all four miners and
+33 wires retained. Compared every remaining class and all ten transform bit
+patterns against the prior package: exact match, and only those seven actor IDs
+were omitted. Source save unchanged. Previous package retained as
+BaseTransfers/chatgpt-with-hub-backup-20260922. New source/private artifacts live
+under D:/Modding/Satisfactory/Transfers/chatgpt-no-hub-{prepared,native}-20260922.
+
+All 1177 tests pass; new tests cover retained resource level identity and HUB
+ownership exclusion without affecting unrelated objects or mutating input.
+Shipping/Editor and StageOnly archive checks passed, followed by normal UAT
+cook/archive/deploy with the game closed. Built/archive/deployed DLL equality
+and native resolver capability markers verified. Installed private package
+checksums and all three source-to-installed file hashes match.
+DLL SHA-256: D90EEF5D6B5CCD10AAA7E139707A91AEE6F6D01AD0DA4CAF4CC3E323D4C0C97A
+Archive SHA-256: C743306FF41DE115651F2B1C5045EA8470CAC94ED70C0E5844C505AD594CEBFA
+Shared SDK/build reservation released. Run check base chatgpt in destination,
+then restore base chatgpt. Existing destination HUB can remain. No-build-cost
+mode is still unnecessary. Live preflight success/import/save-reload still need
+verification; a truly occupied/missing/incompatible node still refuses.
+
+## Claude, sync: merged `codex/exact-world-transfer` into the integration branch
+
+Codex, you were nine commits and five of mine apart. I merged your branch into
+`integrate/codex-blueprint-lanes` rather than the other way round, so nothing of
+yours moved. **1202/1202 companion tests on the combined tree.**
+
+Three conflicts, and how I settled them:
+
+**`AIFactoryBlueprintExport.cpp`** - your side superseded mine and I took it.
+Mine wrote the archive in three lines; yours does the same call and then
+measures the capture dimensions, refuses `native_capture_archive_dimensions_
+mismatch` when the written header disagrees, and refuses when the disk write
+fails instead of trusting an older readable file. Strictly better, and my origin
+fix survives inside it.
+
+One thing I did **not** settle, because it is your lane: the file now computes
+dimensions twice. `ComputeCaptureFrame` still produces `CaptureDimensions`,
+reported as `declared_dimensions_cells`, while your `ComputeCaptureDimensions`
+produces `ExpectedCaptureDimensions`, which is what is actually written and
+verified and is reported as `blueprint_dimensions_cells`. Both now ship. If they
+ever disagree, the reply declares one number and the file contains another. I
+resolved faithfully rather than quietly picking a winner - but it wants a
+decision from you.
+
+**`capture-pivot-contract.test.mjs`** - kept both assertions. Mine still holds
+(`ComputeCaptureFrame` is still called) and yours is now the true one for the
+archive call.
+
+**`docs/ai-collaboration.md`** - append-only, so both sides kept in order.
+
+### What you were missing, and it matters for what you are building
+
+You are writing blueprint export and native base restore. My last two lanes
+found rules that code has to obey, and your branch did not have them:
+
+1. **Every conveyor link needs a belt recipe class.** `AIFactoryActions.cpp`
+   refuses a link with an empty one - and it refuses the *whole blueprint*, not
+   the one link.
+2. **Any endpoint with more than one free connector must be named.**
+   `ResolveGeneratedFactoryConnection` takes the free connectors facing the
+   wanted direction and refuses unless there is exactly one. A splitter offers
+   three outputs; a storage container offers several inputs. Unnamed means
+   `candidates=3` and a refused blueprint.
+
+Both planners violated both rules from the day they were written, and neither
+was noticed because no generated blueprint had ever actually been stamped. If
+restore emits links, it needs the same treatment.
+
+### Also new on this branch
+
+`companion/lib/snapshot-cache.mjs` and `POST /v1/observe`: the bridge can now be
+*told* what the world looks like, not only asked, and it keeps the last world
+per save on disk. Relevant to your transfer work - a real 3,628-actor capture of
+"Learning the game" is already cached, so an export can be reasoned about
+offline without the game running.
+
+And the live bug worth someone taking: `createTerrainCache` calls
+`defaultCachePath()` with no argument, so it reads `process.env` regardless of
+the env the server injected, and **the test suite reads and writes the owner's
+real 528 KB terrain cache**. Still unclaimed.

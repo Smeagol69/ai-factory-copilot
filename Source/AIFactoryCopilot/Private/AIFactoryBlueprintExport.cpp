@@ -2,6 +2,7 @@
 
 #include "AIFactoryActions.h"
 #include "AIFactoryBlueprintResourceAnchor.h"
+#include "AIFactoryCaptureGeometry.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableBlueprintDesigner.h"
 #include "FGBlueprintSubsystem.h"
@@ -906,7 +907,7 @@ namespace
         {
             if (!IsValid(Member))
             {
-                continue;
+                return false;
             }
             // Actor origin rather than rendered bounds: it is what the
             // serialiser records, so the frame and the contents agree even for
@@ -914,7 +915,7 @@ namespace
             const FVector Location = Member->GetActorLocation();
             if (Location.ContainsNaN())
             {
-                continue;
+                return false;
             }
             Bounds += Location;
         }
@@ -1028,6 +1029,48 @@ namespace
             return true;
         }
         return false;
+    }
+
+    bool ComputeCaptureDimensions(
+        const TArray<AFGBuildable*>& Members,
+        FTransform& InOutOrigin,
+        FIntVector& OutDimensions,
+        FString& OutReason)
+    {
+        FBox Bounds(ForceInit);
+        for (AFGBuildable* Member : Members)
+        {
+            FBox MemberBounds(ForceInit);
+            FString Source;
+            if (!ResolveGeneratedNativeBounds(Member, MemberBounds, Source))
+            {
+                OutReason = FString::Printf(TEXT("native_bounds_unavailable:%s"), *GetPathNameSafe(Member));
+                return false;
+            }
+            Bounds += MemberBounds;
+            // Include both the occupied volume and the serialised pivot. Some
+            // modded meshes are deliberately offset from their actor origin.
+            Bounds += Member->GetActorLocation();
+        }
+        if (!IsFiniteGeneratedBounds(Bounds))
+        {
+            OutReason = TEXT("capture_native_bounds_are_not_finite");
+            return false;
+        }
+        FVector Origin = InOutOrigin.GetLocation();
+        Origin.Z = Bounds.Min.Z;
+        std::array<std::int32_t, 3> Dimensions;
+        if (!AIFactoryCaptureGeometry::ComputeDimensions(
+                {Bounds.Min.X, Bounds.Min.Y, Bounds.Min.Z},
+                {Bounds.Max.X, Bounds.Max.Y, Bounds.Max.Z},
+                {Origin.X, Origin.Y, Origin.Z}, Dimensions))
+        {
+            OutReason = TEXT("capture_dimensions_exceed_native_integer_range");
+            return false;
+        }
+        InOutOrigin.SetLocation(Origin);
+        OutDimensions = FIntVector(Dimensions[0], Dimensions[1], Dimensions[2]);
+        return true;
     }
 
     class FScopedGeneratedBuildables
@@ -2324,6 +2367,8 @@ FAIFactoryActionResult ExportSelection(
         return Result;
     }
 
+    FIntVector ExpectedCaptureDimensions = Designer->GetBlueprintDimensions();
+    bool bVerifyCaptureDimensions = false;
     int32 Skipped = 0;
     {
         // Scope matters: the guard unwinds at the closing brace, before any
@@ -2391,11 +2436,62 @@ FAIFactoryActionResult ExportSelection(
             ComputeCaptureFrame(
                 Members, Designer->GetBlueprintDimensions(), CaptureOrigin, CaptureDimensions);
 
+        if (IsValid(WriteSubsystem) && !bRecentred)
+        {
+            Result.Status = TEXT("failed");
+            Result.Reason = TEXT("capture_selection_has_invalid_origins");
+            return Result;
+        }
+
         if (bRecentred)
         {
-            WriteSubsystem->WriteBlueprintToArchive(
-                Record, CaptureOrigin, Members, CaptureDimensions);
-            WriteSubsystem->WriteBlueprintToDisk(Record);
+            FString DimensionsReason;
+            const bool bMeasuredDimensions = ComputeCaptureDimensions(
+                Members, CaptureOrigin, ExpectedCaptureDimensions, DimensionsReason);
+            Predicted->SetBoolField(TEXT("capture_dimensions_measured"), bMeasuredDimensions);
+            Predicted->SetStringField(TEXT("capture_dimensions_source"), bMeasuredDimensions
+                ? TEXT("native_selection_bounds_in_800_cm_cells")
+                : TEXT("designer_dimensions_fallback_selection_extent_unknown"));
+            if (!bMeasuredDimensions)
+            {
+                if (DimensionsReason != TEXT("") &&
+                    !DimensionsReason.StartsWith(TEXT("native_bounds_unavailable:")))
+                {
+                    Result.Status = TEXT("failed");
+                    Result.Reason = DimensionsReason;
+                    return Result;
+                }
+                // Preserve the existing capture fallback for modded objects
+                // without usable bounds, but never present the Designer's box
+                // as a measurement of this selection.
+                Predicted->SetStringField(TEXT("capture_dimensions_unknown_reason"), DimensionsReason);
+            }
+            const TSharedRef<FJsonObject> DimensionsJson = MakeShared<FJsonObject>();
+            DimensionsJson->SetNumberField(TEXT("x"), ExpectedCaptureDimensions.X);
+            DimensionsJson->SetNumberField(TEXT("y"), ExpectedCaptureDimensions.Y);
+            DimensionsJson->SetNumberField(TEXT("z"), ExpectedCaptureDimensions.Z);
+            Predicted->SetObjectField(TEXT("blueprint_dimensions_cells"), DimensionsJson);
+            Predicted->SetNumberField(TEXT("blueprint_dimension_unit_cm"), AIFactoryCaptureGeometry::CellCm);
+
+            const FBlueprintHeader WrittenHeader = WriteSubsystem->WriteBlueprintToArchive(
+                Record, CaptureOrigin, Members, ExpectedCaptureDimensions);
+            if (WrittenHeader.Dimensions != ExpectedCaptureDimensions)
+            {
+                Result.Status = TEXT("failed");
+                Result.Reason = TEXT("native_capture_archive_dimensions_mismatch");
+                return Result;
+            }
+            bVerifyCaptureDimensions = true;
+            const bool bWrittenToDisk = WriteSubsystem->WriteBlueprintToDisk(Record);
+            Predicted->SetBoolField(TEXT("native_write_to_disk_succeeded"), bWrittenToDisk);
+            if (!bWrittenToDisk)
+            {
+                // An older readable file with this name is not evidence that
+                // the current capture succeeded.
+                Result.Status = TEXT("failed");
+                Result.Reason = TEXT("native_capture_write_to_disk_failed");
+                return Result;
+            }
         }
         else
         {
@@ -2448,6 +2544,19 @@ FAIFactoryActionResult ExportSelection(
         Result.Status = TEXT("failed");
         Result.Reason = TEXT("save_ran_but_no_archive_could_be_read_back");
         return Result;
+    }
+
+    if (bVerifyCaptureDimensions)
+    {
+        const FBlueprintHeader* ReadHeader = Subsystem->GetHeaderByName(BlueprintName);
+        const bool bDimensionsMatch = ReadHeader && ReadHeader->Dimensions == ExpectedCaptureDimensions;
+        Observed->SetBoolField(TEXT("blueprint_dimensions_match_capture"), bDimensionsMatch);
+        if (!bDimensionsMatch)
+        {
+            Result.Status = TEXT("failed");
+            Result.Reason = TEXT("native_capture_disk_dimensions_mismatch");
+            return Result;
+        }
     }
 
     Result.bAccepted = true;

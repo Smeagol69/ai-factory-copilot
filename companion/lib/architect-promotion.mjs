@@ -16,7 +16,8 @@
  */
 
 import { parsePieceDimensions } from "./architecture.mjs";
-import { assessPromotedComposition } from "./architect-composition.mjs";
+import { compileArchitectAccess } from "./architect-access.mjs";
+import { assessGeneratedBlueprintComposition } from "./architect-composition.mjs";
 import {
   compileArchitectPipelines,
   partitionArchitectMaterialEdges,
@@ -266,6 +267,7 @@ function classifyRole(graph, manifest, role, resolution) {
 function compilePlatformActions(manifest, elements, foundation) {
   const actions = [];
   for (const element of elements) {
+    const yaw = Number(element.world_yaw_degrees);
     for (let x = 0; x < element.size_cells.x; x += 1) {
       for (let y = 0; y < element.size_cells.y; y += 1) {
         const cell = {
@@ -273,7 +275,16 @@ function compilePlatformActions(manifest, elements, foundation) {
           y: element.local.y + y,
           z: element.local.z,
         };
-        const world = gridPointToWorld(cell, manifest.grid, manifest.anchor_cm);
+        // Keep the original single-rounding grid transform for existing designs.
+        // Rotated elements use their validated preview origin as the local pivot.
+        const world = element.placement_frame === undefined && Number(element.yaw_offset_degrees ?? 0) === 0
+          ? gridPointToWorld(cell, manifest.grid, manifest.anchor_cm)
+          : rotatedWorldOffset(
+            element.world_origin_cm,
+            x * manifest.grid.unit_cm,
+            y * manifest.grid.unit_cm,
+            yaw,
+          );
         if (!world) {
           return {
             ok: false,
@@ -291,7 +302,7 @@ function compilePlatformActions(manifest, elements, foundation) {
               foundation.dimensions.height_cm,
           },
           exact_z: true,
-          yaw: manifest.grid.yaw_degrees,
+          yaw,
           generated_role: "floor",
           commit: false,
         });
@@ -381,8 +392,8 @@ function rotatedWorldOffset(origin, dx, dy, yawDegrees) {
 function compileMachineActions(manifest, elements, machineEvidence) {
   const actions = [];
   const unit = Number(manifest.grid.unit_cm);
-  const yaw = Number(manifest.grid.yaw_degrees);
   for (const element of elements) {
+    const yaw = Number(element.world_yaw_degrees);
     const evidence = machineEvidence[element.program_group];
     if (!evidence?.ok) {
       return {
@@ -441,7 +452,6 @@ function compileFacadeActions(manifest, elements, roleEvidence) {
   if (elements.length === 0) return { ok: true, actions };
   const unit = Number(manifest.grid.unit_cm);
   const floorHeight = Number(manifest.grid.floor_height_cm);
-  const yaw = Number(manifest.grid.yaw_degrees);
   const wall = roleEvidence.wall;
   const window = roleEvidence.window;
   const verticalSegmentsPerFloor = floorHeight / wall.dimensions.height_cm;
@@ -453,6 +463,7 @@ function compileFacadeActions(manifest, elements, roleEvidence) {
     };
   }
   for (const element of elements) {
+    const yaw = Number(element.world_yaw_degrees);
     if (element.size_cells.x < 3) {
       return {
         ok: false,
@@ -463,6 +474,9 @@ function compileFacadeActions(manifest, elements, roleEvidence) {
     for (let level = 0; level < element.size_cells.z; level += 1) {
       for (let segment = 0; segment < verticalSegmentsPerFloor; segment += 1) {
         for (let column = 0; column < element.size_cells.x; column += 1) {
+          if ((element.openings ?? []).some((opening) =>
+            column >= opening.start_cell && column < opening.start_cell + opening.width_cells &&
+            level >= opening.base_floor && level < opening.base_floor + opening.height_floors)) continue;
           const frame = column === 0 || column === element.size_cells.x - 1;
           const selected = frame ? wall : window;
           const world = rotatedWorldOffset(
@@ -496,9 +510,9 @@ function compileRoofActions(manifest, elements, roleEvidence) {
   const actions = [];
   if (elements.length === 0) return { ok: true, actions };
   const unit = Number(manifest.grid.unit_cm);
-  const yaw = Number(manifest.grid.yaw_degrees);
   const roof = roleEvidence.sloped_roof;
   for (const element of elements) {
+    const yaw = Number(element.world_yaw_degrees);
     for (let x = 0; x < element.size_cells.x; x += 1) {
       for (let y = 0; y < element.size_cells.y; y += 1) {
         const world = rotatedWorldOffset(
@@ -526,10 +540,10 @@ function compileSupportActions(manifest, elements, roleEvidence) {
   const actions = [];
   if (elements.length === 0) return { ok: true, actions };
   const floorHeight = Number(manifest.grid.floor_height_cm);
-  const yaw = Number(manifest.grid.yaw_degrees);
   const support = roleEvidence.support_column;
   const segmentsPerFloor = floorHeight / support.dimensions.height_cm;
   for (const element of elements) {
+    const yaw = Number(element.world_yaw_degrees);
     for (let segment = 0; segment < element.size_cells.z * segmentsPerFloor; segment += 1) {
       actions.push({
         action: "place_building",
@@ -553,10 +567,10 @@ function compileSkybridgeActions(manifest, elements, roleEvidence) {
   const actions = [];
   if (elements.length === 0) return { ok: true, actions };
   const unit = Number(manifest.grid.unit_cm);
-  const baseYaw = Number(manifest.grid.yaw_degrees);
   const walkway = roleEvidence.walkway;
   const rail = roleEvidence.rail;
   for (const element of elements) {
+    const baseYaw = Number(element.world_yaw_degrees);
     const alongX = element.size_cells.x > 1 && element.size_cells.y === 1;
     const alongY = element.size_cells.y > 1 && element.size_cells.x === 1;
     if (!alongX && !alongY && !(element.size_cells.x === 1 && element.size_cells.y === 1)) {
@@ -614,11 +628,11 @@ function compileLandmarkActions(manifest, elements, roleEvidence) {
   if (elements.length === 0) return { ok: true, actions };
   const unit = Number(manifest.grid.unit_cm);
   const floorHeight = Number(manifest.grid.floor_height_cm);
-  const baseYaw = Number(manifest.grid.yaw_degrees);
   const foundation = roleEvidence.foundation;
   const wall = roleEvidence.wall;
   const window = roleEvidence.window;
   for (const element of elements) {
+    const baseYaw = Number(element.world_yaw_degrees);
     const width = element.size_cells.x;
     const depth = element.size_cells.y;
     if (width < 2 || depth < 2) {
@@ -745,24 +759,9 @@ export function compileArchitectPromotion(graph, manifest, {
 
   const elements = Array.isArray(manifest?.elements) ? manifest.elements : [];
 
-  // Every adapter below takes its rotation from manifest.grid.yaw_degrees, not
-  // from the element. An element carrying its own yaw would therefore be built
-  // at the campus angle: correct in the preview, silently wrong in the world,
-  // and only discoverable by looking at it. Refuse instead, and name the
-  // elements, until the adapters honour element yaw.
-  const gridYaw = Number(manifest?.grid?.yaw_degrees);
-  const rotated = elements.filter((element) => {
-    const own = Number(element?.world_yaw_degrees);
-    return Number.isFinite(own) && Number.isFinite(gridYaw) && Math.abs(own - gridYaw) > 1e-6;
-  });
-  if (rotated.length > 0) {
-    blockers.push(
-      `architect_rotated_elements_have_no_native_adapter:${rotated
-        .slice(0, 8)
-        .map((element) => element?.id ?? "unknown")
-        .join(",")}`,
-    );
-  }
+  // Manifest validation proves world yaw from campus yaw + element offset.
+  // Each adapter applies that angle about the element's recorded origin;
+  // topology compilers then transform the captured connectors with the same yaw.
 
   const groupsById = new Map(
     (manifest?.program?.groups ?? []).map((group) => [String(group?.id ?? ""), group]),
@@ -796,6 +795,7 @@ export function compileArchitectPromotion(graph, manifest, {
     design_family_fingerprint: fingerprint.ok ? fingerprint.design_family_fingerprint : null,
     unlock_fingerprint: currentUnlocks.availability_fingerprint ?? null,
     supported_native_element_kinds: [...SUPPORTED_ELEMENT_KINDS],
+    access_catalog: compileArchitectAccess(manifest),
     exact_role_evidence: roleEvidence,
     exact_machine_evidence: machineEvidence,
     element_counts: elements.reduce((counts, element) => {
@@ -1083,7 +1083,7 @@ export function compileArchitectPromotion(graph, manifest, {
   // produces, against the decoded reference census. The manifest-side budget
   // grades declared intent; this grades the action list, so when the two
   // disagree this is the one that describes what appears in the world.
-  const composition_budget = assessPromotedComposition(internalPower.actions);
+  const composition_budget = assessGeneratedBlueprintComposition(native, graph);
   return {
     ...base,
     composition_budget,

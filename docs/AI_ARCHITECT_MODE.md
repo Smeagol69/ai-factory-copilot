@@ -165,6 +165,70 @@ Promotion-adapter checkpoint (2026-09-01):
   `preview_blueprint` handoff arms that exact descriptor in the player's normal
   Build Gun.
 
+Element-rotation checkpoint (2026-09-17):
+
+- all seven promotion adapters honour the validated `world_yaw_degrees` of
+  each element, about its recorded `world_origin_cm`, including the offsets
+  between repeated parts and the direction of bridge rails and tower walls;
+- the temporary refusal of all elements rotated relative to the campus grid
+  is replaced by exact transform compilation. Existing unrotated foundations
+  retain their original grid calculation to avoid changing rounding in stored
+  revisions. Manifest geometry, fingerprints and preview generation are unchanged;
+- captured belt, pipe and power endpoints use the resulting machine transforms.
+  A rotated hall is not proof of a connected route: misaligned endpoints still
+  require a separately supported route and block the whole native action;
+- this proves companion compilation, not a complete radial campus, collision-free
+  construction or commissioning. Hall-to-platform alignment, circulation and
+  inter-hall routes still depend on the selected manifest; the game must verify
+  the generated Blueprint and its placement. Live visual rotation checks remain.
+
+Spatial-check checkpoint (2026-09-18):
+
+- footprint bounds now union the transformed corners of every semantic element
+  in campus and world coordinates, including its individual yaw;
+- production-hall validation uses oriented rectangle intersections plus vertical
+  intervals. Touching faces and stacked floors remain allowed. This catches
+  rotated overlaps that the former campus-axis rectangle test missed;
+- terrain coverage compares the complete world footprint with the square
+  sampled by `ProbeSite`, centred on its captured scan/node location. A width
+  comparison alone is insufficient for an offset campus or angled corners;
+- captured-building screening remains a conservative envelope check, not a
+  native mesh intersection test. Missing geometry/probes stay unknown, and
+  construction still needs game-side collision and terrain validation. Geometry
+  transforms and stored revisions are unchanged; newly compiled revisions
+  receive the corrected footprint and assessment.
+
+Coordinated radial-layout checkpoint (2026-09-18):
+
+- newly compiled radial halls and all their structural members share an optional
+  `placement_frame`, with half-cell `local_pivot_cells` and `campus_pivot_cells`;
+  local integer cells rotate around the former and place that pivot at the
+  latter before applying the campus yaw and authoritative world anchor;
+- validation recomputes the transformed origin; footprints and native platform
+  promotion consume the same frame, including an unrotated frame used to centre
+  an odd-sized landmark. Legacy elements without a frame keep their old path;
+- radial hall centres sit on the ring and the landmark sits at the hub. Spacing
+  uses circumscribed platform/tower radii, requested clearance, and the error
+  bound from snapping ring centres. This is conservative spacing, not a claim
+  of the smallest possible footprint;
+- inward and outward facing retain the same shell. The previously documented
+  `hall_facing: -1` now passes parameter validation. Bridges remain semantic
+  circulation intent and native construction still needs game-side validation.
+
+Hall-enclosure checkpoint (2026-09-18):
+
+- new model-tool requests default to `enclosure_mode: perimeter`: four glazed
+  faces with one centered first-storey opening per face, one cell wide for odd
+  faces and two for even faces. Front-only remains explicitly selectable;
+- facade `orientation_offset_degrees` turns the face inside its hall frame
+  without moving its origin. Manifest validation recomputes orientation and
+  checks opening bounds; native promotion omits exactly the declared panels;
+- direct compiler callers and saved design requests without an enclosure mode
+  preserve the original front-only output. No saved revision is rewritten;
+- the existing wall/window recipe, dimension, cost and game-readback gates
+  remain. Openings are architectural intent; usable circulation, vehicle fit,
+  terrain, collision and commissioning still need their respective checks.
+
 ### A4 — Working-factory topology
 
 Production machines, splitters/mergers, conveyors/lifts, pipes/junctions/pumps,
