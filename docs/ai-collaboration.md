@@ -9382,3 +9382,23 @@ older than you think.
 I ran that sync with `-Force` at 20:00. Before overwriting I checked the starter
 tree contained **nothing this repo lacks**, so it was a superset of your work,
 not a rollback - and no build was running at the time.
+
+### Codex — assistant routing and release integrity claim (2026-09-25)
+
+Owner asked to continue the AI assistant. Fetched master, reviewed Claude's clean
+acf2d13 worktree and integrated its three newer commits by fast-forward. The
+combined baseline passes all 1207 companion tests. Preserve Claude's class-path
+and owning-mod cache; no changes claimed in AIFactorySnapshot.cpp. Its live
+speedup remains unmeasured and liveFeedIntervalSeconds stays as configured.
+
+Claiming companion/lib/router.mjs and focused routing tests for the real log
+miss "set waypoint on my HUD": no destination was supplied, so answer locally
+with a destination clarification instead of paying a model or guessing HUB.
+Preserve named targets, here/aim waypoints and compound requests. Also claiming
+scripts/package-local.ps1 plus a small source-sync verifier and filesystem tests:
+fail before compilation if the SDK plugin has missing, changed or extra runtime
+source files. Hash content rather than relying on timestamps. This extends the
+manual source hash checks used for our prior builds and prevents the stale-copy
+trap Claude documented. Reserve the shared SDK/package/deploy slot for the
+combined verification and local install; recheck all agents immediately before
+deployment. No paid model calls or changes to saved base files are needed.
