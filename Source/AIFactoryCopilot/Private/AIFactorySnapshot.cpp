@@ -153,6 +153,33 @@ namespace
      * of it, so a cached pointer cannot dangle. Both maps are only ever
      * touched from the game thread, which is the only place a capture runs.
      */
+    /**
+     * Where a capture's time actually goes.
+     *
+     * Added because a hypothesis about the hot path cost a rebuild and
+     * measured 0.97x. Guessing again is more expensive than measuring: each
+     * attempt costs closing the game, a build, and a reload. These counters
+     * accumulate per capture and are reported beside capture_duration_ms, so
+     * the next change aims at a number.
+     *
+     * Timed with FPlatformTime::Seconds() around the individual operations
+     * rather than whole blocks, so a phase is attributable to a call rather
+     * than to a region of code. Game-thread only, like the capture itself.
+     */
+    struct FAIFactoryCaptureProfile
+    {
+        double IdentitySeconds = 0.0;
+        double BoundsSeconds = 0.0;
+        double InventoryWalkSeconds = 0.0;
+        double ConnectionWalkSeconds = 0.0;
+        double AdapterSeconds = 0.0;
+        double ReflectionSeconds = 0.0;
+        int32 ActorsSerialised = 0;
+        int32 ConnectionsRead = 0;
+    };
+
+    FAIFactoryCaptureProfile GCaptureProfile;
+
     FString ClassPath(const UClass* Class)
     {
         if (!IsValid(Class))
@@ -843,8 +870,13 @@ namespace
         const FAIFactorySettings& Settings)
     {
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
-        Result->SetStringField(TEXT("actor_id"), Actor->GetPathName());
-        Result->SetStringField(TEXT("name"), Actor->GetName());
+        ++GCaptureProfile.ActorsSerialised;
+        const double IdentityStarted = FPlatformTime::Seconds();
+        const FString ActorPath = Actor->GetPathName();
+        const FString ActorName = Actor->GetName();
+        GCaptureProfile.IdentitySeconds += FPlatformTime::Seconds() - IdentityStarted;
+        Result->SetStringField(TEXT("actor_id"), ActorPath);
+        Result->SetStringField(TEXT("name"), ActorName);
         Result->SetStringField(TEXT("class_path"), ClassPath(Actor->GetClass()));
         Result->SetStringField(TEXT("owner_mod"), OwnerModForClass(Actor->GetClass()));
         Result->SetStringField(TEXT("kind"), Kind);
@@ -855,14 +887,18 @@ namespace
 
         FVector BoundsOrigin;
         FVector BoundsExtent;
+        const double BoundsStarted = FPlatformTime::Seconds();
         Actor->GetActorBounds(false, BoundsOrigin, BoundsExtent, true);
+        GCaptureProfile.BoundsSeconds += FPlatformTime::Seconds() - BoundsStarted;
         const TSharedRef<FJsonObject> Bounds = MakeShared<FJsonObject>();
         Bounds->SetObjectField(TEXT("origin"), VectorJson(BoundsOrigin));
         Bounds->SetObjectField(TEXT("extent"), VectorJson(BoundsExtent));
         Result->SetObjectField(TEXT("bounds"), Bounds);
 
         TInlineComponentArray<UFGInventoryComponent*> Inventories;
+        const double InventoryStarted = FPlatformTime::Seconds();
         Actor->GetComponents(Inventories);
+        GCaptureProfile.InventoryWalkSeconds += FPlatformTime::Seconds() - InventoryStarted;
         TArray<TSharedPtr<FJsonValue>> InventoryEntries;
         for (UFGInventoryComponent* Inventory : Inventories)
         {
@@ -907,9 +943,13 @@ namespace
 
         if (Settings.bIncludeReflectedProperties)
         {
+            const double ReflectionStarted = FPlatformTime::Seconds();
             Result->SetArrayField(TEXT("reflected_properties"), ReflectedPropertiesJson(Actor, Settings));
+            GCaptureProfile.ReflectionSeconds += FPlatformTime::Seconds() - ReflectionStarted;
         }
+        const double AdapterStarted = FPlatformTime::Seconds();
         AddAdapterJson(Result, Actor);
+        GCaptureProfile.AdapterSeconds += FPlatformTime::Seconds() - AdapterStarted;
         return Result;
     }
 
@@ -918,7 +958,10 @@ namespace
         TArray<TSharedPtr<FJsonValue>> Result;
 
         TInlineComponentArray<UFGFactoryConnectionComponent*> FactoryConnections;
+        const double FactoryWalkStarted = FPlatformTime::Seconds();
         Buildable->GetComponents(FactoryConnections);
+        GCaptureProfile.ConnectionWalkSeconds += FPlatformTime::Seconds() - FactoryWalkStarted;
+        GCaptureProfile.ConnectionsRead += FactoryConnections.Num();
         for (UFGFactoryConnectionComponent* Connection : FactoryConnections)
         {
             if (!IsValid(Connection))
@@ -940,7 +983,10 @@ namespace
         }
 
         TInlineComponentArray<UFGPipeConnectionComponent*> PipeConnections;
+        const double PipeWalkStarted = FPlatformTime::Seconds();
         Buildable->GetComponents(PipeConnections);
+        GCaptureProfile.ConnectionWalkSeconds += FPlatformTime::Seconds() - PipeWalkStarted;
+        GCaptureProfile.ConnectionsRead += PipeConnections.Num();
         for (UFGPipeConnectionComponent* Connection : PipeConnections)
         {
             if (!IsValid(Connection))
@@ -963,7 +1009,10 @@ namespace
         }
 
         TInlineComponentArray<UFGPowerConnectionComponent*> PowerConnections;
+        const double PowerWalkStarted = FPlatformTime::Seconds();
         Buildable->GetComponents(PowerConnections);
+        GCaptureProfile.ConnectionWalkSeconds += FPlatformTime::Seconds() - PowerWalkStarted;
+        GCaptureProfile.ConnectionsRead += PowerConnections.Num();
         for (UFGPowerConnectionComponent* Connection : PowerConnections)
         {
             if (!IsValid(Connection))
@@ -2197,6 +2246,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     const uint64 WorldRevision)
 {
     const double CaptureStartSeconds = FPlatformTime::Seconds();
+    // Per capture, not cumulative - the numbers describe this one.
+    GCaptureProfile = FAIFactoryCaptureProfile();
     const FString CaptureStartedAtUtc = FDateTime::UtcNow().ToIso8601();
     FAIFactorySettings CaptureSettings = Settings;
     CaptureSettings.bIncludeReflectedProperties =
@@ -2425,12 +2476,46 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
         TEXT("Unknown custom behavior is never inferred; an explicit adapter is required."));
     Root->SetObjectField(TEXT("completeness"), Completeness);
     Root->SetStringField(TEXT("capture_completed_at_utc"), FDateTime::UtcNow().ToIso8601());
+    // Attached before the duration is stamped, so a single serialisation
+    // carries both. Serialising a whole-world document is tens of megabytes
+    // of work; doing it twice to embed its own timing would cost more than
+    // the number is worth, so serialise time is logged instead.
+    const TSharedRef<FJsonObject> Profile = MakeShared<FJsonObject>();
+    Profile->SetNumberField(TEXT("identity_ms"), GCaptureProfile.IdentitySeconds * 1000.0);
+    Profile->SetNumberField(TEXT("bounds_ms"), GCaptureProfile.BoundsSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("inventory_walk_ms"), GCaptureProfile.InventoryWalkSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("connection_walk_ms"), GCaptureProfile.ConnectionWalkSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("adapter_ms"), GCaptureProfile.AdapterSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("reflection_ms"), GCaptureProfile.ReflectionSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("actors_serialised"), GCaptureProfile.ActorsSerialised);
+    Profile->SetNumberField(TEXT("connections_read"), GCaptureProfile.ConnectionsRead);
+    Profile->SetStringField(TEXT("measured"),
+        TEXT("per-operation wall clock on the game thread; phases do not sum to "
+             "capture_duration_ms, the remainder is JSON object construction"));
+    Root->SetObjectField(TEXT("capture_profile"), Profile);
+
     Root->SetNumberField(
         TEXT("capture_duration_ms"),
         (FPlatformTime::Seconds() - CaptureStartSeconds) * 1000.0);
 
+    // Deliberately outside capture_duration_ms, because the original code
+    // stamps the duration before writing the document out. The game thread is
+    // held for both, so the freeze the player feels is the sum of the two -
+    // which means every duration reported so far understated it.
+    const double SerializeStarted = FPlatformTime::Seconds();
     const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Result.Json);
     FJsonSerializer::Serialize(Root, Writer);
+    UE_LOG(LogAIFactoryCopilot, Display,
+        TEXT("Capture profile: actors=%d identity=%.0fms bounds=%.0fms inventory=%.0fms "
+             "connections=%.0fms adapter=%.0fms reflection=%.0fms serialize=%.0fms"),
+        GCaptureProfile.ActorsSerialised,
+        GCaptureProfile.IdentitySeconds * 1000.0,
+        GCaptureProfile.BoundsSeconds * 1000.0,
+        GCaptureProfile.InventoryWalkSeconds * 1000.0,
+        GCaptureProfile.ConnectionWalkSeconds * 1000.0,
+        GCaptureProfile.AdapterSeconds * 1000.0,
+        GCaptureProfile.ReflectionSeconds * 1000.0,
+        (FPlatformTime::Seconds() - SerializeStarted) * 1000.0);
     return Result;
 }
 
