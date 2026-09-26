@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { createArchitectRevisionStore } from "../lib/architect-revisions.mjs";
 import { buildGraph } from "../lib/graph.mjs";
 import { runSolverTool } from "../lib/tools.mjs";
 import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
+import { MEGABASE_STYLES } from "../lib/megabase.mjs";
 
 function toolGraph() {
   const snapshot = buildFactorySnapshot();
@@ -35,6 +39,98 @@ function run(graph, name, args, architect, emitted = null) {
     },
   ).serialized);
 }
+
+test("every Architect grammar moves all preview geometry by the exact requested height", () => {
+  const graph = toolGraph();
+  const before = structuredClone(graph.snapshot);
+  for (const style of MEGABASE_STYLES) {
+    const request = { item_name: "Iron Rod", target_rate_per_minute: 60,
+      origin: { x: 100000, y: 100000, z: 500 }, style, preview_in_world: true };
+    const baseActions = [];
+    const base = run(graph, "design_megabase_concept", request, null, baseActions);
+    assert.equal(base.compiled, true, base.reason);
+    assert.equal(baseActions.length, 1);
+    for (const offset of [-2000.5, 0, 2000.5]) {
+      const actions = [];
+      const lowered = run(graph, "design_megabase_concept", {
+        ...request, elevation_offset_cm: offset,
+      }, null, actions);
+      assert.equal(lowered.compiled, true, lowered.reason);
+      assert.deepEqual(lowered.anchor_cm, { x: 100000, y: 100000, z: 500 + offset });
+      assert.deepEqual(lowered.program, base.program);
+      assert.deepEqual(lowered.design_family, base.design_family);
+      assert.deepEqual(lowered.connections, base.connections);
+      assert.deepEqual(lowered.elements.map(element => ({ ...element,
+        world_origin_cm: { ...element.world_origin_cm, z: element.world_origin_cm.z - offset },
+      })), base.elements);
+      assert.equal(actions.length, 1);
+      assert.equal(actions[0].action, "architect_preview");
+      assert.deepEqual(actions[0].elements.map(element => ({ ...element,
+        origin_cm: { ...element.origin_cm, z: element.origin_cm.z - offset },
+      })), baseActions[0].elements);
+      assert.equal(lowered.elevation.underground_fit, "unknown");
+      assert.equal(lowered.elevation.ground_snapping, false);
+      assert.equal(lowered.elevation.game_validation_pending, true);
+    }
+    assert.deepEqual(request.origin, { x: 100000, y: 100000, z: 500 });
+  }
+  assert.deepEqual(graph.snapshot, before);
+});
+
+test("height variants retain their reference and offset through disk restart and saved revision replay", (t) => {
+  const graph = toolGraph();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "architect-height-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const scope = { snapshot: graph.snapshot, chat_session_id: "height" };
+  let architect = createArchitectRevisionStore({ directory }).scope(scope);
+  const request = { item_name: "Iron Rod", target_rate_per_minute: 60,
+    origin: { x: 100000, y: 100000, z: 500 }, style: "radial_hub_campus",
+    architect_session_name: "Height", architect_select_revision: true };
+  const base = run(graph, "design_megabase_concept", request, architect);
+  const parentId = base.architect_revision.revision.revision_id;
+  const child = run(graph, "design_megabase_concept", { ...request,
+    elevation_offset_cm: -2000, architect_parent_revision_id: parentId }, architect);
+  assert.equal(child.architect_revision.ok, true, child.architect_revision.reason);
+  const childId = child.architect_revision.revision.revision_id;
+  assert.notEqual(childId, parentId);
+  const stored = architect.getRevision({ session_name: "Height", revision_id: childId });
+  assert.deepEqual(stored.revision.design_request.origin, request.origin);
+  assert.equal(stored.revision.design_request.elevation_offset_cm, -2000);
+  assert.equal(Object.hasOwn(stored.revision.manifest, "elevation"), false);
+  const before = structuredClone(stored);
+  architect = createArchitectRevisionStore({ directory }).scope(scope);
+  for (const operation of ["get", "preview", "promotion_status"]) {
+    const actions = [];
+    const result = run(graph, "manage_architect_revisions", { operation,
+      session_name: "Height", revision_id: childId }, architect, actions);
+    assert.equal(result.ok, true, result.reason);
+    assert.deepEqual((result.promotion ?? result).elevation, child.elevation);
+    assert.equal(actions.length, operation === "preview" ? 1 : 0);
+    assert.ok(actions.every(action => action.action === "architect_preview"));
+  }
+  assert.deepEqual(architect.getRevision({ session_name: "Height", revision_id: childId }), before);
+  const rollback = run(graph, "manage_architect_revisions", { operation: "rollback",
+    session_name: "Height", revision_id: parentId }, architect);
+  assert.equal(rollback.ok, true, rollback.reason);
+  assert.equal(rollback.selected_revision_id, parentId);
+  assert.equal(architect.getRevision({ session_name: "Height", revision_id: parentId }).revision.manifest.anchor_cm.z, 500);
+});
+
+test("invalid requested height emits no preview and creates no Architect revision", () => {
+  const graph = toolGraph();
+  const architect = createArchitectRevisionStore().scope({ snapshot: graph.snapshot, chat_session_id: "bad-height" });
+  for (const elevation_offset_cm of [null, "-2000", Infinity]) {
+    const actions = [];
+    const result = run(graph, "design_megabase_concept", {
+      item_name: "Iron Rod", target_rate_per_minute: 60, style: "radial_hub_campus",
+      origin: { x: 100000, y: 100000, z: 500 }, elevation_offset_cm,
+      architect_session_name: "Invalid", preview_in_world: true,
+    }, architect, actions);
+    assert.equal(result.compiled, false);
+    assert.deepEqual(actions, []);
+  }
+  assert.equal(architect.list({}).architect_sessions.length, 0);
+});
 
 test("access reports survive get, preview and promotion without entering immutable revisions", () => {
   const graph = toolGraph();

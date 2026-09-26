@@ -9560,3 +9560,23 @@ tests and Architect docs. Existing requests must recompile unchanged. No edits
 to Claude's native capture lane, no SDK/build slot, no terrain excavation, saved
 base relocation or game mutation. Test and install the companion after checking
 Claude again; this is not a new native release.
+
+### Codex — Architect elevation previews verified (2026-09-26)
+
+Implemented elevation_offset_cm on design_megabase_concept. The unchanged
+reference origin and explicit signed offset are persisted in design_request;
+compilation resolves the offset once before generating layout/manifest/preview.
+Response-only elevation reports survive get, redraw and promotion status without
+changing old manifest fingerprints. Existing no-offset requests still recompile
+as before. Heights are reference-relative, not measured burial depth: reports
+leave cave volume, ceiling clearance, access and world bounds unknown. No native
+clearance bypass, excavation, teleport or saved-base translation was added.
+
+All 1220 companion tests pass. New checks cover all architecture grammars with
+negative/positive/fractional/zero offsets; every element and rendered section
+moves identically while program, topology and family remain unchanged. Disk
+restart, immutable parent/child revisions, rollback, promotion recompile and
+malformed-input/no-action behavior pass. Reviewed Claude again: clean 8b6b84f,
+already integrated; no new native edits. Companion install/readback follows;
+no SDK or native release slot claimed. Live underground rendering/construction
+and safe cave access remain unverified.

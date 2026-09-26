@@ -20,6 +20,7 @@ import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { compileArchitectAccess } from "./architect-access.mjs";
+import { resolveArchitectElevation, architectElevationReport } from "./architect-elevation.mjs";
 import { solveReferenceDesigns } from "./reference-designs.mjs";
 import { planStorageBus, storageBusActions } from "./storage-bus.mjs";
 import { censusExtractedSupply, planSupplyDrivenProduction } from "./supply-production.mjs";
@@ -65,6 +66,7 @@ function architectDesignRequest(args = {}) {
     item_name: args.item_name,
     target_rate_per_minute: args.target_rate_per_minute,
     origin: args.origin,
+    ...(args.elevation_offset_cm !== undefined ? { elevation_offset_cm: args.elevation_offset_cm } : {}),
     style: args.style,
     enclosure_mode: args.enclosure_mode ?? "perimeter",
     design_family_id: args.design_family_id,
@@ -79,10 +81,17 @@ function architectDesignRequest(args = {}) {
 }
 
 function compileArchitectDesignRequest(graph, request, services = {}) {
+  const elevation = resolveArchitectElevation(request);
+  if (!elevation.resolved) {
+    return { compiled: false, result: {
+      schema: "megabase.design/v1", compiled: false, status: "concept_refused",
+      reason: elevation.reason, actions: [],
+    } };
+  }
   const layout = designFactoryLayout(graph, {
     item_name: request.item_name,
     target_rate_per_minute: request.target_rate_per_minute,
-    origin: request.origin,
+    origin: elevation.origin,
     recipe_class: request.recipe_class,
     use_existing_surplus: request.use_existing_surplus === true,
     align_to_base: request.align_to_base,
@@ -775,7 +784,7 @@ export const SOLVER_TOOLS = [
         target_rate_per_minute: { type: "number", description: "Desired output per minute." },
         origin: {
           type: "object",
-          description: "Authoritative site anchor in centimetres, including explicit Z.",
+          description: "Authoritative reference site in centimetres, including explicit Z. elevation_offset_cm is applied once to this origin; do not pre-apply it here.",
           properties: {
             x: { type: "number" },
             y: { type: "number" },
@@ -783,6 +792,10 @@ export const SOLVER_TOOLS = [
           },
           required: ["x", "y", "z"],
           additionalProperties: false,
+        },
+        elevation_offset_cm: {
+          type: "number",
+          description: "Optional explicit height change from origin, in centimetres: -2000 previews 20 m below that reference; +2000 previews 20 m above it. Preserves the whole design's relative geometry without ground snapping. This is a design height, not proof of burial depth, cave fit, excavation, safe access or native placement. Use only for a user-requested height change; otherwise omit.",
         },
         style: {
           type: "string",
@@ -908,6 +921,7 @@ export const SOLVER_TOOLS = [
       if (!compiled.compiled) return compiled.result;
       const { manifest, vertical } = compiled;
       const accessCatalog = compileArchitectAccess(manifest);
+      const elevationReport = architectElevationReport(designRequest, manifest);
       let architectRevision = null;
       if (args.architect_session_name) {
         const store = services?.architect;
@@ -941,6 +955,7 @@ export const SOLVER_TOOLS = [
           return {
             ...manifest,
             access_catalog: accessCatalog,
+            elevation: elevationReport,
             vertical_module: vertical,
             ...(architectRevision ? { architect_revision: architectRevision } : {}),
             architect_preview: preview,
@@ -950,6 +965,7 @@ export const SOLVER_TOOLS = [
         return {
           ...manifest,
           access_catalog: accessCatalog,
+          elevation: elevationReport,
           vertical_module: vertical,
           ...(architectRevision ? { architect_revision: architectRevision } : {}),
           architect_preview: {
@@ -966,6 +982,7 @@ export const SOLVER_TOOLS = [
       return {
         ...manifest,
         access_catalog: accessCatalog,
+        elevation: elevationReport,
         vertical_module: vertical,
         ...(architectRevision ? { architect_revision: architectRevision } : {}),
       };
@@ -1028,7 +1045,10 @@ export const SOLVER_TOOLS = [
           revision_id: args.revision_id,
         });
         return stored.ok
-          ? { ...stored, access_catalog: compileArchitectAccess(stored.revision.manifest) }
+          ? { ...stored, access_catalog: compileArchitectAccess(stored.revision.manifest),
+            ...(stored.revision.design_request ? {
+              elevation: architectElevationReport(stored.revision.design_request, stored.revision.manifest),
+            } : {}) }
           : stored;
       }
       if (args.operation === "compare") {
@@ -1086,6 +1106,7 @@ export const SOLVER_TOOLS = [
             ok: true,
             operation: "preview",
             access_catalog: compileArchitectAccess(recompiled.manifest),
+            elevation: architectElevationReport(stored.revision.design_request, recompiled.manifest),
             revision: verified.revision,
             evidence: verified.evidence,
             architect_preview: {
@@ -1115,7 +1136,9 @@ export const SOLVER_TOOLS = [
             description: args.blueprint_description,
             commit: args.operation === "promote_selected" && args.commit === true,
           });
-          const { action, ...status } = promotion;
+          const { action, ...promotionStatus } = promotion;
+          const status = { ...promotionStatus,
+            elevation: architectElevationReport(stored.revision.design_request, recompiled.manifest) };
           if (args.operation === "promotion_status") {
             return {
               ok: true,

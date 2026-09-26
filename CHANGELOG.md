@@ -5,6 +5,11 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Architect previews accept an explicit height offset from the supplied site:
+  negative lowers the complete design and positive raises it, with no ground
+  snapping. Saved options retain the reference and offset through restart,
+  redraw and native-generation checks. Reports distinguish exact design height
+  from unverified cave fit, ceiling clearance, access and world bounds.
 - Architect in-game previews now leave declared facade entrances visibly open.
   Bounded wall sections preserve upper glazing, overlapping openings and rotated
   hall geometry through the existing draw-only renderer. Legacy facades without

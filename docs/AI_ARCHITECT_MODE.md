@@ -100,6 +100,28 @@ Implemented companion checkpoint (2026-08-31):
   every content address on load, and refuses corrupt or tampered data without
   overwriting it.
 
+### Height variants and underground concepts
+
+`design_megabase_concept` accepts `elevation_offset_cm` relative to its explicit
+`origin`. For example, keep the captured site origin unchanged and pass `-2000`
+to preview a design 20 metres below that reference. Positive values raise it;
+omit the field to retain existing behavior. The solver applies the offset once
+before compiling geometry, so platforms, halls, facades, roofs, entrances and
+connections retain their relative arrangement. The anchor is the design origin,
+not necessarily its lowest floor. Existing style proportions still apply.
+
+Use a child revision for a height variant. Both reference and offset survive
+disk storage, bridge restart, preview and promotion recompilation. Old requests
+without an offset recompile unchanged. Response-only `elevation` metadata names
+the reference and resulting anchor without changing immutable manifests.
+
+This enables underground **concept previews**, not verified underground building.
+Depth is relative to the provided site, not a measured terrain surface. Surface
+probes cannot prove cave volume, ceiling clearance, walkable access or world
+bounds at the requested height. Preview never excavates terrain, teleports the
+player or translates a restored base. Native Blueprint generation remains
+separate from placement; the Build Gun and game-side readback retain authority.
+
 ### A3 — Selected revision to native Build Gun hologram
 
 The selected manifest is resolved to captured available build recipes and
