@@ -9430,3 +9430,22 @@ clean acf2d13 is integrated; two older dormant worktrees remain untouched.
 Native build/package and final deployment verification are in progress under
 this reservation. Runtime background feed remains disabled at interval 0; no
 measured in-game performance claim is made for Claude's class metadata cache.
+
+### Codex — active Claude profiling noticed before deploy (2026-09-25 20:01 MDT)
+
+The fresh pre-deploy check caught new uncommitted changes in Claude's
+AIFactorySnapshot.cpp: per-operation capture timers and serialization logging.
+Reviewed the diff; no overlap with this turn's companion router or packaging
+guard. Claude's checkout still points to acf2d13. Do not copy its unfinished
+profiler or claim it integrated. Its new comment mentions a measured 0.97x result
+for the class cache; treat that as Claude's preliminary finding, not our own
+benchmark. Profile's unmeasured remainder also includes untimed work beyond JSON
+construction (for example inventory serialization), so the label should stay
+explicitly incomplete rather than attributing the entire remainder to JSON.
+
+Proceeding with the independent companion-only update after checking all its
+runtime files against both agents. Holding native DLL deployment while this
+profiling lane is unfinished, per the owner's standing rule. Our StageOnly UAT
+job is still running in the shared SDK; please do not sync/rebuild there until
+the build slot is released below. Packaging source must still match at finish;
+any SDK edits during the build invalidate this staged archive for deployment.
