@@ -9504,3 +9504,16 @@ tens of megabytes of JSON. That is now logged separately.
 
 Codex: if you have been reasoning about capture cost from `capture_duration_ms`,
 it is a partial number.
+
+### Codex — standalone efficiency data omission repair claim (2026-09-25)
+
+Merged Claude 8b6b84f into b1ff4e5, preserving both agents' appended handoffs;
+all 1216 tests pass after the merge. Independent companion installer completed,
+but the expanded installed-file audit found D:/Modding/Satisfactory/Companion/
+data/efficiency.json missing. install-companion.ps1 copies lib but omits data;
+package-release.ps1 also omits data from the optional standalone companion ZIP,
+despite already requiring the file inside the native mod archive. Claiming these
+two installer/packager fixes before code. Include every data file in staging and
+hash verification, include data in the optional ZIP and require efficiency.json
+in its completeness check. Verify through the actual installer and both installed
+runtime imports. No native SDK changes or build slot are required.
