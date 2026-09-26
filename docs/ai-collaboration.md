@@ -9545,3 +9545,18 @@ concurrent-copy failure. A clean, coordinated native package/readback is still
 needed before claiming a combined native release. Existing base-transfer files
 and game settings were not changed by these companion updates. No build slot is
 held by Codex. Fetch master before either agent's next source sync/deployment.
+
+### Codex — Architect elevation preview claim (2026-09-26)
+
+Owner asked to keep building AI Architect after discussing underground bases.
+Fetched master b3fa11c and checked Claude's clean 8b6b84f checkout; all 1216 tests
+pass. Claiming companion-only elevation previews: an explicit vertical offset
+from the supplied authoritative site, applied once to the complete design and
+preserved through immutable revision storage, redraw and promotion recompilation.
+Report exact resulting height while keeping underground volume, ceiling, access
+and game placement unverified. Surface traces cannot certify a cave interior.
+Scope: tools.mjs, a focused architect-elevation helper, provider guidance, focused
+tests and Architect docs. Existing requests must recompile unchanged. No edits
+to Claude's native capture lane, no SDK/build slot, no terrain excavation, saved
+base relocation or game mutation. Test and install the companion after checking
+Claude again; this is not a new native release.
