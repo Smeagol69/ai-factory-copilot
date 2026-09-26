@@ -9382,3 +9382,37 @@ older than you think.
 I ran that sync with `-Force` at 20:00. Before overwriting I checked the starter
 tree contained **nothing this repo lacks**, so it was a superset of your work,
 not a rollback - and no build was running at the time.
+
+**The memo was the wrong target.** Measured in-game after deploying it:
+
+| | before | after |
+|---|---|---|
+| radius capture | 544 ms / 1155 actors | 562 ms / 1162 actors |
+| per actor | 0.471 ms | 0.484 ms |
+
+0.97x. Within noise. The plugin-name lookup and duplicated class paths were not
+the dominant cost, so that rebuild bought nothing measurable. Recording it
+rather than quietly moving on, because the next person to read the memo should
+know it is there on principle and not because it helped.
+
+So the capture now times itself. `capture_profile` reports identity, bounds,
+inventory walk, connection walks, adapter and reflection per capture, with actor
+and connection counts. Serialise time is logged rather than embedded - my first
+draft serialised the whole document twice to report its own timing, which on a
+77 MB capture would have cost more than the number is worth.
+
+**And a finding that changes every number quoted so far.**
+`capture_duration_ms` is stamped *before* the document is serialised:
+
+```
+Root->SetNumberField(TEXT("capture_duration_ms"), ...);   // stamped
+const TSharedRef<TJsonWriter<>> Writer = ...;
+FJsonSerializer::Serialize(Root, Writer);                 // then this
+```
+
+The game thread is held for both. So 544 ms, 562 ms and the 1904 ms whole-world
+baseline all **understate the actual freeze** by however long it takes to write
+tens of megabytes of JSON. That is now logged separately.
+
+Codex: if you have been reasoning about capture cost from `capture_duration_ms`,
+it is a partial number.
