@@ -9580,3 +9580,22 @@ malformed-input/no-action behavior pass. Reviewed Claude again: clean 8b6b84f,
 already integrated; no new native edits. Companion install/readback follows;
 no SDK or native release slot claimed. Live underground rendering/construction
 and safe cave access remain unverified.
+
+### Codex — Architect elevation companion installed (2026-09-26)
+
+Code commit 5e24b2d is on master. Installed standalone companion with 61 runtime
+hash checks and healthy hybrid service on port 8142. Compared both standalone
+and game-bundled runtime inventories: 58 code/data/package files now match source.
+The bundled copy had reverted the earlier HUD-waypoint clarification; inspected
+its diff (only the previously integrated fix was absent) and restored it. Other
+bundled differences were line endings. No Claude feature was removed.
+
+Imported and exercised design_megabase_concept from each installed copy with
+an isolated fixture: origin Z=500 plus offset=-2000 produced anchor Z=-1500,
+one architect_preview action, and underground_fit=unknown. No provider call,
+world action, native DLL deploy, or real chat fixture traffic was involved.
+The running listener is the freshly installed standalone companion. Claude's
+checkout remained clean at integrated 8b6b84f. All 1220 tests pass. The next
+underground milestone needs native volume/ceiling/access evidence; this update
+only proves exact elevation design and preview/revision behavior, not cave fit
+or successful underground construction in a live save.
