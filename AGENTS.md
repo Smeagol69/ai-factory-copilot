@@ -88,6 +88,11 @@ These are the project's spine. Breaking one is a regression even if tests pass.
 The Starter Project and game copies are **real copies, not junctions** — they go
 stale independently and must be re-synced.
 
+`package-local.ps1` now checks SHA-256 equality of repository and Starter Project
+native/runtime inputs before building. Missing, changed or extra files stop the
+package with their paths. Review and sync the intended combined source first;
+a successful build of an older SDK copy is not verification of a repository edit.
+
 ## Build, deploy, run
 
 ```powershell

@@ -44,6 +44,15 @@ if ($runningGame -and -not $StageOnly) {
 
 $packageStartedAt = Get-Date
 
+# UAT compiles the Starter Project copy, not the repository invoking this script.
+# Refuse stale, missing and orphaned native/runtime inputs before any build runs.
+$syncVerifier = Join-Path $PSScriptRoot 'verify-starter-sync.mjs'
+$nodeCommand = Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1
+& $nodeCommand.Source $syncVerifier --source-root (Split-Path -Parent $PSScriptRoot) --plugin-root (Split-Path -Parent $plugin)
+if ($LASTEXITCODE -ne 0) {
+    throw 'Starter Project source verification failed. Review and sync the source before retrying package-local.ps1.'
+}
+
 function Assert-NativeBaseRestoreBinary([string]$DllPath) {
     if (-not (Test-Path -LiteralPath $DllPath -PathType Leaf)) {
         throw "Native Shipping module is missing: $DllPath"

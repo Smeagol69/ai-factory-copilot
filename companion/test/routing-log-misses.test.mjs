@@ -21,6 +21,7 @@ import {
   answerLocally,
   parseDesignPlaceRequest,
   parseTeleportRequest,
+  parseWaypointRequest,
 } from "../lib/router.mjs";
 import { findDesign } from "../lib/designs.mjs";
 import { buildGraph } from "../lib/graph.mjs";
@@ -81,6 +82,35 @@ const ask = (question) => {
   });
   return { answer, emitted };
 };
+
+test("a waypoint on my HUD asks for its destination locally without guessing HUB", () => {
+  for (const question of [
+    "set waypoint on my HUD",
+    "please add a waypoint on the compass!",
+    "put a waypoint on my map",
+    "place waypoint in my heads-up display",
+  ]) {
+    const { answer, emitted } = ask(question);
+    assert.equal(answer?.local?.solver, "waypoint_clarify", question);
+    assert.match(answer.reply, /Where should I place the waypoint/);
+    assert.deepEqual(emitted, []);
+  }
+});
+
+test("HUD clarification preserves named, here, labelled and compound waypoint intent", () => {
+  assert.equal(parseWaypointRequest("set waypoint on my HUB").kind, "named");
+  assert.equal(ask("waypoint here").emitted[0].action, "waypoint");
+  assert.equal(ask("waypoint BP_ResourceNode217").emitted[0].location.x, 372_500);
+  assert.equal(ask("place waypoint and name it HUD").emitted[0].name, "HUD");
+  for (const question of [
+    "set waypoint on my HUD and teleport me there",
+    "set waypoint on my HUD at the coal miner",
+    "set waypoint on my HUD instead of my map",
+  ]) {
+    assert.notEqual(parseWaypointRequest(question)?.kind, "needs_target", question);
+    assert.notEqual(ask(question).answer?.local?.solver, "waypoint_clarify", question);
+  }
+});
 
 test("the three coordinate teleports the owner tried in a row", () => {
   // Logged one after another, phrased three ways, none of which arrived. The

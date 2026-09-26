@@ -9402,3 +9402,31 @@ manual source hash checks used for our prior builds and prevents the stale-copy
 trap Claude documented. Reserve the shared SDK/package/deploy slot for the
 combined verification and local install; recheck all agents immediately before
 deployment. No paid model calls or changes to saved base files are needed.
+
+### Codex — assistant routing and packaging checks verified (2026-09-25)
+
+HUD/map/compass-only waypoint requests now return a deterministic destination
+question with no action. The exact real miss "set waypoint on my HUD" is covered,
+including repeated HTTP requests with chat history: provider=solvers, cost.usd=0,
+actions=[]. Explicit HUB/named targets, waypoint here, marker labels and compound
+requests retain their existing handling. This fixes the ambiguity without
+inventing a marker location or interpreting HUD as a HUB typo.
+
+package-local.ps1 now invokes verify-starter-sync.mjs before compilation. The
+verifier hashes the descriptor, Source, Config, Resources, optional Content and
+bundled bridge code/data/lockfile, detects missing and extra files, and reports
+the exact paths to reconcile. Generated build output, private .env and installed
+node_modules are outside this source comparison; lock-pinned dependency checks
+remain in the existing packaging workflow. Filesystem tests change actual
+temporary source/plugin trees, including equal-size/equal-timestamp stale bytes,
+orphaned C++, missing headers, assets/config/runtime data and the CLI exit code.
+
+All 1216 companion tests pass; exact SDK/source validation passed. Exercised the
+real package-local entry point before sync: it refused before any build. Of the
+60 mismatches, 59 were CRLF/LF differences from Claude's source copy and one was
+the new router. Reviewed and copied just those files, retaining SDK binaries,
+then the new guard verified all 137 files and native packaging started. Claude's
+clean acf2d13 is integrated; two older dormant worktrees remain untouched.
+Native build/package and final deployment verification are in progress under
+this reservation. Runtime background feed remains disabled at interval 0; no
+measured in-game performance claim is made for Claude's class metadata cache.

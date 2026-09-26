@@ -66,6 +66,25 @@ test("health endpoint reports localhost diagnostic mode and solver tools", async
   assert.ok(body.outside_references.source_domains.includes("docs.ficsit.app"));
 });
 
+test("HUD-only waypoint requests stay free and emit no actions through HTTP with history", async () => {
+  for (let turn = 0; turn < 2; turn++) {
+    const response = await fetch(`${baseUrl}/v1/ask`, {
+      method: "POST", headers: JSON_HEADERS,
+      body: JSON.stringify({ schema: "aifactory.ask", schema_version: 1,
+        session_id: "waypoint-destination-http", question: "set waypoint on my HUD",
+        world_snapshot: buildFactorySnapshot() }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.provider, "solvers");
+    assert.equal(body.answered_by, "local_solver");
+    assert.equal(body.local.solver, "waypoint_clarify");
+    assert.equal(body.cost.usd, 0);
+    assert.deepEqual(body.actions, []);
+    assert.match(body.reply, /Where should I place the waypoint/);
+  }
+});
+
 test("saved-base checks and restores stay free through HTTP even with prior chat history", async () => {
   const snapshot = buildFactorySnapshot();
   for (const [question, commit] of [["check base chatgpt", false], ["restore base chatgpt", true], ["check base chatgpt", false]]) {

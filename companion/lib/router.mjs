@@ -1137,6 +1137,10 @@ const WAYPOINT_VERB =
   /^(?:can you |could you |please )?(?:create |make |set |drop |add |put )?(?:me )?(?:a |an |the )?way\s?point(?:\s+(?:for|on|at|to))?\s+/i;
 const WAYPOINT_ALT =
   /^(?:can you |could you |please )?(?:mark|pin|flag)\s+(?:me\s+)?(?:a\s+|the\s+)?(.+?)\s+(?:on|to)\s+(?:my\s+|the\s+)?(?:map|compass)\s*$/i;
+// A display surface is not a destination. The live request "set waypoint on
+// my HUD" reached a paid model; it must not silently become "my HUB" either.
+const WAYPOINT_DISPLAY_ONLY =
+  /^(?:can you |could you |please )?(?:(?:create|make|set|drop|add|put|place)\s+)?(?:me\s+)?(?:(?:a|an|the)\s+)?way\s?point\s+(?:on|in|to)\s+(?:(?:my|the)\s+)?(?:hud|heads?[- ]up display|map|compass)\s*$/i;
 /** Phrasings that name the siting solver's answer rather than a known place. */
 const WAYPOINT_BEST_SITE = /\b(?:best|ideal|optimal|recommended)\b.*\b(?:hub|site|spot|location|place|base)\b/i;
 
@@ -2020,6 +2024,7 @@ export function parseStructureRequest(question) {
 export function parseWaypointRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
+  if (WAYPOINT_DISPLAY_ONLY.test(text)) return { kind: "needs_target" };
 
   // "place waypoint and name it concrete" is in the routing log, answered by a
   // model because MULTI_CLAUSE sees the "and" and steps aside. It is not two
@@ -3515,6 +3520,15 @@ export function answerLocally(question, graph, services) {
   // position either comes from the site solver or from a name lookup; neither
   // needs a model.
   const waypoint = parseWaypointRequest(question);
+  if (waypoint?.kind === "needs_target") {
+    return localAnswer(
+      'Where should I place the waypoint? Say "waypoint here" or name a destination, ' +
+        'for example "waypoint my HUB". Waypoints appear on the map and compass.',
+      "waypoint_clarify",
+      Date.now(),
+      "A display surface was supplied without a destination; no action was emitted.",
+    );
+  }
   if (waypoint && graph) {
     const started = Date.now();
     let location = null;
