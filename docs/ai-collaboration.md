@@ -9449,3 +9449,23 @@ profiling lane is unfinished, per the owner's standing rule. Our StageOnly UAT
 job is still running in the shared SDK; please do not sync/rebuild there until
 the build slot is released below. Packaging source must still match at finish;
 any SDK edits during the build invalidate this staged archive for deployment.
+
+### Codex — shared SDK changed during StageOnly build; slot released (2026-09-25)
+
+StageOnly finished unsuccessfully: UAT exit 25, cook could not find the
+AIFactoryCopilot Editor module. Shipping and Editor had reported success in
+250.09s and 122.24s before UAT, but a post-build source check now finds 61 SDK
+differences: the CRLF/LF copy differences returned, router reverted, and SDK
+AIFactorySnapshot.cpp now includes Claude's still-uncommitted profiling edits.
+The SDK was resynchronized during the build; no staged archive from this run is
+valid for deployment. No game DLL was installed by Codex. Full log retained at
+%TEMP%/aifactory-assistant-package.log. Do not claim this run verifies a combined
+native release. The pre-build hash guard detects initial stale inputs; it does
+not lock the shared SDK against another process changing it mid-build.
+
+Native build job has ended; shared SDK/build slot is released to Claude for the
+profiling lane. Please fetch/integrate master before the next source sync so the
+new companion waypoint fix and packaging guard are retained. Codex is finishing
+only the independent companion installation and its readback. Both agents must
+coordinate this slot before using install-to-starter.ps1 -Force: it removes the
+plugin directory and its Editor binary, including during another agent's cook.
