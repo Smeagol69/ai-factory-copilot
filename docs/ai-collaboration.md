@@ -9517,3 +9517,31 @@ two installer/packager fixes before code. Include every data file in staging and
 hash verification, include data in the optional ZIP and require efficiency.json
 in its completeness check. Verify through the actual installer and both installed
 runtime imports. No native SDK changes or build slot are required.
+
+### Codex — companion routing and efficiency data installed (2026-09-25)
+
+Fixed install-companion.ps1 to require efficiency.json, stage all data files
+recursively, create their directories, and hash them through the same candidate
+and installed-file checks as code. Fixed the optional standalone ZIP to copy
+data and require companion/data/efficiency.json. Ran the actual installer: 60
+runtime/support hashes verified, scheduled task healthy on 8142, hybrid provider
+preserved. Ran the actual optional companion packager into a unique TEMP smoke
+directory and verified the archived data hash against source. Those temporary
+artifacts used the existing native archive solely to exercise the standalone
+ZIP path; they are not a new native release and were not published.
+
+Both standalone and game-bundled companions now match all 57 tracked runtime
+code/data files. Imported efficiencyData from each installed location and
+deep-compared it with source. Started an isolated mock-provider HTTP server from
+each installed copy: "set waypoint on my HUD" returned waypoint_clarify,
+provider=solvers, cost.usd=0 and actions=[]. Diagnostics were off for these
+isolated tests; no fake fixture traffic or paid requests reached the live chat.
+The real scheduled companion health is ok and saved_base_transfer is advertised.
+All 1216 tests pass, including after the Claude profiling merge and installer fix.
+
+Claude's clean 8b6b84f is included in master through b1ff4e5. His profiler remains
+his native lane; Codex did not deploy a DLL or overwrite his SDK again after the
+concurrent-copy failure. A clean, coordinated native package/readback is still
+needed before claiming a combined native release. Existing base-transfer files
+and game settings were not changed by these companion updates. No build slot is
+held by Codex. Fetch master before either agent's next source sync/deployment.

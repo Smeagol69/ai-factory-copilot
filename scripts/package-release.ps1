@@ -73,6 +73,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $root 'companion\package-lock.json') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\.env.example') -Destination (Join-Path $stageRoot 'companion')
     Copy-Item -LiteralPath (Join-Path $root 'companion\lib') -Destination (Join-Path $stageRoot 'companion') -Recurse
+    Copy-Item -LiteralPath (Join-Path $root 'companion\data') -Destination (Join-Path $stageRoot 'companion') -Recurse
     foreach ($script in @('install-companion.ps1', 'configure-companion.ps1', 'run-companion.ps1')) {
         Copy-Item -LiteralPath (Join-Path $root "scripts\$script") -Destination (Join-Path $stageRoot 'scripts')
     }
@@ -121,6 +122,7 @@ try {
     }
 
     $expectedCompanionEntries = @(
+        'companion/data/efficiency.json',
         'companion/server.mjs',
         'companion/package.json',
         'companion/package-lock.json',

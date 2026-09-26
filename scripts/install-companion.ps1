@@ -16,6 +16,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repositoryRoot 'companion'
 $sourceServer = Join-Path $sourceRoot 'server.mjs'
 $sourceLibrary = Join-Path $sourceRoot 'lib'
+$sourceData = Join-Path $sourceRoot 'data'
 $sourceRunner = Join-Path $PSScriptRoot 'run-companion.ps1'
 $sourceConfigurator = Join-Path $PSScriptRoot 'configure-companion.ps1'
 $sourcePackage = Join-Path $sourceRoot 'package.json'
@@ -184,6 +185,7 @@ function Read-EnvironmentValue {
 foreach ($requiredPath in @(
     $sourceServer,
     $sourceLibrary,
+    (Join-Path $sourceData 'efficiency.json'),
     $sourceRunner,
     $sourceConfigurator,
     $sourcePackage,
@@ -301,6 +303,12 @@ foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceLibrary -File -Filter 
         Relative = Join-Path 'lib' $sourceFile.Name
     }
 }
+foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceData -File -Recurse) {
+    $runtimeFiles += [pscustomobject]@{
+        Source = $sourceFile.FullName
+        Relative = Join-Path 'data' $sourceFile.FullName.Substring($sourceData.Length + 1)
+    }
+}
 
 $healthUri = "http://127.0.0.1:$Port/health"
 $existingTaskXml = if ($existingTask) { Export-ScheduledTask -TaskName $TaskName } else { $null }
@@ -315,6 +323,7 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $stageRoot 'lib') | Out-Null
     foreach ($runtimeFile in $runtimeFiles) {
         $stagedPath = Join-Path $stageRoot $runtimeFile.Relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $stagedPath) -Force | Out-Null
         Copy-Item -LiteralPath $runtimeFile.Source -Destination $stagedPath
         $sourceHash = (Get-FileHash -LiteralPath $runtimeFile.Source -Algorithm SHA256).Hash
         $stagedHash = (Get-FileHash -LiteralPath $stagedPath -Algorithm SHA256).Hash
