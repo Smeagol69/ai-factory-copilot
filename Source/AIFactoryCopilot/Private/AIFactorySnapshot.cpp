@@ -1087,8 +1087,13 @@ namespace
      *
      * The id is synthesised as lightweight:<Class>:<Index> because these have
      * no path name -- that pair is how the subsystem itself addresses them.
-     * It is stable only within one snapshot: removing an instance shifts every
-     * index above it, which is why nothing should persist one of these ids.
+     * It is stable only within one snapshot, and not for the reason this
+     * comment used to give. The engine does not shift indices down when an
+     * instance is removed - it keeps a free list and RECYCLES the slot
+     * (FGLightweightBuildableSubsystem.h:844-845). So an index survives other
+     * removals but can silently come to mean a different building after a
+     * dismantle and rebuild, which is worse: nothing should persist one of
+     * these ids, and nothing should diff on them.
      */
     TSharedRef<FJsonObject> LightweightBuildableJson(
         const TSubclassOf<AFGBuildable>& BuildableClass,
@@ -2368,6 +2373,10 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
 
     TArray<TSharedPtr<FJsonValue>> Actors;
     int32 LightweightSeen = 0;
+    // Both skips are counted rather than silently dropped - a capture that
+    // quietly omits things is the failure this whole change exists to fix.
+    int32 LightweightDismantledSkipped = 0;
+    int32 TemporaryBuildablesSkipped = 0;
     if (IsValid(World))
     {
         const double RadiusSquaredCm = FMath::Square(static_cast<double>(Request.RadiusMeters) * 100.0);
@@ -2377,6 +2386,16 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
             AFGBuildable* Buildable = *It;
             if (!IsValid(Buildable))
             {
+                continue;
+            }
+            // The lightweight subsystem spawns real AFGBuildable actors from a
+            // pool so the build gun has something to interact with. They are not
+            // buildings: the same foundation would be reported twice, once here
+            // and once as lightweight:<Class>:<Index>, and an idle pooled actor
+            // sits at z=-100000 and reads as a building underground.
+            if (Buildable->GetIsLightweightTemporary())
+            {
+                ++TemporaryBuildablesSkipped;
                 continue;
             }
             if (Request.bUseRadius && FVector::DistSquared(Buildable->GetActorLocation(), Request.Center) > RadiusSquaredCm)
@@ -2407,6 +2426,24 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                     for (int32 Index = 0; Index < Instances.Num(); ++Index)
                     {
                         const FRuntimeBuildableInstanceData& Instance = Instances[Index];
+                        // A dismantled lightweight is invalidated in place, not
+                        // erased: Clear() empties Handles and nulls BuiltWithRecipe
+                        // but leaves Transform untouched, so a dead slot still
+                        // carries the location it used to stand at. Without this
+                        // check the capture reports demolished buildings as
+                        // standing, until something reuses the slot.
+                        //
+                        // IsValidOnLoad (recipe present) rather than IsValid
+                        // (recipe AND render handles): Clear() nulls the recipe so
+                        // this still excludes every dismantled slot, while the
+                        // stricter test would drop a real building whose instance
+                        // handles are not currently live. A building missing from
+                        // a snapshot is far worse than one too many.
+                        if (!Instance.IsValidOnLoad())
+                        {
+                            ++LightweightDismantledSkipped;
+                            continue;
+                        }
                         if (Request.bUseRadius &&
                             FVector::DistSquared(Instance.Transform.GetLocation(), Request.Center) > RadiusSquaredCm)
                         {
@@ -2503,6 +2540,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     Completeness->SetBoolField(TEXT("actor_limit_reached"), Result.bActorLimitReached);
     // Named separately so a reader can tell an empty base from a blind snapshot.
     Completeness->SetNumberField(TEXT("lightweight_buildable_count"), LightweightSeen);
+    Completeness->SetNumberField(TEXT("lightweight_dismantled_skipped"), LightweightDismantledSkipped);
+    Completeness->SetNumberField(TEXT("temporary_buildables_skipped"), TemporaryBuildablesSkipped);
     Completeness->SetNumberField(TEXT("actor_limit"), Settings.MaxActorsPerSnapshot);
     Completeness->SetStringField(TEXT("unknown_policy"),
         TEXT("Unknown custom behavior is never inferred; an explicit adapter is required."));
