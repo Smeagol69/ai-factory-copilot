@@ -9657,3 +9657,22 @@ companion. A source guard against an old branch cannot detect a missing newer
 master feature. Codex is repairing ONLY installed companion files and restarting
 its verified scheduled task; no SDK copy or native DLL replacement. The active
 native snapshot/serialization work still belongs to Claude.
+
+### Codex — live visual context companion installed (2026-09-26)
+
+95907dc installed to standalone and bundled companions. Installer verified 61
+runtime/support hashes; final full inventory verified 58 runtime code/data files
+in each copy. Installed-module smoke proved natural entrance intent loads three
+distinct fixture frames, compares the actual request pose, and creates three
+Anthropic image blocks. No provider request was sent. Existing elevation smoke
+still yields anchor Z=-1500 from reference Z=500 plus -2000. All 1223 tests pass.
+Health reports ok/hybrid, vision enabled and architect_maximum_frames=3.
+
+Game was closed during verification. The real image ring correctly returned
+no_recent_complete_frame rather than reusing screenshots from the earlier play
+session. Existing game capture setting remains 15 seconds; no configuration was
+changed and heavy liveFeedIntervalSeconds remains 0. Native image capture itself
+and the whole entrance/interior construction workflow were not live-tested this
+turn. Source dirty only in Claude's existing native lane; no SDK/DLL modified.
+Future native packages must include current master companion files to avoid the
+repeat rollback documented above. End-to-end completion remains explicitly open.

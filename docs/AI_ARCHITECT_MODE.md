@@ -26,6 +26,10 @@ Completion requires:
   access, arrival platform, lighting and maintenance circulation around them;
 - a complete preview, native construction with current game checks, and readback
   of placed pieces and required connections; a generated file is not completion.
+- conversational construction when the owner asks Architect to build the design,
+  using the existing server-authoritative action path. Requiring the owner to
+  reconstruct the design manually does not satisfy this scenario. Native Build
+  Gun inspection/placement remains an available alternative.
 
 Current visual path: native captures are configurable and sampled, not video.
 Architect briefs automatically request up to three distinct recent views under
