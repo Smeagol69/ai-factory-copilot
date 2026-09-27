@@ -15,6 +15,7 @@
  */
 
 import { Parser } from "@etothepii/satisfactory-file-parser";
+import { createHash } from "node:crypto";
 
 const SUPPORTED_BLUEPRINT_HEADER_VERSION = 2;
 const SAVE_VERSION_WITH_OBJECT_VERSION_DATA = 53;
@@ -1625,6 +1626,9 @@ export function inspectBlueprintStructure(
     maximumHypertubeConnections = DEFAULT_MAXIMUM_CONNECTIONS,
     maximumHypertubePipes = DEFAULT_MAXIMUM_HYPERTUBE_PIPES,
     maximumHypertubeSplinePoints = DEFAULT_MAXIMUM_HYPERTUBE_SPLINE_POINTS,
+    entityOffset = null,
+    maximumEntities = DEFAULT_MAXIMUM_BUILDABLES,
+    expectedSourceFingerprint = null,
   } = {},
 ) {
   let header;
@@ -1650,6 +1654,24 @@ export function inspectBlueprintStructure(
       source: "none",
       certainty: "unknown",
     };
+  }
+
+  // Pin the pair, not just the display name: a player can overwrite a Blueprint
+  // between tool calls. Never combine two revisions into one apparent design.
+  const sourceFingerprint = `sha256:${createHash("sha256")
+    .update(String(sbpBuffer.length)).update(":").update(sbpBuffer)
+    .update(String(sbpcfgBuffer.length)).update(":").update(sbpcfgBuffer).digest("hex")}`;
+  const pagingError = entityOffset !== null &&
+    (!Number.isSafeInteger(entityOffset) || entityOffset < 0)
+    ? "blueprint_entity_offset_invalid"
+    : entityOffset > 0 && !expectedSourceFingerprint
+      ? "blueprint_entity_continuation_requires_source_fingerprint"
+      : expectedSourceFingerprint !== null && expectedSourceFingerprint !== sourceFingerprint
+        ? "blueprint_source_changed_restart_inspection"
+        : null;
+  if (pagingError) {
+    return { available: false, blueprint_name: name, reason: pagingError,
+      source_fingerprint: sourceFingerprint, source: "none", certainty: "unknown" };
   }
 
   let parsed;
@@ -1701,6 +1723,25 @@ export function inspectBlueprintStructure(
   const objects = Array.isArray(parsed?.objects) ? parsed.objects : [];
   const entities = objects.filter((object) => object?.type === "SaveEntity");
   const components = objects.filter((object) => object?.type === "SaveComponent");
+  if (entityOffset !== null && entityOffset > entities.length) {
+    return { available: false, blueprint_name: name, reason: "blueprint_entity_offset_out_of_range",
+      source_fingerprint: sourceFingerprint, source: "none", certainty: "unknown" };
+  }
+  // Include every saved actor in an opt-in page, even when a mod uses FicusPlant
+  // rather than Build_FicusPlant. This is file evidence, not runtime class proof.
+  // Keep malformed transforms visible as unknown instead of shifting indices.
+  const entityMaximum = boundedMaximum(maximumEntities, DEFAULT_MAXIMUM_BUILDABLES);
+  const entityRows = entityOffset === null ? [] : entities
+    .slice(entityOffset, entityOffset + entityMaximum)
+    .map((object, index) => ({
+      entity_index: entityOffset + index,
+      class_path: typeof object.typePath === "string" ? object.typePath : null,
+      class_name: typeof object.typePath === "string" ? shortName(object.typePath) : null,
+      instance_name: typeof object.instanceName === "string" ? object.instanceName : null,
+      matches_buildable_naming_convention: blueprintBuildableCandidate(object),
+      transform: readBuildableTransform(object),
+      built_with_recipe: builtWithRecipe(object),
+    }));
   const buildables = entities
     .map((object, entityIndex) => ({ object, entity_index: entityIndex }))
     .filter(({ object }) => blueprintBuildableCandidate(object));
@@ -1742,6 +1783,16 @@ export function inspectBlueprintStructure(
   return {
     available: true,
     blueprint_name: name,
+    source_fingerprint: sourceFingerprint,
+    entity_page: entityOffset === null ? null : {
+      offset: entityOffset,
+      returned: entityRows.length,
+      total: entities.length,
+      next_offset: entityOffset + entityRows.length < entities.length
+        ? entityOffset + entityRows.length : null,
+      entities: entityRows,
+      caveat: "All SaveEntity actors in saved order, including nonstandard modded names. Transforms are Blueprint-local pivots; null means missing or malformed. Runtime buildability, mesh bounds and destination fit remain unknown. This page does not decode all actor properties or replace the separate topology records.",
+    },
     parser: {
       package: "@etothepii/satisfactory-file-parser",
       version: PARSER_VERSION,
@@ -1761,6 +1812,8 @@ export function inspectBlueprintStructure(
       entity_count: entities.length,
       component_count: components.length,
       buildable_count: buildables.length,
+      entities_outside_buildable_naming_convention: entities.length - buildables.length,
+      complete_entity_inspection: "Call inspect_blueprint_layout with entity_offset=0, then its entity_page.next_offset and expected_source_fingerprint=source_fingerprint until next_offset is null. This includes nonstandard modded actors omitted from buildables.",
       buildable_identification:
         "SaveEntity class-path basename matches the native Build_*_C convention.",
       buildable_identification_caveat:

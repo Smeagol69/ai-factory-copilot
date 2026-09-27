@@ -467,3 +467,18 @@ weaken write gates, or convert previews into permission.
 - A4 production/topology work must be claimed before editing and merged through
   `master` so a belt, pipe, or power compiler cannot silently diverge from the
   existing game-side readback rules.
+
+### Complete personal Blueprint reference inspection (2026-09-27)
+
+`inspect_blueprint_layout` now offers an optional all-SaveEntity page alongside
+its existing bounded Build_* census. Start with `entity_offset: 0`, then follow
+`entity_page.next_offset`, supplying the original `source_fingerprint` as
+`expected_source_fingerprint`. Pages default to 80 actors and cap at 200; all
+saved actor indices survive, including modded props outside Build_* naming and
+actors with malformed transforms (reported null). The fingerprint covers both
+native files and prevents combining revisions if the player saves midway.
+This is read-only reference evidence, not proof that a prop is spawnable from a
+recipe, not a mesh/clearance measurement, and not a general architecture builder.
+For an unchanged copy, the existing native Blueprint placement path preserves
+the saved assembly; avoid reconstructing it from a partial list of individual
+actors. The full conversational creation acceptance scenario above remains open.

@@ -233,7 +233,7 @@ function savedHypertubePipe(instanceName, points, overrides = {}) {
 }
 
 /** Creates a real compressed .sbp through the same pinned parser we read with. */
-function makeNativeBlueprint({ connected = false } = {}) {
+function makeNativeBlueprint({ connected = false, extraEntities = [] } = {}) {
   const constructor = nativeEntity(
     "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
     "Persistent_Level:PersistentLevel.Build_ConstructorMk1_C_1",
@@ -287,6 +287,7 @@ function makeNativeBlueprint({ connected = false } = {}) {
       ]
       : [constructor, smelter],
   };
+  blueprint.objects.push(...extraEntities);
   let header = null;
   const chunks = [];
   const output = Parser.WriteBlueprintFiles(
@@ -301,6 +302,92 @@ function makeNativeBlueprint({ connected = false } = {}) {
 }
 
 /* ---------------- exact header ---------------- */
+
+test("all-entity pages preserve modded props, exact transforms and every saved index beyond 200", () => {
+  const props = Array.from({ length: 205 }, (_, index) => nativeEntity(
+    "/ExampleDecor/FicusPlant.FicusPlant_C", `Persistent_Level.Ficus_${index}`,
+    { x: index + 0.125, y: -5.875, z: 123.456 }, "",
+  ));
+  props[0].transform.rotation = { x: 0.5, y: 0.5, z: 0.5, w: 0.5 };
+  props[0].transform.scale3d = { x: 1.25, y: 0.75, z: 2 };
+  const { sbp, sbpcfg } = makeNativeBlueprint({ connected: true, extraEntities: props });
+  const legacy = inspectBlueprintStructure("Props", sbp, sbpcfg);
+  assert.equal(legacy.decoded.buildable_count, 2);
+  assert.equal(legacy.decoded.entities_outside_buildable_naming_convention, 205);
+  assert.equal(legacy.entity_page, null);
+  const first = inspectBlueprintStructure("Props", sbp, sbpcfg, { entityOffset: 0, maximumEntities: 999 });
+  assert.equal(first.entity_page.total, 207);
+  assert.equal(first.entity_page.returned, 200);
+  assert.equal(first.entity_page.next_offset, 200);
+  const prop = first.entity_page.entities[2];
+  assert.equal(prop.matches_buildable_naming_convention, false);
+  assert.equal(prop.class_path, "/ExampleDecor/FicusPlant.FicusPlant_C");
+  // This fixture's save version serializes translation as float32. Preserve its
+  // decoded value exactly rather than rounding it for display or placement.
+  assert.deepEqual(prop.transform.translation_cm, { x: 0.125, y: -5.875, z: Math.fround(123.456) });
+  assert.deepEqual(prop.transform.rotation_quat, { x: 0.5, y: 0.5, z: 0.5, w: 0.5 });
+  assert.deepEqual(prop.transform.scale3d, { x: 1.25, y: 0.75, z: 2 });
+  const second = inspectBlueprintStructure("Props", sbp, sbpcfg, {
+    entityOffset: first.entity_page.next_offset, expectedSourceFingerprint: first.source_fingerprint,
+  });
+  assert.equal(second.entity_page.returned, 7);
+  assert.equal(second.entity_page.next_offset, null);
+  const rows = [...first.entity_page.entities, ...second.entity_page.entities];
+  assert.deepEqual(rows.map((row) => row.entity_index), Array.from({ length: 207 }, (_, i) => i));
+  assert.equal(new Set(rows.map((row) => row.instance_name)).size, 207);
+});
+
+test("entity continuation refuses missing fingerprints, changed file pairs and invalid offsets", () => {
+  const { sbp, sbpcfg } = makeNativeBlueprint();
+  const first = inspectBlueprintStructure("Pair", sbp, sbpcfg, { entityOffset: 0, maximumEntities: 1 });
+  for (const entityOffset of [-1, 0.5, "1", NaN, Infinity]) {
+    const result = inspectBlueprintStructure("Pair", sbp, sbpcfg, { entityOffset });
+    assert.equal(result.reason, "blueprint_entity_offset_invalid");
+    assert.equal(result.entity_page, undefined);
+  }
+  assert.equal(inspectBlueprintStructure("Pair", sbp, sbpcfg, { entityOffset: 1 }).reason,
+    "blueprint_entity_continuation_requires_source_fingerprint");
+  const options = { entityOffset: 1, expectedSourceFingerprint: first.source_fingerprint };
+  const changedConfig = Buffer.from(sbpcfg);
+  changedConfig[changedConfig.length - 1] ^= 1;
+  assert.equal(inspectBlueprintStructure("Pair", sbp, changedConfig, options).reason,
+    "blueprint_source_changed_restart_inspection");
+  const changedSbp = makeNativeBlueprint({ connected: true }).sbp;
+  assert.equal(inspectBlueprintStructure("Pair", changedSbp, sbpcfg, options).reason,
+    "blueprint_source_changed_restart_inspection");
+  assert.equal(inspectBlueprintStructure("Pair", sbp, sbpcfg, { ...options, entityOffset: 3 }).reason,
+    "blueprint_entity_offset_out_of_range");
+  const end = inspectBlueprintStructure("Pair", sbp, sbpcfg, { ...options, entityOffset: 2 });
+  assert.deepEqual(end.entity_page.entities, []);
+  assert.equal(end.entity_page.next_offset, null);
+});
+
+test("entity pages retain malformed transforms as unknown without skipping the actor", () => {
+  const malformed = nativeEntity("/ExampleDecor/Prop.Prop_C", "BadProp", { x: NaN, y: 0, z: 0 }, "");
+  const { sbp, sbpcfg } = makeNativeBlueprint({ extraEntities: [malformed] });
+  const result = inspectBlueprintStructure("Malformed", sbp, sbpcfg, { entityOffset: 0 });
+  assert.equal(result.available, true);
+  assert.equal(result.entity_page.total, 3);
+  assert.equal(result.entity_page.entities[2].entity_index, 2);
+  assert.equal(result.entity_page.entities[2].transform, null);
+});
+
+test("blueprint solver forwards bounded all-entity inspection and source continuity", () => {
+  const { sbp, sbpcfg } = makeNativeBlueprint();
+  const graph = buildGraph(buildFactorySnapshot());
+  const services = { inspectBlueprint: (name, options) => inspectBlueprintStructure(name, sbp, sbpcfg, options) };
+  const first = solveBlueprintLayout(graph, { blueprint_name: "Native test", entity_offset: 0, maximum_entities: 1 }, services);
+  assert.equal(first.entity_page.returned, 1);
+  const second = solveBlueprintLayout(graph, { blueprint_name: "Native test", entity_offset: 1,
+    maximum_entities: 1, expected_source_fingerprint: first.source_fingerprint }, services);
+  assert.equal(second.available, true);
+  assert.equal(second.entity_page.entities[0].entity_index, 1);
+  assert.equal(second.entity_page.next_offset, null);
+  const refused = solveBlueprintLayout(graph, { blueprint_name: "Native test", entity_offset: 1,
+    expected_source_fingerprint: "sha256:stale" }, services);
+  assert.equal(refused.available, false);
+  assert.equal(refused.entity_page, undefined);
+});
 
 test("decodes the exact FBlueprintHeader field meanings", () => {
   const header = parseBlueprintHeader(makeSbp({

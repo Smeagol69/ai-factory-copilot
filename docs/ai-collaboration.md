@@ -9692,3 +9692,25 @@ actors, not asserted runtime buildables. No user blueprint contents go into the
 public repo. Baseline all 1223 tests pass. This fixes missing design evidence,
 not arbitrary architecture generation or successful game construction; those
 remain the acceptance goal. No world mutation or native release planned.
+
+### Codex — complete Blueprint actor inspection verified (2026-09-27)
+
+Added opt-in bounded all-SaveEntity pagination to inspect_blueprint_layout,
+with exact saved translation/quaternion/scale, stable indices, explicit null
+malformed transforms and SHA-256 continuity across the .sbp/.sbpcfg pair. Kept
+legacy Build_* census and existing topology output intact. Solver and tool
+schema expose it; provider guidance explains complete traversal and prefers
+native place_blueprint for an unchanged assembly instead of guessing individual
+pieces. No runtime buildability or destination fit is inferred from saved data.
+
+All 1227 tests pass. Synthetic round trips cover 207 actors across the 200-row
+cap, nonstandard props, tilted/scaled transforms, malformed transforms, changed
+config/content, missing fingerprints, bad offsets and solver propagation. A
+private read-only smoke over the owner's actual export retrieved all 313 actors
+in four pages, all 313 transforms, including the 18 outside Build_* naming. Six
+reciprocal hypertube connection pairs and two physical power wires decode; this
+is saved topology, not a live traversal/power test. Original files untouched and
+private decoded artifacts remain outside the public repo. Rechecked Claude:
+only his pre-existing native snapshot profiler diff is active; no SDK/DLL edits.
+Companion install follows. Arbitrary custom architecture generation, fitting a
+new design around existing work and in-game construction/readback remain open.

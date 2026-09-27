@@ -1750,6 +1750,9 @@ export function solveBlueprintLayout(
     maximum_hypertube_connections = 80,
     maximum_hypertube_pipes = 40,
     maximum_hypertube_spline_points = 200,
+    entity_offset = null,
+    maximum_entities = 80,
+    expected_source_fingerprint = null,
   } = {},
   { inspectBlueprint = null } = {},
 ) {
@@ -1785,6 +1788,9 @@ export function solveBlueprintLayout(
     maximumHypertubeConnections: maximum_hypertube_connections,
     maximumHypertubePipes: maximum_hypertube_pipes,
     maximumHypertubeSplinePoints: maximum_hypertube_spline_points,
+    entityOffset: entity_offset,
+    maximumEntities: maximum_entities,
+    expectedSourceFingerprint: expected_source_fingerprint,
   });
   if (!structure?.available) {
     return {

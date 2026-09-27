@@ -328,6 +328,18 @@ export const SOLVER_TOOLS = [
           type: "number",
           description: "Maximum individual transformed buildables to return, from 1 through 200. Defaults to 80; aggregate counts still cover every decoded buildable.",
         },
+        entity_offset: {
+          type: "integer", minimum: 0,
+          description: "Opt into complete saved-actor inspection, including nonstandard modded props. Start at 0; continue with entity_page.next_offset until null. Saved entity indices are stable only for the same source_fingerprint. This page supplements the bounded Build_* list; it does not establish runtime buildability.",
+        },
+        maximum_entities: {
+          type: "integer", minimum: 1, maximum: 200,
+          description: "Saved actors per entity page, default 80 and hard cap 200. Null transforms remain explicit unknowns and still occupy their saved index.",
+        },
+        expected_source_fingerprint: {
+          type: "string",
+          description: "Copy source_fingerprint from the first inspection. Required for entity_offset > 0; refuses continuation if either native Blueprint file changed. Restart at offset 0 after a mismatch; never combine pages from different fingerprints.",
+        },
         maximum_connections: {
           type: "number",
           description: "Maximum individual reciprocal conveyor/pipe connection pairs to return, from 1 through 200. Defaults to 80; aggregate reciprocal, unresolved, and nonreciprocal reference counts still cover every decoded component.",
