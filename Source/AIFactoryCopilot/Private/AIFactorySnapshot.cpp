@@ -68,6 +68,7 @@
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceNode.h"
 #include "Resources/FGResourceNodeBase.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UObject/UnrealType.h"
@@ -174,8 +175,33 @@ namespace
         double ConnectionWalkSeconds = 0.0;
         double AdapterSeconds = 0.0;
         double ReflectionSeconds = 0.0;
+        // Whole-function time per serialiser. The first pass timed only
+        // GenericActorJson, which turned out to handle 27 of 1,132 actors -
+        // 99% of the capture was unaccounted for because the two serialisers
+        // that do the work were never measured.
+        double GenericActorSeconds = 0.0;
+        double LightweightSeconds = 0.0;
+        double BuildableSeconds = 0.0;
+        int32 GenericActors = 0;
+        int32 LightweightBuildables = 0;
+        int32 Buildables = 0;
         int32 ActorsSerialised = 0;
         int32 ConnectionsRead = 0;
+    };
+
+    /** Adds its lifetime to an accumulator, so every return path is counted. */
+    struct FAIFactoryScopedAccumulator
+    {
+        double& Target;
+        const double Started;
+        explicit FAIFactoryScopedAccumulator(double& InTarget)
+            : Target(InTarget), Started(FPlatformTime::Seconds())
+        {
+        }
+        ~FAIFactoryScopedAccumulator()
+        {
+            Target += FPlatformTime::Seconds() - Started;
+        }
     };
 
     FAIFactoryCaptureProfile GCaptureProfile;
@@ -869,6 +895,8 @@ namespace
         const FString& Kind,
         const FAIFactorySettings& Settings)
     {
+        FAIFactoryScopedAccumulator Timing(GCaptureProfile.GenericActorSeconds);
+        ++GCaptureProfile.GenericActors;
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         ++GCaptureProfile.ActorsSerialised;
         const double IdentityStarted = FPlatformTime::Seconds();
@@ -1067,6 +1095,8 @@ namespace
         const FRuntimeBuildableInstanceData& Instance,
         int32 Index)
     {
+        FAIFactoryScopedAccumulator Timing(GCaptureProfile.LightweightSeconds);
+        ++GCaptureProfile.LightweightBuildables;
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         const FString ClassName = IsValid(BuildableClass) ? BuildableClass->GetName() : TEXT("Unknown");
         Result->SetStringField(TEXT("actor_id"),
@@ -1098,6 +1128,8 @@ namespace
 
     TSharedRef<FJsonObject> BuildableJson(AFGBuildable* Buildable, const FAIFactorySettings& Settings)
     {
+        FAIFactoryScopedAccumulator Timing(GCaptureProfile.BuildableSeconds);
+        ++GCaptureProfile.Buildables;
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetStringField(TEXT("actor_id"), Buildable->GetPathName());
         Result->SetStringField(TEXT("name"), Buildable->GetName());
@@ -2487,6 +2519,12 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     Profile->SetNumberField(TEXT("connection_walk_ms"), GCaptureProfile.ConnectionWalkSeconds * 1000.0);
     Profile->SetNumberField(TEXT("adapter_ms"), GCaptureProfile.AdapterSeconds * 1000.0);
     Profile->SetNumberField(TEXT("reflection_ms"), GCaptureProfile.ReflectionSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("generic_actor_ms"), GCaptureProfile.GenericActorSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("lightweight_ms"), GCaptureProfile.LightweightSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("buildable_ms"), GCaptureProfile.BuildableSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("generic_actors"), GCaptureProfile.GenericActors);
+    Profile->SetNumberField(TEXT("lightweight_buildables"), GCaptureProfile.LightweightBuildables);
+    Profile->SetNumberField(TEXT("buildables"), GCaptureProfile.Buildables);
     Profile->SetNumberField(TEXT("actors_serialised"), GCaptureProfile.ActorsSerialised);
     Profile->SetNumberField(TEXT("connections_read"), GCaptureProfile.ConnectionsRead);
     Profile->SetStringField(TEXT("measured"),
@@ -2503,12 +2541,24 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     // held for both, so the freeze the player feels is the sum of the two -
     // which means every duration reported so far understated it.
     const double SerializeStarted = FPlatformTime::Seconds();
-    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Result.Json);
+    // Condensed, not pretty. TJsonWriterFactory<> defaults to
+    // TPrettyJsonPrintPolicy (JsonWriter.h:686), so every capture was being
+    // indented and newline-separated - formatting work, and a larger string,
+    // for a document no human reads. Measured at 275-391 ms per capture, on
+    // top of a duration that does not include it.
+    const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+        TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Result.Json);
     FJsonSerializer::Serialize(Root, Writer);
     UE_LOG(LogAIFactoryCopilot, Display,
-        TEXT("Capture profile: actors=%d identity=%.0fms bounds=%.0fms inventory=%.0fms "
+        TEXT("Capture profile: generic=%d/%.0fms lightweight=%d/%.0fms buildable=%d/%.0fms "
+             "| identity=%.0fms bounds=%.0fms inventory=%.0fms "
              "connections=%.0fms adapter=%.0fms reflection=%.0fms serialize=%.0fms"),
-        GCaptureProfile.ActorsSerialised,
+        GCaptureProfile.GenericActors,
+        GCaptureProfile.GenericActorSeconds * 1000.0,
+        GCaptureProfile.LightweightBuildables,
+        GCaptureProfile.LightweightSeconds * 1000.0,
+        GCaptureProfile.Buildables,
+        GCaptureProfile.BuildableSeconds * 1000.0,
         GCaptureProfile.IdentitySeconds * 1000.0,
         GCaptureProfile.BoundsSeconds * 1000.0,
         GCaptureProfile.InventoryWalkSeconds * 1000.0,

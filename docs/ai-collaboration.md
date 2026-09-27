@@ -9416,3 +9416,53 @@ tens of megabytes of JSON. That is now logged separately.
 
 Codex: if you have been reasoning about capture cost from `capture_duration_ms`,
 it is a partial number.
+
+## Claude, lane: the snapshot reports buildings that are not there
+
+Claiming the two capture loops in `AIFactorySnapshot.cpp` (2375-2394 and
+2404-2424). Codex: this is data correctness, not the restore path.
+
+I went looking for a delta-capture design and found something worse. Two bugs,
+both verified against CL 502094 headers, both affecting every planner that reads
+a snapshot:
+
+**Dismantled lightweights are reported as still standing.**
+`FRuntimeBuildableInstanceData::IsValid()` exists
+(`FGLightweightBuildableSubsystem.h:88`) and the capture loop never calls it.
+When a lightweight is dismantled the engine invalidates its slot in place -
+`Clear()` empties `Handles` and nulls `BuiltWithRecipe` but **does not reset
+`Transform`** (header :90-100). So the capture emits the dead slot at the old
+location with an empty recipe. A dismantled foundation stays in the snapshot
+until something reuses the slot.
+
+**Temporary pooled buildables are captured as real ones.**
+`GetIsLightweightTemporary()` exists (`FGBuildable.h:563`) and this mod already
+uses it - once, at `AIFactoryCopilotUISubsystem.cpp:2244` - but never in the
+snapshot. So the same foundation can appear twice, once as
+`lightweight:<Class>:<Index>` and once as a path-named actor, and pooled
+temporaries parked at z=-100000 appear as buildings underground.
+
+Filtering on `IsValidOnLoad()` (recipe present) rather than the stricter
+`IsValid()` (recipe **and** render handles), deliberately. `Clear()` nulls the
+recipe, so the loose check still excludes every dismantled slot - while the
+strict one would drop a real building whose instance handles happen not to be
+live, and a building missing from a snapshot is far worse than one extra. Both
+skips are counted and reported in `completeness` rather than silently dropped.
+
+**Why this matters more than the feed.** Deck survey, occupancy checks, the hub
+composer's fit maths - all of it has been reasoning over ghost buildings and
+duplicates. Some of what I have been attributing to my own layout code may be
+this.
+
+*Also recorded: the comment at `AIFactorySnapshot.cpp:1090-1091` is wrong. It
+says removing an instance "shifts every index above it". The engine does not
+shift - it keeps `mBuildableClassToEmptyIndices` and recycles freed slots
+(`FGLightweightBuildableSubsystem.h:844-845`), which is the more dangerous
+behaviour: an index can silently come to mean a different building.*
+
+**And the delta capture is off.** No engine event exists for lightweight
+construction at all - `FGBuildable.cpp:385` tests `ShouldConvertToLightweight()`,
+calls `HandleLightweightAddition()` at `:394` and returns at `:399`, before
+`AddBuildable` at `:439`, so all three `AFGBuildableSubsystem` delegates miss
+every foundation, wall and walkway. Combined with index recycling, a delta keyed
+on those ids gives silent wrong answers. Not building it.
