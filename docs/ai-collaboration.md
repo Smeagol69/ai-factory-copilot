@@ -9599,3 +9599,23 @@ checkout remained clean at integrated 8b6b84f. All 1220 tests pass. The next
 underground milestone needs native volume/ceiling/access evidence; this update
 only proves exact elevation design and preview/revision behavior, not cave fit
 or successful underground construction in a live save.
+
+### Codex — live Architect visual context claim (2026-09-26)
+
+Owner restated the end-to-end goal: describe the surface hypertube entrance and
+underground factory as in chat, have Architect see the running game, design
+around existing construction, and build the accepted result in-game. This is
+the acceptance scenario, not merely an image renderer or a production-rate
+planner. Existing screenshot capture is enabled at 15 seconds, but visual intent
+misses ordinary entrance/factory requests; bridge currently loads only one image
+and carries no comparison to the authoritative request viewpoint.
+
+Claiming companion vision.mjs, provider guidance, server vision context plumbing,
+focused tests and roadmap clarification. Recognize natural architectural briefs,
+provide bounded recent viewpoint context, and label frame age/viewpoint drift
+rather than calling an old picture the current view. Preserve deterministic
+facts/writes and all nonvisual routes. Read Claude's active uncommitted snapshot
+profiling/condensed-serialization diff; no edit to that C++ lane or shared SDK.
+Baseline 1220 tests pass; master 43b2677 fetched. Native site-volume checks and
+general architecture generation/placement remain separate open work, not claims
+of this companion-only change. No continuous model polling or paid test calls.
