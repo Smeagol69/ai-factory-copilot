@@ -9676,3 +9676,19 @@ and the whole entrance/interior construction workflow were not live-tested this
 turn. Source dirty only in Claude's existing native lane; no SDK/DLL modified.
 Future native packages must include current master companion files to avoid the
 repeat rollback documented above. End-to-end completion remains explicitly open.
+
+### Codex — complete private blueprint inspection claim (2026-09-27)
+
+Owner supplied underground test v3 and reiterated that Architect must build from
+ordinary briefs instead of leaving the manual assembly to them. Read master
+5a84b51 and Claude's existing uncommitted AIFactorySnapshot.cpp profiler lane;
+no native edits or SDK slot. The private export has 313 SaveEntity actors, but
+only 295 follow Build_* naming, and live inspection cannot page beyond its
+bounded first 200. Claim companion blueprints.mjs, solver/tool plumbing, provider
+guidance and tests for an additive bounded all-entity inspection page with exact
+saved transforms, stable entity indices and source fingerprint continuity.
+Preserve existing buildable counts/contracts; nonstandard entities are saved
+actors, not asserted runtime buildables. No user blueprint contents go into the
+public repo. Baseline all 1223 tests pass. This fixes missing design evidence,
+not arbitrary architecture generation or successful game construction; those
+remain the acceptance goal. No world mutation or native release planned.
