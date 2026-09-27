@@ -7,6 +7,39 @@ it to Satisfactory's native Build Gun."
 
 ## Player experience
 
+### Owner's acceptance scenario: live entrance and underground factory
+
+The owner clarified on 2026-09-26 that the end goal is to tell the in-game
+assistant what they told the chat: there is a factory in an underground concrete
+box, reached by a vertical hypertube whose exposed entrance is on the surface.
+Architect should see these spaces, propose a matching entrance and interior,
+and make the accepted design in-game around the working factory. External
+concept renders and height offsets alone do not satisfy this goal.
+
+Completion requires:
+
+- fresh game views with explicit frame age and save/request provenance, plus
+  authoritative geometry, lightweight pieces and exact connection identities;
+- a brief spanning both surface and underground without demanding a fictional
+  production-rate goal for an entrance or decorative work;
+- preserving existing machines and transport while generating buildable shell,
+  access, arrival platform, lighting and maintenance circulation around them;
+- a complete preview, native construction with current game checks, and readback
+  of placed pieces and required connections; a generated file is not completion.
+
+Current visual path: native captures are configurable and sampled, not video.
+Architect briefs automatically request up to three distinct recent views under
+the existing byte/age limits; an explicit AIFACTORY_VISION_MAX_FRAMES overrides
+that default. The bridge reports time, player-distance and view-angle differences
+against the request snapshot. A close view is not identity proof: legacy native
+sidecars have no save/session identity. Full native image provenance, general
+existing-space geometry generation, underground volume/access validation and
+the complete construction loop remain open acceptance work. Continuous capture
+does not continuously call a model. Heavy world-feed performance is a separate
+lane and must not be silently enabled to claim real-time understanding.
+
+### Conversational flow
+
 The intended flow is conversational:
 
 1. Aim at a site and ask for a goal, for example: "Design a compact cyberpunk

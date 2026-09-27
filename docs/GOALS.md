@@ -40,6 +40,14 @@ chooses creative proportions; deterministic solvers own recipes, rates,
 unlocks, coordinates, terrain evidence, routing, and capacity; the game owns
 every eventual placement and readback.
 
+The owner's concrete acceptance case is the surface hypertube entrance and
+underground factory (2026-09-26): describe the desired entrance/interior in
+ordinary language, let Architect observe both existing spaces, then construct
+the accepted design around the working base and verify it in-game. A render,
+height-adjusted preview or generated Blueprint by itself is an intermediate
+result. See the acceptance scenario in AI_ARCHITECT_MODE.md; this goal includes
+architecture without a new production target.
+
 The delivery order is deliberately playable at every stage:
 
 1. Render the existing authoritative `megabase.design/v1` manifest as a

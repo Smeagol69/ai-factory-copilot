@@ -23,6 +23,45 @@ const JSON_HEADERS = {
   "X-AIFactory-Schema": "1",
 };
 
+test("Architect HTTP responses compare available screenshots with the actual request snapshot", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "architect-http-vision-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const now = new Date().toISOString();
+  fs.writeFileSync(path.join(directory, "frame-001.json"), JSON.stringify({
+    frame_index: 1, captured_at_utc: now,
+    player: { location: { x: 0, y: 0, z: 0 }, view_rotation: { pitch: 0, yaw: 0, roll: 0 } },
+  }));
+  const png = Buffer.alloc(24);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
+  png.write("IHDR", 12); png.writeUInt32BE(64, 16); png.writeUInt32BE(32, 20);
+  fs.writeFileSync(path.join(directory, "frame-001.png"), png);
+  const instance = createBridgeServer({ env: {
+    AI_PROVIDER: "mock", AIFACTORY_ROUTING_LOG: "off", AIFACTORY_VISION_DIR: directory,
+  } });
+  await new Promise(resolve => instance.listen(0, "127.0.0.1", resolve));
+  try {
+    const snapshot = buildFactorySnapshot();
+    snapshot.interaction_context.captured_at_utc = now;
+    snapshot.interaction_context.player.control_rotation = { pitch: 0, yaw: 0, roll: 0 };
+    const response = await fetch(`http://127.0.0.1:${instance.address().port}/v1/ask`, {
+      method: "POST", headers: JSON_HEADERS,
+      body: JSON.stringify({ schema: "aifactory.ask", schema_version: 1,
+        question: "build an entrance around this hypertube", world_snapshot: snapshot }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.vision.frames_available, 1);
+    assert.equal(body.vision.frames_attached, 0, "mock did not inspect any pixels");
+    assert.equal(body.vision.frame_context[0].view_context.role, "recent_viewpoint_near_request");
+    assert.equal(body.vision.frame_context[0].view_context.distance_cm, 0);
+    assert.equal(body.vision.frame_context[0].view_context.save_identity_verified, false);
+    assert.deepEqual(body.actions, []);
+    assert.equal(JSON.stringify(body).includes(png.toString("base64")), false);
+  } finally {
+    await new Promise(resolve => instance.close(resolve));
+  }
+});
+
 before(async () => {
   server = createBridgeServer({ env: { AI_PROVIDER: "mock" } });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

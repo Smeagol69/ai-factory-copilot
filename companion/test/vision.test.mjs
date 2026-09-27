@@ -9,7 +9,7 @@ import {
   needsStrongModel,
   providerMessages,
 } from "../lib/providers.mjs";
-import { isVisionQuestion, loadVisionFrames } from "../lib/vision.mjs";
+import { isVisionQuestion, loadVisionFrames, visionMetadataText } from "../lib/vision.mjs";
 
 function tinyPng(width = 64, height = 32) {
   const buffer = Buffer.alloc(24);
@@ -37,6 +37,75 @@ test("vision is opt-in by visual intent and sends hybrid visual work to the stro
   assert.equal(isVisionQuestion("does this blueprint look good?", {}), true);
   assert.equal(needsStrongModel("does this blueprint look good?", {}), true);
   assert.equal(needsStrongModel("does this blueprint look good?", { LOCAL_AI_VISION: "true" }), false);
+});
+
+test("natural Architect briefs request images without magic visual keywords", () => {
+  for (const question of [
+    "build an entrance around this hypertube",
+    "finish my underground factory",
+    "make a bunker here",
+    "connect this balcony to the room below",
+    "AI Architect: improve this",
+    "i built a factory then attached a hypertube that goes straight up; i want a render of the entrance and the factory",
+  ]) {
+    assert.equal(isVisionQuestion(question, {}), true, question);
+    assert.equal(needsStrongModel(question, {}), true, question);
+    assert.equal(isVisionQuestion(question, { AIFACTORY_VISION: "off" }), false);
+  }
+  for (const question of ["check base chatgpt", "restore base chatgpt", "how much iron am i making", "what does a smelter do"]) {
+    assert.equal(isVisionQuestion(question, {}), false, question);
+  }
+});
+
+test("Architect retains distinct recent views with exact age and request-view differences", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "architect-views-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const nowMs = Date.now();
+  const pose = (z, yaw) => ({ location: { x: 100, y: 200, z }, view_rotation: { pitch: 0, yaw, roll: 0 } });
+  const entries = [
+    { index: 1, seconds: 5, player: pose(-2000, -179) },
+    { index: 2, seconds: 20, player: pose(-2000, 179) }, // same view across angular wrap
+    { index: 3, seconds: 40, player: pose(2000, 90) }, // prior surface view
+    { index: 4, seconds: 55, player: pose(2000, 0) },
+    { index: 5, seconds: 200, player: pose(5000, 0) }, // outside history limit
+  ];
+  for (const entry of entries) {
+    const name = `frame-${String(entry.index).padStart(3, "0")}`;
+    await writeFile(path.join(directory, `${name}.json`), JSON.stringify({
+      frame_index: entry.index, captured_at_utc: new Date(nowMs - entry.seconds * 1000).toISOString(), player: entry.player,
+    }));
+    await writeFile(path.join(directory, `${name}.png`), tinyPng());
+  }
+  const snapshot = { interaction_context: {
+    captured_at_utc: new Date(nowMs).toISOString(),
+    player: { pawn_location: pose(-2000, 179).location, control_rotation: pose(-2000, 179).view_rotation },
+  } };
+  const request = { question: "build an entrance for this underground factory", nowMs,
+    env: { AIFACTORY_VISION_DIR: directory }, snapshot };
+  const vision = await loadVisionFrames(request);
+  assert.deepEqual(vision.frames.map(frame => frame.frame_index), [1, 3, 4]);
+  assert.equal(vision.frames[0].view_context.role, "recent_viewpoint_near_request");
+  assert.equal(vision.frames[0].view_context.max_rotation_delta_degrees, 2);
+  assert.equal(vision.frames[0].view_context.save_identity_verified, false);
+  assert.equal(vision.frames[1].view_context.role, "recent_visual_reference");
+  assert.equal(vision.frames[1].view_context.distance_cm, 4000);
+  assert.equal(vision.frames[1].view_context.frame_minus_snapshot_ms, -40000);
+  assert.match(visionMetadataText(vision), /not a live video stream/);
+  const missing = await loadVisionFrames({ ...request, snapshot: null });
+  assert.equal(missing.frames[0].view_context.distance_cm, null);
+  assert.equal(missing.frames[0].view_context.role, "recent_visual_reference");
+  const capped = await loadVisionFrames({ ...request, env: { ...request.env, AIFACTORY_VISION_MAX_FRAMES: "1" } });
+  assert.equal(capped.frames.length, 1);
+  const textOnlyQuestion = await loadVisionFrames({ ...request, question: "what do you see?" });
+  assert.equal(textOnlyQuestion.frames.length, 1);
+  for (const format of ["anthropic", "openai", "chat"]) {
+    const messages = providerMessages(providerContext(vision), { visionFormat: format });
+    const content = messages.at(-1).content;
+    assert.equal(content.filter(block => ["image", "input_image", "image_url"].includes(block.type)).length, 3);
+    const text = content.find(block => ["text", "input_text"].includes(block.type)).text;
+    assert.match(text, /recent_visual_reference/);
+    assert.match(text, /same order as attached images/);
+  }
 });
 
 test("the vision reader accepts only a recent completed bounded PNG from its own ring", async (context) => {

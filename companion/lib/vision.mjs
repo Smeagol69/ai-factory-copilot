@@ -7,6 +7,50 @@ const DEFAULT_MAX_FRAME_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_TOTAL_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_PIXELS = 16_000_000;
 const DEFAULT_MAX_FRAMES = 1;
+const ARCHITECT_MAX_FRAMES = 3;
+
+/** Natural architecture briefs need pixels even when the player never says "look". */
+export function isArchitectVisionQuestion(question) {
+  const text = String(question ?? "");
+  return /\barchitect(?:ure)?\b/i.test(text) ||
+    (/\b(?:build|design|render|decorate|redesign|remodel|beautify|make|improve|finish|extend|add|connect|join)\b/i.test(text) &&
+      /\b(?:entrance|entry|bunker|underground|factory|base|hall|hypertube|facade|façade|room|building|roof|walkway|balcony)\b/i.test(text));
+}
+
+function finiteVector(point, axes) {
+  return point && axes.every(axis => Number.isFinite(point[axis]));
+}
+
+function viewpointDelta(left, right) {
+  const positionKnown = finiteVector(left?.location, ["x", "y", "z"]) &&
+    finiteVector(right?.location, ["x", "y", "z"]);
+  const rotationKnown = finiteVector(left?.view_rotation, ["pitch", "yaw", "roll"]) &&
+    finiteVector(right?.view_rotation, ["pitch", "yaw", "roll"]);
+  const angle = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
+  return {
+    distance_cm: positionKnown ? Math.hypot(...["x", "y", "z"].map(axis => left.location[axis] - right.location[axis])) : null,
+    max_rotation_delta_degrees: rotationKnown ? Math.max(...["pitch", "yaw", "roll"].map(axis => angle(left.view_rotation[axis], right.view_rotation[axis]))) : null,
+  };
+}
+
+function frameContext(metadata, snapshot, ageMs) {
+  const player = snapshot?.interaction_context?.player;
+  const delta = viewpointDelta(metadata.player, {
+    location: player?.pawn_location, view_rotation: player?.control_rotation,
+  });
+  const snapshotTime = Date.parse(snapshot?.interaction_context?.captured_at_utc ?? snapshot?.generated_at_utc ?? "");
+  const timeDelta = Number.isFinite(snapshotTime) ? metadata.captured_at_ms - snapshotTime : null;
+  const nearView = delta.distance_cm !== null && delta.distance_cm <= 500 &&
+    delta.max_rotation_delta_degrees !== null && delta.max_rotation_delta_degrees <= 30;
+  return {
+    role: ageMs <= 30_000 && timeDelta !== null && Math.abs(timeDelta) <= 30_000 && nearView
+      ? "recent_viewpoint_near_request" : "recent_visual_reference",
+    ...delta,
+    frame_minus_snapshot_ms: timeDelta,
+    save_identity_verified: false,
+    limitation: "The current game screenshot sidecar has no save/session identity. Position and angle proximity do not prove same-save or current-view correspondence; never bind a pictured object to a write target.",
+  };
+}
 
 function enabled(value, fallback = true) {
   if (value === undefined || value === null || value === "") return fallback;
@@ -33,6 +77,7 @@ export function defaultVisionDirectory(env = process.env) {
 export function isVisionQuestion(question, env = process.env) {
   if (!enabled(env.AIFACTORY_VISION, true)) return false;
   if (enabled(env.AIFACTORY_VISION_ALWAYS, false)) return true;
+  if (isArchitectVisionQuestion(question)) return true;
   return /\b(?:look|see|screen|screenshot|view|visual|appearance|aesthetic|style|beautiful|ugly|looks?|blue\s?print|architecture|building design|facade|façade|symmetry|decorate|decoration|color scheme|colour scheme)\b/i.test(
     String(question ?? ""),
   );
@@ -80,6 +125,7 @@ export async function loadVisionFrames({
   question,
   env = process.env,
   nowMs = Date.now(),
+  snapshot = null,
 } = {}) {
   const requested = isVisionQuestion(question, env);
   const directory = defaultVisionDirectory(env);
@@ -88,7 +134,7 @@ export async function loadVisionFrames({
 
   const maxFrames = boundedInteger(
     env.AIFACTORY_VISION_MAX_FRAMES,
-    DEFAULT_MAX_FRAMES,
+    isArchitectVisionQuestion(question) ? ARCHITECT_MAX_FRAMES : DEFAULT_MAX_FRAMES,
     1,
     3,
   );
@@ -163,6 +209,17 @@ export async function loadVisionFrames({
       if (buffer.length !== info.size) continue;
       const dimensions = pngDimensions(buffer);
       if (!dimensions || dimensions.pixels > maxPixels) continue;
+      // Prefer distinct views for an architectural brief (for example surface
+      // entrance and underground arrival), not three almost-identical frames.
+      // Missing pose data is not evidence of a duplicate viewpoint.
+      if (isArchitectVisionQuestion(question) && frames.some(frame => {
+        const delta = viewpointDelta(frame.player, metadata.player);
+        return delta.distance_cm !== null && delta.distance_cm < 500 &&
+          delta.max_rotation_delta_degrees !== null && delta.max_rotation_delta_degrees < 30;
+      })) continue;
+      // A timer can reuse the ring slot while this asynchronous read is active.
+      const after = safeMetadata(await readFile(path.join(directory, metadata.sidecar), "utf8"), metadata.sidecar);
+      if (!after || after.frame_index !== metadata.frame_index || after.captured_at_utc !== metadata.captured_at_utc) continue;
       totalBytes += buffer.length;
       frames.push({
         media_type: "image/png",
@@ -176,6 +233,7 @@ export async function loadVisionFrames({
         reason: metadata.reason,
         includes_ui: metadata.includes_ui,
         player: metadata.player,
+        view_context: frameContext(metadata, snapshot, ageMs),
       });
     } catch {
       // Screenshot capture is asynchronous. Missing/incomplete files are an
@@ -204,9 +262,10 @@ export function visionMetadataText(vision) {
     includes_ui: frame.includes_ui,
     reason: frame.reason,
     player: frame.player,
+    view_context: frame.view_context,
   }));
   return (
-    `\n\nCURRENT VISION FRAME METADATA JSON:\n${JSON.stringify(entries)}\n` +
-    "The attached pixels are visual evidence only. Snapshot/solver data remains authoritative for identities, recipes, rates, coordinates, collision, unlocks, and every write."
+    `\n\nRECENT GAME VIEW FRAME METADATA JSON (same order as attached images):\n${JSON.stringify(entries)}\n` +
+    "The attached pixels are visual evidence only. They are sampled screenshots, not a live video stream. Older or different viewpoints are context, not the current view. Snapshot/solver data remains authoritative for identities, recipes, rates, coordinates, collision, unlocks, and every write."
   );
 }

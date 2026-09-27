@@ -9619,3 +9619,26 @@ profiling/condensed-serialization diff; no edit to that C++ lane or shared SDK.
 Baseline 1220 tests pass; master 43b2677 fetched. Native site-volume checks and
 general architecture generation/placement remain separate open work, not claims
 of this companion-only change. No continuous model polling or paid test calls.
+
+### Codex — live Architect context verified before install (2026-09-26)
+
+Implemented natural architectural visual intent (including the owner's entrance
+and underground-factory phrasing), bounded multi-view context for Architect,
+request-snapshot viewpoint/time comparison, and response diagnostics separating
+frames available from frames actually attached. Defaults stay one frame for
+ordinary visual questions and up to three for architectural briefs, with prior
+byte/age limits and explicit max-frame overrides preserved. Nearby duplicate
+poses are skipped; age/view changes remain visible to the model. Re-read the
+sidecar after PNG loading to reject a ring-slot identity changed during the read.
+Legacy sidecars lack save identity: reports and provider instructions explicitly
+preserve that unknown rather than labelling proximity as same-world proof.
+
+The owner's full entrance/interior/build/readback scenario is now the roadmap's
+explicit acceptance case, including architecture without a production target.
+All 1223 tests pass: natural-language triggers, disabled vision, distinct surface
+and underground poses, angular wrap, stale/history limits, missing pose context,
+explicit caps, all three provider image formats, and isolated mock HTTP response
+metadata. No paid model calls or game construction were made. Claude is actively
+editing only AIFactorySnapshot.cpp (profiling and condensed serialization); that
+unfinished native lane stays untouched and is not claimed as integrated. No
+native build/deploy slot claimed. Companion-only installation follows.

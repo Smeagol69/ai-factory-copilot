@@ -5,6 +5,10 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Natural Architect entrance, bunker and factory briefs now request visual
+  context automatically. Up to three distinct recent viewpoints can show both
+  surface and underground spaces, with explicit age and request-view differences.
+  Missing save identity stays unknown; sampled frames are never called live video.
 - Architect previews accept an explicit height offset from the supplied site:
   negative lowers the complete design and positive raises it, with no ground
   snapping. Saved options retain the reference and offset through restart,

@@ -811,6 +811,7 @@ export function createBridgeServer({ env = process.env } = {}) {
             directory_configured: Boolean(defaultVisionDirectory(env)),
             automatic_intent_filter: !envFlag(env.AIFACTORY_VISION_ALWAYS, false),
             maximum_frames: Math.min(3, positiveInteger(env.AIFACTORY_VISION_MAX_FRAMES, 1)),
+            architect_maximum_frames: Math.min(3, positiveInteger(env.AIFACTORY_VISION_MAX_FRAMES, 3)),
             local_multimodal_declared: envFlag(env.LOCAL_AI_VISION, false),
           },
           outside_references: {
@@ -998,7 +999,7 @@ export function createBridgeServer({ env = process.env } = {}) {
       };
 
       const history = sessions.get(sessionId) ?? [];
-      const vision = await loadVisionFrames({ question: body.question, env });
+      const vision = await loadVisionFrames({ question: body.question, env, snapshot: body.world_snapshot });
       const context = {
         question: body.question.trim(),
         snapshot: view.snapshot,
@@ -1194,9 +1195,13 @@ export function createBridgeServer({ env = process.env } = {}) {
           total_remembered: restored.cache_size,
         },
         solver_calls: answer.solver_calls ?? [],
-        vision: answer.vision ?? {
-          status: vision.status,
-          frames_attached: 0,
+        vision: {
+          ...(answer.vision ?? { status: vision.status, frames_attached: 0 }),
+          frames_available: vision.frames.length,
+          frame_context: vision.frames.map(frame => ({
+            captured_at_utc: frame.captured_at_utc, age_ms: frame.age_ms,
+            view_context: frame.view_context,
+          })),
         },
         // Prompt-cache accounting for this answer, so the saving is observable
         // rather than assumed.
