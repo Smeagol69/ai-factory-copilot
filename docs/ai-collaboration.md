@@ -9714,3 +9714,18 @@ private decoded artifacts remain outside the public repo. Rechecked Claude:
 only his pre-existing native snapshot profiler diff is active; no SDK/DLL edits.
 Companion install follows. Arbitrary custom architecture generation, fitting a
 new design around existing work and in-game construction/readback remain open.
+
+### Codex — complete actor inspection companion installed (2026-09-27)
+
+Installed e08ed3f to standalone companion; installer verified 61 runtime/support
+hashes and hybrid /health is ok. Bundled companion differed in only the four
+modified libraries; each matched prior master before copying. Both installed
+locations now match all 58 tracked runtime files. Imported each installed solver
+and traversed the actual private export in two 200-maximum pages: exactly 313
+unique saved actors, no dropped nonstandard props and no model/network or world
+action. Initial standalone smoke used an incomplete ad-hoc graph and failed in
+inventory pricing; reran successfully with the existing buildGraph fixture.
+No source fix was needed. Full source suite remains 1227 passing. The native DLL,
+Claude's unfinished profiler and the user's original Blueprint pair were not
+changed. This is inspection support, not a claim that arbitrary custom building
+or the full underground-entrance acceptance scenario has been implemented.
