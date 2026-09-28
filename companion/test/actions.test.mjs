@@ -868,5 +868,18 @@ test("every validated action carries the dispatch field the mod reads", () => {
       undefined,
       `${proposal.action}: "kind" is not the field the mod dispatches on`,
     );
+
+    // The second half of the same contract, and the second way these two
+    // actions shipped broken: the mod refuses any committed write that
+    // arrives without a revision stamp. Every write validator wraps its
+    // payload in bindWorldRevision; mine did not, and a test that checked
+    // only the dispatch field did not notice.
+    if (ACTION_KINDS.includes(proposal.action)) {
+      assert.equal(
+        typeof result.action.expect_world_revision,
+        "string",
+        `${proposal.action}: a write must carry expect_world_revision or the mod refuses the whole plan`,
+      );
+    }
   }
 });

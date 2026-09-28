@@ -9580,3 +9580,24 @@ proposals and asserts each payload carries `action: "<kind>"` and does **not**
 carry `kind`. Verified by reintroducing the exact shipped bug - it fails.
 
 **1216/1216.**
+
+**Second correction, same two actions.** With the dispatch field fixed the mod
+reached them and refused again: `committed_write_missing_expect_world_revision`.
+
+Every committed write must carry a revision stamp
+(`AIFactoryActions.cpp:4916`), and every write validator supplies it by
+wrapping its payload in `bindWorldRevision(graph, {...}, proposal)`. Mine
+returned bare objects.
+
+Two shape bugs in a row on the same two actions, both found by the game rather
+than by 1,216 tests. The cause is the same in both cases: I pattern-matched a
+validator from fragments instead of reading one working write end to end. The
+`action:` key and the revision wrapper are both part of one contract, and
+reading half of it produced half of it, twice.
+
+The generic test now asserts the whole contract for every action in
+`ACTION_KINDS`: the payload carries `action: "<kind>"`, does not carry `kind`,
+and - for anything classified as a write - carries `expect_world_revision`.
+Verified by unwrapping the stamp and watching it fail.
+
+**1216/1216.**

@@ -1817,14 +1817,14 @@ export function validateAction(graph, proposal) {
         target: actorId || targetClass || "the player",
         argument_count: proposal.args ? Object.keys(proposal.args).length : 0,
       },
-      action: {
+      action: bindWorldRevision(graph, {
         action: kind,
         function: fn,
         ...(actorId ? { target_actor_id: actorId } : {}),
         ...(targetClass ? { target_class: targetClass } : {}),
         ...(proposal.args ? { args: proposal.args } : {}),
         commit: proposal.commit === true,
-      },
+      }, proposal),
     };
   }
 
@@ -1880,12 +1880,12 @@ export function validateAction(graph, proposal) {
         ),
         cost_not_charged: match.cost ?? [],
       },
-      action: {
+      action: bindWorldRevision(graph, {
         action: kind,
         schematic_class: match.class_path,
         force: proposal.force !== false,
         commit: proposal.commit === true,
-      },
+      }, proposal),
     };
   }
 
