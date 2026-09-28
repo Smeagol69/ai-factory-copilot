@@ -58,6 +58,9 @@ export const WRITE_ACTION_KINDS = [
   // Granting a milestone. A write like any other, and the only one that
   // cannot be undone - the game exposes no revoke for a schematic.
   "unlock_schematic",
+  // Gated as a write even for a getter: reflection cannot tell one from the
+  // other, so the safe reading is the conservative one.
+  "call_function",
   // The game's own map markers, used instead of reimplementing the compass
   // distance readout the resource scanner already shows.
   //
@@ -1773,6 +1776,58 @@ export function validateAction(graph, proposal) {
     };
   }
 
+  if (kind === "call_function") {
+    const fn = String(proposal.function ?? "").trim();
+    if (!fn) return reject(kind, "function_is_required");
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fn)) {
+      return reject(kind, "function_is_not_a_valid_identifier");
+    }
+
+    const actorId = String(proposal.target_actor_id ?? "").trim();
+    const targetClass = String(proposal.target_class ?? "").trim();
+
+    // An actor id can be checked against the capture; a class cannot, because
+    // subsystems are not in the actor list the snapshot reports.
+    if (actorId) {
+      const known = (graph?.snapshot?.actors ?? []).some((a) => a.actor_id === actorId);
+      if (!known) {
+        return reject(kind, "target_actor_id_is_not_in_this_capture", { target_actor_id: actorId });
+      }
+    }
+
+    if (proposal.args !== undefined) {
+      if (proposal.args === null || typeof proposal.args !== "object" || Array.isArray(proposal.args)) {
+        return reject(kind, "args_must_be_an_object_keyed_by_parameter_name");
+      }
+    }
+
+    return {
+      valid: true,
+      warnings: [
+        ...warnings,
+        // The bridge has no catalogue of UFUNCTIONs - the snapshot does not
+        // carry one - so existence, callability and argument types are all
+        // decided by the mod at call time, not here.
+        "the function and its arguments are resolved by the game, not verified by the bridge",
+        "run it with commit false first: a dry run reports the whole resolved signature and calls nothing",
+      ],
+      checks: {
+        ...checks,
+        function: fn,
+        target: actorId || targetClass || "the player",
+        argument_count: proposal.args ? Object.keys(proposal.args).length : 0,
+      },
+      action: {
+        action: kind,
+        function: fn,
+        ...(actorId ? { target_actor_id: actorId } : {}),
+        ...(targetClass ? { target_class: targetClass } : {}),
+        ...(proposal.args ? { args: proposal.args } : {}),
+        commit: proposal.commit === true,
+      },
+    };
+  }
+
   if (kind === "unlock_schematic") {
     const requested = String(proposal.schematic_class ?? proposal.schematic_name ?? "").trim();
     if (!requested) return reject(kind, "schematic_class_or_schematic_name_is_required");
@@ -1826,7 +1881,7 @@ export function validateAction(graph, proposal) {
         cost_not_charged: match.cost ?? [],
       },
       action: {
-        kind: "unlock_schematic",
+        action: kind,
         schematic_class: match.class_path,
         force: proposal.force !== false,
         commit: proposal.commit === true,

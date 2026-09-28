@@ -228,6 +228,20 @@ namespace AIFactoryActions
      * a schematic back; the result says so rather than implying otherwise. It is
      * also free - the cost is reported but never charged.
      */
+    /**
+     * Calls any BlueprintCallable UFUNCTION the game exposes, by name.
+     *
+     * The generic form of every hand-wired action in this file. Gated on
+     * BlueprintCallable, dry-runnable, and it reports the whole resolved
+     * signature - including which parameters it had to default.
+     */
+    FAIFactoryActionResult CallFunction(
+        const FAIFactoryActionContext& Context,
+        const FString& TargetActorId,
+        const FString& TargetClassPath,
+        const FString& FunctionName,
+        const TSharedPtr<FJsonObject>& Args);
+
     FAIFactoryActionResult UnlockSchematic(
         const FAIFactoryActionContext& Context,
         const FString& SchematicClassPath,

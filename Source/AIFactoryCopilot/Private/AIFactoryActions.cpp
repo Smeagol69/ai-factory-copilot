@@ -13,6 +13,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "JsonObjectConverter.h"
 #include "Equipment/FGBuildGun.h"
 #include "FGBlueprintProxy.h"
 #include "FGBlueprintSettings.h"
@@ -2629,6 +2630,277 @@ FAIFactoryActionResult PlaceBlueprint(
     return Result;
 }
 
+/**
+ * Calls any BlueprintCallable UFUNCTION the game exposes, by name.
+ *
+ * Every other action in this file is a capability someone hand-wired. This is
+ * the one that makes that unnecessary: FactoryGame's public headers carry 1,777
+ * BlueprintCallable functions, Unreal can find them by name at runtime, and
+ * this mod was already doing exactly that in one hardcoded place. Generalised,
+ * it means an assistant asked for something the game supports no longer has to
+ * answer that the mod has no action for it.
+ *
+ * WHAT GUARDS IT
+ *
+ * BlueprintCallable only. That is not a formality - it is the line the game's
+ * own designers drew around what is safe to call from outside C++, and native
+ * internals behind it assume invariants a caller cannot see.
+ *
+ * A dry run resolves the target, the function and every parameter, and reports
+ * the whole signature without calling anything. That is the honest default for
+ * a tool this broad: you can always ask what would happen.
+ *
+ * Arguments are converted by the engine's own FJsonObjectConverter, so ints,
+ * floats, strings, names, enums, object references, TSubclassOf and structs all
+ * marshal the way the engine marshals them everywhere else - and a conversion
+ * that fails reports the engine's own reason rather than passing garbage into a
+ * native call.
+ *
+ * A parameter that is not supplied keeps its zero-initialised default and is
+ * named in the result, because silently defaulting an argument is how a caller
+ * ends up believing it asked for something it did not.
+ */
+FAIFactoryActionResult CallFunction(
+    const FAIFactoryActionContext& Context,
+    const FString& TargetActorId,
+    const FString& TargetClassPath,
+    const FString& FunctionName,
+    const TSharedPtr<FJsonObject>& Args)
+{
+    const FString Action = TEXT("call_function");
+    const FString Blocked = CheckActionPreconditions(Context);
+    if (!Blocked.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, Blocked);
+    }
+    if (FunctionName.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("function_is_required"));
+    }
+
+    // --- the target ---------------------------------------------------------
+    UObject* Target = nullptr;
+    FString TargetDescription;
+    if (!TargetActorId.IsEmpty())
+    {
+        Target = FindActionActorByPathName(Context.World, TargetActorId);
+        TargetDescription = TargetActorId;
+        if (!IsValid(Target))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("target_actor_id_did_not_resolve"));
+        }
+    }
+    else if (!TargetClassPath.IsEmpty())
+    {
+        UClass* TargetClass = FindActionClassByPath(TargetClassPath);
+        if (!TargetClass)
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("target_class_did_not_resolve"));
+        }
+        // Subsystems and managers are actors in this game, so the first live
+        // instance of the class is the thing a caller means by "the schematic
+        // manager" or "the blueprint subsystem".
+        if (IsValid(Context.World) && TargetClass->IsChildOf(AActor::StaticClass()))
+        {
+            for (TActorIterator<AActor> It(Context.World, TargetClass); It; ++It)
+            {
+                if (IsValid(*It))
+                {
+                    Target = *It;
+                    break;
+                }
+            }
+        }
+        if (!IsValid(Target))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("no_live_instance_of_target_class_exists_in_this_world"));
+        }
+        TargetDescription = TargetClass->GetPathName();
+    }
+    else if (IsValid(Context.Player))
+    {
+        Target = Context.Player;
+        TargetDescription = Context.Player->GetPathName();
+    }
+    else
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("give_target_actor_id_or_target_class_there_is_no_player_to_default_to"));
+    }
+
+    // --- the function -------------------------------------------------------
+    UFunction* Function = Target->FindFunction(FName(*FunctionName));
+    if (!Function)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            FString::Printf(
+                TEXT("no_function_named_%s_on_%s"),
+                *FunctionName,
+                *Target->GetClass()->GetName()));
+    }
+    if (!Function->HasAnyFunctionFlags(FUNC_BlueprintCallable))
+    {
+        // The game's own boundary for what may be called from outside C++.
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("function_is_not_blueprintcallable_so_it_is_not_safe_to_call_from_here"));
+    }
+
+    // --- describe the signature, always -------------------------------------
+    const TSharedRef<FJsonObject> Facts = MakeShared<FJsonObject>();
+    Facts->SetStringField(TEXT("target"), Target->GetPathName());
+    Facts->SetStringField(TEXT("target_class"), Target->GetClass()->GetPathName());
+    Facts->SetStringField(TEXT("function"), Function->GetName());
+    Facts->SetBoolField(TEXT("blueprint_pure"), Function->HasAnyFunctionFlags(FUNC_BlueprintPure));
+
+    TArray<TSharedPtr<FJsonValue>> Parameters;
+    TArray<FString> Supplied;
+    TArray<FString> Defaulted;
+    for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+    {
+        const FProperty* Property = *It;
+        const bool bReturn = Property->HasAnyPropertyFlags(CPF_ReturnParm);
+        const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+        Entry->SetStringField(TEXT("name"), Property->GetName());
+        Entry->SetStringField(TEXT("type"), Property->GetCPPType());
+        Entry->SetBoolField(TEXT("is_return"), bReturn);
+        Entry->SetBoolField(TEXT("is_out"), Property->HasAnyPropertyFlags(CPF_OutParm) && !bReturn);
+        const bool bHasArg = Args.IsValid() && Args->HasField(Property->GetName());
+        Entry->SetBoolField(TEXT("supplied"), bHasArg);
+        Parameters.Add(MakeShared<FJsonValueObject>(Entry));
+        if (bReturn)
+        {
+            continue;
+        }
+        if (bHasArg)
+        {
+            Supplied.Add(Property->GetName());
+        }
+        else
+        {
+            Defaulted.Add(Property->GetName());
+        }
+    }
+    Facts->SetArrayField(TEXT("parameters"), Parameters);
+    Facts->SetNumberField(TEXT("supplied_count"), Supplied.Num());
+    if (Defaulted.Num() > 0)
+    {
+        TArray<TSharedPtr<FJsonValue>> DefaultedJson;
+        for (const FString& Name : Defaulted)
+        {
+            DefaultedJson.Add(MakeShared<FJsonValueString>(Name));
+        }
+        Facts->SetArrayField(TEXT("defaulted_parameters"), DefaultedJson);
+    }
+
+    FAIFactoryActionResult Result;
+    Result.Action = Action;
+    Result.Predicted = Facts;
+
+    if (Context.bDryRun)
+    {
+        Result.bAccepted = true;
+        Result.bDryRun = true;
+        Result.Status = TEXT("dry_run");
+        return Result;
+    }
+
+    // --- marshal, call, read back -------------------------------------------
+    //
+    // Heap rather than stack: the destroy pass below must run over the same
+    // buffer, and a parameter list containing an FString or an array owns
+    // memory that leaks if it is skipped.
+    uint8* Frame = static_cast<uint8*>(FMemory::Malloc(FMath::Max<int32>(Function->ParmsSize, 1)));
+    FMemory::Memzero(Frame, FMath::Max<int32>(Function->ParmsSize, 1));
+    for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+    {
+        It->InitializeValue_InContainer(Frame);
+    }
+
+    FString ConversionFailure;
+    for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+    {
+        FProperty* Property = *It;
+        if (Property->HasAnyPropertyFlags(CPF_ReturnParm))
+        {
+            continue;
+        }
+        if (!Args.IsValid() || !Args->HasField(Property->GetName()))
+        {
+            continue;
+        }
+        const TSharedPtr<FJsonValue> Value = Args->TryGetField(Property->GetName());
+        FText FailReason;
+        if (!FJsonObjectConverter::JsonValueToUProperty(
+                Value,
+                Property,
+                Property->ContainerPtrToValuePtr<void>(Frame),
+                0,
+                0,
+                false,
+                &FailReason))
+        {
+            ConversionFailure = FString::Printf(
+                TEXT("argument_%s_did_not_convert:%s"),
+                *Property->GetName(),
+                *FailReason.ToString());
+            break;
+        }
+    }
+
+    if (!ConversionFailure.IsEmpty())
+    {
+        for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+        {
+            It->DestroyValue_InContainer(Frame);
+        }
+        FMemory::Free(Frame);
+        return FAIFactoryActionResult::Refuse(Action, ConversionFailure);
+    }
+
+    Target->ProcessEvent(Function, Frame);
+
+    const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetStringField(TEXT("target"), Target->GetPathName());
+    Observed->SetStringField(TEXT("function"), Function->GetName());
+    Observed->SetBoolField(TEXT("called"), true);
+    for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+    {
+        FProperty* Property = *It;
+        if (!Property->HasAnyPropertyFlags(CPF_ReturnParm) &&
+            !Property->HasAnyPropertyFlags(CPF_OutParm))
+        {
+            continue;
+        }
+        const TSharedPtr<FJsonValue> Out = FJsonObjectConverter::UPropertyToJsonValue(
+            Property,
+            Property->ContainerPtrToValuePtr<void>(Frame));
+        if (Out.IsValid())
+        {
+            Observed->SetField(
+                Property->HasAnyPropertyFlags(CPF_ReturnParm)
+                    ? TEXT("returned")
+                    : Property->GetName(),
+                Out);
+        }
+    }
+
+    for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+    {
+        It->DestroyValue_InContainer(Frame);
+    }
+    FMemory::Free(Frame);
+
+    Result.Observed = Observed;
+    Result.bAccepted = true;
+    Result.Status = TEXT("committed");
+    return Result;
+}
+
 FAIFactoryActionResult UnlockSchematic(
     const FAIFactoryActionContext& Context,
     const FString& SchematicClassPath,
@@ -3810,6 +4082,9 @@ namespace
             Kind == TEXT("generate_native_blueprint") ||
             Kind == TEXT("give_item") ||
             Kind == TEXT("unlock_schematic") ||
+            // Conservatively a write: reflection cannot tell a getter from a
+            // setter, so every call is gated as though it changes the world.
+            Kind == TEXT("call_function") ||
             Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
             Kind == TEXT("undo_last");
@@ -4373,6 +4648,22 @@ namespace
             double Count = 1.0;
             Spec->TryGetNumberField(TEXT("count"), Count);
             return GiveItem(Context, ItemClass, FMath::RoundToInt(Count));
+        }
+        if (Kind == TEXT("call_function"))
+        {
+            FString FunctionName;
+            Spec->TryGetStringField(TEXT("function"), FunctionName);
+            FString TargetActorId;
+            Spec->TryGetStringField(TEXT("target_actor_id"), TargetActorId);
+            FString TargetClassPath;
+            Spec->TryGetStringField(TEXT("target_class"), TargetClassPath);
+            const TSharedPtr<FJsonObject>* ArgsObject = nullptr;
+            TSharedPtr<FJsonObject> Args;
+            if (Spec->TryGetObjectField(TEXT("args"), ArgsObject) && ArgsObject)
+            {
+                Args = *ArgsObject;
+            }
+            return CallFunction(Context, TargetActorId, TargetClassPath, FunctionName, Args);
         }
         if (Kind == TEXT("unlock_schematic"))
         {

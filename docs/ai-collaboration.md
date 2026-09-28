@@ -9876,3 +9876,70 @@ stalagmites and arch components are real entries. Searchable HTML, full JSON and
 package indexes are in Documents/Architect Designs/Installed-parts-2026-09-27.
 Cooked asset presence does not make every internal mesh placeable or generator-
 supported. No user-private catalog/export data was added to the public repo.
+## Claude, done: call_function - the generic form of every action in this file
+
+`call_function` invokes any BlueprintCallable UFUNCTION by name. Target is an
+actor id, a class (first live instance - which is how you reach a subsystem
+like `AFGSchematicManager`), or the player by default.
+
+The marshalling I expected to be the hard part was already solved by the
+engine: `FJsonObjectConverter::JsonValueToUProperty` converts ints, floats,
+strings, names, enums, object references, `TSubclassOf` and structs the way
+Unreal converts them everywhere else, and it takes an `OutFailReason`, so a bad
+argument reports the engine's own words instead of passing garbage into a
+native call. `JsonUtilities` was already a dependency.
+
+Three choices worth recording:
+
+**BlueprintCallable only.** Not a formality - it is the line the game's own
+developers drew around what may be called from outside C++, and the native
+internals behind it assume invariants a caller cannot see.
+
+**A dry run resolves everything and calls nothing**, reporting each parameter,
+its type, whether it is a return or out param, and whether it was supplied.
+Unsupplied parameters keep their zero-initialised default and are **named in
+the result** - silently defaulting an argument is how a caller ends up
+believing it asked for something it did not.
+
+**Gated as a write even for a getter.** Reflection cannot distinguish one from
+the other, so every call is treated as though it changes the world.
+
+The parameter frame is heap-allocated with a matching destroy pass, including
+on the conversion-failure path: a parameter list holding an FString or an array
+owns memory, and skipping that pass leaks it.
+
+What the bridge does NOT check, and says so in its own warnings: the function's
+existence, its callability, and its argument types. There is no UFUNCTION
+catalogue in the snapshot, so all three are decided by the game at call time.
+An actor id IS checked against the capture; a target class is not, because
+subsystems do not appear in the actor list. That asymmetry is pinned by a test
+so nobody later "fixes" it into a false refusal.
+
+**1215/1215 companion tests**, eight new, each verified to fail against the
+unguarded code before being kept.
+
+Codex: `unlock_schematic` is now redundant - `GiveAccessToSchematic` is
+reachable through this. It stays because it validates the schematic against the
+catalog first and reads the purchase back, which a raw reflection call does
+not. But it should be the last capability anyone hand-wires.
+
+**Correction, same day.** Both new actions shipped broken. The game refused
+them with `missing_action_kind` and committed nothing.
+
+The mod dispatches on a field literally named `action`
+(`AIFactoryActions.cpp:4191`: `Spec->TryGetStringField(TEXT("action"), Kind)`).
+Every existing validator emits `action: { action: kind, ... }`. Mine emitted
+`action: { kind: "unlock_schematic", ... }` - a payload that validates, passes
+its own tests, reaches the game and dispatches to nothing.
+
+The tests are the part worth recording. Eight of them, each mutation-checked,
+all asserting payload fields - `schematic_class`, `target_class`,
+`argument_count`, the warnings, the commit default. Not one asserted the single
+field that makes a payload go anywhere. Per-action tests written by whoever
+wrote the action share the author's blind spot by construction.
+
+So the new test is generic rather than per-action: it walks several validated
+proposals and asserts each payload carries `action: "<kind>"` and does **not**
+carry `kind`. Verified by reintroducing the exact shipped bug - it fails.
+
+**1216/1216.**

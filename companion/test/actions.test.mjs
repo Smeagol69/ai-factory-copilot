@@ -700,3 +700,173 @@ test("a solver that emits no actions has already explained itself", () => {
     null,
   );
 });
+
+// ---------------------------------------------------------------------------
+// CALLING WHAT THE GAME ALREADY EXPOSES
+//
+// The generic escape hatch from hand-wiring one action per capability. The
+// bridge deliberately verifies very little here - it has no catalogue of
+// UFUNCTIONs, because the snapshot does not carry one - so these tests pin the
+// shape it DOES enforce, and pin that it is honest about the rest.
+
+test("a call needs a function name, and one that could be an identifier", () => {
+  const graph = graphOf();
+  assert.match(
+    validateAction(graph, { action: "call_function" }).reason,
+    /function_is_required/,
+  );
+  assert.match(
+    validateAction(graph, { action: "call_function", function: "Give Access; DROP" }).reason,
+    /not_a_valid_identifier/,
+  );
+});
+
+test("an actor the capture does not contain is refused before it reaches the game", () => {
+  const graph = graphOf();
+  const result = validateAction(graph, {
+    action: "call_function",
+    function: "SetPendingPotential",
+    target_actor_id: "/Game/NoSuchActor.NoSuchActor_C_9999",
+  });
+  assert.equal(result.valid, false);
+  assert.match(result.reason, /not_in_this_capture/);
+});
+
+test("a target class is passed through unchecked, because subsystems are not in the actor list", () => {
+  // The honest asymmetry: an actor id is checkable against the capture and a
+  // manager class is not, so one is validated here and the other is left to
+  // the game. Pinned so nobody later "fixes" it into a false refusal.
+  const graph = graphOf();
+  const result = validateAction(graph, {
+    action: "call_function",
+    function: "GiveAccessToSchematic",
+    target_class: "/Script/FactoryGame.FGSchematicManager",
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.action.target_class, "/Script/FactoryGame.FGSchematicManager");
+});
+
+test("args must be an object keyed by parameter name", () => {
+  const graph = graphOf();
+  for (const args of [[], "schematicClass=Trains", 7]) {
+    const result = validateAction(graph, { action: "call_function", function: "Foo", args });
+    assert.equal(result.valid, false, JSON.stringify(args));
+    assert.match(result.reason, /args_must_be_an_object/);
+  }
+});
+
+test("a valid call says plainly that the bridge did not verify it", () => {
+  // This action can reach 1,777 game functions and the bridge checks almost
+  // none of it. Saying so is the safety feature.
+  const graph = graphOf();
+  const result = validateAction(graph, {
+    action: "call_function",
+    function: "GiveAccessToSchematic",
+    target_class: "/Script/FactoryGame.FGSchematicManager",
+    args: { schematicClass: "/Game/Schematic_Trains.Schematic_Trains_C" },
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.checks.argument_count, 1);
+  assert.ok(
+    result.warnings.some((w) => /resolved by the game, not verified by the bridge/.test(w)),
+    "must not imply the bridge checked the signature",
+  );
+  assert.ok(
+    result.warnings.some((w) => /dry run/.test(w)),
+    "must point at the dry run",
+  );
+  assert.equal(result.action.commit, false, "commit is opt-in, never inferred");
+});
+
+test("calling is treated as a write even though reflection cannot tell a getter from a setter", () => {
+  assert.ok(ACTION_KINDS.includes("call_function"));
+  const result = validateAction(graphOf(), {
+    action: "call_function",
+    function: "GetHighestAvailableTechTier",
+    target_class: "/Script/FactoryGame.FGSchematicManager",
+    commit: true,
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.action.commit, true);
+});
+
+// ---------------------------------------------------------------------------
+// UNLOCKING A MILESTONE
+
+test("a schematic resolves by display name, not just class path", () => {
+  const graph = graphOf();
+  graph.snapshot.progression = {
+    purchased_schematics: [],
+    unpurchased_schematics: [
+      {
+        class_path: "/Game/Schematic_6-3.Schematic_6-3_C",
+        name: "Monorail Train Technology",
+        tech_tier: 6,
+        prerequisites_met: false,
+        cost: [{ item_name: "Steel Beam", amount: 1000 }],
+      },
+    ],
+  };
+  const result = validateAction(graph, { action: "unlock_schematic", schematic_name: "monorail train" });
+  assert.equal(result.valid, true);
+  assert.equal(result.action.schematic_class, "/Game/Schematic_6-3.Schematic_6-3_C");
+  assert.equal(result.checks.tech_tier, 6);
+  assert.equal(result.checks.prerequisites_met, false);
+  assert.equal(result.action.force, true, "forcing past the tier gate is the default");
+  assert.ok(result.warnings.some((w) => /cannot be undone/.test(w)));
+  assert.ok(result.warnings.some((w) => /never charged/.test(w)));
+});
+
+test("a capture with no schematic list says so, rather than reading as a bad name", () => {
+  // Two different problems that would otherwise produce the same refusal: an
+  // old mod build that never reported unpurchased_schematics, and a genuine
+  // typo. Conflating them sends someone hunting the wrong bug.
+  const graph = graphOf();
+  graph.snapshot.progression = {};
+  const result = validateAction(graph, { action: "unlock_schematic", schematic_name: "trains" });
+  assert.equal(result.valid, false);
+  assert.match(result.reason, /does_not_list_schematics/);
+});
+
+// ---------------------------------------------------------------------------
+// THE FIELD THAT MAKES AN ACTION DISPATCHABLE
+//
+// Written after shipping two actions that validated cleanly, passed their own
+// tests, and were refused by the game with `missing_action_kind`. The mod
+// dispatches on a field literally named `action` (AIFactoryActions.cpp:4191);
+// both new validators emitted `kind:` instead. Every per-action test asserted
+// the payload fields and none asserted the one field that makes the payload go
+// anywhere - so this checks it generically, for every action, forever.
+
+test("every validated action carries the dispatch field the mod reads", () => {
+  const graph = graphOf();
+  graph.snapshot.progression = {
+    purchased_schematics: [],
+    unpurchased_schematics: [
+      { class_path: "/Game/S.S_C", name: "Monorail Train Technology", tech_tier: 6, cost: [] },
+    ],
+  };
+
+  const proposals = [
+    { action: "call_function", function: "GetHighestAvailableTechTier", target_class: "/Script/FactoryGame.FGSchematicManager" },
+    { action: "unlock_schematic", schematic_name: "Monorail Train Technology" },
+    { action: "give_item", item_class: CONSTRUCTOR, count: 1 },
+    { action: "waypoint", location: { x: 0, y: 0, z: 0 }, name: "here" },
+  ];
+
+  for (const proposal of proposals) {
+    const result = validateAction(graph, proposal);
+    if (!result.valid) continue; // a refusal is a different contract
+    assert.ok(result.action, `${proposal.action}: produced no action payload`);
+    assert.equal(
+      result.action.action,
+      proposal.action,
+      `${proposal.action}: the payload must carry action:"${proposal.action}" or the mod refuses it as missing_action_kind`,
+    );
+    assert.equal(
+      result.action.kind,
+      undefined,
+      `${proposal.action}: "kind" is not the field the mod dispatches on`,
+    );
+  }
+});
