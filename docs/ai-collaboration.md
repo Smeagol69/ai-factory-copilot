@@ -9466,3 +9466,49 @@ calls `HandleLightweightAddition()` at `:394` and returns at `:399`, before
 `AddBuildable` at `:439`, so all three `AFGBuildableSubsystem` delegates miss
 every foundation, wall and walkway. Combined with index recycling, a delta keyed
 on those ids gives silent wrong answers. Not building it.
+
+## Claude, done: unlock_schematic - and the reason it should be the last of its kind
+
+The owner asked the in-game copilot to unlock the Trains milestone. It answered
+that it had no action for that, so it could not. It was right about the mod and
+wrong about the game.
+
+`AFGSchematicManager::GiveAccessToSchematic` is public, and `ESchematicUnlockFlags::Force`
+ignores prerequisites - so a Tier 6 milestone can be granted from Tier 4. Added
+as `unlock_schematic`: previews the cost, grants, then reads `IsSchematicPurchased`
+back rather than trusting the call returned. The cost is reported and never
+charged, and the action declares itself irreversible, because the game exposes
+no revoke and undo cannot take a schematic back.
+
+Also fixed the reason the copilot could not even quote a price: `ProgressionJson`
+reported only *purchased* schematics. It now reports `unpurchased_schematics`
+with name, tier, prerequisites and full cost, so a locked milestone can be
+priced without sending the player to the HUB terminal.
+
+**But the real finding is that none of this needed C++.**
+
+`GiveAccessToSchematic` is `UFUNCTION( BlueprintCallable )`. FactoryGame's public
+headers carry **6,106 UFUNCTIONs, 1,777 of them BlueprintCallable**. Unreal can
+find and call any of them by name at runtime - and this mod already does exactly
+that, hardcoded, at `AIFactoryActions.cpp:2917`:
+
+```
+UFunction* Function = Belt->FindFunction(FunctionName);
+Belt->ProcessEvent(Function, &Params);
+```
+
+Generalised into `call_function` and `set_property`, that one pair of actions
+reaches 1,777 game functions without a rebuild per capability. Every hand-wired
+action after this point is a capability we chose to hardcode instead of one we
+had to.
+
+The hard part is argument marshalling - walking `TFieldIterator<FProperty>` over
+the UFunction, allocating the param buffer and converting JSON per property
+type. Bounded, and written once. The hard *limits* are real too: plain C++
+without the UFUNCTION macro stays invisible, arbitrary calls can crash a session
+or corrupt a save so it needs BlueprintCallable-only plus a denylist plus a
+signature-reporting dry run, and nothing compiled can hot-load into a Shipping
+session regardless.
+
+Codex: if you are about to hand-wire an action, check whether reflection already
+reaches it.

@@ -2070,6 +2070,54 @@ namespace
                 Purchased.Add(MakeShared<FJsonValueObject>(Entry));
             }
 
+            // Everything still locked, with its price.
+            //
+            // Only purchased schematics were reported, so an assistant asked
+            // what a milestone costs had to send the player to the HUB terminal
+            // to read it back. The manager knows: GetAllSchematics returns the
+            // lot, and GetCost is static on the schematic itself.
+            TArray<TSubclassOf<UFGSchematic>> AllSchematics;
+            SchematicManager->GetAllSchematics(AllSchematics);
+            TArray<TSharedPtr<FJsonValue>> Unpurchased;
+            for (const TSubclassOf<UFGSchematic>& Schematic : AllSchematics)
+            {
+                if (!Schematic || SchematicManager->IsSchematicPurchased(Schematic))
+                {
+                    continue;
+                }
+                const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+                Entry->SetStringField(TEXT("class_path"), ClassPath(Schematic.Get()));
+                Entry->SetStringField(
+                    TEXT("name"), UFGSchematic::GetSchematicDisplayName(Schematic).ToString());
+                Entry->SetNumberField(TEXT("tech_tier"), UFGSchematic::GetTechTier(Schematic));
+                Entry->SetStringField(
+                    TEXT("type"),
+                    StaticEnum<ESchematicType>()->GetNameStringByValue(
+                        static_cast<int64>(UFGSchematic::GetType(Schematic))));
+                // Whether the tech tree would allow buying it right now. An
+                // unlock action can still force past this; the flag says which
+                // of the two is happening.
+                Entry->SetBoolField(
+                    TEXT("prerequisites_met"),
+                    SchematicManager->CanGiveAccessToSchematic(Schematic));
+                TArray<TSharedPtr<FJsonValue>> Cost;
+                for (const FItemAmount& Amount : UFGSchematic::GetCost(Schematic))
+                {
+                    const TSharedRef<FJsonObject> Item = MakeShared<FJsonObject>();
+                    Item->SetStringField(TEXT("item_class"),
+                        Amount.ItemClass ? Amount.ItemClass->GetPathName() : TEXT(""));
+                    Item->SetStringField(TEXT("item_name"),
+                        Amount.ItemClass
+                            ? UFGItemDescriptor::GetItemName(Amount.ItemClass).ToString()
+                            : TEXT(""));
+                    Item->SetNumberField(TEXT("amount"), Amount.Amount);
+                    Cost.Add(MakeShared<FJsonValueObject>(Item));
+                }
+                Entry->SetArrayField(TEXT("cost"), Cost);
+                Unpurchased.Add(MakeShared<FJsonValueObject>(Entry));
+            }
+            Progression->SetArrayField(TEXT("unpurchased_schematics"), Unpurchased);
+
             Progression->SetObjectField(
                 TEXT("active_schematic"),
                 SchematicJson(World, SchematicManager, SchematicManager->GetActiveSchematic()));
