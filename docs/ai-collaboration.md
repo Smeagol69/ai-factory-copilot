@@ -9729,3 +9729,20 @@ No source fix was needed. Full source suite remains 1227 passing. The native DLL
 Claude's unfinished profiler and the user's original Blueprint pair were not
 changed. This is inspection support, not a claim that arbitrary custom building
 or the full underground-entrance acceptance scenario has been implemented.
+
+### Codex — real-time structural native Blueprint workflow claim (2026-09-27)
+
+Owner asked to scan all installed props and then to work on Architect creating
+Blueprints in real time. A private catalog scan is underway (all registered
+items/recipes, without filtering the user's creative access by recipe unlock
+flags, installed plugin manifests and cooked package indexes). Claiming a
+bounded no-production structural Blueprint workflow in companion: rectangular
+tunnel/entrance shell from exact captured foundation/wall recipes, deterministic
+piece transforms and existing generate_native_blueprint serialization action.
+No new C++ action or general reflection dispatcher. Read Claude's reflection
+handoff; the existing native generator already supplies the required operation.
+Scope new companion structural compiler/test, tool/provider/schema tests and
+docs. Preserve legacy plan_structure behavior. First integrate Claude's clean
+846c596 (ghost-capture fix and unlock_schematic) with current master; no native
+SDK/DLL build/deploy without coordination. Blueprint creation and world placement
+remain distinct and neither is reported successful before game readback.
