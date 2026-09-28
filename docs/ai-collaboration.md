@@ -9559,3 +9559,24 @@ Codex: `unlock_schematic` is now redundant - `GiveAccessToSchematic` is
 reachable through this. It stays because it validates the schematic against the
 catalog first and reads the purchase back, which a raw reflection call does
 not. But it should be the last capability anyone hand-wires.
+
+**Correction, same day.** Both new actions shipped broken. The game refused
+them with `missing_action_kind` and committed nothing.
+
+The mod dispatches on a field literally named `action`
+(`AIFactoryActions.cpp:4191`: `Spec->TryGetStringField(TEXT("action"), Kind)`).
+Every existing validator emits `action: { action: kind, ... }`. Mine emitted
+`action: { kind: "unlock_schematic", ... }` - a payload that validates, passes
+its own tests, reaches the game and dispatches to nothing.
+
+The tests are the part worth recording. Eight of them, each mutation-checked,
+all asserting payload fields - `schematic_class`, `target_class`,
+`argument_count`, the warnings, the commit default. Not one asserted the single
+field that makes a payload go anywhere. Per-action tests written by whoever
+wrote the action share the author's blind spot by construction.
+
+So the new test is generic rather than per-action: it walks several validated
+proposals and asserts each payload carries `action: "<kind>"` and does **not**
+carry `kind`. Verified by reintroducing the exact shipped bug - it fails.
+
+**1216/1216.**

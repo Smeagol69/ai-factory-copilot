@@ -827,3 +827,46 @@ test("a capture with no schematic list says so, rather than reading as a bad nam
   assert.equal(result.valid, false);
   assert.match(result.reason, /does_not_list_schematics/);
 });
+
+// ---------------------------------------------------------------------------
+// THE FIELD THAT MAKES AN ACTION DISPATCHABLE
+//
+// Written after shipping two actions that validated cleanly, passed their own
+// tests, and were refused by the game with `missing_action_kind`. The mod
+// dispatches on a field literally named `action` (AIFactoryActions.cpp:4191);
+// both new validators emitted `kind:` instead. Every per-action test asserted
+// the payload fields and none asserted the one field that makes the payload go
+// anywhere - so this checks it generically, for every action, forever.
+
+test("every validated action carries the dispatch field the mod reads", () => {
+  const graph = graphOf();
+  graph.snapshot.progression = {
+    purchased_schematics: [],
+    unpurchased_schematics: [
+      { class_path: "/Game/S.S_C", name: "Monorail Train Technology", tech_tier: 6, cost: [] },
+    ],
+  };
+
+  const proposals = [
+    { action: "call_function", function: "GetHighestAvailableTechTier", target_class: "/Script/FactoryGame.FGSchematicManager" },
+    { action: "unlock_schematic", schematic_name: "Monorail Train Technology" },
+    { action: "give_item", item_class: CONSTRUCTOR, count: 1 },
+    { action: "waypoint", location: { x: 0, y: 0, z: 0 }, name: "here" },
+  ];
+
+  for (const proposal of proposals) {
+    const result = validateAction(graph, proposal);
+    if (!result.valid) continue; // a refusal is a different contract
+    assert.ok(result.action, `${proposal.action}: produced no action payload`);
+    assert.equal(
+      result.action.action,
+      proposal.action,
+      `${proposal.action}: the payload must carry action:"${proposal.action}" or the mod refuses it as missing_action_kind`,
+    );
+    assert.equal(
+      result.action.kind,
+      undefined,
+      `${proposal.action}: "kind" is not the field the mod dispatches on`,
+    );
+  }
+});
