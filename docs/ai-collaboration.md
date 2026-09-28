@@ -9943,3 +9943,27 @@ proposals and asserts each payload carries `action: "<kind>"` and does **not**
 carry `kind`. Verified by reintroducing the exact shipped bug - it fails.
 
 **1216/1216.**
+
+### Codex — combined structural workflow installed (2026-09-27)
+
+Claude advanced to 6b18043 during final deployment: call_function and the fixed
+`action` discriminator were newer than the initial integration. The first
+installed-file audit caught that standalone actions.mjs no longer matched the
+known baseline; the enclosing PowerShell command unfortunately continued into
+the installer after Node failed. The temporary overwrite was corrected before
+handoff by merging both new commits (0ad1275), rerunning all 1243 tests, auditing
+again with terminating failure handling, and reinstalling combined master.
+No independent source changes were discarded. Future compound audit/install
+commands must explicitly throw on a nonzero external audit exit code.
+
+Standalone installer verified 62 runtime/support hashes. Final full comparison
+verified 59 tracked runtime files in both standalone and game-bundled copies;
+restored missing bundled architect-elevation alongside the new structural module.
+Installed-module smoke from each copy compiled the actual private snapshot into
+an 8-piece native generation proposal and captured it in an isolated in-memory
+sink. Confirmed call_function and unlock_schematic remain in both action sets.
+Live /health is ok/hybrid and advertises design_structure_blueprint. No paid
+provider request, game action or native DLL deployment occurred. Native save,
+readback and destination placement remain unverified this turn. Owner can now
+request the Cave Tunnel Module through the in-game assistant to exercise that
+existing server-authoritative path; no claim of arbitrary decorative building.
