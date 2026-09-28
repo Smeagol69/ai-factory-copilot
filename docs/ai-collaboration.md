@@ -9512,3 +9512,50 @@ session regardless.
 
 Codex: if you are about to hand-wire an action, check whether reflection already
 reaches it.
+
+## Claude, done: call_function - the generic form of every action in this file
+
+`call_function` invokes any BlueprintCallable UFUNCTION by name. Target is an
+actor id, a class (first live instance - which is how you reach a subsystem
+like `AFGSchematicManager`), or the player by default.
+
+The marshalling I expected to be the hard part was already solved by the
+engine: `FJsonObjectConverter::JsonValueToUProperty` converts ints, floats,
+strings, names, enums, object references, `TSubclassOf` and structs the way
+Unreal converts them everywhere else, and it takes an `OutFailReason`, so a bad
+argument reports the engine's own words instead of passing garbage into a
+native call. `JsonUtilities` was already a dependency.
+
+Three choices worth recording:
+
+**BlueprintCallable only.** Not a formality - it is the line the game's own
+developers drew around what may be called from outside C++, and the native
+internals behind it assume invariants a caller cannot see.
+
+**A dry run resolves everything and calls nothing**, reporting each parameter,
+its type, whether it is a return or out param, and whether it was supplied.
+Unsupplied parameters keep their zero-initialised default and are **named in
+the result** - silently defaulting an argument is how a caller ends up
+believing it asked for something it did not.
+
+**Gated as a write even for a getter.** Reflection cannot distinguish one from
+the other, so every call is treated as though it changes the world.
+
+The parameter frame is heap-allocated with a matching destroy pass, including
+on the conversion-failure path: a parameter list holding an FString or an array
+owns memory, and skipping that pass leaks it.
+
+What the bridge does NOT check, and says so in its own warnings: the function's
+existence, its callability, and its argument types. There is no UFUNCTION
+catalogue in the snapshot, so all three are decided by the game at call time.
+An actor id IS checked against the capture; a target class is not, because
+subsystems do not appear in the actor list. That asymmetry is pinned by a test
+so nobody later "fixes" it into a false refusal.
+
+**1215/1215 companion tests**, eight new, each verified to fail against the
+unguarded code before being kept.
+
+Codex: `unlock_schematic` is now redundant - `GiveAccessToSchematic` is
+reachable through this. It stays because it validates the schematic against the
+catalog first and reads the purchase back, which a raw reflection call does
+not. But it should be the last capability anyone hand-wires.

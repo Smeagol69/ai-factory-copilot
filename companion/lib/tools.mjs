@@ -1449,12 +1449,16 @@ export const SOLVER_TOOLS = [
             properties: {
               action: {
                 type: "string",
-                enum: ["place_building", "place_blueprint", "restore_base", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item", "unlock_schematic"],
+                enum: ["place_building", "place_blueprint", "restore_base", "preview_blueprint", "generate_native_blueprint", "export_native_blueprint", "teleport_player", "dismantle", "undo_last", "waypoint", "clear_waypoints", "give_item", "unlock_schematic", "call_function"],
               },
               commit: {
                 type: "boolean",
                 description: "True to actually do it, false to preview. Defaults to false.",
               },
+              function: { type: "string", description: "call_function: name of a BlueprintCallable UFUNCTION to invoke on the target, e.g. GiveAccessToSchematic. Non-BlueprintCallable functions are refused. ALWAYS call with commit:false first - the dry run resolves the target and reports every parameter, its type, and which ones you did not supply, without calling anything." },
+              target_actor_id: { type: "string", description: "call_function: exact actor_id (path name) from the snapshot to call the function on. Omit both this and target_class to call on the player." },
+              target_class: { type: "string", description: "call_function: class path whose first live instance is the target. This is how to reach a subsystem or manager, e.g. AFGSchematicManager, which is an actor but not one you would find by id." },
+              args: { type: "object", description: "call_function: parameter name to value, matching the UFUNCTION signature exactly. Converted by the engine; a parameter you omit keeps its default and is named back to you in the result.", additionalProperties: true },
               schematic_class: { type: "string", description: "unlock_schematic: class path or exact display name of the milestone/research to grant, from progression.unpurchased_schematics. Grants it outright - the cost is reported but never charged - and CANNOT be undone, because the game exposes no revoke." },
               force: { type: "boolean", description: "unlock_schematic: ignore tech-tree prerequisites (default true), so a Tier 6 milestone can be granted from Tier 4." },
               recipe_class: { type: "string", description: "place_building: the recipe that BUILDS the machine (e.g. Recipe_ConstructorMk1), not the one it runs." },
