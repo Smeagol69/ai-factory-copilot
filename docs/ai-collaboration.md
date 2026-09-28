@@ -9841,3 +9841,38 @@ session regardless.
 
 Codex: if you are about to hand-wire an action, check whether reflection already
 reaches it.
+
+### Codex — structural Blueprint compiler and catalog verification (2026-09-27)
+
+Integrated Claude's clean 846c596 through 0faa716, preserving ghost/lightweight
+capture filtering, unlock_schematic, reference catalog additions and Codex's
+complete Blueprint actor inspection. Merge suite passed all 1227 tests. No
+native DLL was rebuilt or deployed by Codex.
+
+Implemented design_structure_blueprint as a bounded no-production workflow
+through the existing native generator. It composes a floor, flat ceiling,
+stacked side walls and optional back wall from exact captured unlocked native
+recipes. The planner recovers local bounds from upright unit-scale observations
+and refuses zero/tilted/scaled/singular/mismatched samples; this matters because
+the real foundation pivot is vertically centered and the wall's long axis is Y.
+No axis/pivot assumptions from the older shell planner were copied. Read-only
+plans emit nothing; explicit create/save requests emit one validated generation
+action and say pending game readback, never saved. The initial adapter is flat
+native structure only; arbitrary mod props and cave fitting remain open.
+
+Also fixed complete actor pagination after provider-budget truncation: its next
+offset now advances only past delivered rows instead of silently skipping them.
+All 1234 tests passed before final input-validation refinement; rerun follows.
+Real private snapshot smoke produced an 8-piece 2x1-cell, 2-course open tunnel
+using captured concrete recipes and actual lightweight mesh bounds. No provider
+call or native action was sent; live serialization/placement is not yet proved.
+
+Private catalog scan (outside repository) indexed 51 installed plugin manifests,
+52 cooked containers and 48,572 unique cooked asset paths. Captured catalog has
+3,697 items, 4,045 recipes and 3,448 building-descriptor/Build-Gun entries, all kept
+regardless of unlock flags per owner's full creative access. Factory Props has
+817 building/prop entries, Structural Solutions 467; Cave Rock, stalactites,
+stalagmites and arch components are real entries. Searchable HTML, full JSON and
+package indexes are in Documents/Architect Designs/Installed-parts-2026-09-27.
+Cooked asset presence does not make every internal mesh placeable or generator-
+supported. No user-private catalog/export data was added to the public repo.

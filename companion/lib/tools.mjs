@@ -17,6 +17,7 @@ import { designFactoryLayout } from "./designer.mjs";
 import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
+import { compileStructuralBlueprint } from "./structural-blueprints.mjs";
 import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { compileArchitectAccess } from "./architect-access.mjs";
@@ -1204,6 +1205,35 @@ export const SOLVER_TOOLS = [
   },
 
   {
+    name: "design_structure_blueprint",
+    description: "Design a rectangular tunnel module or open-front enclosure WITHOUT a production target, and optionally ask the game to save it as a native Blueprint now. Uses captured unlocked flat native foundation/wall recipes and measured actor pivots; computes floor, stacked side walls, optional back wall and flat slab ceiling. Both ends open produces a repeatable tunnel; front open produces a simple shelter. No props, excavation, terrain fit, connections or existing-space adaptation are inferred. Start with commit=false for a layout, or commit=true when the player explicitly asks to create/save the Blueprint. Emits one existing generate_native_blueprint action; report saved only after native game readback. After success, preview_blueprint can arm it, or place_blueprint can build it at an independently grounded destination. Never combine generation and placement in one transaction.",
+    parameters: {
+      type: "object",
+      properties: {
+        blueprint_name: { type: "string", description: "A new descriptive native Blueprint name. Existing names are protected by the game." },
+        width_cells: { type: "integer", minimum: 1, maximum: 6, description: "Width in captured foundation cells; default 2." },
+        depth_cells: { type: "integer", minimum: 1, maximum: 6, description: "Length in foundation cells; default 1 for a repeatable module." },
+        wall_courses: { type: "integer", minimum: 1, maximum: 6, description: "Number of stacked wall panels; default 2." },
+        open_ends: { type: "string", enum: ["both", "front"], description: "both for a through tunnel; front for an enclosure with a back wall." },
+        foundation_recipe_class: { type: "string", description: "Optional exact captured flat native foundation recipe. Defaults to a measured available concrete foundation." },
+        wall_recipe_class: { type: "string", description: "Optional exact captured flat native solid-wall recipe. Curved/tilted/unknown meshes are unsupported." },
+        commit: { type: "boolean", description: "true only for an explicit request to save/create the Blueprint. Default false creates a read-only plan." },
+      },
+      required: ["blueprint_name"], additionalProperties: false,
+    },
+    run: (graph, args, services) => {
+      const result = compileStructuralBlueprint(graph, args);
+      if (!result.compiled) return { ...result, action_emitted: false };
+      const { action, ...report } = result;
+      if (args.commit !== true) return { ...report, action_emitted: false, status: "layout_only_no_file_written" };
+      if (typeof services?.actions?.emit !== "function") return { ...report,
+        action_emitted: false, status: "native_action_sink_unavailable_no_file_written" };
+      services.actions.emit([action]);
+      return { ...report, action_emitted: true, status: "native_generation_requested_pending_game_readback",
+        next_step_after_verified_game_readback: `preview blueprint ${result.blueprint_name}` };
+    },
+  },
+  {
     name: "plan_structure",
     description:
       "Previews Claude's grid-derived structural shell: foundations, optional raised supports, perimeter walls with an entrance, and a roof using only available Build Gun recipes captured from this save. Use for a concrete platform/building shell measured in foundation cells. Returns exact piece transforms and commit:false action previews, but never submits them or claims hologram validity. For a complete production campus use design_megabase_concept instead.",
@@ -1730,6 +1760,16 @@ export function serializeToolResult(result, maximumCharacters = DEFAULT_TOOL_RES
   for (const limit of ARRAY_CAP_ATTEMPTS) {
     const cappedPaths = [];
     const capped = capArrays(result, limit, cappedPaths);
+    // A provider budget may shorten an otherwise valid actor page. Advance by
+    // what was actually delivered, not the original page size, or the model
+    // would silently skip actors on its next inspection request.
+    const entityPage = capped?.entity_page;
+    if (entityPage && Array.isArray(entityPage.entities) &&
+        Number.isInteger(entityPage.offset) && Number.isInteger(entityPage.total)) {
+      entityPage.returned = entityPage.entities.length;
+      const next = entityPage.offset + entityPage.returned;
+      entityPage.next_offset = next < entityPage.total ? next : null;
+    }
     if (cappedPaths.length > 0) {
       capped.tool_result_truncation = {
         array_item_limit: limit,

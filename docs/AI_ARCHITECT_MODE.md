@@ -482,3 +482,29 @@ recipe, not a mesh/clearance measurement, and not a general architecture builder
 For an unchanged copy, the existing native Blueprint placement path preserves
 the saved assembly; avoid reconstructing it from a partial list of individual
 actors. The full conversational creation acceptance scenario above remains open.
+
+## Structural Blueprint creation without a production target (2026-09-27)
+
+`design_structure_blueprint` compiles a rectangular tunnel or open-front shell
+from captured available native flat foundation and solid-wall recipes. It reads
+upright, unit-scale actor mesh bounds to establish the foundation's vertical
+pivot and the wall's long axis/base. Missing, zero, singular or incompatible
+geometry stays a blocker; no named dimension implies a mesh pivot. Defaults are
+2 foundation cells wide, 1 deep, 2 wall courses high, with both ends open. Width,
+depth and wall courses are each bounded to 1..6. `open_ends: front` adds a back
+wall; the front stays open. Optional exact foundation/wall recipe identities
+never silently fall back when missing or unsupported.
+
+`commit:false` returns a layout and emits nothing. `commit:true` after an
+explicit player create/save request validates and emits the existing standalone
+`generate_native_blueprint` v1 action. The game retains staged bounds, Designer,
+serialization/readback, collision and write-mode authority. After successful
+native readback, preview_blueprint can arm the saved descriptor; place_blueprint
+is a separate request at a grounded destination. No new engine action is needed.
+
+Example player request: "Create a native blueprint called Cave Tunnel Module:
+2 foundations wide, 1 foundation long, 2 wall panels high, both ends open."
+This initial workflow generates an undecorated rectangular shell. It does not
+yet generate arbitrary cave shapes, place props, excavate terrain, fit around
+existing machines or build directly into a selected cave. Native save and live
+placement must still be tested before claiming the full acceptance scenario.

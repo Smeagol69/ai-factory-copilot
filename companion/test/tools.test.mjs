@@ -57,6 +57,7 @@ test("exposes the roadmap solver set to the model", () => {
     "design_composition",
     "design_factory_layout",
     "design_megabase_concept",
+    "design_structure_blueprint",
     "diagnose_bottlenecks",
     "find_belt_candidates",
     "find_best_site",
@@ -251,6 +252,18 @@ test("leaves a result that already fits untouched", () => {
   const bounded = serializeToolResult(small, 100_000);
   assert.equal(bounded.truncated, false);
   assert.equal(JSON.parse(bounded.serialized).tool_result_truncation, undefined);
+});
+
+test("tool budget reduction preserves all-entity page continuation without skipping actors", () => {
+  const result = { solver: "blueprint_layout", source_fingerprint: "sha256:fixture",
+    entity_page: { offset: 80, returned: 200, total: 313, next_offset: 280,
+      entities: Array.from({ length: 200 }, (_, i) => ({ entity_index: i + 80, name: "x".repeat(100) })) } };
+  const parsed = JSON.parse(serializeToolResult(result, 2500).serialized);
+  assert.ok(parsed.entity_page.entities.length < 200);
+  assert.equal(parsed.entity_page.returned, parsed.entity_page.entities.length);
+  assert.equal(parsed.entity_page.next_offset, 80 + parsed.entity_page.returned);
+  assert.equal(parsed.entity_page.entities.at(-1).entity_index + 1, parsed.entity_page.next_offset);
+  assert.equal(result.entity_page.next_offset, 280);
 });
 
 test("falls back to a narrow-your-question notice when nothing fits", () => {

@@ -85,6 +85,7 @@ factory arithmetic yourself:
 - a layout to actually place, not just a parts list -> design_factory_layout;
 - a creative elevated, terraced, or campus megabase preview, optionally saved as an immutable Architect option -> design_megabase_concept. For a requested height change, pass the captured reference origin unchanged and elevation_offset_cm (negative lowers, positive raises; 100 cm = 1 m). The solver applies it once to the entire design. An underground preview is design geometry only: surface probes cannot certify cave volume, ceiling clearance, entrances or world bounds. Never claim excavation or safe underground placement from this preview. Save height variants as child revisions; never relocate an existing base implicitly;
 - listing, comparing, redrawing, selecting, rolling back, checking native-promotion blockers, promoting an explicitly selected revision, or deleting an AI Architect draft revision -> manage_architect_revisions. Always call promotion_status before promote_selected. A semantic preview is not a native layout: never remove, paraphrase away, or fabricate a reported blocker. Every producer output and consumer input must balance exactly across internal edges and explicit external-I/O obligations, and every retained internal edge must compile exactly once. Direct equal-count solid lanes require captured native endpoints and observed unlocked belt capacity; direct equal-count liquid/gas lanes require unambiguous recipe-fluid identity, captured native pipe endpoints, and sufficient captured unlocked pipe flow/length. Powered production machines also require a captured capacity-safe internal circuit and leave one explicit external-grid connection. Partial internal+external feeds require a merger/junction; split/merge balancing, lifts, pumps/head lift, fluid junctions/bends, power generation/external feeds, and material-I/O routing still fail closed. promote_selected requires the player's explicit request and commit:true; after the game verifies the generated file, use preview_blueprint in perform_actions to arm that exact native descriptor;
+- a rectangular tunnel or entrance enclosure saved as a native Blueprint, without any production target -> design_structure_blueprint. Use open_ends=both for a through tunnel and front for an enclosure. The solver derives dimensions and pivots from the current catalog and measured pieces; never invent missing mesh geometry. commit=true requests native serialization only when the player asked to create/save it. A tool response is not proof the file was saved: wait for native readback, then offer preview_blueprint or place_blueprint at a grounded destination. Decorations, irregular caves and adaptation around existing machines are not implemented by this shell tool;
 - a foundation-grid platform, raised deck, walls, supports, or roof shell -> plan_structure;
 - placing, removing, moving, or teleporting -> perform_actions;
 - showing the player where things are -> highlight / clear_highlight;
@@ -590,7 +591,11 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(blueprint|factory layout|layout design|production plan)\b/i,
-    tools: ["list_blueprints", "inspect_blueprint_layout", "compare_blueprint_layouts", "design_factory_layout", "design_megabase_concept", "manage_architect_revisions", "plan_production"],
+    tools: ["list_blueprints", "inspect_blueprint_layout", "compare_blueprint_layouts", "design_factory_layout", "design_megabase_concept", "design_structure_blueprint", "manage_architect_revisions", "plan_production"],
+  },
+  {
+    pattern: /\b(tunnel|entrance enclosure|bunker shell)\b/i,
+    tools: ["design_structure_blueprint", "plan_structure"],
   },
   {
     pattern: /\b(platform|raised deck|building shell|structural shell|walls? and (?:a )?roof)\b/i,
@@ -704,6 +709,8 @@ function evidenceRows(tool, parsed) {
       return parsed.ok === true ? [parsed] : [];
     case "plan_structure":
       return parsed.planned === true && parsed.source && parsed.certainty ? [parsed] : [];
+    case "design_structure_blueprint":
+      return parsed.compiled === true && parsed.source && parsed.certainty ? [parsed] : [];
     default:
       return null;
   }
@@ -1903,6 +1910,7 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
  * `companion/test/hybrid-fallback.test.mjs`.
  */
 const SOLVER_TOOL_NAMES = [
+  "design_structure_blueprint",
   "design_base",
   "design_composition",
   "design_factory_layout",
