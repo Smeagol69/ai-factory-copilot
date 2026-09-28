@@ -18,13 +18,17 @@ test("the reference mix comes from designer blueprints, not the whole-site expor
   const mix = referenceRoleMix();
   // The home base is a site, not a module; its proportions would drag the
   // production share toward zero for reasons that say nothing about one building.
-  assert.equal(mix.source_designs, 7);
-  assert.equal(mix.total_buildings, 890);
-  assert.equal(mix.counts.production, 24);
-  assert.equal(mix.counts.enclosure, 567);
-  // The ratio the budget is built on: real designs place ~24 enclosure pieces
-  // for every machine.
-  assert.ok(mix.per_production_machine.enclosure > 23 && mix.per_production_machine.enclosure < 24);
+  assert.equal(mix.source_designs, 8);
+  assert.equal(mix.total_buildings, 1209);
+  assert.equal(mix.counts.production, 42);
+  assert.equal(mix.counts.enclosure, 688);
+  // The ratio the budget is built on. It moved when AIO Iron Products joined
+  // the catalog: ~23.6 enclosure pieces per machine became ~16.4, because that
+  // design packs 18 machines into a 32 m cube and is far more production-dense
+  // than the modules calibrated before it. The budget follows the evidence, so
+  // the number moves when the evidence does - but it should move for a reason,
+  // which is why this is pinned rather than a range.
+  assert.ok(mix.per_production_machine.enclosure > 16 && mix.per_production_machine.enclosure < 17);
   assert.equal(mix.per_production_machine.production, 1);
 });
 

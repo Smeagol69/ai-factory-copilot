@@ -27,6 +27,8 @@
 #include "FGInventoryComponent.h"
 #include "FGLightweightBuildableSubsystem.h"
 #include "FGRecipe.h"
+#include "FGSchematic.h"
+#include "FGSchematicManager.h"
 #include "FGRecipeManager.h"
 #include "Hologram/FGBlueprintHologram.h"
 #include "Hologram/FGBuildableHologram.h"
@@ -2627,6 +2629,118 @@ FAIFactoryActionResult PlaceBlueprint(
     return Result;
 }
 
+FAIFactoryActionResult UnlockSchematic(
+    const FAIFactoryActionContext& Context,
+    const FString& SchematicClassPath,
+    const bool bForce)
+{
+    const FString Action = TEXT("unlock_schematic");
+    const FString Blocked = CheckActionPreconditions(Context);
+    if (!Blocked.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, Blocked);
+    }
+
+    UClass* SchematicClass = FindActionClassByPath(SchematicClassPath);
+    if (!SchematicClass || !SchematicClass->IsChildOf(UFGSchematic::StaticClass()))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("schematic_class_did_not_resolve_to_a_schematic"));
+    }
+    const TSubclassOf<UFGSchematic> Schematic{ SchematicClass };
+
+    AFGSchematicManager* Manager = AFGSchematicManager::Get(Context.World);
+    if (!IsValid(Manager))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_schematic_manager"));
+    }
+
+    const FString DisplayName = UFGSchematic::GetSchematicDisplayName(Schematic).ToString();
+    const int32 Tier = UFGSchematic::GetTechTier(Schematic);
+    const bool bAlreadyPurchased = Manager->IsSchematicPurchased(Schematic);
+    const bool bPrerequisitesMet = Manager->CanGiveAccessToSchematic(Schematic);
+
+    const TSharedRef<FJsonObject> Facts = MakeShared<FJsonObject>();
+    Facts->SetStringField(TEXT("schematic_class"), SchematicClass->GetPathName());
+    Facts->SetStringField(TEXT("schematic_name"), DisplayName);
+    Facts->SetNumberField(TEXT("tech_tier"), Tier);
+    Facts->SetBoolField(TEXT("already_purchased"), bAlreadyPurchased);
+    Facts->SetBoolField(TEXT("prerequisites_met"), bPrerequisitesMet);
+    Facts->SetBoolField(TEXT("force_requested"), bForce);
+    // Reported so the player knows what it would have cost, never charged.
+    TArray<TSharedPtr<FJsonValue>> CostJson;
+    for (const FItemAmount& Entry : UFGSchematic::GetCost(Schematic))
+    {
+        const TSharedRef<FJsonObject> Item = MakeShared<FJsonObject>();
+        Item->SetStringField(TEXT("item_class"),
+            Entry.ItemClass ? Entry.ItemClass->GetPathName() : TEXT(""));
+        Item->SetStringField(TEXT("item_name"),
+            Entry.ItemClass
+                ? UFGItemDescriptor::GetItemName(Entry.ItemClass).ToString()
+                : TEXT(""));
+        Item->SetNumberField(TEXT("amount"), Entry.Amount);
+        CostJson.Add(MakeShared<FJsonValueObject>(Item));
+    }
+    Facts->SetArrayField(TEXT("cost_not_charged"), CostJson);
+    Facts->SetBoolField(TEXT("reversible"), false);
+    Facts->SetStringField(TEXT("irreversible_reason"),
+        TEXT("the game exposes no revoke for a granted schematic, so undo cannot take it back"));
+
+    FAIFactoryActionResult Result;
+    Result.Action = Action;
+    Result.Predicted = Facts;
+
+    if (bAlreadyPurchased)
+    {
+        // Not a failure, and not worth pretending something happened.
+        Result.bAccepted = true;
+        Result.Status = TEXT("already_purchased");
+        Result.Observed = Facts;
+        return Result;
+    }
+    if (!bPrerequisitesMet && !bForce)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("schematic_prerequisites_are_not_met_pass_force_to_ignore_them"));
+    }
+
+    if (Context.bDryRun)
+    {
+        Result.bAccepted = true;
+        Result.bDryRun = true;
+        Result.Status = TEXT("dry_run");
+        return Result;
+    }
+
+    Manager->GiveAccessToSchematic(
+        Schematic,
+        Context.Player,
+        bForce ? ESchematicUnlockFlags::Force : ESchematicUnlockFlags::None);
+
+    // Read back from the game rather than trusting the call returned.
+    const bool bPurchasedNow = Manager->IsSchematicPurchased(Schematic);
+    const TSharedRef<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetStringField(TEXT("schematic_class"), SchematicClass->GetPathName());
+    Observed->SetStringField(TEXT("schematic_name"), DisplayName);
+    Observed->SetNumberField(TEXT("tech_tier"), Tier);
+    Observed->SetBoolField(TEXT("purchased_now"), bPurchasedNow);
+    Observed->SetBoolField(TEXT("reversible"), false);
+    Result.Observed = Observed;
+
+    if (!bPurchasedNow)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("schematic_manager_accepted_the_grant_but_it_did_not_take"));
+    }
+
+    Result.bAccepted = true;
+    Result.Status = TEXT("committed");
+    return Result;
+}
+
 FAIFactoryActionResult GiveItem(
     const FAIFactoryActionContext& Context,
     const FString& ItemClassPath,
@@ -3695,6 +3809,7 @@ namespace
             Kind == TEXT("export_native_blueprint") ||
             Kind == TEXT("generate_native_blueprint") ||
             Kind == TEXT("give_item") ||
+            Kind == TEXT("unlock_schematic") ||
             Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
             Kind == TEXT("undo_last");
@@ -4258,6 +4373,17 @@ namespace
             double Count = 1.0;
             Spec->TryGetNumberField(TEXT("count"), Count);
             return GiveItem(Context, ItemClass, FMath::RoundToInt(Count));
+        }
+        if (Kind == TEXT("unlock_schematic"))
+        {
+            FString SchematicClass;
+            if (!Spec->TryGetStringField(TEXT("schematic_class"), SchematicClass) || SchematicClass.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("schematic_class_is_required"));
+            }
+            bool bForce = true;
+            Spec->TryGetBoolField(TEXT("force"), bForce);
+            return UnlockSchematic(Context, SchematicClass, bForce);
         }
         if (Kind == TEXT("dismantle"))
         {

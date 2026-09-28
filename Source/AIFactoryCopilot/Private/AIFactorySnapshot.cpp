@@ -68,6 +68,7 @@
 #include "Resources/FGItemDescriptor.h"
 #include "Resources/FGResourceNode.h"
 #include "Resources/FGResourceNodeBase.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UObject/UnrealType.h"
@@ -174,8 +175,33 @@ namespace
         double ConnectionWalkSeconds = 0.0;
         double AdapterSeconds = 0.0;
         double ReflectionSeconds = 0.0;
+        // Whole-function time per serialiser. The first pass timed only
+        // GenericActorJson, which turned out to handle 27 of 1,132 actors -
+        // 99% of the capture was unaccounted for because the two serialisers
+        // that do the work were never measured.
+        double GenericActorSeconds = 0.0;
+        double LightweightSeconds = 0.0;
+        double BuildableSeconds = 0.0;
+        int32 GenericActors = 0;
+        int32 LightweightBuildables = 0;
+        int32 Buildables = 0;
         int32 ActorsSerialised = 0;
         int32 ConnectionsRead = 0;
+    };
+
+    /** Adds its lifetime to an accumulator, so every return path is counted. */
+    struct FAIFactoryScopedAccumulator
+    {
+        double& Target;
+        const double Started;
+        explicit FAIFactoryScopedAccumulator(double& InTarget)
+            : Target(InTarget), Started(FPlatformTime::Seconds())
+        {
+        }
+        ~FAIFactoryScopedAccumulator()
+        {
+            Target += FPlatformTime::Seconds() - Started;
+        }
     };
 
     FAIFactoryCaptureProfile GCaptureProfile;
@@ -869,6 +895,8 @@ namespace
         const FString& Kind,
         const FAIFactorySettings& Settings)
     {
+        FAIFactoryScopedAccumulator Timing(GCaptureProfile.GenericActorSeconds);
+        ++GCaptureProfile.GenericActors;
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         ++GCaptureProfile.ActorsSerialised;
         const double IdentityStarted = FPlatformTime::Seconds();
@@ -1059,14 +1087,21 @@ namespace
      *
      * The id is synthesised as lightweight:<Class>:<Index> because these have
      * no path name -- that pair is how the subsystem itself addresses them.
-     * It is stable only within one snapshot: removing an instance shifts every
-     * index above it, which is why nothing should persist one of these ids.
+     * It is stable only within one snapshot, and not for the reason this
+     * comment used to give. The engine does not shift indices down when an
+     * instance is removed - it keeps a free list and RECYCLES the slot
+     * (FGLightweightBuildableSubsystem.h:844-845). So an index survives other
+     * removals but can silently come to mean a different building after a
+     * dismantle and rebuild, which is worse: nothing should persist one of
+     * these ids, and nothing should diff on them.
      */
     TSharedRef<FJsonObject> LightweightBuildableJson(
         const TSubclassOf<AFGBuildable>& BuildableClass,
         const FRuntimeBuildableInstanceData& Instance,
         int32 Index)
     {
+        FAIFactoryScopedAccumulator Timing(GCaptureProfile.LightweightSeconds);
+        ++GCaptureProfile.LightweightBuildables;
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         const FString ClassName = IsValid(BuildableClass) ? BuildableClass->GetName() : TEXT("Unknown");
         Result->SetStringField(TEXT("actor_id"),
@@ -1098,6 +1133,8 @@ namespace
 
     TSharedRef<FJsonObject> BuildableJson(AFGBuildable* Buildable, const FAIFactorySettings& Settings)
     {
+        FAIFactoryScopedAccumulator Timing(GCaptureProfile.BuildableSeconds);
+        ++GCaptureProfile.Buildables;
         const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
         Result->SetStringField(TEXT("actor_id"), Buildable->GetPathName());
         Result->SetStringField(TEXT("name"), Buildable->GetName());
@@ -2033,6 +2070,54 @@ namespace
                 Purchased.Add(MakeShared<FJsonValueObject>(Entry));
             }
 
+            // Everything still locked, with its price.
+            //
+            // Only purchased schematics were reported, so an assistant asked
+            // what a milestone costs had to send the player to the HUB terminal
+            // to read it back. The manager knows: GetAllSchematics returns the
+            // lot, and GetCost is static on the schematic itself.
+            TArray<TSubclassOf<UFGSchematic>> AllSchematics;
+            SchematicManager->GetAllSchematics(AllSchematics);
+            TArray<TSharedPtr<FJsonValue>> Unpurchased;
+            for (const TSubclassOf<UFGSchematic>& Schematic : AllSchematics)
+            {
+                if (!Schematic || SchematicManager->IsSchematicPurchased(Schematic))
+                {
+                    continue;
+                }
+                const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+                Entry->SetStringField(TEXT("class_path"), ClassPath(Schematic.Get()));
+                Entry->SetStringField(
+                    TEXT("name"), UFGSchematic::GetSchematicDisplayName(Schematic).ToString());
+                Entry->SetNumberField(TEXT("tech_tier"), UFGSchematic::GetTechTier(Schematic));
+                Entry->SetStringField(
+                    TEXT("type"),
+                    StaticEnum<ESchematicType>()->GetNameStringByValue(
+                        static_cast<int64>(UFGSchematic::GetType(Schematic))));
+                // Whether the tech tree would allow buying it right now. An
+                // unlock action can still force past this; the flag says which
+                // of the two is happening.
+                Entry->SetBoolField(
+                    TEXT("prerequisites_met"),
+                    SchematicManager->CanGiveAccessToSchematic(Schematic));
+                TArray<TSharedPtr<FJsonValue>> Cost;
+                for (const FItemAmount& Amount : UFGSchematic::GetCost(Schematic))
+                {
+                    const TSharedRef<FJsonObject> Item = MakeShared<FJsonObject>();
+                    Item->SetStringField(TEXT("item_class"),
+                        Amount.ItemClass ? Amount.ItemClass->GetPathName() : TEXT(""));
+                    Item->SetStringField(TEXT("item_name"),
+                        Amount.ItemClass
+                            ? UFGItemDescriptor::GetItemName(Amount.ItemClass).ToString()
+                            : TEXT(""));
+                    Item->SetNumberField(TEXT("amount"), Amount.Amount);
+                    Cost.Add(MakeShared<FJsonValueObject>(Item));
+                }
+                Entry->SetArrayField(TEXT("cost"), Cost);
+                Unpurchased.Add(MakeShared<FJsonValueObject>(Entry));
+            }
+            Progression->SetArrayField(TEXT("unpurchased_schematics"), Unpurchased);
+
             Progression->SetObjectField(
                 TEXT("active_schematic"),
                 SchematicJson(World, SchematicManager, SchematicManager->GetActiveSchematic()));
@@ -2336,6 +2421,10 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
 
     TArray<TSharedPtr<FJsonValue>> Actors;
     int32 LightweightSeen = 0;
+    // Both skips are counted rather than silently dropped - a capture that
+    // quietly omits things is the failure this whole change exists to fix.
+    int32 LightweightDismantledSkipped = 0;
+    int32 TemporaryBuildablesSkipped = 0;
     if (IsValid(World))
     {
         const double RadiusSquaredCm = FMath::Square(static_cast<double>(Request.RadiusMeters) * 100.0);
@@ -2345,6 +2434,16 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
             AFGBuildable* Buildable = *It;
             if (!IsValid(Buildable))
             {
+                continue;
+            }
+            // The lightweight subsystem spawns real AFGBuildable actors from a
+            // pool so the build gun has something to interact with. They are not
+            // buildings: the same foundation would be reported twice, once here
+            // and once as lightweight:<Class>:<Index>, and an idle pooled actor
+            // sits at z=-100000 and reads as a building underground.
+            if (Buildable->GetIsLightweightTemporary())
+            {
+                ++TemporaryBuildablesSkipped;
                 continue;
             }
             if (Request.bUseRadius && FVector::DistSquared(Buildable->GetActorLocation(), Request.Center) > RadiusSquaredCm)
@@ -2375,6 +2474,24 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
                     for (int32 Index = 0; Index < Instances.Num(); ++Index)
                     {
                         const FRuntimeBuildableInstanceData& Instance = Instances[Index];
+                        // A dismantled lightweight is invalidated in place, not
+                        // erased: Clear() empties Handles and nulls BuiltWithRecipe
+                        // but leaves Transform untouched, so a dead slot still
+                        // carries the location it used to stand at. Without this
+                        // check the capture reports demolished buildings as
+                        // standing, until something reuses the slot.
+                        //
+                        // IsValidOnLoad (recipe present) rather than IsValid
+                        // (recipe AND render handles): Clear() nulls the recipe so
+                        // this still excludes every dismantled slot, while the
+                        // stricter test would drop a real building whose instance
+                        // handles are not currently live. A building missing from
+                        // a snapshot is far worse than one too many.
+                        if (!Instance.IsValidOnLoad())
+                        {
+                            ++LightweightDismantledSkipped;
+                            continue;
+                        }
                         if (Request.bUseRadius &&
                             FVector::DistSquared(Instance.Transform.GetLocation(), Request.Center) > RadiusSquaredCm)
                         {
@@ -2471,6 +2588,8 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     Completeness->SetBoolField(TEXT("actor_limit_reached"), Result.bActorLimitReached);
     // Named separately so a reader can tell an empty base from a blind snapshot.
     Completeness->SetNumberField(TEXT("lightweight_buildable_count"), LightweightSeen);
+    Completeness->SetNumberField(TEXT("lightweight_dismantled_skipped"), LightweightDismantledSkipped);
+    Completeness->SetNumberField(TEXT("temporary_buildables_skipped"), TemporaryBuildablesSkipped);
     Completeness->SetNumberField(TEXT("actor_limit"), Settings.MaxActorsPerSnapshot);
     Completeness->SetStringField(TEXT("unknown_policy"),
         TEXT("Unknown custom behavior is never inferred; an explicit adapter is required."));
@@ -2487,6 +2606,12 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     Profile->SetNumberField(TEXT("connection_walk_ms"), GCaptureProfile.ConnectionWalkSeconds * 1000.0);
     Profile->SetNumberField(TEXT("adapter_ms"), GCaptureProfile.AdapterSeconds * 1000.0);
     Profile->SetNumberField(TEXT("reflection_ms"), GCaptureProfile.ReflectionSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("generic_actor_ms"), GCaptureProfile.GenericActorSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("lightweight_ms"), GCaptureProfile.LightweightSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("buildable_ms"), GCaptureProfile.BuildableSeconds * 1000.0);
+    Profile->SetNumberField(TEXT("generic_actors"), GCaptureProfile.GenericActors);
+    Profile->SetNumberField(TEXT("lightweight_buildables"), GCaptureProfile.LightweightBuildables);
+    Profile->SetNumberField(TEXT("buildables"), GCaptureProfile.Buildables);
     Profile->SetNumberField(TEXT("actors_serialised"), GCaptureProfile.ActorsSerialised);
     Profile->SetNumberField(TEXT("connections_read"), GCaptureProfile.ConnectionsRead);
     Profile->SetStringField(TEXT("measured"),
@@ -2503,12 +2628,24 @@ FAIFactorySnapshotResult FAIFactorySnapshot::Build(
     // held for both, so the freeze the player feels is the sum of the two -
     // which means every duration reported so far understated it.
     const double SerializeStarted = FPlatformTime::Seconds();
-    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Result.Json);
+    // Condensed, not pretty. TJsonWriterFactory<> defaults to
+    // TPrettyJsonPrintPolicy (JsonWriter.h:686), so every capture was being
+    // indented and newline-separated - formatting work, and a larger string,
+    // for a document no human reads. Measured at 275-391 ms per capture, on
+    // top of a duration that does not include it.
+    const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+        TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Result.Json);
     FJsonSerializer::Serialize(Root, Writer);
     UE_LOG(LogAIFactoryCopilot, Display,
-        TEXT("Capture profile: actors=%d identity=%.0fms bounds=%.0fms inventory=%.0fms "
+        TEXT("Capture profile: generic=%d/%.0fms lightweight=%d/%.0fms buildable=%d/%.0fms "
+             "| identity=%.0fms bounds=%.0fms inventory=%.0fms "
              "connections=%.0fms adapter=%.0fms reflection=%.0fms serialize=%.0fms"),
-        GCaptureProfile.ActorsSerialised,
+        GCaptureProfile.GenericActors,
+        GCaptureProfile.GenericActorSeconds * 1000.0,
+        GCaptureProfile.LightweightBuildables,
+        GCaptureProfile.LightweightSeconds * 1000.0,
+        GCaptureProfile.Buildables,
+        GCaptureProfile.BuildableSeconds * 1000.0,
         GCaptureProfile.IdentitySeconds * 1000.0,
         GCaptureProfile.BoundsSeconds * 1000.0,
         GCaptureProfile.InventoryWalkSeconds * 1000.0,

@@ -5,29 +5,29 @@
 
 export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
   "catalog_version": "aifactory.blueprint-reference/v1",
-  "reference_count": 8,
+  "reference_count": 9,
   "generated_from": "reference/blueprints/sources.json",
   "role_census": {
-    "total_buildables": 7347,
+    "total_buildables": 7666,
     "counts": {
-      "production": 34,
-      "logistics": 436,
-      "power": 242,
-      "enclosure": 4859,
-      "access": 374,
-      "signage": 1377,
+      "production": 52,
+      "logistics": 583,
+      "power": 263,
+      "enclosure": 4980,
+      "access": 377,
+      "signage": 1386,
       "ambience": 16,
       "utility": 9,
       "unclassified": 0
     },
     "share": {
-      "production": 0.0046,
-      "logistics": 0.0593,
-      "power": 0.0329,
-      "enclosure": 0.6614,
-      "access": 0.0509,
-      "signage": 0.1874,
-      "ambience": 0.0022,
+      "production": 0.0068,
+      "logistics": 0.0761,
+      "power": 0.0343,
+      "enclosure": 0.6496,
+      "access": 0.0492,
+      "signage": 0.1808,
+      "ambience": 0.0021,
       "utility": 0.0012,
       "unclassified": 0
     }
@@ -36,50 +36,62 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
     {
       "class_name": "Wall_Concrete_8x4",
       "role": "enclosure",
-      "total_count": 272,
-      "design_frequency": 8
+      "total_count": 323,
+      "design_frequency": 9
     },
     {
       "class_name": "PowerLine",
       "role": "power",
-      "total_count": 137,
-      "design_frequency": 8
+      "total_count": 156,
+      "design_frequency": 9
     },
     {
       "class_name": "Wall_Concrete_8x1",
       "role": "enclosure",
-      "total_count": 90,
-      "design_frequency": 8
+      "total_count": 106,
+      "design_frequency": 9
     },
     {
       "class_name": "PowerPoleWall",
       "role": "power",
-      "total_count": 84,
-      "design_frequency": 8
+      "total_count": 85,
+      "design_frequency": 9
     },
     {
       "class_name": "StandaloneWidgetSign_Small",
       "role": "signage",
-      "total_count": 39,
-      "design_frequency": 8
+      "total_count": 40,
+      "design_frequency": 9
     },
     {
       "class_name": "ConveyorBeltMk2",
       "role": "logistics",
-      "total_count": 99,
-      "design_frequency": 7
+      "total_count": 102,
+      "design_frequency": 8
     },
     {
       "class_name": "ConveyorAttachmentMerger",
       "role": "logistics",
-      "total_count": 31,
-      "design_frequency": 7
+      "total_count": 35,
+      "design_frequency": 8
     },
     {
       "class_name": "Foundation_Concrete_8x1",
       "role": "enclosure",
-      "total_count": 117,
-      "design_frequency": 6
+      "total_count": 166,
+      "design_frequency": 7
+    },
+    {
+      "class_name": "ConveyorAttachmentSplitter",
+      "role": "logistics",
+      "total_count": 26,
+      "design_frequency": 7
+    },
+    {
+      "class_name": "Wall_Concrete_SDoor_8x4",
+      "role": "enclosure",
+      "total_count": 13,
+      "design_frequency": 7
     },
     {
       "class_name": "Wall_Concrete_8x4_ConveyorHole_01",
@@ -88,21 +100,9 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 6
     },
     {
-      "class_name": "ConveyorAttachmentSplitter",
-      "role": "logistics",
-      "total_count": 15,
-      "design_frequency": 6
-    },
-    {
       "class_name": "SignPole_Small",
       "role": "signage",
       "total_count": 14,
-      "design_frequency": 6
-    },
-    {
-      "class_name": "Wall_Concrete_SDoor_8x4",
-      "role": "enclosure",
-      "total_count": 12,
       "design_frequency": 6
     },
     {
@@ -115,6 +115,12 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "class_name": "StandaloneWidgetSign_Square_Tiny",
       "role": "signage",
       "total_count": 218,
+      "design_frequency": 5
+    },
+    {
+      "class_name": "ConstructorMk1",
+      "role": "production",
+      "total_count": 34,
       "design_frequency": 5
     },
     {
@@ -136,10 +142,28 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 4
     },
     {
-      "class_name": "ConstructorMk1",
+      "class_name": "PowerPoleMk1",
+      "role": "power",
+      "total_count": 13,
+      "design_frequency": 3
+    },
+    {
+      "class_name": "ConveyorLiftMk2",
+      "role": "logistics",
+      "total_count": 9,
+      "design_frequency": 3
+    },
+    {
+      "class_name": "AssemblerMk1",
       "role": "production",
-      "total_count": 24,
-      "design_frequency": 4
+      "total_count": 8,
+      "design_frequency": 3
+    },
+    {
+      "class_name": "Wall_Concrete_8x4_ConveyorHole_02",
+      "role": "enclosure",
+      "total_count": 6,
+      "design_frequency": 3
     },
     {
       "class_name": "SignPole_Medium",
@@ -190,6 +214,18 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 2
     },
     {
+      "class_name": "ConveyorBeltMk1",
+      "role": "logistics",
+      "total_count": 55,
+      "design_frequency": 2
+    },
+    {
+      "class_name": "FoundationPassthrough_Lift",
+      "role": "logistics",
+      "total_count": 41,
+      "design_frequency": 2
+    },
+    {
       "class_name": "Wall_Window_Thin_8x4_01",
       "role": "enclosure",
       "total_count": 39,
@@ -214,14 +250,14 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 2
     },
     {
-      "class_name": "PowerPoleMk1",
-      "role": "power",
-      "total_count": 12,
+      "class_name": "Gate_Automated_8x4",
+      "role": "access",
+      "total_count": 9,
       "design_frequency": 2
     },
     {
-      "class_name": "Gate_Automated_8x4",
-      "role": "access",
+      "class_name": "StandaloneWidgetSign_SmallWide",
+      "role": "signage",
       "total_count": 9,
       "design_frequency": 2
     },
@@ -232,7 +268,19 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 2
     },
     {
-      "class_name": "ConveyorLiftMk2",
+      "class_name": "Ladder",
+      "role": "access",
+      "total_count": 8,
+      "design_frequency": 2
+    },
+    {
+      "class_name": "SmelterMk1",
+      "role": "production",
+      "total_count": 8,
+      "design_frequency": 2
+    },
+    {
+      "class_name": "StorageContainerMk1",
       "role": "logistics",
       "total_count": 8,
       "design_frequency": 2
@@ -271,18 +319,6 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "class_name": "CatwalkT",
       "role": "access",
       "total_count": 6,
-      "design_frequency": 2
-    },
-    {
-      "class_name": "AssemblerMk1",
-      "role": "production",
-      "total_count": 4,
-      "design_frequency": 2
-    },
-    {
-      "class_name": "Wall_Concrete_8x4_ConveyorHole_02",
-      "role": "enclosure",
-      "total_count": 2,
       "design_frequency": 2
     },
     {
@@ -352,6 +388,12 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 1
     },
     {
+      "class_name": "ConveyorLiftMk1",
+      "role": "logistics",
+      "total_count": 51,
+      "design_frequency": 1
+    },
+    {
       "class_name": "ChainLinkFence",
       "role": "access",
       "total_count": 48,
@@ -385,12 +427,6 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "class_name": "Wall_Window_8x4_07",
       "role": "enclosure",
       "total_count": 24,
-      "design_frequency": 1
-    },
-    {
-      "class_name": "FoundationPassthrough_Lift",
-      "role": "logistics",
-      "total_count": 23,
       "design_frequency": 1
     },
     {
@@ -502,12 +538,6 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 1
     },
     {
-      "class_name": "Ladder",
-      "role": "access",
-      "total_count": 5,
-      "design_frequency": 1
-    },
-    {
       "class_name": "Roof_A_01",
       "role": "enclosure",
       "total_count": 5,
@@ -568,12 +598,6 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 1
     },
     {
-      "class_name": "SmelterMk1",
-      "role": "production",
-      "total_count": 4,
-      "design_frequency": 1
-    },
-    {
       "class_name": "StorageContainerMk2",
       "role": "logistics",
       "total_count": 4,
@@ -593,12 +617,6 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
     },
     {
       "class_name": "ConveyorAttachmentSplitterProgrammable",
-      "role": "logistics",
-      "total_count": 3,
-      "design_frequency": 1
-    },
-    {
-      "class_name": "ConveyorBeltMk1",
       "role": "logistics",
       "total_count": 3,
       "design_frequency": 1
@@ -796,20 +814,8 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
       "design_frequency": 1
     },
     {
-      "class_name": "StandaloneWidgetSign_SmallWide",
-      "role": "signage",
-      "total_count": 1,
-      "design_frequency": 1
-    },
-    {
       "class_name": "SteelWall_8x4_Gate_01",
       "role": "enclosure",
-      "total_count": 1,
-      "design_frequency": 1
-    },
-    {
-      "class_name": "StorageContainerMk1",
-      "role": "logistics",
       "total_count": 1,
       "design_frequency": 1
     },
@@ -833,6 +839,217 @@ export const BLUEPRINT_REFERENCE_CATALOG = Object.freeze({
     }
   ],
   "references": [
+    {
+      "id": "aio-iron-products",
+      "name": "AIO Iron Products",
+      "kind": "unclassified",
+      "author": null,
+      "notes": "Discovered in sources/ without a manifest entry.",
+      "authored_on": {
+        "game_changelist": 273254,
+        "factory_save_custom_version": 42
+      },
+      "designer_dimensions": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "occupied_span_cm": {
+        "x": 3200,
+        "y": 3200,
+        "z": 3160
+      },
+      "occupied_span_cells": {
+        "x": 4,
+        "y": 4
+      },
+      "declared_io": {
+        "raw_description": "Just another one-click-factory for all the possible products from a lone Iron Ore node.\r\n\r\nFocus of this blueprint is absolute lowest build cost. Only up to Mk2 belts needed. Fully walkable. Minimal clipping. I also tried to make it 100% efficient, but theres an issue with Iron Rods being a couple of seconds late for the RIPs, not a major issue, but enough to call this an unfinished blueprint. Update to come. eventually. For now it will produce at *almost* 100% efficiency after about 1hr from being connected to resource node and power. Oh, and it's roughly color coded to each of the four smelter production lines. White is when they cross over. \r\n\r\nI've also used two alternate recipes (Stitched Iron Plate and Iron Wire), but keep in mind you DO NOT need the recipes unlocked in order to build blueprint. Just don't change the selected recipes!\r\n\r\nSimplified production line: (actual in second carousel image)\r\n\r\nhttps://satisfactory-calculator.com/en/planners/production/index/json/%7B%22Desc_IronRod_C%22%3A%225%22%2C%22Desc_IronPlate_C%22%3A%2210%22%2C%22Desc_IronPlateReinforced_C%22%3A%223.375%22%2C%22Desc_ModularFrame_C%22%3A%222%22%2C%22Desc_Rotor_C%22%3A%221.6%22%2C%22Desc_Wire_C%22%3A%225%22%2C%22Desc_Cable_C%22%3A%2210%22%2C%22input%22%3A%7B%22Desc_OreIron_C%22%3A%22780%22%7D%2C%22altRecipes%22%3A%5B%22Recipe_Alternate_ReinforcedIronPlate_2_C%22%2C%22Recipe_Alternate_Wire_1_C%22%2C%22Recipe_Alternate_Screw_C%22%5D%7D\r\n\r\n\r\n\r\nIN:\r\n\r\n120 (119.625)/m - Iron Ore\r\n\r\n85.84.4MW\r\n\r\n\r\nOUT:\r\n\r\n10/m - Iron Plate\r\n\r\n5/m - Iron Rod\r\n\r\n5/m - Wire\r\n\r\n10/m - Cable\r\n\r\n4.3.375/m - Reinforced Iron Plate\r\n\r\n2.1.6/m - Rotor\r\n\r\n2/m Modular Frame (first two @ 6min)\r\n\r\n\r\nPlease note that although I have marked this as Modded, you DO NOT need mods to use it. The mods I used are only needed for placing objects within blueprint designer. Infinite Nudge for fine placement adjustments and DaisyChainEverything for connecting multiple power lines to machines",
+        "inputs": [],
+        "outputs": [],
+        "evidence": "author_supplied_description_text",
+        "caveat": "Parsed from the blueprint author's own description. It is a claim about the design, not a decoded or simulated rate. Verify against content.recipes before planning to it."
+      },
+      "role_census": {
+        "total_buildables": 319,
+        "counts": {
+          "production": 18,
+          "logistics": 147,
+          "power": 21,
+          "enclosure": 121,
+          "access": 3,
+          "signage": 9,
+          "ambience": 0,
+          "utility": 0,
+          "unclassified": 0
+        },
+        "share": {
+          "production": 0.0564,
+          "logistics": 0.4608,
+          "power": 0.0658,
+          "enclosure": 0.3793,
+          "access": 0.0094,
+          "signage": 0.0282,
+          "ambience": 0,
+          "utility": 0,
+          "unclassified": 0
+        },
+        "unclassified_classes": []
+      },
+      "buildable_classes": [
+        {
+          "class_name": "ConveyorBeltMk1",
+          "count": 52,
+          "role": "logistics"
+        },
+        {
+          "class_name": "ConveyorLiftMk1",
+          "count": 51,
+          "role": "logistics"
+        },
+        {
+          "class_name": "Wall_Concrete_8x4",
+          "count": 51,
+          "role": "enclosure"
+        },
+        {
+          "class_name": "Foundation_Concrete_8x1",
+          "count": 49,
+          "role": "enclosure"
+        },
+        {
+          "class_name": "PowerLine",
+          "count": 19,
+          "role": "power"
+        },
+        {
+          "class_name": "FoundationPassthrough_Lift",
+          "count": 18,
+          "role": "logistics"
+        },
+        {
+          "class_name": "Wall_Concrete_8x1",
+          "count": 16,
+          "role": "enclosure"
+        },
+        {
+          "class_name": "ConveyorAttachmentSplitter",
+          "count": 11,
+          "role": "logistics"
+        },
+        {
+          "class_name": "ConstructorMk1",
+          "count": 10,
+          "role": "production"
+        },
+        {
+          "class_name": "StandaloneWidgetSign_SmallWide",
+          "count": 8,
+          "role": "signage"
+        },
+        {
+          "class_name": "StorageContainerMk1",
+          "count": 7,
+          "role": "logistics"
+        },
+        {
+          "class_name": "AssemblerMk1",
+          "count": 4,
+          "role": "production"
+        },
+        {
+          "class_name": "ConveyorAttachmentMerger",
+          "count": 4,
+          "role": "logistics"
+        },
+        {
+          "class_name": "SmelterMk1",
+          "count": 4,
+          "role": "production"
+        },
+        {
+          "class_name": "Wall_Concrete_8x4_ConveyorHole_02",
+          "count": 4,
+          "role": "enclosure"
+        },
+        {
+          "class_name": "ConveyorBeltMk2",
+          "count": 3,
+          "role": "logistics"
+        },
+        {
+          "class_name": "Ladder",
+          "count": 3,
+          "role": "access"
+        },
+        {
+          "class_name": "ConveyorLiftMk2",
+          "count": 1,
+          "role": "logistics"
+        },
+        {
+          "class_name": "PowerPoleMk1",
+          "count": 1,
+          "role": "power"
+        },
+        {
+          "class_name": "PowerPoleWall",
+          "count": 1,
+          "role": "power"
+        },
+        {
+          "class_name": "StandaloneWidgetSign_Small",
+          "count": 1,
+          "role": "signage"
+        },
+        {
+          "class_name": "Wall_Concrete_SDoor_8x4",
+          "count": 1,
+          "role": "enclosure"
+        }
+      ],
+      "distinct_buildable_classes": 22,
+      "topology": {
+        "reciprocal_conveyor_pairs": 154,
+        "verified_power_wires": 19
+      },
+      "build_cost": [
+        {
+          "item_name": "Cement",
+          "amount": 668
+        },
+        {
+          "item_name": "QuartzCrystal",
+          "amount": 26
+        },
+        {
+          "item_name": "IronPlate",
+          "amount": 594
+        },
+        {
+          "item_name": "Cable",
+          "amount": 199
+        },
+        {
+          "item_name": "IronPlateReinforced",
+          "amount": 68
+        },
+        {
+          "item_name": "IronRod",
+          "amount": 158
+        },
+        {
+          "item_name": "Wire",
+          "amount": 39
+        },
+        {
+          "item_name": "Rotor",
+          "amount": 16
+        }
+      ],
+      "source": "decoded_from_saved_native_blueprint",
+      "certainty": "authoritative_for_decoded_entities"
+    },
     {
       "id": "arch-miner-wrap-1x2",
       "name": "[ARCH] Miner Wrap [1x2][v1]",

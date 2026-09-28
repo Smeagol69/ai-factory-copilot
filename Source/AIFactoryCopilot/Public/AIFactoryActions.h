@@ -216,6 +216,24 @@ namespace AIFactoryActions
         int32 Count);
 
     /**
+     * Grants a milestone or research schematic.
+     *
+     * The game exposes this properly - AFGSchematicManager::GiveAccessToSchematic
+     * - so an assistant asked to unlock Trains no longer has to answer that it
+     * cannot press the button. `bForce` passes ESchematicUnlockFlags::Force,
+     * which ignores prerequisites, so a Tier 6 milestone can be granted from
+     * Tier 4 without walking the whole tree.
+     *
+     * NOT reversible. There is no revoke in the game's API, so undo cannot take
+     * a schematic back; the result says so rather than implying otherwise. It is
+     * also free - the cost is reported but never charged.
+     */
+    FAIFactoryActionResult UnlockSchematic(
+        const FAIFactoryActionContext& Context,
+        const FString& SchematicClassPath,
+        bool bForce);
+
+    /**
      * Runs a conveyor belt between two existing factory connections.
      *
      * `plan_belt_route` on the bridge already chooses the connector pair and

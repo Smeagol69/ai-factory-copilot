@@ -55,6 +55,9 @@ export const WRITE_ACTION_KINDS = [
   // is exactly what was asked for — but it is still a write: gated, stamped,
   // dry-runnable, and reversible by taking back only what actually landed.
   "give_item",
+  // Granting a milestone. A write like any other, and the only one that
+  // cannot be undone - the game exposes no revoke for a schematic.
+  "unlock_schematic",
   // The game's own map markers, used instead of reimplementing the compass
   // distance readout the resource scanner already shows.
   //
@@ -1767,6 +1770,67 @@ export function validateAction(graph, proposal) {
         },
         proposal,
       ),
+    };
+  }
+
+  if (kind === "unlock_schematic") {
+    const requested = String(proposal.schematic_class ?? proposal.schematic_name ?? "").trim();
+    if (!requested) return reject(kind, "schematic_class_or_schematic_name_is_required");
+
+    // Resolve against what the game reported rather than letting a guessed
+    // class path bounce off the mod. Both lists are searched: asking to
+    // unlock something already owned should say so, not fail to resolve.
+    const progression = graph?.snapshot?.progression ?? {};
+    const pool = [
+      ...(progression.unpurchased_schematics ?? []),
+      ...(progression.purchased_schematics ?? []),
+    ];
+    const needle = requested.toLowerCase();
+    const match =
+      pool.find((entry) => String(entry.class_path ?? "").toLowerCase() === needle) ??
+      pool.find((entry) => String(entry.name ?? "").toLowerCase() === needle) ??
+      pool.find((entry) => String(entry.name ?? "").toLowerCase().includes(needle));
+
+    if (!match) {
+      // An empty pool means the capture predates unpurchased_schematics, which
+      // is a different problem from a bad name and must not read as one.
+      if (pool.length === 0) {
+        return reject(kind, "this_capture_does_not_list_schematics", {
+          note: "ask again after a fresh capture from a mod build that reports unpurchased_schematics",
+        });
+      }
+      return reject(kind, "no_such_schematic", {
+        closest: pool
+          .map((entry) => entry.name)
+          .filter(Boolean)
+          .filter((name) => String(name).toLowerCase().includes(needle.slice(0, 4)))
+          .slice(0, 6),
+      });
+    }
+
+    return {
+      valid: true,
+      warnings: [
+        ...warnings,
+        "granting a schematic cannot be undone: the game exposes no revoke",
+        "the cost is reported but never charged",
+      ],
+      checks: {
+        ...checks,
+        schematic_name: match.name ?? null,
+        tech_tier: match.tech_tier ?? null,
+        prerequisites_met: match.prerequisites_met ?? null,
+        already_purchased: (progression.purchased_schematics ?? []).some(
+          (entry) => entry.class_path === match.class_path,
+        ),
+        cost_not_charged: match.cost ?? [],
+      },
+      action: {
+        kind: "unlock_schematic",
+        schematic_class: match.class_path,
+        force: proposal.force !== false,
+        commit: proposal.commit === true,
+      },
     };
   }
 
