@@ -18,6 +18,7 @@ import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileStructuralBlueprint } from "./structural-blueprints.mjs";
+import { planAioProduction } from "./aio-production.mjs";
 import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
 import { compileArchitectAccess } from "./architect-access.mjs";
@@ -278,6 +279,29 @@ export const SOLVER_TOOLS = [
       additionalProperties: false,
     },
     run: (graph, args) => solveSiteSelection(graph, args),
+  },
+  {
+    name: "plan_aio_factory",
+    description:
+      "Calculate a balanced multi-output AIO factory. Reserves all internal ingredients before reporting net finished products, shares intermediate production, maximizes an explicit output basket against delivered input budgets, and returns machine counts, required underclocks, material flows and measured belt capacity lower bounds. Use for 'all iron products', 'optimal AIO', or multiple products sharing rods/screws/ingots. Choose a useful product mix and state it; there is no simultaneous independent maximum for every product. Use captured catalog classes and available recipes; provide exact alternate choices where needed. Supply rates must come from the user or source solvers, never a guessed miner yield. This is a read-only balance, NOT a build-ready blueprint: clocks, junctions, overflow, power and layout still require a native compiler. Do not feed its steps to legacy builders that would discard clocks or reserve output incorrectly.",
+    parameters: {
+      type: "object",
+      properties: {
+        outputs: { type: "array", minItems: 1, maxItems: 24, description: "Desired net external product basket. Rates are ratios when maximize=true, exact targets otherwise.", items: {
+          type: "object", properties: { item_class: { type: "string" }, item_name: { type: "string" }, rate_per_minute: { type: "number", exclusiveMinimum: 0 } },
+          required: ["rate_per_minute"], additionalProperties: false } },
+        inputs: { type: "array", minItems: 1, maxItems: 24, description: "Known delivered supply budgets in items/min; internal needs are fully reserved first.", items: {
+          type: "object", properties: { item_class: { type: "string" }, item_name: { type: "string" }, rate_per_minute: { type: "number", exclusiveMinimum: 0 } },
+          required: ["rate_per_minute"], additionalProperties: false } },
+        recipe_choices: { type: "array", maxItems: 64, description: "Exact recipe override for each product/intermediate. Otherwise uses the unique standard recipe, or refuses ambiguous alternatives.", items: {
+          type: "object", properties: { item_class: { type: "string" }, item_name: { type: "string" }, recipe_class: { type: "string" } },
+          required: ["recipe_class"], additionalProperties: false } },
+        belt_actor_id: { type: "string", description: "Optional exact captured conveyor whose observed capacity sizes parallel lanes; omit to report unknown." },
+        maximize: { type: "boolean", description: "Default true: scale every net output together until a supplied input binds. False checks the exact requested rates." },
+      },
+      required: ["inputs", "outputs"], additionalProperties: false,
+    },
+    run: (graph, args) => planAioProduction(graph, args),
   },
   {
     name: "plan_production",

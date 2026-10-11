@@ -139,6 +139,11 @@ export function planBaseBuild(graph, args = {}) {
     measure_connectors: measureConnectors = null,
   } = args;
 
+  if (plan?.solver === "aio_production" && plan.build_ready !== true) {
+    return { solver: "base_build", planned: false, reason: "aio_requires_clock_and_reserved_flow_compiler",
+      blockers: plan.blockers ?? [] };
+  }
+
   if (!plan?.planned || !Array.isArray(plan.steps) || plan.steps.length === 0) {
     return {
       solver: "base_build",

@@ -508,3 +508,23 @@ This initial workflow generates an undecorated rectangular shell. It does not
 yet generate arbitrary cave shapes, place props, excavate terrain, fit around
 existing machines or build directly into a selected cave. Native save and live
 placement must still be tested before claiming the full acceptance scenario.
+
+## Calculated AIO production (2026-10-11)
+
+`plan_aio_factory` now plans several net outputs together. Inputs are explicit
+**delivered** budgets; outputs define a useful product basket. The solver reserves
+all shared intermediate demand, coalesces each selected recipe, and maximizes the
+basket's common scale against the binding input. It reports gross/internal/net
+rates, the minimum machine count at at most 100% clock, required equal clocks,
+and per-flow minimum parallel belts when an exact captured conveyor is supplied.
+No miner rate, belt rate, power draw or clock is guessed. Exact standard recipes
+are preferred; ambiguous or unavailable recipes need an explicit valid choice.
+
+This is a steady-state optimum for fixed recipes and output ratios, not a global
+recipe or spatial optimum. Current scope is acyclic single-product solid recipes.
+Full storage still stops a factory unless a verified overflow consumer/sink exists.
+Startup filling and junction routing are not simulated. The result deliberately
+has `build_ready:false`; legacy `design_base` refuses it because it would discard
+required clocks and cannot prove reserved internal flow. Next native work is
+clock serialization/readback and capacity-aware splitter/merger topology before
+promoting the balance into a fully wired compact blueprint.

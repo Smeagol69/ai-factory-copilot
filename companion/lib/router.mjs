@@ -2790,6 +2790,23 @@ export function parseGiveRequest(question) {
   return { item: body, count };
 }
 
+// Keep writes narrow: a whole imperative, one uniquely captured milestone.
+// Questions about cost/prerequisites and multi-action requests stay with the model.
+export function parseUnlockSchematicRequest(question, graph) {
+  const match = String(question ?? "").trim().match(
+    /^(?:(?:can|could) you |please )?unlock\s+(?:the\s+)?(.+?)(?:\s+for me)?(?:\s*(?:,?\s*just that milestone|and only that))?[.!?]*$/i,
+  );
+  if (!match) return null;
+  let name = match[1].trim();
+  if (/\b(?:and|then|except|without|if|all)\b|[,;?]/i.test(name)) return null;
+  if (/^trains?(?:\s+(?:tech|technology|milestone))?$/i.test(name)) name = "Monorail Train Technology";
+  const progression = graph.snapshot?.progression ?? {};
+  const matches = [...(progression.purchased_schematics ?? []), ...(progression.unpurchased_schematics ?? [])]
+    .filter(s => String(s.name ?? "").toLowerCase() === name.toLowerCase());
+  const unique = new Map(matches.filter(s => s.class_path).map(s => [s.class_path, s]));
+  return unique.size === 1 ? [...unique.values()][0] : null;
+}
+
 export function parseLocateRequest(question) {
   const text = String(question ?? "").trim().replace(/[?!.]+$/, "");
   if (!text) return null;
@@ -3223,6 +3240,19 @@ export function answerLocally(question, graph, services) {
   // resolves the item name against the game's own 2,405-entry item catalog and
   // refuses anything that is not in it, so there is nothing here for a model to
   // decide — and an unknown name falls through to one rather than being denied.
+  const schematic = parseUnlockSchematicRequest(question, graph);
+  if (schematic) {
+    const started = Date.now();
+    const plan = emitValidatedPlan(graph, services, [
+      { action: "unlock_schematic", schematic_class: schematic.class_path, force: true, commit: true },
+    ]);
+    if (plan) return localAnswer(
+      `Requested unlocking **${schematic.name}** only. The game will report whether it succeeded. ` +
+      "This grants the milestone without charging its cost and cannot be undone.",
+      "unlock_schematic", started, "One exact captured milestone, with the current world revision; pending native readback.",
+    );
+  }
+
   const give = parseGiveRequest(question);
   if (give) {
     const started = Date.now();

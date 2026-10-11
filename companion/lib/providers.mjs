@@ -75,6 +75,7 @@ factory arithmetic yourself:
 - what a build costs and whether the player can afford it -> get_build_cost;
 - where to put a HUB, base, or factory -> find_best_site;
 - how to build N per minute of something, or any scale-up -> plan_production;
+- an AIO or several products sharing ingredients -> plan_aio_factory. Reserve internal consumption before net storage outputs. Choose and disclose a useful output mix if the player delegates priorities; never promise independent maxima for competing outputs. Read supply from solvers or explicit user input. The result optimizes only that fixed recipe mix. It is not build-ready: do not pass its steps to legacy layout/blueprint tools that discard required clocks or junction routing. Explain the named build blockers. Full storage requires verified overflow disposal to keep machines running;
 - what blueprints the player has, or what one costs -> list_blueprints;
 - complete saved-actor references, including modded plants, props and decorative pieces -> inspect_blueprint_layout with entity_offset=0. Continue with entity_page.next_offset and expected_source_fingerprint from the first result until next_offset is null when the task needs the whole design. Never treat the bounded buildables list or its Build_* naming heuristic as the entire blueprint. Restart inspection after a source-fingerprint mismatch; do not merge different revisions. Saved actor transforms do not prove runtime buildability or placement fit. For an unchanged copy, prefer the existing native place_blueprint action, which preserves the saved contents, over rebuilding individual pieces; obtain the exact blueprint identity and destination through tools, and report success only after game readback;
 - the actual saved arrangement, transformed native Build_* entities, class counts, saved reciprocal conveyor/pipe component links, exact physical native power-wire endpoint pairs, native railroad-track spline records (saved points/tangents, local bounds, Blueprint-relative transformed endpoints, chord-length lower bounds, and mTrackGraphID metadata), or native hypertube records (exact FGPipeConnectionComponentHyper links, PipeHyper spline points/tangents, transformed endpoints, and saved passthrough-reference observations) inside one native blueprint -> inspect_blueprint_layout; saved mHiddenConnections logical circuit relationships are excluded. It carries a caveat for nonstandard modded class names and does not infer item/fluid direction/rate, hypertube traversal direction/speed, rail joins, electricity direction/load/capacity, terrain excavation/clearance, underground fit, cross-blueprint joins, signals, external hookups, or destination placement validity. When list_blueprints reports duplicate names, pass its blueprint_reference rather than guessing;
@@ -532,6 +533,10 @@ const BLUEPRINT_RUNTIME_AUDIT_GROUNDING_PATTERN =
 
 const GROUNDING_REQUIREMENTS = [
   {
+    pattern: /\b(?:aio|all.in.one factory)\b/i,
+    tools: ["plan_aio_factory"],
+  },
+  {
     pattern:
       /\b(factory (?:summary|overview|census)|what (?:is|s) in (?:this|my|our) factory|what have i built|what buildings do i have)\b/i,
     tools: ["get_factory_summary"],
@@ -552,6 +557,7 @@ const GROUNDING_REQUIREMENTS = [
       "get_item_balance",
       "get_transport_capacity",
       "plan_production",
+      "plan_aio_factory",
       // find_recipes returns registered per-minute input/output rates. It is
       // sufficient for a recipe-rate comparison, but not for a live machine's
       // current output.
@@ -562,11 +568,12 @@ const GROUNDING_REQUIREMENTS = [
   },
   {
     pattern: /\b(short of|deficit|surplus|balance|oversuppl|undersuppl)\w*\b/i,
-    tools: ["get_item_balance"],
+    tools: (question) => /\b(?:aio|all.in.one factory)\b/i.test(question)
+      ? ["get_item_balance", "plan_aio_factory"] : ["get_item_balance"],
   },
   {
     pattern: /\b(recipe|alternate|alt recipe|ingredients?)\b/i,
-    tools: ["find_recipes", "plan_production", "get_build_cost"],
+    tools: ["find_recipes", "plan_production", "plan_aio_factory", "get_build_cost"],
   },
   {
     pattern:
@@ -685,6 +692,7 @@ function evidenceRows(tool, parsed) {
     case "find_best_site":
       return Array.isArray(parsed.sites) ? parsed.sites : [];
     case "plan_production":
+    case "plan_aio_factory":
       return parsed.planned === true ? [parsed] : [];
     case "list_blueprints":
       return Array.isArray(parsed.blueprints) ? parsed.blueprints : [];
@@ -1910,6 +1918,7 @@ function localSolverToolDefinitions(explicitlyNamedSolver) {
  * `companion/test/hybrid-fallback.test.mjs`.
  */
 const SOLVER_TOOL_NAMES = [
+  "plan_aio_factory",
   "design_structure_blueprint",
   "design_base",
   "design_composition",

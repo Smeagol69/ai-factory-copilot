@@ -10000,3 +10000,30 @@ and - for anything classified as a write - carries `expect_world_revision`.
 Verified by unwrapping the stamp and watching it fail.
 
 **1216/1216.**
+
+### Codex — AIO balance and train dispatch integration (2026-10-11)
+
+Merged Claude 8891d2b intact. Today's real train failure still reports
+committed_write_missing_expect_world_revision. Added a narrow free local unlock
+route for one exact captured milestone (train/tech aliases resolve to Monorail
+Train Technology), preserving revision binding, native authority and readback.
+Ambiguous, conditional and multi-action requests do not take this write route.
+
+Added plan_aio_factory: single shared material balance for an explicit basket,
+raw-input budget bound, internal-demand reservation, shared intermediates,
+minimum machine counts at <=100% clocks, required clocks and measured per-flow
+parallel-belt lower bounds. Current catalog availability and exact recipe choice
+remain mandatory; no world mutation. Provider grounding and tool exposure added.
+Legacy base builder refuses this plan rather than dropping clocks. Six tests
+cover hand-calculated shared demand, independent mass conservation across supply
+scales, scoped optimality, capacity, invalid recipes/contracts and no-action tool.
+Two train-route tests cover the actual user phrasings and native payload contract.
+All 1251 tests pass. Native AIO clock/topology/layout promotion remains open.
+
+Supplied private AIO decoded to Documents/Architect Designs/AIO-Iron-2026-10-10:
+319 actors, 18 production machines, 154 reciprocal conveyor pairs, 19 power wires.
+Missing saved clocks remain unknown. 120 ore/min scenario using current standard
+recipes balances 18 machines and six net outputs; it is not proof of delivered
+live supply. Iron Wire and Stitched Iron Plate in the reference are unavailable
+in the current capture, so they were not silently selected. No player files added
+to the public repository. Companion deployment/live train verification follows.

@@ -77,6 +77,7 @@ test("exposes the roadmap solver set to the model", () => {
     "locate",
     "manage_architect_revisions",
     "perform_actions",
+    "plan_aio_factory",
     "plan_belt_route",
     "plan_belted_module",
     "plan_production",
