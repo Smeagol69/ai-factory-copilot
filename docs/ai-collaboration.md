@@ -10056,3 +10056,20 @@ All 1253 tests and scripts/validate.ps1 passed. Shipping module compiled against
 CL502094 (74s); package/Editor build now underway. No in-game verification: the
 owner's game is currently closed. New blueprint attachments are deliberately NOT
 read yet, following owner's instruction to finish this task before studying them.
+
+### Codex — combined v5 package installed (2026-10-11)
+
+Integrated source a868dc6 preserves Claude through8891d2b. Rechecked Claude clean
+and unchanged before final copy; no running game. scripts/validate.ps1 passed all
+1253 tests and exact headers, Shipping build passed, then package-local -StageOnly
+built Editor/Shipping, cooked and verified archive. Native game plugin copied
+from the verified archive with a pre-copy backup at LocalAppData/
+AIFactoryCopilotDeployBackups/before-v5-e60181b2eb5a4e5e955c6a110573b699.
+All1130 archived files matched after deployment. Standalone install verified63
+runtime/support hashes; /health ok/hybrid exposes plan_aio_factory.
+Archive20899289bytes SHA256:
+671CB33CC361283E1E3A14458EB4A3A115E8F2E32D5F718F017F3C89D5859802
+Deployed Shipping DLL SHA256:
+4D48CE13CD43373BF85894476253E2DF9125CB8CAB5ACDB9DE1C39369F539AF8
+Live game verification follows; no claim of AIO build readiness or clock roundtrip
+success yet. No paid provider calls, no player blueprint file rewritten.
