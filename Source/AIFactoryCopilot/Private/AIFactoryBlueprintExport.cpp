@@ -611,6 +611,14 @@ namespace
             return false;
         }
 
+        if (Part.bHasClockPercent &&
+            (!ProductionRecipe || !FMath::IsFinite(Part.ClockPercent) ||
+             Part.ClockPercent <= 0.0 || Part.ClockPercent > 100.0 ||
+             !BuildableClass->IsChildOf(AFGBuildableManufacturer::StaticClass())))
+        {
+            OutReason = TEXT("generated_clock_requires_configured_manufacturer_and_valid_underclock:") + Part.PartId;
+            return false;
+        }
         Out.Source = Part;
         Out.BuildRecipe = BuildRecipe;
         Out.ProductionRecipe = ProductionRecipe;
@@ -1198,6 +1206,28 @@ namespace
                     {
                         Failure = TEXT("generated_manufacturer_recipe_readback_failed:") +
                             Part.Source.PartId;
+                        return false;
+                    }
+                }
+
+                if (Part.Source.bHasClockPercent)
+                {
+                    AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Buildable);
+                    const float Potential = static_cast<float>(Part.Source.ClockPercent / 100.0);
+                    if (!IsValid(Manufacturer) || !Manufacturer->GetCanChangePotential() ||
+                        !FMath::IsFinite(Potential) || Potential < Manufacturer->GetCurrentMinPotential() ||
+                        Potential > Manufacturer->GetCurrentMaxPotential())
+                    {
+                        Failure = TEXT("generated_clock_outside_native_manufacturer_range:") + Part.Source.PartId;
+                        return false;
+                    }
+                    // Public native API. Current potential is protected and may
+                    // change only on the game's next production cycle. Pending
+                    // potential is SaveGame and is the exact requested setting.
+                    Manufacturer->SetPendingPotential(Potential);
+                    if (!FMath::IsNearlyEqual(Manufacturer->GetPendingPotential(), Potential, 0.00001f))
+                    {
+                        Failure = TEXT("generated_clock_staging_readback_failed:") + Part.Source.PartId;
                         return false;
                     }
                 }
@@ -1932,6 +1962,7 @@ namespace
     bool ValidateGeneratedNativeTopologyReadback(
         const TArray<AFGBuildable*>& Loaded,
         const TArray<FResolvedGeneratedPart>& ExpectedParts,
+        const FTransform& GeneratedToArchive,
         const int32 ExpectedBuildables,
         const int32 ExpectedConfiguredManufacturers,
         const int32 ExpectedConveyors,
@@ -1950,6 +1981,37 @@ namespace
         int32 ExactPipelineLinks = 0;
         TArray<AAIFactoryBlueprintResourceAnchor*> LoadedResourceAnchors;
         TArray<AFGBuildableResourceExtractorBase*> LoadedMiners;
+
+        int32 ExactClockSettings = 0;
+        TSet<AFGBuildable*> ClockMatchedActors;
+        for (const FResolvedGeneratedPart& Part : ExpectedParts)
+        {
+            if (!Part.Source.bHasClockPercent) continue;
+            const FTransform ExpectedTransform = Part.Source.RelativeTransform * GeneratedToArchive;
+            AFGBuildableManufacturer* Match = nullptr;
+            int32 Matches = 0;
+            for (AFGBuildable* Candidate : Loaded)
+            {
+                if (!IsValid(Candidate) || Candidate->GetClass() != Part.BuildableClass.Get()) continue;
+                const FTransform Actual = Candidate->GetActorTransform();
+                if (!Actual.GetLocation().Equals(ExpectedTransform.GetLocation(), 0.1) ||
+                    !Actual.GetRotation().Equals(ExpectedTransform.GetRotation(), 0.0001) ||
+                    !Actual.GetScale3D().Equals(ExpectedTransform.GetScale3D(), 0.0001)) continue;
+                ++Matches;
+                Match = Cast<AFGBuildableManufacturer>(Candidate);
+            }
+            if (Matches != 1 || !IsValid(Match) || ClockMatchedActors.Contains(Match) ||
+                Match->GetCurrentRecipe() != Part.ProductionRecipe ||
+                !FMath::IsNearlyEqual(Match->GetPendingPotential(),
+                    static_cast<float>(Part.Source.ClockPercent / 100.0), 0.00001f))
+            {
+                OutReason = TEXT("native_blueprint_machine_clock_readback_failed:") + Part.Source.PartId;
+                return false;
+            }
+            ClockMatchedActors.Add(Match);
+            ++ExactClockSettings;
+        }
+        Observed->SetNumberField(TEXT("exact_saved_machine_clock_settings"), ExactClockSettings);
 
         for (AFGBuildable* Buildable : Loaded)
         {
@@ -2610,7 +2672,9 @@ FAIFactoryActionResult GenerateLayout(
     const bool bSchemaV1 = LayoutSchema == TEXT("aifactory.generated-blueprint/v1");
     const bool bSchemaV2 = LayoutSchema == TEXT("aifactory.generated-blueprint/v2");
     const bool bSchemaV3 = LayoutSchema == TEXT("aifactory.generated-blueprint/v3");
-    const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4");
+    const bool bSchemaV5 = LayoutSchema == TEXT("aifactory.generated-blueprint/v5");
+    // v5 retains every v4 topology feature and adds explicit saved clocks.
+    const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4") || bSchemaV5;
     if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4)
     {
         return FAIFactoryActionResult::Refuse(
@@ -2665,6 +2729,10 @@ FAIFactoryActionResult GenerateLayout(
     int32 Miners = 0;
     for (const FAIFactoryGeneratedBlueprintPart& Part : Parts)
     {
+        if (Part.bHasClockPercent && !bSchemaV5)
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_machine_clock_requires_v5"));
+        }
         if (PartIds.Contains(Part.PartId))
         {
             return FAIFactoryActionResult::Refuse(
@@ -3083,6 +3151,7 @@ FAIFactoryActionResult GenerateLayout(
     }
 
     int32 Adopted = 0;
+    FTransform SavedBlueprintOrigin;
     {
         FScopedDesignerMembership Membership(Designer);
         for (AFGBuildable* Buildable : Staging.GetAll())
@@ -3130,6 +3199,7 @@ FAIFactoryActionResult GenerateLayout(
         // dimensions without moving anything.
         FTransform BlueprintOrigin;
         Designer->GetOffsetTransform(BlueprintOrigin);
+        SavedBlueprintOrigin = BlueprintOrigin;
         FIntVector Dimensions = Designer->GetBlueprintDimensions();
         if (CombinedBounds.IsValid && !CombinedBounds.Min.ContainsNaN() &&
             !CombinedBounds.Max.ContainsNaN())
@@ -3214,6 +3284,7 @@ FAIFactoryActionResult GenerateLayout(
                 bExactNativeReadback = ValidateGeneratedNativeTopologyReadback(
                     NativeLoaded,
                     Resolved,
+                    Designer->GetActorTransform().GetRelativeTransform(SavedBlueprintOrigin),
                     Staging.NumAllBuildables(),
                     ConfiguredManufacturers,
                     Conveyors.Num(),

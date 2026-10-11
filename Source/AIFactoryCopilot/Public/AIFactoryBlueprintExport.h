@@ -31,6 +31,9 @@ struct FAIFactoryGeneratedBlueprintPart
     FString Role;
     FString BuildRecipeClassPath;
     FString ProductionRecipeClassPath;
+    /** v5: explicit manufacturer pending clock, persisted and checked on reload. */
+    bool bHasClockPercent = false;
+    double ClockPercent = 100.0;
     /** v4 Anchor: exact solid UFGResourceDescriptor class path. */
     FString ResourceClassPath;
     /** v4 Anchor: RP_Inpure, RP_Normal, or RP_Pure. */

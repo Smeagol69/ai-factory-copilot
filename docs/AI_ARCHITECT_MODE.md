@@ -528,3 +528,23 @@ has `build_ready:false`; legacy `design_base` refuses it because it would discar
 required clocks and cannot prove reserved internal flow. Next native work is
 clock serialization/readback and capacity-aware splitter/merger topology before
 promoting the balance into a fully wired compact blueprint.
+
+## Generated blueprint clocks — schema v5
+
+Schema `aifactory.generated-blueprint/v5` extends v4 with optional per-manufacturer
+`clock_percent` (strict number, >0 and <=100) alongside an exact production recipe.
+Compiler, bridge and native dispatcher refuse clocks on older schemas. This
+prevents an older installed mod from silently building a 100% machine where the
+balance requires an underclock. Older schema defaults and features are preserved.
+
+The game uses public `SetPendingPotential` after setting the recipe, checks the
+native capability/min/max and reads the pending setting back. The pending value
+is SaveGame; current potential is engine-owned and may update at a cycle boundary.
+Native archive reload must identify exactly one actor at the expected archive-
+local transform, with the same class, production recipe and pending clock. Equal
+counts alone cannot validate swapped settings. The observation reports
+`exact_saved_machine_clock_settings`.
+
+Shipping compilation and all 1253 companion tests pass. Live save/reload/stamp
+verification remains required; AIO `build_ready` remains false until routing,
+overflow, power and physical layout are implemented and checked.

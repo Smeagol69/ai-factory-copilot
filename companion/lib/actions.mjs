@@ -717,6 +717,7 @@ export function validateAction(graph, proposal) {
       "aifactory.generated-blueprint/v2",
       "aifactory.generated-blueprint/v3",
       "aifactory.generated-blueprint/v4",
+      "aifactory.generated-blueprint/v5",
     ]);
     if (!generatedSchemas.has(proposal.layout_schema)) {
       return reject(kind, "unsupported_generated_blueprint_schema", {
@@ -807,7 +808,7 @@ export function validateAction(graph, proposal) {
       const requestedAnchorPartId = String(proposedPart.resource_anchor_part_id ?? "").trim();
       let resolvedResourceClass = "";
       if (role === "resource_anchor") {
-        if (!proposal.layout_schema.endsWith("/v4")) {
+        if (!(proposal.layout_schema.endsWith("/v4") || proposal.layout_schema.endsWith("/v5"))) {
           return reject(kind, "generated_resource_anchor_requires_v4", {
             part: index + 1,
             part_id: partId,
@@ -855,7 +856,7 @@ export function validateAction(graph, proposal) {
         resolvedResourceClass = resourceItem.class_path ?? requestedResourceClass;
         resourceAnchorPartIds.add(partId);
       } else if (role === "miner") {
-        if (!proposal.layout_schema.endsWith("/v4")) {
+        if (!(proposal.layout_schema.endsWith("/v4") || proposal.layout_schema.endsWith("/v5"))) {
           return reject(kind, "generated_miner_requires_v4", {
             part: index + 1,
             part_id: partId,
@@ -954,6 +955,13 @@ export function validateAction(graph, proposal) {
         configuredManufacturers += 1;
       }
 
+      const clockPercent = proposedPart.clock_percent;
+      if (clockPercent !== undefined && (proposal.layout_schema !== "aifactory.generated-blueprint/v5" ||
+          typeof clockPercent !== "number" || !Number.isFinite(clockPercent) ||
+          clockPercent <= 0 || clockPercent > 100 || !productionRecipe)) {
+        return reject(kind, "generated_clock_requires_v5_manufacturer_and_percent_above_zero_up_to_100", { part_id: partId });
+      }
+
       // v4 splitter filters. The game is the authority on whether a rule is
       // placeable — it checks the output index and the rule cap against the
       // captured class, and reads the applied rules back before serialising.
@@ -1019,6 +1027,7 @@ export function validateAction(graph, proposal) {
         part_id: partId,
         role,
         recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
+        ...(clockPercent !== undefined ? { clock_percent: clockPercent } : {}),
         ...(sortRules.length > 0 ? { sort_rules: sortRules } : {}),
         ...(productionRecipe
           ? { production_recipe_class: productionRecipe.class_path ?? requestedProductionRecipe }
@@ -1367,7 +1376,7 @@ export function validateAction(graph, proposal) {
 
     warnings.push(
       "No world building is being placed yet. The game stages transient native actors, validates their exact resolved bounds, writes one native .sbp through a real Blueprint Designer, destroys the staging actors, and reads the archive back before reporting success.",
-      proposal.layout_schema.endsWith("/v4")
+      (proposal.layout_schema.endsWith("/v4") || proposal.layout_schema.endsWith("/v5"))
         ? "Generated Blueprint v4 adds an explicitly configured solid-resource Anchor paired one-to-one with a captured vanilla Miner Mk.1-Mk.3. The game saves and reloads the native archive, then requires the exact resource, purity, Anchor-to-Miner mapping, conveyor links, power wires, and pipelines to survive. It does not claim the Blueprint has been aligned to a matching destination node or terrain; fluids, oil/gas/fracking extractors, portable/modded miners, pumps, head lift, junction manifolds, lifts, and host-dependent attachments remain fail-closed."
         : proposal.layout_schema.endsWith("/v3")
           ? "Generated Blueprint v3 stages explicit straight conveyor links, physical circuit wires, and straight native pipelines with exact captured endpoints, then loads the saved archive into Satisfactory's isolated Blueprint world and requires reciprocal endpoint readback. Pumps, head lift, junction manifolds, miners/resource anchors, lifts, routed supports, and host-dependent attachments remain fail-closed."
@@ -1411,7 +1420,7 @@ export function validateAction(graph, proposal) {
               conveyors,
               power_wires: powerWires,
               ...((proposal.layout_schema.endsWith("/v3") ||
-                   proposal.layout_schema.endsWith("/v4")) ? { pipelines } : {}),
+                   (proposal.layout_schema.endsWith("/v4") || proposal.layout_schema.endsWith("/v5"))) ? { pipelines } : {}),
             }
           : {}),
         commit: proposal.commit === true,

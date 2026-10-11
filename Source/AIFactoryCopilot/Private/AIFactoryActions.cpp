@@ -4299,7 +4299,8 @@ namespace
                 (LayoutSchema != TEXT("aifactory.generated-blueprint/v1") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v2") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v3") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v4")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v4") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v5")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -4337,6 +4338,16 @@ namespace
                 (*Object)->TryGetStringField(
                     TEXT("production_recipe_class"),
                     Part.ProductionRecipeClassPath);
+                Part.bHasClockPercent = (*Object)->HasField(TEXT("clock_percent"));
+                if (Part.bHasClockPercent &&
+                    (LayoutSchema != TEXT("aifactory.generated-blueprint/v5") ||
+                     !(*Object)->TryGetNumberField(TEXT("clock_percent"), Part.ClockPercent) ||
+                     !FMath::IsFinite(Part.ClockPercent) || Part.ClockPercent <= 0.0 ||
+                     Part.ClockPercent > 100.0 || Part.ProductionRecipeClassPath.IsEmpty()))
+                {
+                    return FAIFactoryActionResult::Refuse(Kind,
+                        TEXT("generated_clock_requires_v5_manufacturer_and_percent_above_zero_up_to_100"));
+                }
                 (*Object)->TryGetStringField(
                     TEXT("resource_class"),
                     Part.ResourceClassPath);

@@ -10040,3 +10040,19 @@ no other active changes detected in Claude (8891d2b). Historical dirty export
 worktree dates Aug17 and rotation lane Sep6 remain untouched; current integration
 already supersedes their old companion contract. Native deployment requires a
 fresh coordination check and compiled evidence.
+
+### Codex — v5 clock fidelity compiled (2026-10-11)
+
+Implemented the claimed v5 clock extension, retaining v1-v4. Every explicit clock
+requires v5 on compiler/bridge/native dispatcher, configured manufacturer and
+finite >0..100 percent. Native stage checks actual capability/min/max, sets
+public SetPendingPotential and reads it back; GetCurrentPotential is not spoofed
+or written through protected SetCurrentPotential. Archive readback matches exact
+class, configured recipe and transform relative to the actual serialization
+origin, requires a unique actor, then checks persisted pending clock. A swapped
+setting or missing part refuses. Existing topology readback remains intact.
+
+All 1253 tests and scripts/validate.ps1 passed. Shipping module compiled against
+CL502094 (74s); package/Editor build now underway. No in-game verification: the
+owner's game is currently closed. New blueprint attachments are deliberately NOT
+read yet, following owner's instruction to finish this task before studying them.

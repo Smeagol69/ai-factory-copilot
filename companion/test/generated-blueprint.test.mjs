@@ -39,6 +39,48 @@ function compiledFactory() {
   });
 }
 
+test("v5 preserves required machine clocks through compile and native action validation", () => {
+  const compiled = compiledFactory();
+  const args = { blueprint_name: "Balanced clock test", schema: "aifactory.generated-blueprint/v5",
+    actions: compiled.buildables.map((p, i) => ({ action: "place_building", recipe_class: p.recipe_class,
+      production_recipe_class: p.production_recipe_class, location: p.relative_location,
+      clock_percent: i ? 100 : 37.2093023255814 })) };
+  const clocks = compileGeneratedBlueprint(args);
+  assert.equal(clocks.compiled, true, clocks.reason);
+  const proposal = generatedBlueprintAction(clocks, { commit: true });
+  const checked = validateAction(buildGraph(buildFactorySnapshot()), proposal);
+  assert.equal(checked.valid, true, checked.reason);
+  assert.deepEqual(checked.action.buildables.map(p => p.clock_percent), [37.2093023255814, 100]);
+  assert.equal(checked.action.layout_schema, "aifactory.generated-blueprint/v5");
+  const shape = SOLVER_TOOLS.find(t => t.name === "perform_actions").parameters.properties.actions.items.properties;
+  assert.ok(shape.layout_schema.enum.includes("aifactory.generated-blueprint/v5"));
+  assert.equal(shape.buildables.items.properties.clock_percent.maximum, 100);
+  for (const schema of [1, 2, 3, 4]) {
+    assert.equal(compileGeneratedBlueprint({ ...args, schema: `aifactory.generated-blueprint/v${schema}` }).compiled, false);
+    assert.equal(validateAction(buildGraph(buildFactorySnapshot()), { ...proposal, layout_schema: `aifactory.generated-blueprint/v${schema}` }).valid, false);
+  }
+  for (const value of [0, -1, 100.01, Infinity, NaN, "50", null]) {
+    assert.equal(compileGeneratedBlueprint({ ...args, actions: [{ ...args.actions[0], clock_percent: value }] }).compiled, false);
+    assert.equal(validateAction(buildGraph(buildFactorySnapshot()), { ...proposal,
+      buildables: [{ ...proposal.buildables[0], clock_percent: value }] }).valid, false);
+  }
+  assert.equal(compileGeneratedBlueprint({ ...args, actions: [{ ...args.actions[0], production_recipe_class: undefined }] }).compiled, false);
+});
+
+test("native v5 clock readback binds the persisted setting to its machine transform and recipe", () => {
+  const native = readFileSync(new URL("../../Source/AIFactoryCopilot/Private/AIFactoryBlueprintExport.cpp", import.meta.url), "utf8");
+  const dispatch = readFileSync(new URL("../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp", import.meta.url), "utf8");
+  assert.match(dispatch, /HasField\(TEXT\("clock_percent"\)\)/);
+  assert.match(dispatch, /LayoutSchema != TEXT\("aifactory.generated-blueprint\/v5"\)/);
+  assert.match(native, /Potential < Manufacturer->GetCurrentMinPotential\(\)/);
+  assert.match(native, /Manufacturer->SetPendingPotential\(Potential\)/);
+  assert.match(native, /Part.Source.RelativeTransform \* GeneratedToArchive/);
+  assert.match(native, /Matches != 1 \|\| !IsValid\(Match\) \|\| ClockMatchedActors.Contains\(Match\)/);
+  assert.match(native, /Match->GetCurrentRecipe\(\) != Part.ProductionRecipe/);
+  assert.match(native, /Match->GetPendingPotential\(\)/);
+  assert.match(native, /native_blueprint_machine_clock_readback_failed/);
+});
+
 test("a deterministic placement plan compiles to exact Blueprint-relative geometry", () => {
   const compiled = compiledFactory();
   assert.equal(compiled.compiled, true, compiled.reason);
@@ -558,6 +600,7 @@ test("the model action schema exposes generated relative buildables", () => {
     "aifactory.generated-blueprint/v2",
     "aifactory.generated-blueprint/v3",
     "aifactory.generated-blueprint/v4",
+    "aifactory.generated-blueprint/v5",
   ]);
   assert.ok(item.properties.buildables.items.properties.role.enum.includes("resource_anchor"));
   assert.ok(item.properties.buildables.items.properties.role.enum.includes("miner"));

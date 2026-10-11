@@ -60,7 +60,7 @@ export function compileGeneratedBlueprint({
     return { compiled: false, reason: "a_generated_blueprint_needs_at_least_one_building" };
   }
 
-  if (!["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4"].includes(schema)) {
+  if (!["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5"].includes(schema)) {
     return { compiled: false, reason: "unsupported_generated_blueprint_schema" };
   }
 
@@ -119,7 +119,7 @@ export function compileGeneratedBlueprint({
     if (!location || yaw === null) {
       return { compiled: false, reason: "generated_building_transform_must_be_finite", step: index + 1 };
     }
-    if (action.target_actor_id || (action.target_step && !(schema.endsWith("/v4") && role === "miner"))) {
+    if (action.target_actor_id || (action.target_step && !((schema.endsWith("/v4") || schema.endsWith("/v5")) && role === "miner"))) {
       return {
         compiled: false,
         reason: "generated_blueprint_does_not_support_this_snap_or_resource_target",
@@ -132,7 +132,7 @@ export function compileGeneratedBlueprint({
     const resourcePurity = String(action.resource_purity ?? "").trim();
     const resourceAnchorStep = Number(action.target_step);
     if (role === "resource_anchor") {
-      if (!schema.endsWith("/v4")) {
+      if (!(schema.endsWith("/v4") || schema.endsWith("/v5"))) {
         return { compiled: false, reason: "generated_resource_anchor_requires_v4", step: index + 1 };
       }
       if (!resourceClass || !["RP_Inpure", "RP_Normal", "RP_Pure"].includes(resourcePurity)) {
@@ -142,7 +142,7 @@ export function compileGeneratedBlueprint({
         return { compiled: false, reason: "generated_resource_anchor_cannot_have_recipe_or_target", step: index + 1 };
       }
     } else if (role === "miner") {
-      if (!schema.endsWith("/v4")) {
+      if (!(schema.endsWith("/v4") || schema.endsWith("/v5"))) {
         return { compiled: false, reason: "generated_miner_requires_v4", step: index + 1 };
       }
       if (!Number.isInteger(resourceAnchorStep) || !partIdByActionStep.has(resourceAnchorStep)) {
@@ -155,7 +155,13 @@ export function compileGeneratedBlueprint({
       return { compiled: false, reason: "generated_resource_fields_require_anchor_or_miner_role", step: index + 1 };
     }
 
+    if (action.clock_percent !== undefined && (schema !== "aifactory.generated-blueprint/v5" ||
+        typeof action.clock_percent !== "number" || !Number.isFinite(action.clock_percent) ||
+        action.clock_percent <= 0 || action.clock_percent > 100 || !action.production_recipe_class)) {
+      return { compiled: false, reason: "generated_clock_requires_v5_manufacturer_and_percent_above_zero_up_to_100", step: index + 1 };
+    }
     buildables.push({
+      ...(action.clock_percent !== undefined ? { clock_percent: action.clock_percent } : {}),
       part_id: partId,
       role,
       recipe_class: recipeClass,
@@ -291,6 +297,7 @@ export function compileGeneratedBlueprint({
     counts: {
       buildables: buildables.length,
       configured_manufacturers: buildables.filter((part) => part.production_recipe_class).length,
+      explicit_machine_clocks: buildables.filter((part) => part.clock_percent !== undefined).length,
       conveyors: compiledConveyors.links.length,
       power_wires: compiledPower.links.length,
       pipelines: compiledPipelines.links.length,
@@ -301,13 +308,13 @@ export function compileGeneratedBlueprint({
       belts: !schema.endsWith("/v1")
         ? `${compiledConveyors.links.length}_explicit_native_links`
         : "not_generated_in_v1",
-      pipes: schema.endsWith("/v3") || schema.endsWith("/v4")
+      pipes: schema.endsWith("/v3") || (schema.endsWith("/v4") || schema.endsWith("/v5"))
         ? `${compiledPipelines.links.length}_explicit_straight_native_links`
         : (schema.endsWith("/v2") ? "not_generated_in_v2" : "not_generated_in_v1"),
       power_wires: !schema.endsWith("/v1")
         ? `${compiledPower.links.length}_explicit_physical_links`
         : "not_generated_in_v1",
-      miners_and_resource_anchors: schema.endsWith("/v4")
+      miners_and_resource_anchors: (schema.endsWith("/v4") || schema.endsWith("/v5"))
         ? `${minerCount}_explicit_one_to_one_native_bindings`
         : (schema.endsWith("/v1")
             ? "not_generated_in_v1"
@@ -321,7 +328,7 @@ export function compileGeneratedBlueprint({
 /** Turn a compiled layout into the single typed write the game understands. */
 export function generatedBlueprintAction(compiled, { commit = false } = {}) {
   if (!compiled?.compiled ||
-      !["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4"].includes(compiled.schema)) {
+      !["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5"].includes(compiled.schema)) {
     return null;
   }
   return {
@@ -334,7 +341,7 @@ export function generatedBlueprintAction(compiled, { commit = false } = {}) {
       ? {
           conveyors: compiled.conveyors ?? [],
           power_wires: compiled.power_wires ?? [],
-          ...((compiled.schema.endsWith("/v3") || compiled.schema.endsWith("/v4"))
+          ...((compiled.schema.endsWith("/v3") || (compiled.schema.endsWith("/v4") || compiled.schema.endsWith("/v5")))
             ? { pipelines: compiled.pipelines ?? [] }
             : {}),
         }
