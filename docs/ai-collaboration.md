@@ -9967,3 +9967,16 @@ provider request, game action or native DLL deployment occurred. Native save,
 readback and destination placement remain unverified this turn. Owner can now
 request the Cave Tunnel Module through the in-game assistant to exercise that
 existing server-authoritative path; no claim of arbitrary decorative building.
+
+### Codex claim — train unlock integration and calculated multi-output AIO (2026-10-10)
+
+Owner requests Claude review, working train milestone unlock and continued AI
+Architect AIO generation using supplied AIO Iron Products. Integrate Claude
+8891d2b revision-stamp fix without changing native reflection/schematic code;
+check real action evidence and installed runtime before deployment. Develop a
+bounded multi-output production balance/capacity planner using captured recipes,
+explicit input budgets and output ratios, with truthful transport/overflow and
+optimality limits; connect to existing Architect tools rather than duplicating
+native serialization. Inspect supplied blueprint privately. Scope companion
+planner/tools/provider/tests and documentation. Codex owns companion deployment
+for this work; no native DLL copy while game is running.
