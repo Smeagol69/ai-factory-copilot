@@ -10027,3 +10027,16 @@ recipes balances 18 machines and six net outputs; it is not proof of delivered
 live supply. Iron Wire and Stitched Iron Plate in the reference are unavailable
 in the current capture, so they were not silently selected. No player files added
 to the public repository. Companion deployment/live train verification follows.
+
+### Codex claim — generated Blueprint machine clock contract (2026-10-11)
+
+Continue AIO foundation with schema v5: explicit <=100% manufacturer clock,
+bridge/compiler validation, native SetPendingPotential with class/runtime range
+checks, and saved Blueprint readback matched by class/recipe/local transform.
+Older native DLLs must reject v5, never silently drop the clock. Preserve v1-v4.
+Files: generated-blueprints/actions, BlueprintExport header/cpp and action parse,
+focused tests/docs. SDK native headers verified first. Codex owns SDK sync/build;
+no other active changes detected in Claude (8891d2b). Historical dirty export
+worktree dates Aug17 and rotation lane Sep6 remain untouched; current integration
+already supersedes their old companion contract. Native deployment requires a
+fresh coordination check and compiled evidence.
