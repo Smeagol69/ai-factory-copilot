@@ -1,5 +1,19 @@
 # Two agents, one repo
 
+## Claimed force-save repair — Codex, 2026-10-17
+
+Branch `codex/blueprint-force-save-513885` starts at d1f4569; remote master
+3997694 was fetched and read before this claim. Codex-2932 continues the same
+session's native export lane in a separate checkout. Scope: native capture
+archive/disk dimension validation, exact dismantle lightweight selection when
+the matching SDK exposes it, actionable export diagnostics, focused regression
+tests and SDK513885 build/package verification. Preserve prior working exports,
+selection recentering, complete-selection checks and game-authoritative writes.
+Read-only investigation of the installed game precedes any fix. Never report a
+save as successful from the write call alone. Deployment owner: Codex; the game
+is running and must be safely closed before a final copy. Other checkouts and
+unfinished reference-learning work remain untouched.
+
 ## Claimed reference learning extension — Codex + Claude, 2026-10-17
 
 Continue from reviewed3c0998a on codex/native-playtest-validation. Codex owns
