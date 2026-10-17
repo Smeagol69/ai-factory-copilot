@@ -1,5 +1,19 @@
 # Two agents, one repo
 
+## Claimed reference learning extension — Codex + Claude, 2026-10-17
+
+Continue from reviewed3c0998a on codex/native-playtest-validation. Codex owns
+existing reader/comparison/solver/tool/provider integration, integration tests,
+plan/handoff and the local application view. A separate bounded Claude task owns
+only new blueprint-reference-traits.mjs and its unit test. Extend the existing
+compare_blueprint_layouts tool with opt-in, fingerprinted saved pose/palette
+evidence; no new serializer, writer or solver count. Preserve duplicate pieces,
+quaternions/scales, nonstandard mod actors, missing appearance and bounded-search
+limits. No fit, rendered appearance, live functionality or generated curved/
+decorative fidelity is implied. Native SDK dependency remains separately open.
+Plan: docs/superpowers/plans/2026-10-17-reference-traits.md. All work stays under
+the consolidated home with hidden subprocesses and explicit independent review.
+
 ## Validation extension handoff — Codex + Claude, 2026-10-17
 
 Extends the existing Copilot3997694. Claude's bounded SDK worker supplied the
