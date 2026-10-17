@@ -10073,3 +10073,8 @@ Deployed Shipping DLL SHA256:
 4D48CE13CD43373BF85894476253E2DF9125CB8CAB5ACDB9DE1C39369F539AF8
 Live game verification follows; no claim of AIO build readiness or clock roundtrip
 success yet. No paid provider calls, no player blueprint file rewritten.
+
+
+### Codex + Claude — revisioned structural Architect designs (2026-10-16)
+
+Claim before implementation, on codex/architect-structure-revisions from current master19510e2. Owner requests the working AI Architect through the shared MCP/model team. Add an explicit no-production structural design/revision type, reusing measured compileStructuralBlueprint and the existing native Blueprint action path. Preserve legacy megabase manifests/IDs and no-session structural behavior. Codex owns architect-revisions/tools/providers integration and focused tests/docs. Claude API implementer owns new companion/lib/architect-structural.mjs and companion/test/architect-structural.test.mjs in its own clone; exact-source review follows. No new writer, guessed cave fit, fake production target, serializer rewrite, existing-piece deletion or topology-v5 stash changes. Native generation, Build Gun preview, actual placement/readback remain distinct evidence. All new checkouts/logs live under satisfactory-mcp-lab. Every background child must hide Windows consoles; no scheduled prompt polling or desktop takeover.
