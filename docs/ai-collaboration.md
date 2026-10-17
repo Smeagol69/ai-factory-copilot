@@ -10078,3 +10078,41 @@ success yet. No paid provider calls, no player blueprint file rewritten.
 ### Codex + Claude — revisioned structural Architect designs (2026-10-16)
 
 Claim before implementation, on codex/architect-structure-revisions from current master19510e2. Owner requests the working AI Architect through the shared MCP/model team. Add an explicit no-production structural design/revision type, reusing measured compileStructuralBlueprint and the existing native Blueprint action path. Preserve legacy megabase manifests/IDs and no-session structural behavior. Codex owns architect-revisions/tools/providers integration and focused tests/docs. Claude API implementer owns new companion/lib/architect-structural.mjs and companion/test/architect-structural.test.mjs in its own clone; exact-source review follows. No new writer, guessed cave fit, fake production target, serializer rewrite, existing-piece deletion or topology-v5 stash changes. Native generation, Build Gun preview, actual placement/readback remain distinct evidence. All new checkouts/logs live under satisfactory-mcp-lab. Every background child must hide Windows consoles; no scheduled prompt polling or desktop takeover.
+
+### Codex + Claude — structural revision integration verified (2026-10-16)
+
+Claude's approved two-file adapter 7cd6743 was integrated as 3a07ae5. The
+structural path reuses measured compileStructuralBlueprint and the existing
+native v1 action, with no production goal or alternate writer. Codex extended the
+existing revision envelope and tools to dispatch the explicit structural
+manifest/request pair. Parent variants, restart/scope, compare, select, rollback
+and draft deletion preserve existing behavior. Production IDs/fingerprints are
+pinned against the pre-change implementation; no-session shell calls are unchanged.
+
+Structural semantic identity excludes capture timestamps, global world revision,
+sample actor identity and the redundant human manifest brief. Exact measured
+pivots, parameters, parts, geometry, unlocks and limitations remain semantic;
+normalized revision briefs and pinned structural requests remain bound into the
+immutable revision ID. Native part_id identities preserve every piece in compares.
+Structural get/replay never enters production access/elevation compilers. Its
+preview is an exact local layout with no inferred world destination or overlay.
+
+Revision creation emits zero actions, including commit:true. Promotion status
+also emits zero. Selected explicit promotion freshly recompiles current evidence,
+verifies the stored semantic/unlock identity and emits exactly one existing
+generate_native_blueprint action with the current expect_world_revision. Missing
+storage/sink, missing measurements, unavailable parts or drift in relevant pivots
+refuse; ordinary global revision drift is reported. Blueprint names are pinned;
+rename through a child revision.
+
+Verification: all 1276 companion npm tests pass, including 15 store tests and
+7 structural integration tests, three provider schemas, actual local-provider
+tool payloads and the unchanged production suite. All subprocesses inherited the
+quiet bootstrap and Windows-hide policy. No paid model, browser/game, native
+build, installation or player Blueprint write was used for this integration.
+
+Codex remains the sole deployment owner. Installation and live game evidence are
+pending the final integration source/installer review. Native file readback,
+Build Gun preview, placed pieces/cave fit and the full entrance/underground
+construction acceptance scenario are separate, still-open checks; native v1
+readback is not exact isolated per-piece geometry certification.

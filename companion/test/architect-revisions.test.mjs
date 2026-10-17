@@ -99,6 +99,10 @@ test("disk store survives restart with immutable parented revisions", (t) => {
     design_request: designRequest(),
   });
   assert.equal(optionA.ok, true, optionA.reason);
+  // Captured from the claim-only 40141af implementation: extending the store
+  // must not rename any existing production revision or family fingerprint.
+  assert.equal(optionA.revision.revision_id, "sha256:e4a87113b06d63ee95440d7973ed00d3278fa226307fe6985997bdf9e7bf8471");
+  assert.equal(optionA.revision.manifest_fingerprint, "sha256:5bf9ce0d13daa9dd9f2fbf24268cae9ac6f0e4087e319e076eed0f0105cccf4b");
   const optionB = scoped.saveRevision({
     session_name: "Wire Campus",
     label: "Option B — shifted hall",
@@ -325,4 +329,120 @@ test("revision fingerprints are semantic but preserve exact family and unlock ev
   assert.equal(a.manifest_fingerprint, b.manifest_fingerprint);
   assert.equal(a.design_family_fingerprint, FAMILY);
   assert.equal(a.unlock_fingerprint, UNLOCK);
+});
+
+function structuralManifest({ worldRevision = 41, z = 50, unlock = UNLOCK } = {}) {
+  return {
+    schema: "architect.structure/v1", compiled: true, validation: { valid: true },
+    style: "structural", design_family: { fingerprint: FAMILY },
+    unlock_constraints: { availability_fingerprint: unlock,
+      captured_world_revision: worldRevision, captured_at_utc: null },
+    elements: [{ id: "floor-1", role: "floor", buildable_class: "/Captured/Foundation",
+      relative_location: { x: 400, y: 400, z }, yaw: 0 }],
+    dimensions: { width_cells: 1, depth_cells: 1, wall_courses: 2 },
+    part_count: 1, limitations: ["world_placement_and_cave_clearance_not_checked"],
+  };
+}
+
+function structuralRequest() {
+  return { schema: "architect.structure-request/v1", type: "structure", parameters: {
+    blueprint_name: "Entrance", width_cells: 1, depth_cells: 1, wall_courses: 2,
+    open_ends: "front", foundation_recipe_class: "/Captured/FoundationRecipe",
+    wall_recipe_class: "/Captured/WallRecipe",
+  } };
+}
+
+test("typed structural and legacy production revisions coexist across a disk restart", (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "architect-mixed-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const scoped = createArchitectRevisionStore({ directory }).scope({ snapshot: snapshot(), chat_session_id: "chat-a" });
+  const production = scoped.saveRevision({ session_name: "Mixed", label: "Production",
+    brief: brief(), manifest: manifest(), design_request: designRequest() });
+  assert.equal(production.ok, true);
+  const entrance = scoped.saveRevision({ session_name: "Mixed", label: "Entrance",
+    brief: { goal: "Make a sheltered entrance" }, manifest: structuralManifest(),
+    design_request: structuralRequest(), select: true });
+  assert.equal(entrance.ok, true, entrance.reason);
+  const restarted = createArchitectRevisionStore({ directory }).scope({ snapshot: snapshot(), chat_session_id: "chat-a" });
+  const exact = restarted.getRevision({ session_name: "Mixed", revision_id: entrance.revision.revision_id });
+  assert.equal(exact.ok, true, exact.reason);
+  assert.equal(exact.revision.manifest.schema, "architect.structure/v1");
+  assert.equal(exact.revision.design_request.type, "structure");
+  assert.equal(exact.revision.design_request.parameters.item_name, undefined);
+  assert.equal(restarted.list().architect_sessions[0].revision_count, 2);
+});
+
+test("structural revisions compare geometry without fictional production or routed topology", () => {
+  const scoped = createArchitectRevisionStore().scope({ snapshot: snapshot(), chat_session_id: "chat-a" });
+  const left = scoped.saveRevision({ session_name: "Entrance", label: "A", brief: { goal: "Entrance" },
+    manifest: structuralManifest(), design_request: structuralRequest() });
+  assert.equal(left.ok, true, left.reason);
+  const right = scoped.saveRevision({ session_name: "Entrance", label: "B", brief: { goal: "Raised entrance" },
+    parent_revision_id: left.revision.revision_id, manifest: structuralManifest({ z: 100 }), design_request: structuralRequest() });
+  assert.equal(right.ok, true, right.reason);
+  const compared = scoped.compare({ session_name: "Entrance", left_revision_id: left.revision.revision_id, right_revision_id: right.revision.revision_id });
+  assert.deepEqual(compared.geometry.changed_element_ids, ["floor-1"]);
+  assert.deepEqual(compared.production, { applicable: false, reason: "structural_design_has_no_production_target" });
+  assert.deepEqual(compared.topology, { applicable: false, reason: "structural_shell_does_not_compile_connections" });
+  assert.equal(scoped.selectRevision({ session_name: "Entrance", revision_id: right.revision.revision_id,
+    recompiled_manifest: structuralManifest({ z: 100, worldRevision: 900 }) }).ok, true);
+  const rollback = scoped.selectRevision({ session_name: "Entrance", revision_id: left.revision.revision_id,
+    recompiled_manifest: structuralManifest({ worldRevision: 901 }), operation: "rollback" });
+  assert.equal(rollback.ok, true, rollback.reason);
+  assert.equal(rollback.evidence.world_revision_drift, true);
+  assert.equal(scoped.deleteDraft({ session_name: "Entrance", revision_id: right.revision.revision_id }).ok, true);
+});
+
+test("typed structural storage refuses unknown schemas, missing provenance and request mismatch", () => {
+  const scoped = createArchitectRevisionStore().scope({ snapshot: snapshot(), chat_session_id: "chat-a" });
+  const save = (m, r = structuralRequest()) => scoped.saveRevision({ session_name: "Entrance", label: "A",
+    brief: { goal: "Entrance" }, manifest: m, design_request: r });
+  const unknown = structuralManifest(); unknown.schema = "architect.structure/v99";
+  assert.equal(save(unknown).ok, false);
+  const missing = structuralManifest(); delete missing.unlock_constraints.captured_world_revision;
+  assert.equal(save(missing).ok, false);
+  assert.equal(save(structuralManifest(), designRequest()).ok, false);
+  assert.equal(save(manifest(), structuralRequest()).ok, false);
+  const unknownRequest = structuralRequest(); unknownRequest.schema = "architect.structure-request/v99";
+  assert.equal(save(structuralManifest(), unknownRequest).ok, false);
+  const invented = structuralRequest(); invented.parameters.item_name = "Iron Plate";
+  assert.equal(save(structuralManifest(), invented).ok, false);
+});
+
+test("structural fingerprints exclude brief and sampled actor identity but retain measured pivots", () => {
+  const a = structuralManifest();
+  a.brief = "A sheltered entrance";
+  a.pieces = { floor: { measurement: { sample_actor_id: "captured-a", local_min_z_cm: -50 } } };
+  const b = structuredClone(a); delete b.brief;
+  b.pieces.floor.measurement.sample_actor_id = "same-geometry-new-sample";
+  assert.equal(fingerprintArchitectManifest(a).manifest_fingerprint,
+    fingerprintArchitectManifest(b).manifest_fingerprint);
+  b.pieces.floor.measurement.local_min_z_cm = -40;
+  assert.notEqual(fingerprintArchitectManifest(a).manifest_fingerprint,
+    fingerprintArchitectManifest(b).manifest_fingerprint);
+});
+
+test("structural comparison uses native part_id identities for every piece", () => {
+  const a = structuralManifest();
+  a.elements = [{ part_id: "part-0001", relative_location: { x: 0, y: 0, z: 50 } },
+    { part_id: "part-0002", relative_location: { x: 0, y: 0, z: 950 } }];
+  const b = structuredClone(a); b.elements[1].relative_location.z += 10;
+  const compared = compareArchitectRevisions({ manifest: a, construction_blockers: [] },
+    { manifest: b, construction_blockers: [] });
+  assert.equal(compared.geometry.left_element_count, 2);
+  assert.deepEqual(compared.geometry.changed_element_ids, ["part-0002"]);
+});
+
+test("a structural pinned-request change on disk invalidates its immutable revision", (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "architect-request-tamper-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const scoped = createArchitectRevisionStore({ directory }).scope({ snapshot: snapshot(), chat_session_id: "chat-a" });
+  const saved = scoped.saveRevision({ session_name: "Entrance", label: "A", brief: { goal: "Entrance" },
+    manifest: structuralManifest(), design_request: structuralRequest() });
+  assert.equal(saved.ok, true, saved.reason);
+  const state = JSON.parse(fs.readFileSync(scoped.file_path, "utf8"));
+  Object.values(state.sessions)[0].revisions[0].design_request.parameters.width_cells = 2;
+  fs.writeFileSync(scoped.file_path, JSON.stringify(state));
+  const reopened = createArchitectRevisionStore({ directory }).scope({ snapshot: snapshot(), chat_session_id: "chat-a" });
+  assert.equal(reopened.list().reason, "architect_store_revision_is_invalid");
 });

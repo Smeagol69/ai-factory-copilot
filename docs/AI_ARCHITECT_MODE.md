@@ -458,9 +458,10 @@ weaken write gates, or convert previews into permission.
 
 - Both agents coordinate through `docs/ai-collaboration.md` and `master`; neither
   relies on private chat state.
-- The draw-only preview, immutable revision store, and fail-closed native
-  promotion adapter all consume the same `megabase.design/v1` manifest and keep
-  its fingerprints intact.
+- Campus draw-only preview and native promotion consume `megabase.design/v1`
+  and keep its fingerprints intact. The revision store additionally accepts the
+  explicit structural manifest/request pair described below; structural replay
+  uses its measured shell compiler and does not enter production adapters.
 - Existing generated-Blueprint serialization and topology primitives remain the
   shared authority boundary. Architect extensions call those proven contracts
   instead of creating a parallel writer.
@@ -508,6 +509,45 @@ This initial workflow generates an undecorated rectangular shell. It does not
 yet generate arbitrary cave shapes, place props, excavate terrain, fit around
 existing machines or build directly into a selected cave. Native save and live
 placement must still be tested before claiming the full acceptance scenario.
+
+## Revisioned structural briefs (2026-10-16)
+
+Entrances, tunnels and shelters can now use the same immutable Architect store
+without inventing an item or production-rate target. Call
+`design_structure_blueprint` with `architect_session_name`, an optional
+`architect_revision_label` and `architect_brief`. A change supplies
+`architect_parent_revision_id`; the original remains available. The stored
+manifest is `architect.structure/v1`, paired with an explicit
+`architect.structure-request/v1` request containing normalized shell parameters
+and exact resolved foundation/wall recipe classes. Existing megabase requests,
+fingerprints, revision IDs and tool calls without a session retain their behavior.
+
+Structural revisions carry the measured part geometry and pivots, local piece
+transforms, shell dimensions, family/unlock fingerprints and capture provenance.
+`manage_architect_revisions` can retrieve, compare, select, roll back and delete
+unselected leaf drafts across bridge restarts in the existing map/save/chat scope.
+Structural comparison reports production and connection topology as inapplicable.
+Replay and selection recompile the typed request against the complete current
+snapshot; missing measurements, changed relevant geometry, unavailable parts or
+unknown schemas refuse use. Ordinary global world-revision drift is provenance,
+not a semantic design change. A structural `preview` returns the exact local
+layout; it emits no world overlay because this request has no grounded destination.
+
+Saving a structural revision emits no action, including when `commit:true` is
+supplied. Select it, call `promotion_status` to inspect readiness without an
+action, then call `promote_selected` with `commit:true` after the player's explicit
+save request. Promotion recompiles the stored exact parameters and emits one
+existing `generate_native_blueprint` v1 action with the current world revision.
+The Blueprint name is immutable; rename through a child revision. Without a named
+Architect session, the structural tool's existing direct native-save path remains
+available. Missing revision storage never falls back to a direct write.
+
+This checkpoint supplies revisioned rectangular shells. Native v1 staging and
+file readback remain narrower evidence than exact isolated per-piece geometry
+certification. Generation does not prove a saved file until the game's outcome,
+does not place it, and does not establish cave fit, collision clearance,
+decorations, connections, excavation or adaptation around an existing factory.
+The live entrance/underground acceptance scenario above remains open.
 
 ## Calculated AIO production (2026-10-11)
 

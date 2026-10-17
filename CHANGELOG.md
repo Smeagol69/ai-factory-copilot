@@ -5,6 +5,13 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Entrances and tunnel shells can be saved as typed, immutable Architect
+  revisions without a production target. Structural options support parented
+  variants, exact local-layout replay, comparison, selection and rollback;
+  production revision IDs and the existing direct shell-save path are preserved.
+  Selected promotion rechecks current measurements/unlocks and emits one existing
+  native v1 file-generation action only with explicit commit. Native readback,
+  world placement and cave fit remain separate game checks.
 - Natural Architect entrance, bunker and factory briefs now request visual
   context automatically. Up to three distinct recent viewpoints can show both
   surface and underground spaces, with explicit age and request-view differences.

@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { ARCHITECT_STRUCTURAL_SCHEMA as STRUCTURAL_SCHEMA,
+  ARCHITECT_STRUCTURAL_REQUEST_SCHEMA as STRUCTURAL_REQUEST_SCHEMA } from "./architect-structural.mjs";
 
 export const ARCHITECT_STORE_SCHEMA = "ai-architect.revision-store/v1";
 export const ARCHITECT_REVISION_SCHEMA = "ai-architect.revision/v1";
@@ -10,6 +12,27 @@ export const MAX_ARCHITECT_REVISIONS_PER_SESSION = 64;
 const MAX_STORE_BYTES = 16 * 1024 * 1024;
 const MAX_DESIGN_REQUEST_BYTES = 256 * 1024;
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
+
+function structuralManifest(manifest) {
+  return manifest?.schema === STRUCTURAL_SCHEMA;
+}
+
+function validDesignRequest(manifest, request) {
+  // Requests predating typed structural revisions are the unchanged megabase
+  // request shape. Never interpret an unknown explicit schema as production.
+  if (!structuralManifest(manifest)) return request?.schema === undefined;
+  if (request?.schema !== STRUCTURAL_REQUEST_SCHEMA || request?.type !== "structure" ||
+      Object.keys(request).some(key => !["schema", "type", "parameters"].includes(key))) return false;
+  const p = request.parameters;
+  const keys = ["blueprint_name", "width_cells", "depth_cells", "wall_courses", "open_ends",
+    "foundation_recipe_class", "wall_recipe_class"];
+  return p && typeof p === "object" && !Array.isArray(p) &&
+    Object.keys(p).length === keys.length && Object.keys(p).every(key => keys.includes(key)) &&
+    typeof p.blueprint_name === "string" && Boolean(p.blueprint_name.trim()) &&
+    [p.width_cells, p.depth_cells, p.wall_courses].every(n => Number.isInteger(n) && n >= 1 && n <= 6) &&
+    ["both", "front"].includes(p.open_ends) &&
+    [p.foundation_recipe_class, p.wall_recipe_class].every(s => typeof s === "string" && Boolean(s.trim()));
+}
 
 function sha256(value) {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
@@ -81,9 +104,16 @@ export function deriveArchitectScope(snapshot, chatSessionId) {
 }
 
 export function fingerprintArchitectManifest(manifest) {
-  if (manifest?.schema !== "megabase.design/v1" || manifest?.compiled !== true ||
+  if (!["megabase.design/v1", STRUCTURAL_SCHEMA].includes(manifest?.schema) || manifest?.compiled !== true ||
       manifest?.validation?.valid !== true) {
     return resultError("architect_revision_requires_a_valid_compiled_megabase_manifest");
+  }
+  if (structuralManifest(manifest) && (manifest.style !== "structural" ||
+      !Array.isArray(manifest.elements) || manifest.elements.length === 0 ||
+      manifest.unlock_constraints?.captured_world_revision === undefined ||
+      manifest.unlock_constraints?.captured_world_revision === null ||
+      !Object.hasOwn(manifest.unlock_constraints, "captured_at_utc"))) {
+    return resultError("architect_structural_manifest_requires_geometry_and_capture_provenance");
   }
   const family = String(manifest?.design_family?.fingerprint ?? "").trim();
   const unlock = String(
@@ -103,6 +133,15 @@ export function fingerprintArchitectManifest(manifest) {
   if (semanticManifest.unlock_constraints) {
     delete semanticManifest.unlock_constraints.captured_world_revision;
     delete semanticManifest.unlock_constraints.captured_at_utc;
+  }
+  if (structuralManifest(manifest)) {
+    // The adapter's optional human brief is metadata; the store already binds
+    // the normalized revision brief into its ID. Sampling another actor with
+    // identical measured geometry also changes provenance, not the design.
+    delete semanticManifest.brief;
+    for (const piece of Object.values(semanticManifest.pieces ?? {})) {
+      if (piece?.measurement) delete piece.measurement.sample_actor_id;
+    }
   }
   return {
     ok: true,
@@ -150,13 +189,14 @@ function sessionIdentity(scopeId, name) {
   return sha256(`${scopeId}\nsession\n${name.toLocaleLowerCase()}`);
 }
 
-function revisionIdentity(sessionId, parentRevisionId, label, brief, manifestFingerprint) {
+function revisionIdentity(sessionId, parentRevisionId, label, brief, manifestFingerprint, structuralRequest = null) {
   return sha256(stableJson({
     session_id: sessionId,
     parent_revision_id: parentRevisionId,
     label,
     brief,
     manifest_fingerprint: manifestFingerprint,
+    ...(structuralRequest ? { design_request: structuralRequest } : {}),
   }));
 }
 
@@ -203,7 +243,9 @@ function summarizeSession(session, includeRevisions = true) {
 }
 
 function elementMap(manifest) {
-  return new Map((manifest?.elements ?? []).map((entry) => [entry.id, entry]));
+  return new Map((manifest?.elements ?? []).map((entry) => [
+    structuralManifest(manifest) ? entry.part_id ?? entry.id : entry.id, entry,
+  ]));
 }
 
 function programMachineCount(manifest) {
@@ -245,6 +287,8 @@ export function compareArchitectRevisions(left, right) {
   const rightConnections = connectionKeys(right.manifest);
   const leftBlockers = new Set(left.construction_blockers);
   const rightBlockers = new Set(right.construction_blockers);
+  const bothStructural = structuralManifest(left.manifest) && structuralManifest(right.manifest);
+  const mixed = structuralManifest(left.manifest) !== structuralManifest(right.manifest);
   return {
     ok: true,
     schema: "ai-architect.revision-comparison/v1",
@@ -259,14 +303,18 @@ export function compareArchitectRevisions(left, right) {
       truncated: added.length > 128 || removed.length > 128 || changed.length > 128,
       left_footprint: left.manifest.footprint ?? null,
       right_footprint: right.manifest.footprint ?? null,
+      ...(bothStructural ? { left_dimensions: left.manifest.shell ?? left.manifest.dimensions,
+        right_dimensions: right.manifest.shell ?? right.manifest.dimensions } : {}),
     },
-    production: {
+    production: bothStructural ? { applicable: false, reason: "structural_design_has_no_production_target" }
+      : mixed ? { applicable: false, reason: "different_design_types" } : {
       left_machine_count: programMachineCount(left.manifest),
       right_machine_count: programMachineCount(right.manifest),
       left_program_fingerprint: sha256(stableJson(left.manifest?.program ?? null)),
       right_program_fingerprint: sha256(stableJson(right.manifest?.program ?? null)),
     },
-    topology: {
+    topology: bothStructural ? { applicable: false, reason: "structural_shell_does_not_compile_connections" }
+      : mixed ? { applicable: false, reason: "different_design_types" } : {
       left_connection_count: leftConnections.size,
       right_connection_count: rightConnections.size,
       added_connections: parseExactJsonRows(setDifference(rightConnections, leftConnections)),
@@ -276,7 +324,8 @@ export function compareArchitectRevisions(left, right) {
     },
     cost: {
       certainty: "unknown",
-      reason: "megabase_design_v1_does_not_yet_carry_a_verified_native_blueprint_cost",
+      reason: bothStructural || mixed ? "native_blueprint_cost_requires_game_readback"
+        : "megabase_design_v1_does_not_yet_carry_a_verified_native_blueprint_cost",
     },
     style: {
       left_style: left.manifest.style,
@@ -324,6 +373,7 @@ function validateStoredState(state, scopeResult) {
             revision.label,
             revision.brief,
             evidence.manifest_fingerprint,
+            structuralManifest(revision.manifest) ? revision.design_request : null,
           )
         : null;
       if (revision?.schema !== ARCHITECT_REVISION_SCHEMA ||
@@ -332,6 +382,7 @@ function validateStoredState(state, scopeResult) {
           !Number.isInteger(revision.sequence) || revision.sequence < 1 ||
           !boundedText(revision.label, 80) ||
           !evidence.ok ||
+          !validDesignRequest(revision.manifest, revision.design_request) ||
           evidence.manifest_fingerprint !== revision.manifest_fingerprint ||
           evidence.design_family_fingerprint !== revision.design_family_fingerprint ||
           evidence.unlock_fingerprint !== revision.unlock_fingerprint ||
@@ -496,6 +547,9 @@ export function createArchitectRevisionStore({ directory = null, now = () => new
         if (!found.ok) return found;
         const manifestEvidence = fingerprintArchitectManifest(manifest);
         if (!manifestEvidence.ok) return manifestEvidence;
+        if (!validDesignRequest(manifest, designRequest)) {
+          return resultError("architect_design_request_schema_does_not_match_manifest");
+        }
         const normalizedBrief = normalizeBrief(brief, manifest);
         if (!normalizedBrief.ok) return normalizedBrief;
         const rawLabel = String(label ?? "").trim();
@@ -550,6 +604,7 @@ export function createArchitectRevisionStore({ directory = null, now = () => new
           revisionLabel,
           normalizedBrief.brief,
           manifestEvidence.manifest_fingerprint,
+          structuralManifest(manifest) ? designRequest : null,
         );
         const existing = session.revisions.find((entry) => entry.revision_id === revisionId);
         if (existing) {

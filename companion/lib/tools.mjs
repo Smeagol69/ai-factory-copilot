@@ -18,6 +18,8 @@ import { baseBuildActions, planBaseBuild } from "./base-build.mjs";
 import { compositionActions, planComposition, stageComposition } from "./composition.mjs";
 import { planStructure, planTower, structureActions } from "./architecture.mjs";
 import { compileStructuralBlueprint } from "./structural-blueprints.mjs";
+import { ARCHITECT_STRUCTURAL_SCHEMA, ARCHITECT_STRUCTURAL_REQUEST_SCHEMA,
+  compileArchitectStructuralRequest, compileArchitectStructuralPromotion } from "./architect-structural.mjs";
 import { planAioProduction } from "./aio-production.mjs";
 import { MEGABASE_STYLES, SEMANTIC_ROLES, compileMegabaseConcept, deriveMegabaseFloorHeight } from "./megabase.mjs";
 import { compileArchitectPreview } from "./architect-preview.mjs";
@@ -80,6 +82,65 @@ function architectDesignRequest(args = {}) {
     creative_parameters: args.creative_parameters,
     part_selections: args.part_selections,
   };
+}
+
+function architectRevisionType(revision) {
+  if (revision?.manifest?.schema === ARCHITECT_STRUCTURAL_SCHEMA &&
+      revision?.design_request?.schema === ARCHITECT_STRUCTURAL_REQUEST_SCHEMA &&
+      revision.design_request.type === "structure") return "structure";
+  if (revision?.manifest?.schema === "megabase.design/v1" &&
+      revision?.design_request?.schema === undefined) return "megabase";
+  return null;
+}
+
+function manageStructuralRevision(graph, args, services, store, stored) {
+  const request = stored.revision.design_request;
+  const replay = compileArchitectStructuralPromotion(graph, request);
+  const recompiled = replay.compiled ? compileArchitectStructuralRequest(graph, request.parameters) : replay;
+  if (!recompiled.compiled) return { ok: false,
+    reason: "architect_revision_could_not_recompile_against_current_snapshot",
+    current_result: recompiled, action_emitted: false,
+    effect: "create_a_new_revision_from_current_game_evidence" };
+  const reference = { session_name: args.session_name, revision_id: args.revision_id,
+    recompiled_manifest: recompiled.manifest };
+  const verified = store.verifyRevision(reference);
+  if (!verified.ok) return { ...verified, action_emitted: false };
+  if (["select", "rollback"].includes(args.operation)) {
+    return store.selectRevision({ ...reference, operation: args.operation });
+  }
+  if (args.operation === "preview") {
+    const { action, ...layout } = recompiled.layout;
+    return { ok: true, operation: "preview", design_type: "structure",
+      revision: verified.revision, evidence: verified.evidence, layout,
+      action_emitted: false, status: "local_layout_only_no_world_destination_or_file_written" };
+  }
+  const selected = stored.architect_session?.selected_revision_id === args.revision_id;
+  const nameMatches = args.blueprint_name === undefined || args.blueprint_name === request.parameters.blueprint_name;
+  const blockers = [...(!selected ? ["architect_revision_must_be_selected_for_native_generation"] : []),
+    ...(!nameMatches ? ["architect_structural_blueprint_name_is_immutable_create_child_revision"] : [])];
+  const promotion = { schema: "ai-architect.structural-promotion/v1", design_type: "structure",
+    ready_for_native_generation: blockers.length === 0, blockers,
+    native_blueprint: { blueprint_name: request.parameters.blueprint_name,
+      schema: "aifactory.generated-blueprint/v1", part_count: recompiled.layout.part_count },
+    limitations: recompiled.layout.limitations,
+    operational_readiness: { ready: false,
+      reason: "structural_shell_only_native_save_world_placement_and_clearance_require_game_readback" } };
+  const report = { revision: verified.revision, evidence: verified.evidence, promotion, action_emitted: false };
+  if (args.operation === "promotion_status") return { ok: true, operation: args.operation, ...report };
+  if (args.commit !== true) return { ok: false,
+    reason: "architect_native_promotion_requires_explicit_commit_true", ...report };
+  if (blockers.length) return { ok: false, reason: blockers[0], ...report };
+  if (typeof services?.actions?.emit !== "function") return { ok: false,
+    reason: "native_action_sink_unavailable_no_file_written", ...report };
+  // Reuse the structural compiler and its existing action validator at the
+  // emission boundary. This is native file generation, never world placement.
+  const native = compileArchitectStructuralPromotion(graph, request, { commit: true });
+  if (!native.compiled || !native.action) return { ok: false,
+    reason: "architect_revision_is_not_ready_for_native_generation", ...report, current_result: native };
+  services.actions.emit([native.action]);
+  return { ok: true, operation: "promote_selected", ...report, action_emitted: true,
+    status: "native_generation_action_emitted_pending_game_readback",
+    next_step_after_verified_game_readback: `preview blueprint ${native.blueprint_name}` };
 }
 
 function compileArchitectDesignRequest(graph, request, services = {}) {
@@ -1050,7 +1111,7 @@ export const SOLVER_TOOLS = [
         blueprint_name: {
           type: "string",
           maxLength: 240,
-          description: "promotion_status/promote_selected: exact native Blueprint name. A deterministic revision-derived name is used when omitted.",
+          description: "Production promotion: exact native Blueprint name, or a deterministic revision-derived default. Structural revisions retain their stored exact name; create a child revision to rename one.",
         },
         blueprint_description: {
           type: "string",
@@ -1081,6 +1142,12 @@ export const SOLVER_TOOLS = [
           session_name: args.session_name,
           revision_id: args.revision_id,
         });
+        if (stored.ok && architectRevisionType(stored.revision) === "structure") {
+          return { ...stored, design_type: "structure" };
+        }
+        if (stored.ok && !architectRevisionType(stored.revision)) {
+          return { ok: false, reason: "architect_revision_request_schema_is_unsupported" };
+        }
         return stored.ok
           ? { ...stored, access_catalog: compileArchitectAccess(stored.revision.manifest),
             ...(stored.revision.design_request ? {
@@ -1113,6 +1180,12 @@ export const SOLVER_TOOLS = [
             reason: "architect_revision_has_no_recompilable_design_request",
             effect: "create_a_new_revision_from_current_game_evidence",
           };
+        }
+        const designType = architectRevisionType(stored.revision);
+        if (!designType) return { ok: false,
+          reason: "architect_revision_request_schema_is_unsupported", action_emitted: false };
+        if (designType === "structure") {
+          return manageStructuralRevision(graph, args, services, store, stored);
         }
         const recompiled = compileArchitectDesignRequest(
           graph,
@@ -1230,7 +1303,7 @@ export const SOLVER_TOOLS = [
 
   {
     name: "design_structure_blueprint",
-    description: "Design a rectangular tunnel module or open-front enclosure WITHOUT a production target, and optionally ask the game to save it as a native Blueprint now. Uses captured unlocked flat native foundation/wall recipes and measured actor pivots; computes floor, stacked side walls, optional back wall and flat slab ceiling. Both ends open produces a repeatable tunnel; front open produces a simple shelter. No props, excavation, terrain fit, connections or existing-space adaptation are inferred. Start with commit=false for a layout, or commit=true when the player explicitly asks to create/save the Blueprint. Emits one existing generate_native_blueprint action; report saved only after native game readback. After success, preview_blueprint can arm it, or place_blueprint can build it at an independently grounded destination. Never combine generation and placement in one transaction.",
+    description: "Design a rectangular tunnel module or open-front enclosure WITHOUT a production target. Set architect_session_name to save an immutable structural revision; supply architect_parent_revision_id for a changed option. Revision saving never emits a native action: use manage_architect_revisions to select, inspect promotion_status, then promote_selected with explicit commit:true. Without a session, commit=true preserves the direct native Blueprint save request. Uses captured unlocked flat native foundation/wall recipes and measured actor pivots; computes floor, stacked side walls, optional back wall and flat slab ceiling. Both ends open produces a repeatable tunnel; front open produces a simple shelter. No props, excavation, terrain fit, connections or existing-space adaptation are inferred. Generation emits one existing generate_native_blueprint v1 action; report saved only after native game readback. After success, preview_blueprint can arm it, or place_blueprint can build it at an independently grounded destination. Never combine generation and placement in one transaction.",
     parameters: {
       type: "object",
       properties: {
@@ -1241,11 +1314,40 @@ export const SOLVER_TOOLS = [
         open_ends: { type: "string", enum: ["both", "front"], description: "both for a through tunnel; front for an enclosure with a back wall." },
         foundation_recipe_class: { type: "string", description: "Optional exact captured flat native foundation recipe. Defaults to a measured available concrete foundation." },
         wall_recipe_class: { type: "string", description: "Optional exact captured flat native solid-wall recipe. Curved/tilted/unknown meshes are unsupported." },
-        commit: { type: "boolean", description: "true only for an explicit request to save/create the Blueprint. Default false creates a read-only plan." },
+        architect_session_name: { type: "string", maxLength: 80,
+          description: "Save a no-production structural Architect revision. This path emits no native action; select and promote it with manage_architect_revisions." },
+        architect_revision_label: { type: "string", maxLength: 80 },
+        architect_parent_revision_id: { type: "string", pattern: "^sha256:[0-9a-f]{64}$",
+          description: "Exact parent in the same Architect session when changing a stored structural option." },
+        architect_select_revision: { type: "boolean", description: "Select the saved revision as metadata only; never creates a Blueprint." },
+        architect_brief: { type: "object", properties: {
+          goal: { type: "string", maxLength: 512 }, creative_direction: { type: "string", maxLength: 1000 },
+          constraints: { type: "array", maxItems: 32, items: { type: "string", maxLength: 256 } },
+        }, additionalProperties: false },
+        commit: { type: "boolean", description: "Without architect_session_name: true only for an explicit native-save request. With a session: saving is metadata only; native generation requires manage_architect_revisions selected promotion." },
       },
       required: ["blueprint_name"], additionalProperties: false,
     },
     run: (graph, args, services) => {
+      if (Object.hasOwn(args, "architect_session_name")) {
+        const compiled = compileArchitectStructuralRequest(graph, args);
+        if (!compiled.compiled) return { ...compiled, action_emitted: false };
+        const store = services?.architect;
+        const architectRevision = store?.saveRevision ? store.saveRevision({
+          session_name: args.architect_session_name, label: args.architect_revision_label,
+          parent_revision_id: args.architect_parent_revision_id,
+          brief: { goal: args.architect_brief?.goal ?? `Design ${compiled.layout.blueprint_name}`,
+            creative_direction: args.architect_brief?.creative_direction ?? null,
+            constraints: args.architect_brief?.constraints ?? [] },
+          manifest: compiled.manifest, design_request: compiled.design_request,
+          select: args.architect_select_revision === true,
+        }) : { ok: false, reason: "architect_revision_store_is_not_available_for_this_request" };
+        const { action, ...layout } = compiled.layout;
+        return { ...layout, manifest: compiled.manifest, design_request: compiled.design_request,
+          architect_revision: architectRevision, action_emitted: false,
+          status: architectRevision.ok ? "architect_revision_saved_no_file_written" : "architect_revision_not_saved_no_file_written",
+          next_step: "manage_architect_revisions: select, promotion_status, then promote_selected with explicit commit:true" };
+      }
       const result = compileStructuralBlueprint(graph, args);
       if (!result.compiled) return { ...result, action_emitted: false };
       const { action, ...report } = result;

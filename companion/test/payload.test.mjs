@@ -8,6 +8,19 @@ import { CONSTRUCTOR, MINER, PLAYER, SMELTER, buildFactorySnapshot } from "./fix
 
 const snapshot = buildFactorySnapshot();
 
+test("local provider sends structural revision controls without a production target", async () => {
+  const stub = stubFetch([{ json: { choices: [{ message: { role: "assistant", content: "ok" } }] } }]);
+  try {
+    await askLocal(makeContext(), { LOCAL_AI_MODEL: "test-model" });
+    const schema = stub.calls[0].body.tools.find(t => t.function.name === "design_structure_blueprint").function.parameters;
+    assert.deepEqual(schema.required, ["blueprint_name"]);
+    assert.equal(schema.properties.architect_session_name.type, "string");
+    assert.equal(schema.properties.architect_parent_revision_id.type, "string");
+    assert.equal(schema.properties.item_name, undefined);
+    assert.equal(schema.properties.target_rate_per_minute, undefined);
+  } finally { stub.restore(); }
+});
+
 function makeContext(overrides = {}) {
   return {
     question: "Give me a concise status acknowledgement.",

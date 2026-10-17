@@ -14,6 +14,23 @@ import { SMELTER, buildFactorySnapshot } from "./fixtures/factory.mjs";
 
 const graph = buildGraph(buildFactorySnapshot());
 
+test("all three provider formats expose optional structural revision fields without a production goal", () => {
+  const name = "design_structure_blueprint";
+  const schemas = [openAIToolDefinitions().find(t => t.name === name).parameters,
+    anthropicToolDefinitions().find(t => t.name === name).input_schema,
+    chatCompletionsToolDefinitions().find(t => t.function.name === name).function.parameters];
+  for (const schema of schemas) {
+    assert.deepEqual(schema.required, ["blueprint_name"]);
+    assert.equal(schema.properties.item_name, undefined);
+    assert.equal(schema.properties.target_rate_per_minute, undefined);
+    assert.equal(schema.properties.architect_session_name.type, "string");
+    assert.equal(schema.properties.architect_parent_revision_id.pattern, "^sha256:[0-9a-f]{64}$");
+    assert.equal(schema.properties.architect_select_revision.type, "boolean");
+    assert.equal(schema.properties.architect_brief.properties.goal.maxLength, 512);
+    assert.equal(schema.additionalProperties, false);
+  }
+});
+
 test("every provider exposes the complete Architect style, radial and part vocabulary", () => {
   const name = "design_megabase_concept";
   const schemas = [
