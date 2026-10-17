@@ -1,5 +1,5 @@
 {
-  "agentPair": { "commit": "b727bebede1c7cdd025cc1a7f57981b3e7720beb", "directory": "runtime/agent-pair", "source": "local reviewed Agent Pair repository", "version": "0.1.10" },
+  "agentPair": { "commit": "b727bebede1c7cdd025cc1a7f57981b3e7720beb", "directory": "runtime/agent-pair", "source": "local reviewed Agent Pair repository", "version": "0.1.10", "charterSha256": "827b4692ad5d183c0e2ba7969b0a3c83207f93a010b14a30bb4101334a37c9a8" },
   "node": { "version": "24.12.0", "directory": "runtime/node", "sha256": "2ffe3acc0458fdde999f50d11809bbe7c9b7ef204dcf17094e325d26ace101d8", "platform": "win32", "architecture": "x64", "source": "existing Node.js installation" },
   "superpowers": { "version": "7.0.0", "commit": "bb92a77741419a4ab5f06e711a283343f1ada0c3", "files": 238, "skills": 15 },
   "rea": { "package": "rea-agents", "version": "6.5.0", "repository": "https://github.com/morluto/rea", "directory": "tools/rea" }

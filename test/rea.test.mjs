@@ -156,6 +156,25 @@ test('native check refuses an unbounded deadline without launching an engine', a
   await assert.rejects(rea.runReaNativeCheck({ timeoutMs: 0 }), /1000\.\.180000/);
 });
 
+// No engine is launched: modify and restore bytes in one owned executable JAR.
+// Catches a stale native receipt surviving changes beyond the install sentinels.
+test('native verification expires when an executing Ghidra JAR changes', async () => {
+  const jar = resolve('tools/ghidra/ghidra_12.1.4_PUBLIC/Ghidra/Framework/Utility/lib/Utility.jar');
+  const original = await readFile(jar);
+  const before = await reaStatus();
+  assert.equal(before.native.installed, true);
+  assert.match(before.native.implementationSha256, /^[a-f0-9]{64}$/);
+  try {
+    const changed = Buffer.from(original);
+    changed[changed.length - 1] ^= 1;
+    await writeFile(jar, changed);
+    const status = await reaStatus();
+    assert.equal(status.native.verified, false);
+    assert.notEqual(status.native.implementationSha256, before.native.implementationSha256);
+  } finally { await writeFile(jar, original); }
+  assert.equal((await reaStatus()).native.implementationSha256, before.native.implementationSha256);
+});
+
 test('explicit real Ghidra check decompiles the owned PE without executing it',
   { skip: process.env.REA_NATIVE_SMOKE !== '1', timeout: 210000 }, async () => {
     const result = await rea.runReaNativeCheck();

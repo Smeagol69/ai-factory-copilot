@@ -127,3 +127,17 @@ test('a storage failure cannot appear later as a saved passing check', async () 
     assert.deepEqual(status.checks, []);
   } finally { await new Promise(resolve => server.close(resolve)); rmSync(root, { recursive: true, force: true }); }
 });
+
+test('companion startup is a fixed local action and ignores request-defined commands', async () => {
+  const { createAppServer } = await import('../lib/app.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'copilot-service-'));
+  const received = [];
+  const server = await createAppServer({ root, project: 'test-project', port: 0,
+    readStatus: async () => ({}), runCheck: async (...args) => { received.push(args); return { ok: true, reused: true }; } });
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/checks/start-companion`, {
+      method: 'POST', body: JSON.stringify({ command: 'untrusted', port: 1234, environment: { KEY: 'untrusted' } }) });
+    assert.equal(response.status, 200);
+    assert.deepEqual(received, [['start-companion']]);
+  } finally { await new Promise(resolve => server.close(resolve)); rmSync(root, { recursive: true, force: true }); }
+});

@@ -72,6 +72,7 @@ test('project configuration refuses invalid pins, ports and paid startup', () =>
     for (const changed of [
       { ...base, progressPort: 70000 },
       { ...base, runtime: { ...base.runtime, commit: 'HEAD' } },
+      { ...base, runtime: { ...base.runtime, charterSha256: 'not-a-content-hash' } },
       { ...base, game: { ...base.game, companionPort: '8142' } },
       { ...base, startup: { ...base.startup, modelCalls: 1 } },
     ]) {

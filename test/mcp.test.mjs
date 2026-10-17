@@ -31,6 +31,10 @@ test('real client profile launches from another working directory and reads the 
     assert.equal(context.project.id, 'satisfactory-mcp-lab');
     assert(context.project.workspace.replaceAll('\\', '/').endsWith('/satisfactory-mcp-lab'));
     assert(context.tasks.every(task => task.project === 'satisfactory-mcp-lab'));
+    const charter = await client.callTool({ name: 'pair_get_charter', arguments: { project: 'satisfactory-mcp-lab' } });
+    assert(!charter.isError, 'Bundled runtime must serve the existing exact charter without a false version change');
+    const text = charter.structuredContent ?? JSON.parse(charter.content[0].text);
+    assert.equal(text.charter.hash, '827b4692ad5d183c0e2ba7969b0a3c83207f93a010b14a30bb4101334a37c9a8');
   });
 });
 

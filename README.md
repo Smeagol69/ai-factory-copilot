@@ -6,10 +6,12 @@ Keep the executable here; make a shortcut instead of moving it by itself.
 The EXE compiled successfully. Its Node startup path and server reuse were
 tested; automatic tool approval blocked direct EXE launch verification.
 
-The control room shows MCP connections, REA analysis, engine readiness, task
-claims and dated results. App startup makes zero paid model calls. A task claim
-records responsibility, not proof of current reasoning. An autonomous project
-coordinator has not yet been configured.
+The control room shows dated model work, a captured-world Architect draft and
+geometry audit, MCP connections, REA analysis, task claims and saved receipts.
+The same startup also starts/reuses the bundled Satisfactory bridge quietly.
+App startup makes zero paid model calls. A task claim records responsibility,
+not proof of current reasoning. Explicit model jobs have run; a continuously
+running project coordinator has not yet been configured.
 
 All new application files live here:
 
@@ -18,6 +20,7 @@ Copilot.exe                 one user-facing entry point
 app/                        control room and launcher source
 runtime/node/               bundled Node.js 24.12.0 with license
 runtime/agent-pair/         reviewed MCP runtime and real local dependencies
+runtime/satisfactory-companion/ game bridge and parser dependencies
 tools/rea/                  complete official REA package and locked dependencies
 tools/ghidra/, tools/java/  portable native engines, when installed and verified
 catalog/                   complete pinned Awesome-RE-MCP list and index
@@ -55,6 +58,7 @@ npm start                # same application startup without the EXE
 npm run check:rea         # real bounded REA static analysis through MCP
 npm run rea -- --help     # full installed REA CLI
 npm run build:launcher    # rebuild the Windows launcher
+npm run repair:runtime   # restore exact charter bytes after a fresh Windows clone
 ```
 
 The next game test for our current multi-model MCP system. This is a new local
@@ -64,8 +68,9 @@ The foundation is the existing **Agent Pair** runtime pinned at
 `b727bebede1c7cdd025cc1a7f57981b3e7720beb`. It includes the verified file-tool
 repairs and the full **Superpowers 7.0.0** package. The lab bundles that exact
 source with local dependencies under runtime/agent-pair, preserving its original
-repository. Its game adapter is the existing AI Factory Copilot
-mod/companion in `../satisfactory`; no Civ VI game code is copied here.
+repository. Its game source checkout is `workspaces/architect/integration`;
+the companion runtime is bundled separately under runtime/. The installed
+Satisfactory mod remains in the game. No Civ VI game code is copied here.
 
 ```text
 Claude / Codex
@@ -75,9 +80,9 @@ Claude / Codex
   -> existing AI Factory Copilot companion/mod: authoritative game access
 ```
 
-The last arrow is the next connection checkpoint. The companion on port 8142
-was unavailable during setup. A health reply alone will not prove a loaded
-save, successful game action, API allowance or model reasoning quality.
+The companion on port 8142 is restored and the reviewed structural revisions
+are deployed. A health reply alone does not prove a loaded save, successful
+game action, API allowance or model reasoning quality.
 
 ## Use it
 
@@ -112,14 +117,16 @@ This project uses the existing shared Agent Pair database, partitioned by
 existing secure store. Status and MCP startup do not issue paid inference,
 deploy the mod, alter a save, install a scheduled task or start autonomous work.
 
-## What comes next
+## Architect progress and next step
 
-1. Restore the existing Satisfactory companion connection without replacing
-   another agent's work. Read the game's current collaboration notes first.
-2. Pick one bounded task with an actual implementer, an independent reviewer,
-   a fixed baseline and observable success checks.
-3. Run it through our existing workflow, keep real usage and failure receipts,
-   and distinguish offline checks from game-authoritative readbacks.
+Claude authored the structural adapter; Codex added typed revisions and action
+gates; independent reviews passed and all 1,276 companion tests pass. Google
+delivered eight acceptance cases through MCP after a bounded service-error
+recovery. Full-world captured-data drafting works offline and reports its age.
+The measured-box audit does not certify cave clearance or final game placement.
+
+See [the implementation and acceptance plan](docs/AI-ARCHITECT-PLAN.md). The next
+proof is an entrance shell placed and read back at a freshly measured test site.
 
 Changes to the game repository require its own claim, branch and tests.
 Existing working features must be preserved. Installing skills does not train

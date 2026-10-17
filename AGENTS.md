@@ -12,7 +12,9 @@ claim just because its lease expired. Preserve all working features.
 
 The reviewed runtime is bundled under runtime/agent-pair, with an exact commit
 pin; preserve its clean tracked source. Its original repository and the game
-adapter are external. Do not edit their files under this lab's setup claim.
+mod installation remain external; the active game checkout is now inside
+workspaces/architect/integration with its separate game-project claim.
+Do not edit its files under this lab's setup claim.
 Before changing the Satisfactory mod or
 companion, read its current `AGENTS.md` and `docs/ai-collaboration.md`, fetch
 master, claim the actual game files there, and work in a separate checkout.
@@ -52,5 +54,6 @@ Run source verification at startup or on an explicit check. REA's local wrapper
 must enforce hidden child launches even where an upstream helper omits the flag.
 
 Run `npm test` before commits. Report offline tests separately from live game
-verification. The first benchmark is still to be chosen; creating this project
-does not declare its models running or its game connection ready.
+verification. The structural revision milestone is reviewed and deployed;
+read docs/AI-ARCHITECT-PLAN.md for the next site-fit and live-readback acceptance
+test. Dated model reports do not declare continuous inference.
