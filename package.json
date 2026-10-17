@@ -1,0 +1,19 @@
+{
+  "name": "satisfactory-mcp-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A separate Satisfactory benchmark project using the verified Agent Pair and Superpowers MCP runtime.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test",
+    "status": "node scripts/status.mjs",
+    "verify": "node scripts/status.mjs --offline",
+    "configure": "node scripts/configure-clients.mjs",
+    "mcp:codex": "node scripts/mcp.mjs --provider codex",
+    "mcp:claude": "node scripts/mcp.mjs --provider claude",
+    "superpowers": "node scripts/superpowers.mjs",
+    "room": "node scripts/room.mjs",
+    "start:room": "node scripts/start-room.mjs"
+  }
+}

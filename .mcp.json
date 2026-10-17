@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "agent_pair": {
+      "command": "C:/Program Files/nodejs/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/mcp.mjs",
+        "--provider",
+        "claude"
+      ]
+    },
+    "superpowers": {
+      "command": "C:/Program Files/nodejs/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/superpowers.mjs"
+      ]
+    }
+  }
+}

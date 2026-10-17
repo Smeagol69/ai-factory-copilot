@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "project": "satisfactory-mcp-lab",
+  "name": "Satisfactory MCP Lab",
+  "goal": "Test the reusable model team on Satisfactory: divide useful implementation work, preserve verified knowledge, review exact changes, and report authoritative game outcomes.",
+  "runtime": {
+    "directory": "../agent-pair-platform",
+    "commit": "b727bebede1c7cdd025cc1a7f57981b3e7720beb",
+    "superpowersVersion": "7.0.0"
+  },
+  "game": {
+    "id": "satisfactory",
+    "directory": "../satisfactory",
+    "companionPort": 8142
+  },
+  "progressPort": 8794,
+  "startup": { "modelCalls": 0, "gameWrites": 0, "scheduledTasks": 0 }
+}
