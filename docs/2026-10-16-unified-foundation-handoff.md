@@ -70,8 +70,10 @@ match the previous package lock. Previous changed runtime files and lock are
 backed up in `state/companion/deployments/`; deployment and actual ownership/
 readiness receipts are in `state/companion/latest-deployment.json`.
 
-The source is on the pushed author branch `codex/architect-structure-revisions`;
-master and the owner's original checkout are unchanged. Claude authored the
+The source is on the pushed author branch `codex/architect-structure-revisions`.
+After fresh fetch confirmed the reviewed baseline was still current, master
+was integrated by a non-forced fast-forward to3997694. The owner's original
+checkout remains unchanged. Claude authored the
 adapter and tested 1,261 cases. Codex integrated typed structural revisions,
 preserving legacy IDs. The combined companion suite passes 1,276/1,276. Fresh
 independent reviews approved both exact stages. A minor description clarification

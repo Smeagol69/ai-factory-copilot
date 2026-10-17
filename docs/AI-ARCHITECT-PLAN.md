@@ -17,6 +17,7 @@ that the game permits are different kinds of evidence. Track them separately.
   from game commit `3997694543047b2f23f953cfbc45745326b2d16b`. One launcher
   starts/reuses the app and its hidden companion. Game-owned metadata and the
   shared credential/coordination stores retain their existing locations.
+  The same reviewed commit is integrated into the shared game's master branch.
 - An actual saved whole-world capture from October 11 supports an eight-piece
   concrete shell. It is stale, revision 2058, with 5,160 captured actors. This is
   offline evidence. No new construction or loaded-world check is claimed.
