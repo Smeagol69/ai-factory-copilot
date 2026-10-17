@@ -1116,7 +1116,7 @@ export const SOLVER_TOOLS = [
         blueprint_description: {
           type: "string",
           maxLength: 1000,
-          description: "promote_selected: optional native Blueprint description; revision and manifest provenance are retained when omitted.",
+          description: "promote_selected: optional native Blueprint description for production designs; structural descriptions are derived from the pinned shell. Revision and manifest provenance are retained when omitted.",
         },
         commit: {
           type: "boolean",
