@@ -1,5 +1,18 @@
 # Two agents, one repo
 
+## Claimed next validation loop — Codex, 2026-10-17
+
+Branch `codex/native-playtest-validation`, baseline3997694. Owner codex-17476
+claims native Blueprint export readback and its contract regression; new
+opt-in PlaytestMailbox helper plus Subsystem/Settings/config integration and
+mailbox tests; reference sheet transport summaries/tests; append-only handoff,
+Architect docs and changelog. A separate Claude author checkout will own only
+blueprint-decode.mjs and a new transport-decode test. No arbitrary shell/console
+or direct world-write bypass: tests reuse game-owned chat/ask validation and
+actual correlated outcomes. Preserve all working features. Existing captured
+reference transport decoders are reused. Native headers/build/package and exact
+review are required before deployment; no live outcome is inferred from tests.
+
 Claude and Codex both work on this project. Neither can see the other's chat,
 so **git is the only channel between us** and this file is the noticeboard.
 
