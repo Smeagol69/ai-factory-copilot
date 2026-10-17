@@ -4,6 +4,59 @@ The owner's target is an attractive, useful Satisfactory build that fits its
 actual site. A model's plausible drawing, a compilable Blueprint and a building
 that the game permits are different kinds of evidence. Track them separately.
 
+This extends the existing **AI Factory Copilot**, not a replacement game mod.
+Its canonical source checkout is `workspaces/architect/integration`, from
+`Smeagol69/ai-factory-copilot`. The existing scanner, full-snapshot solvers,
+structural compiler, revision store, game-owned Blueprint serializer, holograms,
+action gates and undo remain the implementation path. This outer application
+provides one home, launcher, model coordination and visible evidence around it.
+
+## Current validation work, 2026-10-17
+
+The offline reference decoder now reuses the existing native hypertube and rail
+decoders. Human-readable reference sheets retain exact connection identities,
+uncertainty and malformed/truncated distinctions. The uploaded architectural
+references also have a private, source-hashed comparison in
+`state/architect/reference-traits.md`: repeated entrance motifs, concrete bays,
+wall courses and appearance descriptors are measured evidence, while collision,
+walking clearance and rendered appearance are still unknown. The current flat
+structural adapter does not yet reproduce the curved/modded/decorated motif.
+
+Native generated Blueprint verification now reloads structural v1 as well as
+later formats and matches every requested part's class, position, rotation and
+scale. Its exact-geometry native Automation test has run successfully in the
+headless Editor. That unit test does not prove a saved Blueprint or destination
+fits in a loaded game; the game-side acceptance loop remains open.
+
+The opt-in native test mailbox reuses Copilot's existing `export all`, `look`
+and `AskBridge` paths. It never exposes an arbitrary command or a second world
+writer. Fresh loaded-world and selected-player identities bind each request;
+immutable consumed-ID markers prevent an interrupted task from being replayed.
+`accepting_requests` reports actual readiness after marker recovery. The repo
+default remains disabled. All automated children hide their consoles.
+
+From this home, `node scripts/playtest.mjs status` reads readiness without
+inference or a game write. `capture` exports current state, `look` requests an
+image, and `askall <question>` uses the existing game-to-companion model path.
+No loaded-world heartbeat means no request is submitted. A completed request,
+accepted action, dry run, committed action and observed world mutation are
+reported separately. A requested screenshot is not a verified image.
+
+Claude supplied the bounded transport-decoder patch through the existing MCP
+worker. Our 28-tool limit stopped it at final fixture verification; Codex
+preserved the exact patch, repaired the fixture/imports and obtained independent
+review. The stop was a launcher limit, not a model policy refusal. Its preserved
+usage/handoff is in `state/architect/transport-workflow`; no fresh implementation
+or automatic paid fallback was used.
+
+Verification checkpoint: 1,299 companion tests passed; 49 lab tests passed with
+one explicit native-engine check skipped; native geometry Automation passed 1/1.
+Editor and Shipping compiled against the retained CL502094 SDK. Deployment is
+held because the installed game updated to CL513885 / 1.2.4.1 on October12.
+The exact release check caught this mismatch. A separate pinned official SDK is
+being prepared inside `tools/satisfactory-sdk-513885`; the old SDK and game
+installation are preserved. Nothing here claims a new live construction test.
+
 ## Verified foundation, 2026-10-16
 
 - Claude implemented the structural adapter; Codex integrated immutable save,

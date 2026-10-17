@@ -37,5 +37,13 @@ test('model reports distinguish authentication from useful execution and exclude
     assert.equal(reviewed.workers[1].provider, 'codex');
     assert.equal(reviewed.workers[1].summary, 'Typed revisions integrated');
     assert(!JSON.stringify(reviewed).includes('private-integration'));
+    mkdirSync(join(dir, 'transport-workflow'));
+    writeFileSync(join(dir, 'transport-workflow/spec.json'), JSON.stringify({ builder: { model: 'claude-sonnet-5-5', budgetCents: 200 } }));
+    writeFileSync(join(dir, 'transport-workflow/builder-state.json'), JSON.stringify({ status: 'failed', toolCalls: [{ name: 'edit_build_file', status: 'completed' }], sessionId: 'private-transport-session' }));
+    writeFileSync(join(dir, 'transport-workflow/handoff.json'), JSON.stringify({ status: 'released-for-parent-integration', shutdownConfirmed: true }));
+    const transport = readTeamStatus(root).workers.find(w => w.task === 'Blueprint reference transport evidence');
+    assert(transport); assert.equal(transport.phase, 'released-for-parent-integration');
+    assert.equal(transport.toolCallsCompleted, 1);
+    assert(!JSON.stringify(transport).includes('private-transport-session'));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
