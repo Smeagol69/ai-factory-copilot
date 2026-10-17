@@ -66,3 +66,13 @@ test("lightweight demolition removes the stable selected references directly", (
   assert.match(demolition, /Ref\.IsValid\(\) && Ref\.Remove\(\)/);
   assert.doesNotMatch(demolition, /SelectionLightweight\.Sort/);
 });
+
+test("dismantle force-save preserves temporary lightweight identities and counts only marked actors", () => {
+  const selection = selector.slice(selector.indexOf("void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()"));
+  assert.match(selection, /GetLightweightBuildableInstanceFromConvertedBuildableOrTemporary/);
+  assert.match(selection, /SelectedInstance\.InitializeFromTemporary\(Buildable\)/);
+  assert.match(selection, /SelectionLightweight\.Add/);
+  assert.match(selection, /GetNumPendingDismantleActors\(false\)/);
+  assert.doesNotMatch(selection, /GetNumPendingDismantleActors\(true\)/);
+  assert.doesNotMatch(selection, /structural pieces this/);
+});

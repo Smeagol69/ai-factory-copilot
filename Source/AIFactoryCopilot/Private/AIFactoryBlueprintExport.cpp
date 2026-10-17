@@ -37,6 +37,8 @@
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 
 /**
  * Writing a real `.sbp` from buildings that are standing in the world.
@@ -2564,13 +2566,24 @@ FAIFactoryActionResult ExportSelection(
             Predicted->SetObjectField(TEXT("blueprint_dimensions_cells"), DimensionsJson);
             Predicted->SetNumberField(TEXT("blueprint_dimension_unit_cm"), AIFactoryCaptureGeometry::CellCm);
 
+            Predicted->SetBoolField(TEXT("native_archive_may_have_written_file"), true);
+            Predicted->SetStringField(TEXT("blueprint_archive_path"),
+                FPaths::Combine(WriteSubsystem->GetSessionBlueprintPath(),
+                    AFGBlueprintSubsystem::SanitizeBlueprintFileName(BlueprintName) + TEXT(".sbp")));
             const FBlueprintHeader WrittenHeader = WriteSubsystem->WriteBlueprintToArchive(
                 Record, CaptureOrigin, Members, ExpectedCaptureDimensions);
-            if (WrittenHeader.Dimensions != ExpectedCaptureDimensions)
+            // CL513885's native method already calls WriteBlueprintToDisk.
+            // Stopping here used to report a failed export even though the
+            // file existed (the owner's nine-piece tunnel capture). Keep the
+            // returned metadata as diagnostics; the mandatory disk readback
+            // below is the authority for the dimensions of the saved file.
+            const bool bReturnDimensionsMatch = WrittenHeader.Dimensions == ExpectedCaptureDimensions;
+            Predicted->SetBoolField(TEXT("native_archive_return_dimensions_match_capture"), bReturnDimensionsMatch);
+            Predicted->SetStringField(TEXT("native_archive_return_dimensions_cells"), WrittenHeader.Dimensions.ToString());
+            if (!bReturnDimensionsMatch)
             {
-                Result.Status = TEXT("failed");
-                Result.Reason = TEXT("native_capture_archive_dimensions_mismatch");
-                return Result;
+                Predicted->SetStringField(TEXT("native_archive_return_warning"),
+                    TEXT("native_capture_archive_dimensions_mismatch"));
             }
             bVerifyCaptureDimensions = true;
             const bool bWrittenToDisk = WriteSubsystem->WriteBlueprintToDisk(Record);
@@ -2639,9 +2652,22 @@ FAIFactoryActionResult ExportSelection(
 
     if (bVerifyCaptureDimensions)
     {
-        const FBlueprintHeader* ReadHeader = Subsystem->GetHeaderByName(BlueprintName);
+        // Refresh/descriptor caches are useful for registering the Blueprint,
+        // but must not certify a stale header when a name is overwritten. Parse
+        // the actual disk file through the game's exact native serializer.
+        const FString ArchivePath = FPaths::Combine(Subsystem->GetSessionBlueprintPath(),
+            AFGBlueprintSubsystem::SanitizeBlueprintFileName(BlueprintName) + TEXT(".sbp"));
+        Observed->SetStringField(TEXT("blueprint_archive_path"), ArchivePath);
+        TUniquePtr<FArchive> HeaderReader(IFileManager::Get().CreateFileReader(*ArchivePath));
+        FBlueprintHeader DiskHeader;
+        const bool bDiskHeaderReadable = HeaderReader &&
+            AFGBlueprintSubsystem::SerializeBlueprintHeader(*HeaderReader, DiskHeader) && !HeaderReader->IsError();
+        Observed->SetBoolField(TEXT("disk_header_parsed_directly"), bDiskHeaderReadable);
+        const FBlueprintHeader* ReadHeader = bDiskHeaderReadable ? &DiskHeader : nullptr;
         const bool bDimensionsMatch = ReadHeader && ReadHeader->Dimensions == ExpectedCaptureDimensions;
         Observed->SetBoolField(TEXT("blueprint_dimensions_match_capture"), bDimensionsMatch);
+        Observed->SetStringField(TEXT("expected_dimensions_cells"), ExpectedCaptureDimensions.ToString());
+        Observed->SetStringField(TEXT("disk_dimensions_cells"), ReadHeader ? ReadHeader->Dimensions.ToString() : TEXT("unknown"));
         if (!bDimensionsMatch)
         {
             Result.Status = TEXT("failed");

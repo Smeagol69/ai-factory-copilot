@@ -87,6 +87,25 @@ test("capture dimensions use complete native bounds and verify archive and disk 
   assert.match(exporter, /capture_dimensions_unknown_reason/);
 });
 
+test("a native auto-save must reach disk readback even when its returned header differs", () => {
+  // CL513885 WriteBlueprintToArchive also calls WriteBlueprintToDisk. A
+  // returned-header mismatch therefore cannot prove no file was written.
+  const returnedHeader = exporter.indexOf("const FBlueprintHeader WrittenHeader =");
+  const explicitWrite = exporter.indexOf("const bool bWrittenToDisk =", returnedHeader);
+  const between = exporter.slice(returnedHeader, explicitWrite);
+  assert.ok(returnedHeader > 0 && explicitWrite > returnedHeader);
+  assert.doesNotMatch(between, /return Result;/,
+    "do not stop before the authoritative disk result after a native auto-save");
+  assert.match(between, /native_archive_return_dimensions_match_capture/);
+  const readback = exporter.indexOf("Subsystem->ReadBlueprintFromDisc(BlueprintName)", explicitWrite);
+  const verifiedDimensions = exporter.indexOf("ReadHeader->Dimensions == ExpectedCaptureDimensions", readback);
+  const committed = exporter.indexOf("Result.bCommitted = true", verifiedDimensions);
+  assert.ok(readback > explicitWrite && verifiedDimensions > readback && committed > verifiedDimensions);
+  assert.match(exporter, /CreateFileReader\(\*ArchivePath\)/,
+    "verify the file header itself rather than a potentially cached descriptor");
+  assert.match(exporter, /SerializeBlueprintHeader\(\*HeaderReader, DiskHeader\)/);
+});
+
 test("the designer-relative path survives as an explicit fallback", () => {
   // Never erase progress: if the subsystem is unavailable the capture still
   // produces a file. A blueprint saved in the wrong frame beats no blueprint,

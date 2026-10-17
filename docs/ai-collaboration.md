@@ -1,5 +1,57 @@
 # Two agents, one repo
 
+## Force-save repair ready for runtime installation — Codex, 2026-10-17
+
+Deployment owner: Codex-2932, branch `codex/blueprint-force-save-513885`.
+Integrated base is d1f4569 (3c0998a code plus handoff documents), containing
+remote master 3997694. Claude checkout `satisfactory-claude` is clean at
+8891d2b; that commit is an ancestor of master. The separate, clean Claude
+reference-traits checkout at 81322c9 remains unintegrated and is not a build
+input. The old `satisfactory-codex-native-blueprints` checkout at cccd601 has
+uncommitted August 17 export-action prototypes. They are preserved untouched;
+the current integrated export action, exact-world transfer and lightweight
+capture implementations supersede that early designer-only proposal. None of
+those uncommitted files are inputs to this repair.
+
+The user has closed the game and authorized installation. This is a runtime
+repair of the DLL and plugin descriptor only, preserving the installed cooked
+assets, SML module map, companion and game configuration. It is not a completed
+new UAT/cook release. Backups and SHA-256 deployment receipts belong under the
+unified application's `state/local-game-re/`. Repeat the clean-game, upstream,
+peer-checkout and exact-source checks immediately before copying.
+
+The native archive function in the installed CL513885 game already writes a
+file. A returned-header dimension discrepancy therefore cannot establish that
+no export happened. Keep it as a warning, require the explicit disk write to
+succeed, require the native readback, then parse the actual disk header with
+the native serializer and compare its dimensions. Never certify a cached
+descriptor or an older file after a failed write. Persist force-save results
+to `Diagnostics/latest-blueprint-export.json`, including archive existence and
+size after an attempted write. Do not automatically delete a player's file.
+
+Dismantle adoption now uses the marked count without the crosshair increment.
+The native getter appends the aimed actor uniquely, so keep exactly the marked
+prefix and ignore an extra unmarked aim. Resolve temporary/converted lightweight
+buildables to stable instance references. Reject incomplete marked sets rather
+than silently saving a subset; retain the existing aimed-only fallback when no
+objects are explicitly marked. This preserves the owner's dismantle-tool to
+force-save workflow and does not require box selection.
+
+Verified: 1,301/1,301 companion tests; 13/13 compiled C++ count-selection cases;
+exact SDK513885/SML3.12.0 source/header validation; fresh FactoryGameSteam Win64
+Shipping module build with 147 synchronized inputs. SDK Wwise integration is
+2025.1.6.9117.4248. DLL SHA-256:
+`3149792C3E9A833952AEEE5EB79151C15DCC07C66C58228B60E16B6B7161C707`.
+Claude independently reviewed the selection and disk-readback changes; its
+FString format compile finding was fixed before the successful build.
+
+Still open: live game startup/crash check and mark/adopt/save/place verification,
+including lightweight structural pieces and unique-name/overwrite cases. The
+matching full Editor build is still running for the subsequent complete cook
+and archive. The original user's nine-entity archive is readable by the offline
+parser; this alone is not proof of successful native placement. The exact cause
+of the previous returned-header discrepancy remains unproven.
+
 ## Claimed force-save repair — Codex, 2026-10-17
 
 Branch `codex/blueprint-force-save-513885` starts at d1f4569; remote master

@@ -20,7 +20,7 @@ test("plugin and companion publish one exact semantic version", async () => {
   assert.equal(plugin.VersionName, plugin.SemVersion);
   assert.equal(companion.version, plugin.SemVersion);
   assert.equal(plugin.IsBetaVersion, plugin.SemVersion.includes("-"));
-  assert.equal(plugin.GameVersion, ">=502094");
+  assert.equal(plugin.GameVersion, ">=513885");
   assert.equal(companion.dependencies["@etothepii/satisfactory-file-parser"], "4.1.2");
   assert.equal(lockfile.packages[""].dependencies["@etothepii/satisfactory-file-parser"], "4.1.2");
 });
