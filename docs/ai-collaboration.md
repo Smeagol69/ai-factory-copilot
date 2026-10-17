@@ -1,5 +1,21 @@
 # Two agents, one repo
 
+## Claimed saved-pose reader integration — Codex, 2026-10-17
+
+User requests all available models improving Architect and supplies a tunnel
+whose panels must turn horizontally without changing their cross-section.
+Codex-2932 owns only `companion/lib/blueprints.mjs` and its existing test file
+on `codex/blueprint-force-save-513885`. Integrate Claude's exact helper artifacts
+81322c9/69665af after source review, preserving default reader output and all
+native serializers. The opt-in carrier retains full quaternion/scale and saved
+palette evidence; it does not certify joins, clearance or game placement.
+Native bridge is live in bp builder: read-only capture and askall completed
+with no actions/mutation. Root Codex owns integration and runtime deployment;
+no replacement game DLL is needed for this reader change. Google authored
+partial horizontal-turn cases (MAX_TOKENS retained); HauhauCS wrote a real
+checklist via MCP. Its check timeout is being repaired/read back, not replayed
+as another edit. Native Codex subagents remain quota-limited until6:16PM.
+
 ## Force-save repair ready for runtime installation — Codex, 2026-10-17
 
 Deployment owner: Codex-2932, branch `codex/blueprint-force-save-513885`.
