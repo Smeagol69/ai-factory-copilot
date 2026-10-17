@@ -296,6 +296,49 @@ test('missing fingerprints or invalid profiles are unknown', () => {
   assert.equal(compareReferenceTraits(collect([], FP_A), ok).translated_motif.status, 'unknown');
 });
 
+test('real reader sha256:-prefixed fingerprints work in collect and compare; malformed ones do not', () => {
+  const H = 'c'.repeat(64);
+  const H2 = 'd'.repeat(63) + 'e';
+  const l = collect([row(1, A, 0)], `sha256:${H}`);
+  const r = collect([row(2, A, 5)], `sha256:${H2}`);
+  assert.equal(l.source_fingerprint, `sha256:${H}`);
+  const c = compareReferenceTraits(l, r);
+  assert.equal(c.translated_motif.status, 'matched');
+  assert.equal(c.left.source_fingerprint, `sha256:${H}`);
+  assert.equal(c.right.source_fingerprint, `sha256:${H2}`);
+  assert.equal(compareReferenceTraits(l, collect([row(2, A, 5)], H)).translated_motif.status, 'matched');
+  for (const bad of [`SHA256:${H}`, `sha256:${'C'.repeat(64)}`, `sha256:${H}0`, `sha256:${H.slice(1)}`, `sha1:${H}`, `sha256:sha256:${H}`, 'sha256:', ` sha256:${H}`]) {
+    assert.equal(collect([row(1, A, 0)], bad).source_fingerprint, null, bad);
+  }
+  assert.equal(collect([row(1, A, 0)], 'C'.repeat(64)).source_fingerprint, null);
+});
+
+test('color slot is a byte 0..255, wrapped or direct; absent and malformed stay distinct', () => {
+  const slot = (v) => readSavedAppearance({ mColorSlot: v });
+  assert.deepEqual([slot({ value: { value: 0 } }).color_slot, slot({ value: { value: 0 } }).color_slot_state], [0, 'recorded']);
+  assert.deepEqual([slot({ value: { value: 255 } }).color_slot, slot({ value: { value: 255 } }).color_slot_state], [255, 'recorded']);
+  assert.equal(slot({ value: 7 }).color_slot, 7);
+  assert.equal(slot(0).color_slot, 0);
+  assert.equal(slot(255).color_slot_state, 'recorded');
+  for (const bad of [256, -1, 1.5, NaN, Infinity, '3', { value: '3' }, { value: { value: 256 } }, { value: { value: -1 } },
+    { value: { value: 2.5 } }, { value: { value: { value: 1 } } }, { value: {} }, {}, true]) {
+    const a = slot(bad);
+    assert.equal(a.color_slot_state, 'malformed', JSON.stringify(bad));
+    assert.equal(a.color_slot, null);
+  }
+  assert.equal(readSavedAppearance({}).color_slot_state, 'absent');
+  assert.equal(slot(null).color_slot_state, 'absent');
+  // supplied profiles apply the same byte rule
+  const mk = (c) => collect([row(1, A, 0, 0, 0, { appearance: { swatch_descriptor: null, color_slot: c, swatch_state: 'absent', color_slot_state: 'recorded' } })]).appearance;
+  assert.deepEqual(mk(255).color_slots, [{ slot: 255, count: 1 }]);
+  assert.deepEqual(mk(0).color_slots, [{ slot: 0, count: 1 }]);
+  for (const bad of [256, -1, 1.5, '3', NaN]) {
+    const ap = mk(bad);
+    assert.deepEqual(ap.color_slots, []);
+    assert.equal(ap.color_slot_malformed_count, 1);
+  }
+});
+
 test('comparison is deterministic and does not mutate frozen inputs', () => {
   const deepFreeze = (o) => { Object.values(o).forEach((v) => typeof v === 'object' && v && deepFreeze(v)); return Object.freeze(o); };
   const l = deepFreeze(collect([row(1, A, 0), row(2, B, 50)], FP_A));
