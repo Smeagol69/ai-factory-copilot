@@ -1,0 +1,176 @@
+{
+  "repository": "https://github.com/crowdere/Awesome-RE-MCP",
+  "commit": "e400b882965ef61302718c7fe7c4f1e2861bd664",
+  "readmeSha256": "3581c57202acd3831d1ee254563456e7add2460ff80854773dbde7b0a7c41a5b",
+  "completeUpstreamFile": "catalog/Awesome-RE-MCP/README.md",
+  "entries": [
+    {
+      "name": "ida-pro-mcp",
+      "url": "https://github.com/mrexodia/ida-pro-mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "ida-mcp-server",
+      "url": "https://github.com/MxIris-Reverse-Engineering/ida-mcp-server",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "mcp-server-idapro",
+      "url": "https://github.com/fdrechsler/mcp-server-idapro",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "ida-mcp-server-plugin",
+      "url": "https://github.com/taida957789/ida-mcp-server-plugin",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "headless-ida-mcp-server",
+      "url": "https://github.com/cnitlrt/headless-ida-mcp-server",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "GhidraMCP",
+      "url": "https://github.com/LaurieWired/GhidraMCP",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "reverse-engineering-assistant",
+      "url": "https://github.com/cyberkaida/reverse-engineering-assistant",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "ghidra-mcp",
+      "url": "https://github.com/suidpit/ghidra-mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "GhydraMCP",
+      "url": "https://github.com/starsong-consulting/GhydraMCP",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "binary_ninja_mcp",
+      "url": "https://github.com/fosdickio/binary_ninja_mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "binaryninja-mcp",
+      "url": "https://github.com/MCPPhalanx/binaryninja-mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "binja_mcp",
+      "url": "https://github.com/rsprudencio/binja_mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "binja-lattice-mcp",
+      "url": "https://github.com/Invoke-RE/binja-lattice-mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "radare2-mcp",
+      "url": "https://github.com/radareorg/radare2-mcp",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "x64dbgMCP",
+      "url": "https://github.com/Wasdubya/x64dbgMCP",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "CutterMCP",
+      "url": "https://github.com/ap425q/CutterMCP",
+      "category": "Disassemblers & Decompilers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "LLDB",
+      "url": "https://lldb.llvm.org/use/mcp.html",
+      "category": "Debuggers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "GDB MCP Server",
+      "url": "https://www.pulsemcp.com/servers/pansila-gdb",
+      "category": "Debuggers",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "YaraFlux",
+      "url": "https://github.com/ThreatFlux/YaraFlux",
+      "category": "Static Analysis Tools",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "frida-mcp",
+      "url": "https://github.com/dnakov/frida-mcp",
+      "category": "Dynamic Analysis Tools",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "WireMCP",
+      "url": "https://github.com/0xKoda/WireMCP",
+      "category": "Network Analysis",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "Burp Suite MCP",
+      "url": "https://github.com/PortSwigger/mcp-server",
+      "category": "Network Analysis",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "BurpMCP",
+      "url": "https://github.com/swgee/BurpMCP",
+      "category": "Network Analysis",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "ZAP-MCP",
+      "url": "https://github.com/ajtazer/ZAP-MCP",
+      "category": "Network Analysis",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "Jadx MCP Plugin",
+      "url": "https://github.com/mobilehackinglab/Jadx-MCP-Plugin",
+      "category": "Android/Mobile RE Tools",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "jadx-mcp-server",
+      "url": "https://github.com/zinja-coder/jadx-mcp-server",
+      "category": "Android/Mobile RE Tools",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "apktool-mcp-server",
+      "url": "https://github.com/zinja-coder/apktool-mcp-server",
+      "category": "Android/Mobile RE Tools",
+      "status": "catalogued-not-configured"
+    },
+    {
+      "name": "mcp-for-security",
+      "url": "https://github.com/cyproxio/mcp-for-security",
+      "category": "Security Testing Tools",
+      "status": "catalogued-not-configured"
+    }
+  ]
+}

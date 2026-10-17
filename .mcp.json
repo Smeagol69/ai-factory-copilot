@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "agent_pair": {
-      "command": "C:/Program Files/nodejs/node.exe",
+      "command": "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe",
       "args": [
         "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/mcp.mjs",
         "--provider",
@@ -9,9 +9,15 @@
       ]
     },
     "superpowers": {
-      "command": "C:/Program Files/nodejs/node.exe",
+      "command": "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe",
       "args": [
         "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/superpowers.mjs"
+      ]
+    },
+    "rea": {
+      "command": "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/rea.mjs"
       ]
     }
   }

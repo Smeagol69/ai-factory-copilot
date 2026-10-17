@@ -4,3 +4,11 @@ node_modules/
 .env.*
 *.dpapi
 *.sqlite*
+runtime/
+state/
+workspaces/
+Copilot.exe
+.superpowers/
+tools/rea/*.tgz
+tools/ghidra/
+tools/java/

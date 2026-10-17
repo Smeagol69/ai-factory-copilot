@@ -8,7 +8,7 @@ import { verifyRuntime, companionHealth, loadProject } from '../lib/project.mjs'
 
 test('a changed runtime commit or tracked file prevents launch verification', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sat-mcp-pin-'));
-  const git = args => execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const git = args => execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim();
   try {
     git(['init', '-b', 'codex/fixture']);
     writeFileSync(join(dir, 'server.mjs'), 'export const revision = 1;\n');

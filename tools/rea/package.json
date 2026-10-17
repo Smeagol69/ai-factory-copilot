@@ -1,0 +1,8 @@
+{
+  "name": "satisfactory-lab-rea-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Project-local complete official REA distribution; no global registration.",
+  "dependencies": { "rea-agents": "6.5.0" }
+}

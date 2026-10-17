@@ -4,7 +4,7 @@
   "name": "Satisfactory MCP Lab",
   "goal": "Test the reusable model team on Satisfactory: divide useful implementation work, preserve verified knowledge, review exact changes, and report authoritative game outcomes.",
   "runtime": {
-    "directory": "../agent-pair-platform",
+    "directory": "runtime/agent-pair",
     "commit": "b727bebede1c7cdd025cc1a7f57981b3e7720beb",
     "superpowersVersion": "7.0.0"
   },
@@ -14,5 +14,6 @@
     "companionPort": 8142
   },
   "progressPort": 8794,
+  "appPort": 8795,
   "startup": { "modelCalls": 0, "gameWrites": 0, "scheduledTasks": 0 }
 }

@@ -6,7 +6,7 @@
   "description": "A separate Satisfactory benchmark project using the verified Agent Pair and Superpowers MCP runtime.",
   "engines": { "node": ">=24" },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-isolation=none test/*.test.mjs",
     "status": "node scripts/status.mjs",
     "verify": "node scripts/status.mjs --offline",
     "configure": "node scripts/configure-clients.mjs",
@@ -14,6 +14,10 @@
     "mcp:claude": "node scripts/mcp.mjs --provider claude",
     "superpowers": "node scripts/superpowers.mjs",
     "room": "node scripts/room.mjs",
-    "start:room": "node scripts/start-room.mjs"
+    "start:room": "node scripts/start-room.mjs",
+    "start": "node scripts/start-app.mjs",
+    "rea": "node scripts/rea.mjs",
+    "check:rea": "node scripts/check-rea.mjs",
+    "build:launcher": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-launcher.ps1"
   }
 }
