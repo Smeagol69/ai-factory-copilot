@@ -21,6 +21,7 @@
 - Saved swatch descriptor and legacy color-slot state are independent fields; missing/malformed is not default appearance or equality. Appearance differences do not invalidate geometry matches.
 - Pair appearance is different if any mutually recorded field differs; otherwise equal only when both fields are recorded on both sides and equal; otherwise unknown. These three counts partition every matched pair.
 - Complete quaternion components must be finite and near-unit (norm within0.001); zero/non-unit is unknown. Compare original saved values with sign equivalence, without replacing them with yaw. Class and index are strict strings/nonnegative integers, never coerced.
+- Indices must be safe integers and unique; exclude every row bearing a duplicated index. Position tolerance is component-wise (L-infinity)0.1cm. Candidate translations use exact JS numeric subtraction and JSON numeric triples for deduplication (-0 canonicalized). Candidate anchors order by compatible class pair-count then class-path lexical order, with source/target indices ascending; retain the first candidate on equal witnessed count. One pair proves a singleton subset only. `matched` requires complete input/candidate coverage; otherwise positive evidence is `bounded`, never global optimality.
 - Return source pair fingerprints, scope, bounds and limits. No absolute private paths, raw files, model prose or fabricated rendered colors.
 - No game, shell, browser takeover or paid call on status refresh. All background child processes hidden. No SDK/version-gate bypass.
 
@@ -72,7 +73,9 @@ mesh/collision/navigation, rendered appearance, buildability and live functional
 
 Modify `companion/lib/blueprints.mjs`: import helper; option
 `includeReferenceTraits=false`; when opted in normalize every parsed entity
-using existing readBuildableTransform and readSavedAppearance; private
+using existing readBuildableTransform only after checking original vector
+components are strictly finite numbers (the legacy reader uses Number coercion),
+and readSavedAppearance; private
 `reference_traits` carrier. Add `includeReferenceTraits=false` comparison option
 to attach helper output only when requested; comparisonSummary stays unchanged.
 
