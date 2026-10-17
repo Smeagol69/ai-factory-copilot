@@ -82,6 +82,7 @@ FAIFactorySettings FAIFactorySettings::Load()
     ReadNumber(Json, TEXT("maxTerrainProbes"), Settings.MaxTerrainProbes);
     ReadNumber(Json, TEXT("terrainProbeRadiusMeters"), Settings.TerrainProbeRadiusMeters);
     Json->TryGetBoolField(TEXT("startupSelfTest"), Settings.bStartupSelfTest);
+    Json->TryGetBoolField(TEXT("enablePlaytestMailbox"), Settings.bEnablePlaytestMailbox);
     ReadNumber(Json, TEXT("startupSelfTestDelaySeconds"), Settings.StartupSelfTestDelaySeconds);
     Json->TryGetStringField(TEXT("startupSelfTestQuestion"), Settings.StartupSelfTestQuestion);
     Json->TryGetBoolField(TEXT("allowWriteActions"), Settings.bAllowWriteActions);

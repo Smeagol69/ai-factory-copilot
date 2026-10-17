@@ -5,6 +5,17 @@ All notable changes to AI Factory Copilot are recorded here. Versions follow
 
 ## Unreleased
 
+- Generated native Blueprints now reload structural v1 through the existing
+  isolated Blueprint world and match every requested saved part by class,
+  position, rotation and scale. Missing, ambiguous or displaced pieces refuse;
+  later topology checks remain intact. File fidelity does not certify site fit.
+- Optional local playtest ingress reuses existing game-owned capture, screenshot
+  and bridge actions. It defaults off, binds loaded-world/player identity, records
+  immutable consumption before dispatch and preserves unknown interrupted
+  outcomes. Readiness is explicit; no arbitrary console or shell command is added.
+- Offline reference decodes and readable sheets now retain the existing
+  hypertube and rail topology evidence, including malformed data, unknowns and
+  bounded omissions, instead of silently dropping those transport families.
 - Entrances and tunnel shells can be saved as typed, immutable Architect
   revisions without a production target. Structural options support parented
   variants, exact local-layout replay, comparison, selection and rollback;

@@ -413,6 +413,7 @@ void AAIFactorySubsystem::BeginPlay()
 
 void AAIFactorySubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    PlaytestMailbox.Interrupt(*this);
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(ObserverTimer);
@@ -432,6 +433,8 @@ void AAIFactorySubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AAIFactorySubsystem::ObserveWorld()
 {
+    // The observer always ticks, including when live feed and vision are off.
+    PlaytestMailbox.Tick(*this);
     // Vision rides the observer timer rather than owning one. The observer
     // already ticks and already knows whether anything changed, so a second
     // timer would just be another thing to keep in sync.
@@ -602,10 +605,17 @@ void AAIFactorySubsystem::AskBridge(
     UCommandSender* Sender,
     const FString& Question,
     const FAIFactorySnapshotRequest& Request,
-    const bool bEchoToGameChat)
+    const bool bEchoToGameChat,
+    const FString& PlaytestRequestId)
 {
     if (!IsValid(Sender) || Question.TrimStartAndEnd().IsEmpty())
     {
+        PlaytestMailbox.CompleteAsk(*this, PlaytestRequestId, nullptr, false, TEXT("requesting_player_or_question_unavailable"));
+        return;
+    }
+    if (!PlaytestRequestId.IsEmpty() && !PlaytestMailbox.ValidateActiveScope(*this, PlaytestRequestId, Sender))
+    {
+        PlaytestMailbox.CompleteAsk(*this, PlaytestRequestId, nullptr, false, TEXT("playtest_scope_changed_before_dispatch"));
         return;
     }
 
@@ -627,6 +637,7 @@ void AAIFactorySubsystem::AskBridge(
             Sender->SendChatMessage(Error);
         }
         OnBridgeResult.Broadcast(Sender, false, Error, TEXT(""), TEXT(""));
+        PlaytestMailbox.CompleteAsk(*this, PlaytestRequestId, nullptr, false, TEXT("snapshot_serialization_failed"));
         return;
     }
 
@@ -653,6 +664,11 @@ void AAIFactorySubsystem::AskBridge(
     HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     HttpRequest->SetHeader(TEXT("X-AIFactory-Schema"), TEXT("1"));
     HttpRequest->SetContentAsString(Body);
+    if (!PlaytestRequestId.IsEmpty())
+    {
+        HttpRequest->SetTimeout(300.0f);
+        HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnGameThread);
+    }
 
     const TWeakObjectPtr<UCommandSender> WeakSender(Sender);
     const TWeakObjectPtr<AAIFactorySubsystem> WeakThis(this);
@@ -671,13 +687,23 @@ void AAIFactorySubsystem::AskBridge(
          BridgeSessionId,
          QuestionReceivedAtUtc,
          RequestSentAtUtc,
-         SnapshotWorldRevision](
+         SnapshotWorldRevision,
+         PlaytestRequestId](
             FHttpRequestPtr RequestPtr,
             FHttpResponsePtr Response,
             const bool bConnectedSuccessfully)
         {
             if (!WeakSender.IsValid() || !WeakThis.IsValid())
             {
+                if (WeakThis.IsValid()) WeakThis->PlaytestMailbox.CompleteAsk(*WeakThis.Get(),
+                    PlaytestRequestId, nullptr, false, TEXT("requesting_player_unavailable"));
+                return;
+            }
+            if (!PlaytestRequestId.IsEmpty() &&
+                !WeakThis->PlaytestMailbox.ValidateActiveScope(*WeakThis.Get(), PlaytestRequestId, WeakSender.Get()))
+            {
+                WeakThis->PlaytestMailbox.CompleteAsk(*WeakThis.Get(), PlaytestRequestId,
+                    nullptr, false, TEXT("playtest_scope_changed_before_native_execution"));
                 return;
             }
 
@@ -691,6 +717,8 @@ void AAIFactorySubsystem::AskBridge(
                     WeakSender->SendChatMessage(Error);
                 }
                 WeakThis->OnBridgeResult.Broadcast(WeakSender.Get(), false, Error, TEXT(""), TEXT(""));
+                WeakThis->PlaytestMailbox.CompleteAsk(*WeakThis.Get(), PlaytestRequestId,
+                    nullptr, false, TEXT("bridge_response_unavailable"));
                 return;
             }
 
@@ -725,6 +753,8 @@ void AAIFactorySubsystem::AskBridge(
                     WeakSender->SendChatMessage(Error);
                 }
                 WeakThis->OnBridgeResult.Broadcast(WeakSender.Get(), false, Error, TEXT(""), TEXT(""));
+                WeakThis->PlaytestMailbox.CompleteAsk(*WeakThis.Get(), PlaytestRequestId,
+                    nullptr, false, TEXT("bridge_response_json_invalid"));
                 return;
             }
 
@@ -743,6 +773,7 @@ void AAIFactorySubsystem::AskBridge(
                 Response->GetResponseCode() >= 200 &&
                 Response->GetResponseCode() < 300 &&
                 ResponseJson->HasField(TEXT("reply"));
+            bool bPlaytestOutcomesPersisted = true;
 
             // A reply may carry server-authoritative world actions or one
             // client-only Blueprint Build Gun handoff. The bridge never owns
@@ -826,7 +857,9 @@ void AAIFactorySubsystem::AskBridge(
                     {
                         ActionSummary = AIFactoryActions::ExecutePlan(
                             WeakThis->GetWorld(),
-                            WeakThis->FindLocalPlayerCharacter(),
+                            PlaytestRequestId.IsEmpty()
+                                ? WeakThis->FindLocalPlayerCharacter()
+                                : Cast<AFGCharacterPlayer>(WeakSender->GetPlayer()->GetPawn()),
                             WorldActions,
                             ActionSettings.bAllowWriteActions,
                             LexToString(WeakThis->GetWorldRevision()),
@@ -958,6 +991,7 @@ void AAIFactorySubsystem::AskBridge(
                             &IFileManager::Get(),
                             EFileWrite::FILEWRITE_Append))
                     {
+                        bPlaytestOutcomesPersisted = false;
                         UE_LOG(LogAIFactoryCopilot, Warning,
                             TEXT("Could not append game action outcome diagnostic to %s"),
                             *OutcomePath);
@@ -979,10 +1013,17 @@ void AAIFactorySubsystem::AskBridge(
                     *DiagnosticsPath,
                     FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
             {
+                bPlaytestOutcomesPersisted = false;
                 UE_LOG(LogAIFactoryCopilot, Warning,
                     TEXT("Could not persist enriched game action results to %s"),
                     *DiagnosticsPath);
             }
+            // A mailbox receipt is terminal only after the existing native
+            // action pipeline and its retained outcome writes have finished.
+            WeakThis->PlaytestMailbox.CompleteAsk(*WeakThis.Get(), PlaytestRequestId,
+                ResponseJson, bPlaytestOutcomesPersisted,
+                !bSuccess ? TEXT("bridge_request_failed") :
+                    (bPlaytestOutcomesPersisted ? TEXT("") : TEXT("native_outcome_persistence_failed")));
             UE_LOG(LogAIFactoryCopilot, Display,
                 TEXT("AI bridge answer received: http=%d provider=%s model=%s reply_chars=%d path=%s"),
                 Response->GetResponseCode(),
@@ -1005,6 +1046,7 @@ void AAIFactorySubsystem::AskBridge(
             Sender->SendChatMessage(Error);
         }
         OnBridgeResult.Broadcast(Sender, false, Error, TEXT(""), TEXT(""));
+        PlaytestMailbox.CompleteAsk(*this, PlaytestRequestId, nullptr, false, TEXT("bridge_request_start_failed"));
         return;
     }
 

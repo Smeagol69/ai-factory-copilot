@@ -1,5 +1,39 @@
 # Two agents, one repo
 
+## Validation extension handoff — Codex + Claude, 2026-10-17
+
+Extends the existing Copilot3997694. Claude's bounded SDK worker supplied the
+offline transport decoder patch, then hit our28-tool limit during final fixture
+verification. Its exact partial/usage was preserved; Codex repaired missing
+existing-decoder imports and legacy struct-array serializer fixtures. Separate
+review approved decoder and corrected reference sheets at exact hashes. No
+policy refusal was observed, and no fresh paid implementation replay was used.
+
+Structural v1 now reloads through the same native isolated Blueprint world as
+later formats. Every requested part must uniquely match saved class, position,
+quaternion and scale. The dedicated native Automation test actually ran:1/1
+passed. This fixes the old bExactNativeReadback=bSchemaV1 shortcut; it does not
+certify a live saved file, terrain or destination clearance.
+
+The default-off PlaytestMailbox calls existing game-owned capture/look/AskBridge
+paths. Independent review caught and fixed the engine's delete-before-replace
+file move: consumption now publishes immutable per-ID flushed markers through
+the verified no-replace physical MoveFileW path. Exact loaded-world/controller
+identity is checked before dispatch and callback actions. Readiness is published
+only after marker recovery; refusals preserve valid requested identity. Native
+and lab client reviews approve the final source. Crash/reload behavior has not
+yet been exercised in a packaged game.
+
+Verification:1299/1299 companion npm tests; lab49passed/1explicit native-engine
+skip; exact502094 headers; final FactoryEditor Development and FactoryGameSteam
+Shipping builds passed. Native Automation1/1passed. `scripts/validate.ps1`
+correctly refuses installed game CL513885 (1.2.4.1, updatedOct12), because the
+only current SDK targets502094. No new native package or game files were
+deployed. Matching official SDK513885 is being prepared separately; do not bump
+GameVersion or bypass this gate without matching headers/build/package checks.
+Existing game installation, private supplied Blueprints and foreign worktrees
+are preserved. Live generation/fit/placement/image acceptance remains open.
+
 ## Claimed next validation loop — Codex, 2026-10-17
 
 Branch `codex/native-playtest-validation`, baseline3997694. Owner codex-17476

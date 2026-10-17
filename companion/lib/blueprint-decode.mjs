@@ -28,7 +28,9 @@ import { Parser } from "@etothepii/satisfactory-file-parser";
 
 import {
   decodeBlueprintConnectionTopology,
+  decodeBlueprintHypertubeTopology,
   decodeBlueprintPowerWireTopology,
+  decodeBlueprintRailTopology,
   parseBlueprintConfig,
   parseBlueprintHeader,
 } from "./blueprints.mjs";
@@ -524,6 +526,19 @@ export function decodeBlueprint(name, sbpBuffer, sbpcfgBuffer) {
     }),
     power_wire_topology: decodeBlueprintPowerWireTopology(objects, {
       maximumPowerWires: OFFLINE_TOPOLOGY_LIMIT,
+    }),
+    // Native hypertube and railway evidence. Each decoder clamps its own
+    // returned-record bound and reports any truncation and its uncertainty
+    // fields; they are carried through unchanged. Neither proves direction,
+    // live function, or a join with anything outside this blueprint.
+    hypertube_topology: decodeBlueprintHypertubeTopology(objects, {
+      maximumConnections: OFFLINE_TOPOLOGY_LIMIT,
+      maximumPipes: OFFLINE_TOPOLOGY_LIMIT,
+      maximumSplinePoints: OFFLINE_TOPOLOGY_LIMIT,
+    }),
+    rail_topology: decodeBlueprintRailTopology(objects, {
+      maximumRailTracks: OFFLINE_TOPOLOGY_LIMIT,
+      maximumRailSplinePoints: OFFLINE_TOPOLOGY_LIMIT,
     }),
     buildings,
     coordinate_note:

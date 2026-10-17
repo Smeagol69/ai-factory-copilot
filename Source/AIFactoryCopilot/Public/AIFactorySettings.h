@@ -23,6 +23,8 @@ struct FAIFactorySettings
     float TerrainProbeRadiusMeters = 500.0f;
     bool bUIWholeWorldSnapshot = true;
     bool bStartupSelfTest = false;
+    /** Explicit local file ingress for bounded game-owned playtests. */
+    bool bEnablePlaytestMailbox = false;
     float StartupSelfTestDelaySeconds = 10.0f;
     FString StartupSelfTestQuestion = TEXT(
         "Using only the authoritative snapshot, what should the player do next and what placement facts are known?");

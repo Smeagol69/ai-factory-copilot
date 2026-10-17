@@ -5,6 +5,42 @@ the path from "the assistant can calculate a factory" to "a second player can
 design a beautiful, efficient campus with me, show it to me, revise it, and hand
 it to Satisfactory's native Build Gun."
 
+## Existing Copilot validation extension, 2026-10-17
+
+The consolidated MCP application extends this mod and companion. Existing
+solvers, revisioned structural designs, native Blueprint serialization,
+holograms, authority checks and undo remain in use. No replacement serializer
+or world-write executor is introduced.
+
+Generated structural v1 no longer assumes exact readback. Every supported
+generated format is loaded through the existing isolated native Blueprint
+world. Each requested part needs a unique class/position/quaternion/scale match
+(0.1 cm position, 0.0001 quaternion-component and scale tolerances). Additional
+transport actors remain covered by the existing count/topology checks. A native
+Automation test exercises the matcher; live saved-file fidelity, destination
+clearance, navigation and visual acceptance remain distinct checks.
+
+Offline reference decodes reuse the existing bounded hypertube and rail
+decoders. Sheets report source uncertainty, malformed spline state and missing
+data separately from display caps. Shared poses/material descriptors are useful
+design evidence; they do not supply unmeasured pivots, collisions or clearance.
+
+`enablePlaytestMailbox` defaults to false. When explicitly enabled in the game
+config, the existing game-thread observer publishes
+`Saved/AIFactoryCopilot/Diagnostics/Playtest/status.json`. Readiness includes
+marker recovery, capacity, authority, loaded-world identity and selected-player
+identity. A bounded `request.json` accepts only `capture`, `look`, or `askall`;
+each has an expiring UUID and exact expected world/player scope. These call the
+existing commands/bridge. Scope is rechecked before asynchronous actions run.
+
+Immutable `consumed/<id>.consumed` files are flushed and published without
+replacement before dispatch. They are never evicted automatically (256 maximum).
+Corrupt, partial, orphaned or legacy consumption state stops new work for review.
+Interrupted requests receive `outcome_unknown`, never an automatic retry.
+`results/<id>.json` retains original scope and native outcomes; `current_scope`
+separately names the current world. Pipeline completion does not imply a
+committed action, collision-free construction or a captured screenshot.
+
 ## Player experience
 
 ### Owner's acceptance scenario: live entrance and underground factory

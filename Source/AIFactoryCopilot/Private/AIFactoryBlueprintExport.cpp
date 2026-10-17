@@ -8,6 +8,7 @@
 #include "FGBlueprintSubsystem.h"
 #include "FGCharacterPlayer.h"
 #include "FGClearanceInterface.h"
+#include "AIFactoryGeneratedGeometry.h"
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
 #include "Buildables/FGBuildableConveyorBase.h"
@@ -1982,6 +1983,27 @@ namespace
         TArray<AAIFactoryBlueprintResourceAnchor*> LoadedResourceAnchors;
         TArray<AFGBuildableResourceExtractorBase*> LoadedMiners;
 
+        TArray<AIFactoryGeneratedGeometry::FPart> ExpectedGeometry;
+        TArray<AIFactoryGeneratedGeometry::FPart> ActualGeometry;
+        for (const FResolvedGeneratedPart& Part : ExpectedParts)
+        {
+            ExpectedGeometry.Add({Part.Source.PartId,
+                IsValid(Part.BuildableClass.Get()) ? Part.BuildableClass.Get()->GetPathName() : FString(),
+                Part.Source.RelativeTransform * GeneratedToArchive});
+        }
+        for (AFGBuildable* Candidate : Loaded)
+        {
+            if (IsValid(Candidate)) ActualGeometry.Add({FString(), Candidate->GetClass()->GetPathName(), Candidate->GetActorTransform()});
+        }
+        int32 ExactPartTransforms = 0;
+        const bool bExactGeometry = AIFactoryGeneratedGeometry::Match(
+            ExpectedGeometry, ActualGeometry, ExactPartTransforms, OutReason);
+        Observed->SetNumberField(TEXT("expected_saved_part_transforms"), ExpectedGeometry.Num());
+        Observed->SetNumberField(TEXT("exact_saved_part_transforms"), ExactPartTransforms);
+        Observed->SetNumberField(TEXT("native_readback_position_tolerance_cm"), AIFactoryGeneratedGeometry::PositionToleranceCm);
+        Observed->SetBoolField(TEXT("exact_native_geometry_readback"), bExactGeometry);
+        if (!bExactGeometry) return false;
+
         int32 ExactClockSettings = 0;
         TSet<AFGBuildable*> ClockMatchedActors;
         for (const FResolvedGeneratedPart& Part : ExpectedParts)
@@ -3252,13 +3274,14 @@ FAIFactoryActionResult GenerateLayout(
     AFGBlueprintSubsystem* Subsystem =
         AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
     bool bReadable = false;
-    bool bExactNativeReadback = bSchemaV1;
+    bool bExactNativeReadback = false;
+    Observed->SetBoolField(TEXT("exact_native_geometry_readback"), false);
     FString NativeReadbackFailure;
     if (IsValid(Subsystem))
     {
         Subsystem->RefreshBlueprintsAndDescriptors();
         bReadable = Subsystem->ReadBlueprintFromDisc(BlueprintName);
-        if (bReadable && (bSchemaV2 || bSchemaV3 || bSchemaV4))
+        if (bReadable)
         {
             UFGBlueprintDescriptor* Descriptor =
                 Subsystem->GetBlueprintDescriptorByNameString(BlueprintName);
