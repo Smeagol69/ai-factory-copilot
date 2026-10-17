@@ -19,6 +19,8 @@
 - Every match is one-to-one. Duplicate multiplicity is preserved; correspondence/translation uniqueness is not asserted. A deterministic greedy pairing is a witnessed subset, not maximum matching.
 - Evaluate at most128 distinct candidate translations by default (hard256), from compatible class/orientation/scale pairs in deterministic rare-class-first order. At most32 returned pair rows (hard64); preserve full matched count. Mark incomplete coverage/search explicitly; bounded/unknown is not absence or global optimality.
 - Saved swatch descriptor and legacy color-slot state are independent fields; missing/malformed is not default appearance or equality. Appearance differences do not invalidate geometry matches.
+- Pair appearance is different if any mutually recorded field differs; otherwise equal only when both fields are recorded on both sides and equal; otherwise unknown. These three counts partition every matched pair.
+- Complete quaternion components must be finite and near-unit (norm within0.001); zero/non-unit is unknown. Compare original saved values with sign equivalence, without replacing them with yaw. Class and index are strict strings/nonnegative integers, never coerced.
 - Return source pair fingerprints, scope, bounds and limits. No absolute private paths, raw files, model prose or fabricated rendered colors.
 - No game, shell, browser takeover or paid call on status refresh. All background child processes hidden. No SDK/version-gate bypass.
 
