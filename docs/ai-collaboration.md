@@ -3,6 +3,7 @@
 ## Force-save repair ready for runtime installation — Codex, 2026-10-17
 
 Deployment owner: Codex-2932, branch `codex/blueprint-force-save-513885`.
+Runtime source commit selected for installation: d95e47a.
 Integrated base is d1f4569 (3c0998a code plus handoff documents), containing
 remote master 3997694. Claude checkout `satisfactory-claude` is clean at
 8891d2b; that commit is an ancestor of master. The separate, clean Claude
@@ -12,6 +13,11 @@ uncommitted August 17 export-action prototypes. They are preserved untouched;
 the current integrated export action, exact-world transfer and lightweight
 capture implementations supersede that early designer-only proposal. None of
 those uncommitted files are inputs to this repair.
+Final preflight also inspected the September 7 untracked rotation prototypes in
+`satisfactory-hud-axis-rotation` at 53dea4f. The integrated tree already contains
+the subsequent rotation implementation, input handlers and native tests; retain
+the historical checkout untouched. The unified MCP application's separate dirty
+checkout is ongoing authorized app work and is not a native module build input.
 
 The user has closed the game and authorized installation. This is a runtime
 repair of the DLL and plugin descriptor only, preserving the installed cooked
