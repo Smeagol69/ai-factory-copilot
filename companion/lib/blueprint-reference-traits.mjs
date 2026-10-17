@@ -18,7 +18,8 @@ const CLAIMS_NOT_MADE = [
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v) => v !== null && typeof v === 'object';
-const isFingerprint = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+const isFingerprint = (v) => typeof v === 'string' && /^(?:sha256:)?[0-9a-f]{64}$/.test(v);
+const isByte = (v) => Number.isInteger(v) && v >= 0 && v <= 255;
 const isIndex = (v) => Number.isSafeInteger(v) && v >= 0;
 const limit = (v, def, hard) => (Number.isSafeInteger(v) && v >= 1 ? Math.min(v, hard) : def);
 const vec3 = (v, keys) => isObj(v) && keys.every((k) => isNum(v[k]));
@@ -55,8 +56,11 @@ export function readSavedAppearance(properties) {
   }
   const slot = props.mColorSlot;
   if (slot !== undefined && slot !== null) {
-    const v = isObj(slot) ? slot.value : slot;
-    if (isNum(v)) {
+    // Byte property: direct number, {value:n}, or parser-wrapped {value:{value:n}} (see blueprint-decode byteProperty).
+    let v = slot;
+    if (isObj(v)) v = v.value;
+    if (isObj(v)) v = v.value;
+    if (isByte(v)) {
       out.color_slot = v;
       out.color_slot_state = 'recorded';
     } else {
@@ -74,7 +78,7 @@ function normalizeAppearance(a) {
     out.swatch_descriptor = a.swatch_descriptor;
     out.swatch_state = 'recorded';
   } else if (a.swatch_state !== 'absent') out.swatch_state = 'malformed';
-  if (a.color_slot_state === 'recorded' && isNum(a.color_slot)) {
+  if (a.color_slot_state === 'recorded' && isByte(a.color_slot)) {
     out.color_slot = a.color_slot;
     out.color_slot_state = 'recorded';
   } else if (a.color_slot_state !== 'absent') out.color_slot_state = 'malformed';
