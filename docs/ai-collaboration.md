@@ -2,6 +2,21 @@
 
 ## Native tunnel live checkpoint and undo repair — Codex, 2026-10-18
 
+Owner feedback: the initial structure looks awful; continue toward visible
+geometry quality. Independent per-course sampling staggered inner/outer wall
+and roof joints (2 versus 5 panels), and chord-center scaling compressed the
+cross-section. V2 uses shared angular stations sized by the outer tangent span
+and preserves full transverse spacing, heights and tilts. All 1338 tests pass;
+the updated native module compiles. V2 archive/save/placement/visual checks are
+pending. A full 36/36 saved-reference foundation match in the live world supplies
+an actual connection anchor; do not place another arbitrary floating test copy.
+
+The first member-undo repair removed all 66 test actors in the next authoritative
+snapshot. Its immediate response falsely said 66 remaining because native
+destruction is deferred. Current source additionally checks the verified public
+GetIsDismantled flag and prevents duplicate refunding of those marked actors.
+Repaired synchronous response and save/reload verification remain pending.
+
 The saved Tunnel Halfway profile now produces AI Level Tunnel 28deg: 66 full-pose
 foundation pieces, turning around world up while retaining each course height
 and cross-section tilt. Native archive reload matched 66/66 poses. Native

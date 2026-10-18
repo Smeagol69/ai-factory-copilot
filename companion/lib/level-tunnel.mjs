@@ -58,18 +58,25 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  if(Math.max(...longitudinal)-Math.min(...longitudinal)>0.1)return failure('measured_profile_is_not_one_cross_section');
  const transverse=selected.map(p=>-p.p.x*uy+p.p.y*ux),center=(Math.min(...transverse)+Math.max(...transverse))/2;
  const floor=Math.min(...selected.map(p=>p.p.z)),heading=Math.atan2(uy,ux),sweep=turn_degrees*Math.PI/180,sign=Math.sign(sweep);
+ const radii=transverse.map(t=>radius_cm-sign*(t-center));
+ if(Math.min(...radii)<=pitch)return failure('inside_radius_must_exceed_measured_bay_pitch');
+ // One complete cross-section per station: independent row sampling made the
+ // inner wall, ramps and roof change direction at different places. Use the
+ // outermost tangent's required span so every row covers its miter joint.
+ const count=Math.max(1,Math.ceil(Math.abs(sweep)/(2*Math.atan(pitch/(2*Math.max(...radii))))));
+ const step=sweep/count;
+ if(count*selected.length>512)return failure('generated_foundation_limit_exceeded');
  const buildables=[],courses=[];
  for(let i=0;i<selected.length;i++){
   const p=selected[i],offset=transverse[i]-center,r=radius_cm-sign*offset;
   if(r<=pitch)return failure('inside_radius_must_exceed_measured_bay_pitch');
   const recipe=[...(graph?.recipesByClass?.values()??[])].filter(recipe=>recipe.available===true&&(recipe.produced_in??[]).some(v=>String(v).includes('BP_BuildGun'))&&(recipe.products??[]).some(product=>graph.itemsByClass?.get(product.item_class)?.building?.class_path===p.class_path));
   if(recipe.length!==1)return failure('one_exact_unlocked_build_recipe_required_per_foundation_class');
-  const count=Math.max(1,Math.ceil(Math.abs(sweep)*r/pitch)),step=sweep/count;
-  const chord=2*r*Math.sin(Math.abs(step)/2);
-  courses.push({profile_index:i,pieces:count,radius_cm:r,height_cm:p.p.z-floor,joint_overlap_cm:pitch-chord});
+  const tangentSpan=2*r*Math.tan(Math.abs(step)/2);
+  courses.push({profile_index:i,pieces:count,radius_cm:r,height_cm:p.p.z-floor,joint_overlap_cm:pitch-tangentSpan});
   for(let j=0;j<count;j++){
    if(buildables.length>=512)return failure('generated_foundation_limit_exceeded');
-   const a=(j+0.5)*step,radial=r*Math.cos(step/2);
+   const a=(j+0.5)*step,radial=r;
    const nz=normal(p.q).z,role=nz>0.9999?'floor':nz< -0.9999?'roof':Math.abs(nz)<0.0001?'wall':'ramp';
    buildables.push({part_id:`course-${i+1}-piece-${j+1}`,role,recipe_class:recipe[0].class_path,
     relative_location:{x:sign*radial*Math.sin(a),y:sign*(radius_cm-radial*Math.cos(a)),z:p.p.z-floor},
@@ -77,6 +84,7 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
   }
  }
  return {compiled:true,source_fingerprint:traits.source_fingerprint,measured_pitch_cm:pitch,profile_parts:selected.length,
+  angular_stations:count,sampling_basis:'shared_stations_with_measured_cross_section_spacing',
   excluded_nonfoundation_entities:traits.poses.length-parts.length,centerline_basis:'midpoint_of_profile_pivots_not_clearance',courses,
   gamePlacementVerified:false,limitations:['rigid_panel_joints_require_visual_clearance_check','foundation_shell_only_decoration_not_copied','native_save_and_placement_readback_required'],
   proposal:{action:'generate_native_blueprint',blueprint_name:blueprint_name.trim(),description:`Level foundation shell from saved reference ${traits.source_fingerprint}; ${turn_degrees} degree turn, ${radius_cm/100}m centerline radius. Native placement and joints require inspection.`,layout_schema:'aifactory.generated-blueprint/v6',buildables,commit:true}};

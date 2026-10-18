@@ -167,11 +167,24 @@ namespace
         TArray<FInventoryStack> Refund;
     };
 
+    bool IsActionBuildableRemoved(AFGBuildable* Buildable)
+    {
+        // Native dismantling marks this immediately but may defer destroying
+        // the actor until a later frame. Do not refund a marked actor twice.
+        return !IsValid(Buildable) || Buildable->IsActorBeingDestroyed() ||
+            Buildable->GetIsDismantled();
+    }
+
     FAIFactoryRefundDelivery DismantleWithRefund(
         AActor* DismantleActor,
         AFGCharacterPlayer* Player)
     {
         FAIFactoryRefundDelivery Delivery;
+        if (AFGBuildable* Buildable = Cast<AFGBuildable>(DismantleActor);
+            Buildable && IsActionBuildableRemoved(Buildable))
+        {
+            return Delivery;
+        }
         if (!IsValid(DismantleActor) ||
             !DismantleActor->GetClass()->ImplementsInterface(
                 UFGDismantleInterface::StaticClass()))
@@ -395,7 +408,7 @@ namespace
             Proxy->CollectBuildables(Members);
             for (AFGBuildable* Member : Members)
             {
-                if (IsValid(Member) && !Member->IsActorBeingDestroyed())
+                if (!IsActionBuildableRemoved(Member))
                 {
                     Resolved.SpawnedBuildables.AddUnique(Member);
                 }
@@ -451,7 +464,7 @@ namespace
             for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
             {
                 if (AFGBuildable* Buildable = Weak.Get();
-                    IsValid(Buildable) && !Buildable->IsActorBeingDestroyed())
+                    !IsActionBuildableRemoved(Buildable))
                 {
                     DismantleWithRefund(Buildable, Step.Player.Get());
                     ++Reversed;
@@ -4010,7 +4023,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
     {
         AFGBuildable* Buildable = Weak.Get();
-        if (!IsValid(Buildable) || Buildable->IsActorBeingDestroyed())
+        if (IsActionBuildableRemoved(Buildable))
         {
             // The player may have removed it already; that is not a failure.
             ++AlreadyGone;
@@ -4046,7 +4059,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     int32 DismantleTargets = 0;
     for (AFGBuildable* Buildable : LiveBuildables)
     {
-        if (!IsValid(Buildable) || Buildable->IsActorBeingDestroyed())
+        if (IsActionBuildableRemoved(Buildable))
         {
             continue;
         }
@@ -4079,7 +4092,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     }
     for (AFGBuildable* Temporary : LiveLightweightBuildables)
     {
-        if (!IsValid(Temporary) || Temporary->IsActorBeingDestroyed())
+        if (IsActionBuildableRemoved(Temporary))
         {
             continue;
         }
@@ -4097,7 +4110,7 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     for (AFGBuildable* Buildable : LiveBuildables)
     {
         const FString& Path = OriginalPaths.FindChecked(Buildable);
-        if (!IsValid(Buildable) || Buildable->IsActorBeingDestroyed())
+        if (IsActionBuildableRemoved(Buildable))
         {
             ++Removed;
             Result.RemovedActorIds.AddUnique(Path);

@@ -46,6 +46,29 @@ test('reference-derived curve preserves each course height and wall normal eleva
  assert.equal(validateAction(graph(),r.proposal).valid,true);
  assert.equal(r.gamePlacementVerified,false);assert.ok(r.limitations.includes('rigid_panel_joints_require_visual_clearance_check'));
 });
+
+test('all profile courses share angular stations so wall and roof joints line up',()=>{
+ const r=compileLevelTunnel(graph(),{reference:reference(),blueprint_name:'Aligned joints',radius_cm:5000,turn_degrees:30});
+ assert.equal(r.compiled,true,r.reason);
+ assert.equal(new Set(r.courses.map(c=>c.pieces)).size,1);
+ const courses=r.courses.map(c=>r.proposal.buildables.filter(p=>p.part_id.startsWith(`course-${c.profile_index+1}-`)));
+ for(let j=0;j<courses[0].length;j++){
+  const angles=courses.map(parts=>Math.atan2(parts[j].relative_location.x,5000-parts[j].relative_location.y));
+  assert.ok(Math.abs(angles[0]-angles[1])<1e-12);
+ }
+});
+
+test('the full profile retains its measured transverse spacing at each station',()=>{
+ for(const turn of [-30,30]){
+  const r=compileLevelTunnel(graph(),{reference:reference(),blueprint_name:'Exact section',radius_cm:5000,turn_degrees:turn});
+  assert.equal(r.compiled,true,r.reason);
+  for(const c of r.courses){
+   const p=r.proposal.buildables.find(p=>p.part_id===`course-${c.profile_index+1}-piece-1`).relative_location;
+   assert.ok(Math.abs(Math.hypot(p.x,5000-Math.sign(turn)*p.y)-c.radius_cm)<1e-9);
+   assert.ok(c.joint_overlap_cm>=0);
+  }
+ }
+});
 test('curve refuses missing full poses, inconsistent repeated bays and unsafe inside radii',()=>{
  for(const ref of [null,{available:false},{...reference(),reference_traits:{...reference().reference_traits,poses_truncated:true}}])assert.equal(compileLevelTunnel(graph(),{reference:ref,blueprint_name:'X',radius_cm:5000,turn_degrees:30}).compiled,false);
  const ref=reference();ref.reference_traits.poses[3].transform.translation_cm.z+=1;

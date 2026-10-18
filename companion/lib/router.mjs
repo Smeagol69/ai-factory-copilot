@@ -5534,16 +5534,17 @@ export function answerLocally(question, graph, services) {
         action: "teleport_player",
         target: teleport.target,
         // Without a stated Z the numbers are a map reference, not a height.
-        // Snapping is on either way: the validator warns that turning it off
-        // drops the player through the world, and nobody asking this wants that.
-        snap_to_ground: true,
+        // Interior playtesting needs an explicit supplied height. Keep legacy
+        // snapping unless the caller also explicitly requests exact height.
+        snap_to_ground: !(teleport.had_z && /\bat exact height\b/i.test(question)),
         commit: true,
       };
       if (emitValidatedPlan(graph, services, [action])) {
         return localAnswer(
           `Teleporting to \`x=${round(teleport.target.x)}, y=${round(teleport.target.y)}` +
             (teleport.had_z ? `, z=${round(teleport.target.z)}` : "") + "`" +
-            (teleport.had_z ? "" : " — no height given, so you land on the ground there") +
+            (!action.snap_to_ground ? " at the exact requested height" :
+              teleport.had_z ? " with ground snapping" : " — no height given, so you land on the ground there") +
             ". The mod reports where you actually arrive.",
           "teleport_player",
           started,
