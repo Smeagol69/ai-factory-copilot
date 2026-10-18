@@ -2721,13 +2721,19 @@ FAIFactoryActionResult GenerateLayout(
     const bool bSchemaV2 = LayoutSchema == TEXT("aifactory.generated-blueprint/v2");
     const bool bSchemaV3 = LayoutSchema == TEXT("aifactory.generated-blueprint/v3");
     const bool bSchemaV5 = LayoutSchema == TEXT("aifactory.generated-blueprint/v5");
+    // v6 is deliberately foundation-only: full saved poses without new topology.
+    const bool bSchemaV6 = LayoutSchema == TEXT("aifactory.generated-blueprint/v6");
     // v5 retains every v4 topology feature and adds explicit saved clocks.
     const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4") || bSchemaV5;
-    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4)
+    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4 && !bSchemaV6)
     {
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("unsupported_generated_blueprint_schema"));
+    }
+    if (bSchemaV6 && (Parts.Num() > 512 || Conveyors.Num() || PowerWires.Num() || Pipelines.Num()))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
     }
     if (bSchemaV1 &&
         (Conveyors.Num() > 0 || PowerWires.Num() > 0 || Pipelines.Num() > 0))
@@ -2794,6 +2800,17 @@ FAIFactoryActionResult GenerateLayout(
         if (!ResolveGeneratedPart(Part, Context.World, Entry, Failure))
         {
             return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+        if (bSchemaV6 &&
+            (!Entry.BuildableClass->GetPathName().StartsWith(TEXT("/Game/FactoryGame/Buildable/Building/Foundation/")) ||
+             (Part.Role != TEXT("floor") && Part.Role != TEXT("wall") && Part.Role != TEXT("roof") &&
+              Part.Role != TEXT("ramp") && Part.Role != TEXT("pillar") && Part.Role != TEXT("standalone")) ||
+             !Part.ProductionRecipeClassPath.IsEmpty() || !Part.ResourceClassPath.IsEmpty() ||
+             !Part.ResourcePurity.IsEmpty() || !Part.ResourceAnchorPartId.IsEmpty() || Part.SortRules.Num() ||
+             Part.bHasClockPercent || !Part.RelativeTransform.GetRotation().IsNormalized() ||
+             !Part.RelativeTransform.GetScale3D().Equals(FVector::OneVector, 0.0)))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v6_accepts_only_unit_scale_unconfigured_vanilla_foundations"));
         }
         if (Entry.ProductionRecipe)
         {

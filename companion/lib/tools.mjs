@@ -1658,7 +1658,7 @@ export const SOLVER_TOOLS = [
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {
                 type: "string",
-                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5"],
+                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5", "aifactory.generated-blueprint/v6"],
                 description: "generate_native_blueprint: exact generated-layout contract version.",
               },
               buildables: {
@@ -1682,8 +1682,10 @@ export const SOLVER_TOOLS = [
                       additionalProperties: false,
                     },
                     yaw: { type: "number" },
+                    rotation_quat: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"},w:{type:"number"}},required:["x","y","z","w"],additionalProperties:false,description:"v6 foundation-only full rotation; omit yaw. Unit quaternion from measured saved transforms."},
+                    scale3d: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"}},required:["x","y","z"],additionalProperties:false,description:"v6 required exact unit scale."},
                   },
-                  required: ["part_id", "recipe_class", "relative_location", "yaw"],
+                  required: ["part_id", "recipe_class", "relative_location"],
                   additionalProperties: false,
                 },
               },

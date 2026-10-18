@@ -46,6 +46,7 @@ import {
 } from "./solvers.mjs";
 import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
+import { compileLevelTunnel } from "./level-tunnel.mjs";
 import {
   baseBuildActions,
   enclosedFactoryActions,
@@ -3164,6 +3165,21 @@ export function explainRoutingMiss(question) {
 export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer"]);
 
 export function answerLocally(question, graph, services) {
+  const tunnel = String(question ?? "").trim().match(/^save level tunnel from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"[.!]?$/i);
+  if (tunnel) {
+    const started = Date.now();
+    if (typeof services?.inspectBlueprint !== "function") return localAnswer("Saved full-pose inspection is unavailable; no tunnel action was sent.","level_tunnel",started,"Missing native reference evidence.");
+    const reference = services.inspectBlueprint(tunnel[1], {includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
+    const compiled = compileLevelTunnel(graph,{reference,blueprint_name:tunnel[4],radius_cm:Number(tunnel[2])*100,turn_degrees:Number(tunnel[3])});
+    if (!compiled.compiled) return localAnswer(`The tunnel stayed unsaved: ${compiled.reason}.`,"level_tunnel",started,"No guessed transforms or action emitted.");
+    const existing = typeof services.listBlueprints === "function" ? services.listBlueprints() : [];
+    if (existing.some(b=>String(b.name).toLocaleLowerCase()===tunnel[4].toLocaleLowerCase())) return localAnswer("That blueprint name already exists. Use a new name to preserve it.","level_tunnel",started,"Existing player blueprint preserved.");
+    const plan = emitValidatedPlan(graph,services,[compiled.proposal]);
+    return localAnswer(plan
+      ? `Requested **${tunnel[4]}**: ${compiled.proposal.buildables.length} foundations from your measured ${compiled.profile_parts}-piece profile, turning ${tunnel[3]}° with every course kept level. The game will report native save/readback success. ${compiled.excluded_nonfoundation_entities} non-foundation reference objects were excluded. This is a faceted foundation shell; its panel joints and destination still need inspection.`
+      : describePlanRejection() ?? "No action sink is available; no tunnel action was sent.",
+      "level_tunnel",started,"Exact saved poses and captured unlocked recipes; deterministic local geometry, no model call.");
+  }
   const baseRestore = String(question ?? "").trim().match(/^(check|restore|spawn)\s+(?:saved\s+)?base\s+([A-Za-z0-9_-]{1,80})(?:\s+(?:at\s+)?(?:its\s+)?(?:original|saved|exact)\s+(?:coordinates|xyz|position))?[.!]?$/i);
   if (baseRestore) {
     const commit = baseRestore[1].toLowerCase() !== "check";

@@ -16,6 +16,7 @@
 
 import { Parser } from "@etothepii/satisfactory-file-parser";
 import { createHash } from "node:crypto";
+import { collectReferenceTraits, readSavedAppearance } from "./blueprint-reference-traits.mjs";
 
 const SUPPORTED_BLUEPRINT_HEADER_VERSION = 2;
 const SAVE_VERSION_WITH_OBJECT_VERSION_DATA = 53;
@@ -1618,6 +1619,7 @@ export function inspectBlueprintStructure(
   sbpBuffer,
   sbpcfgBuffer = null,
   {
+    includeReferenceTraits = false,
     maximumBuildables = DEFAULT_MAXIMUM_BUILDABLES,
     maximumConnections = DEFAULT_MAXIMUM_CONNECTIONS,
     maximumPowerWires = DEFAULT_MAXIMUM_CONNECTIONS,
@@ -1784,6 +1786,20 @@ export function inspectBlueprintStructure(
     available: true,
     blueprint_name: name,
     source_fingerprint: sourceFingerprint,
+    ...(includeReferenceTraits === true ? { reference_traits: collectReferenceTraits(
+      entities.map((object, entity_index) => {
+        // Legacy inspection accepts numeric coercion. Learning a saved pose
+        // requires strictly recorded numeric components and the full quaternion.
+        const strict = [
+          ['translation', ['x', 'y', 'z']],
+          ['rotation', ['x', 'y', 'z', 'w']],
+          ['scale3d', ['x', 'y', 'z']],
+        ].every(([field, keys]) => keys.every(key =>
+          typeof object.transform?.[field]?.[key] === 'number' && Number.isFinite(object.transform[field][key])));
+        return { entity_index, class_path: object.typePath,
+          transform: strict ? readBuildableTransform(object) : null,
+          appearance: readSavedAppearance(object.properties) };
+      }), { sourceFingerprint }) } : {}),
     entity_page: entityOffset === null ? null : {
       offset: entityOffset,
       returned: entityRows.length,

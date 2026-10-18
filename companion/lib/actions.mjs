@@ -718,6 +718,7 @@ export function validateAction(graph, proposal) {
       "aifactory.generated-blueprint/v3",
       "aifactory.generated-blueprint/v4",
       "aifactory.generated-blueprint/v5",
+      "aifactory.generated-blueprint/v6",
     ]);
     if (!generatedSchemas.has(proposal.layout_schema)) {
       return reject(kind, "unsupported_generated_blueprint_schema", {
@@ -726,6 +727,11 @@ export function validateAction(graph, proposal) {
     }
     if (!Array.isArray(proposal.buildables) || proposal.buildables.length === 0) {
       return reject(kind, "generated_blueprint_needs_at_least_one_buildable");
+    }
+    const fullPose = proposal.layout_schema === "aifactory.generated-blueprint/v6";
+    if (fullPose && (proposal.buildables.length > 512 ||
+        ["conveyors", "power_wires", "pipelines"].some(k => proposal[k] !== undefined && (!Array.isArray(proposal[k]) || proposal[k].length)))) {
+      return reject(kind, "generated_v6_requires_at_most_512_foundations_without_topology");
     }
 
     const catalog = graph?.recipesByClass ?? new Map();
@@ -772,6 +778,23 @@ export function validateAction(graph, proposal) {
           part_id: partId,
         });
       }
+      const q = proposedPart.rotation_quat, scale = proposedPart.scale3d;
+      if (fullPose) {
+        const numeric = (v, keys) => v && typeof v === "object" && !Array.isArray(v) &&
+          keys.every(k => typeof v[k] === "number" && Number.isFinite(v[k]));
+        if (!numeric(q, ["x", "y", "z", "w"]) ||
+            Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1) > 0.0001 ||
+            !numeric(scale,["x","y","z"]) || ["x","y","z"].some(k => scale[k] !== 1) ||
+            ["yaw","pitch","roll"].some(k => Object.hasOwn(proposedPart,k))) {
+          return reject(kind, "generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation");
+        }
+        if (!["floor","wall","roof","ramp","pillar","standalone"].includes(role) ||
+            ["production_recipe_class","clock_percent","sort_rules","resource_class","resource_purity","resource_anchor_part_id"].some(k => Object.hasOwn(proposedPart,k))) {
+          return reject(kind, "generated_v6_accepts_only_unconfigured_foundations");
+        }
+      } else if (["rotation_quat","scale3d","pitch","roll"].some(k => Object.hasOwn(proposedPart,k))) {
+        return reject(kind, "full_pose_requires_generated_v6");
+      }
 
       const requestedBuildRecipe = String(proposedPart.recipe_class ?? "").trim();
       const buildRecipe = catalog.get(requestedBuildRecipe) ??
@@ -803,6 +826,9 @@ export function validateAction(graph, proposal) {
         ? findItemInCatalog(graph, String(buildProduct.item_class))
         : null;
       const nativeBuilding = buildItem?.building;
+      if (fullPose && !String(nativeBuilding?.class_path ?? "").startsWith("/Game/FactoryGame/Buildable/Building/Foundation/")) {
+        return reject(kind, "generated_v6_requires_captured_vanilla_foundation_class");
+      }
       const requestedResourceClass = String(proposedPart.resource_class ?? "").trim();
       const requestedResourcePurity = String(proposedPart.resource_purity ?? "").trim();
       const requestedAnchorPartId = String(proposedPart.resource_anchor_part_id ?? "").trim();
@@ -1042,7 +1068,7 @@ export function validateAction(graph, proposal) {
           ? { resource_anchor_part_id: requestedAnchorPartId }
           : {}),
         relative_location: location,
-        yaw,
+        ...(fullPose ? {rotation_quat:{x:q.x,y:q.y,z:q.z,w:q.w},scale3d:{x:1,y:1,z:1}} : {yaw}),
       });
     }
 

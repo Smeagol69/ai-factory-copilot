@@ -601,6 +601,7 @@ test("the model action schema exposes generated relative buildables", () => {
     "aifactory.generated-blueprint/v3",
     "aifactory.generated-blueprint/v4",
     "aifactory.generated-blueprint/v5",
+    "aifactory.generated-blueprint/v6",
   ]);
   assert.ok(item.properties.buildables.items.properties.role.enum.includes("resource_anchor"));
   assert.ok(item.properties.buildables.items.properties.role.enum.includes("miner"));
@@ -609,7 +610,7 @@ test("the model action schema exposes generated relative buildables", () => {
   ]);
   assert.deepEqual(
     item.properties.buildables.items.required,
-    ["part_id", "recipe_class", "relative_location", "yaw"],
+    ["part_id", "recipe_class", "relative_location"],
   );
   assert.deepEqual(item.properties.conveyors.items.required, [
     "link_id", "recipe_class", "from_part_id", "to_part_id",

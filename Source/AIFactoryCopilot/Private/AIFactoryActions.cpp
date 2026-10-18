@@ -4300,7 +4300,8 @@ namespace
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v2") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v3") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v4") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v5")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v5") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v6")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -4317,6 +4318,10 @@ namespace
             }
 
             TArray<FAIFactoryGeneratedBlueprintPart> Parts;
+            if (LayoutSchema == TEXT("aifactory.generated-blueprint/v6") && Values->Num() > 512)
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
+            }
             Parts.Reserve(Values->Num());
             for (int32 Index = 0; Index < Values->Num(); ++Index)
             {
@@ -4412,6 +4417,42 @@ namespace
                         FString::Printf(
                             TEXT("generated_blueprint_part_transform_is_invalid:%d"),
                             Index + 1));
+                }
+                const bool bFullPose = LayoutSchema == TEXT("aifactory.generated-blueprint/v6");
+                if (bFullPose)
+                {
+                    const TSharedPtr<FJsonObject>* Quaternion = nullptr;
+                    FVector Scale;
+                    double Qx = 0.0, Qy = 0.0, Qz = 0.0, Qw = 0.0;
+                    for (const TCHAR* Field : {TEXT("production_recipe_class"), TEXT("clock_percent"), TEXT("sort_rules"),
+                         TEXT("resource_class"), TEXT("resource_purity"), TEXT("resource_anchor_part_id")})
+                    {
+                        if ((*Object)->HasField(Field))
+                        {
+                            return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_accepts_only_unconfigured_foundations"));
+                        }
+                    }
+                    if ((*Object)->HasField(TEXT("yaw")) || (*Object)->HasField(TEXT("pitch")) ||
+                        (*Object)->HasField(TEXT("roll")) ||
+                        !(*Object)->TryGetObjectField(TEXT("rotation_quat"), Quaternion) || !Quaternion ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("x"), Qx) ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("y"), Qy) ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("z"), Qz) ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("w"), Qw) ||
+                        !FMath::IsFinite(Qx) || !FMath::IsFinite(Qy) || !FMath::IsFinite(Qz) || !FMath::IsFinite(Qw) ||
+                        !TryReadActionVector(*Object, TEXT("scale3d"), true, Scale) ||
+                        Scale.X != 1.0 || Scale.Y != 1.0 || Scale.Z != 1.0 ||
+                        !FMath::IsNearlyEqual(Qx*Qx+Qy*Qy+Qz*Qz+Qw*Qw, 1.0, 0.0002))
+                    {
+                        return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation"));
+                    }
+                    Part.RelativeTransform = FTransform(FQuat(Qx,Qy,Qz,Qw), RelativeLocation, Scale);
+                    continue;
+                }
+                if ((*Object)->HasField(TEXT("rotation_quat")) || (*Object)->HasField(TEXT("scale3d")) ||
+                    (*Object)->HasField(TEXT("pitch")) || (*Object)->HasField(TEXT("roll")))
+                {
+                    return FAIFactoryActionResult::Refuse(Kind, TEXT("full_pose_requires_generated_v6"));
                 }
                 double Yaw = 0.0;
                 if (!(*Object)->TryGetNumberField(TEXT("yaw"), Yaw) ||

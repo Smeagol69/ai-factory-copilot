@@ -1,5 +1,16 @@
 # Two agents, one repo
 
+## Full-pose tunnel claim — Codex, 2026-10-18
+
+codex-14540 continues the explicitly approved curved tunnel milestone in the
+existing isolated codex/blueprint-force-save-513885 checkout. Prior root/helper
+sessions are stopped or quota-failed, not concurrent writers. Preserve reader
+partials and all working features. Claimed native Actions/BlueprintExport,
+companion actions/tools/router/new level-tunnel module/test, and this plan/docs.
+Add foundation-only full-quaternion schema v6; preserve v1-v5 unchanged. Root is
+the sole live-game/deployment operator. Fetch read master3997694 before edits.
+See docs/superpowers/plans/2026-10-18-level-tunnel.md for checks and honest limits.
+
 ## Claimed saved-pose reader integration — Codex, 2026-10-17
 
 User requests all available models improving Architect and supplies a tunnel
