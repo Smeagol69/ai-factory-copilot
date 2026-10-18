@@ -1658,7 +1658,7 @@ export const SOLVER_TOOLS = [
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {
                 type: "string",
-                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5", "aifactory.generated-blueprint/v6"],
+                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5", "aifactory.generated-blueprint/v6", "aifactory.generated-blueprint/v7"],
                 description: "generate_native_blueprint: exact generated-layout contract version.",
               },
               buildables: {
@@ -1683,7 +1683,7 @@ export const SOLVER_TOOLS = [
                     },
                     yaw: { type: "number" },
                     rotation_quat: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"},w:{type:"number"}},required:["x","y","z","w"],additionalProperties:false,description:"v6 foundation-only full rotation; omit yaw. Unit quaternion from measured saved transforms."},
-                    scale3d: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"}},required:["x","y","z"],additionalProperties:false,description:"v6 required exact unit scale."},
+                    scale3d: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"}},required:["x","y","z"],additionalProperties:false,description:"v6 exact unit scale. v7 foundation-only: may shorten one horizontal local X or Y axis from 1 down to .01; other axes stay 1. Never scale height or thickness."},
                   },
                   required: ["part_id", "recipe_class", "relative_location"],
                   additionalProperties: false,

@@ -7,8 +7,24 @@ const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w;
 const normal=q=>({x:2*(q.x*q.z+q.w*q.y),y:2*(q.y*q.z-q.w*q.x),z:1-2*(q.x*q.x+q.y*q.y),w:0});
 const rotateQ=(q,a)=>({x:Math.cos(a/2)*q.x-Math.sin(a/2)*q.y,y:Math.cos(a/2)*q.y+Math.sin(a/2)*q.x,z:Math.cos(a/2)*q.z+Math.sin(a/2)*q.w,w:Math.cos(a/2)*q.w-Math.sin(a/2)*q.z});
 const failure=reason=>({compiled:false,reason,gamePlacementVerified:false});
+const poseAxes=q=>[
+ {x:1-2*(q.y*q.y+q.z*q.z),y:2*(q.x*q.y+q.w*q.z),z:2*(q.x*q.z-q.w*q.y)},
+ {x:2*(q.x*q.y-q.w*q.z),y:1-2*(q.x*q.x+q.z*q.z),z:2*(q.y*q.z+q.w*q.x)},normal(q)];
+function foundationDimensions(graph,classPath){
+ const samples=[];
+ for(const actor of graph?.snapshot?.actors??[]){
+  if(actor.class_path!==classPath)continue;
+  const values=['mWidth','mDepth','mHeight'].map(name=>{
+   const p=actor.reflected_properties?.find(p=>p.name===name&&p.declared_by==='/Script/FactoryGame.FGBuildableFoundation'&&p.source==='unreal_reflection'&&p.certainty==='authoritative');
+   const n=p?Number(p.value):NaN;return Number.isFinite(n)&&n>0?n:null;
+  });
+  if(values.every(n=>n!==null))samples.push(values);
+ }
+ if(!samples.length||samples.some(s=>s.some((v,i)=>Math.abs(v-samples[0][i])>.01)))return null;
+ return samples[0];
+}
 
-export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,turn_degrees}={}){
+export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,turn_degrees,fit_panel_lengths=false}={}){
  const traits=reference?.reference_traits;
  if(reference?.available!==true||traits?.schema!=='aifactory.blueprint-reference-traits/v1'||
     !/^sha256:[a-f0-9]{64}$/.test(traits.source_fingerprint??'')||traits.poses_truncated!==false||
@@ -60,10 +76,25 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  const floor=Math.min(...selected.map(p=>p.p.z)),heading=Math.atan2(uy,ux),sweep=turn_degrees*Math.PI/180,sign=Math.sign(sweep);
  const radii=transverse.map(t=>radius_cm-sign*(t-center));
  if(Math.min(...radii)<=pitch)return failure('inside_radius_must_exceed_measured_bay_pitch');
+ const fitted=[];
+ if(fit_panel_lengths){
+  for(const p of selected){
+   const dimensions=foundationDimensions(graph,p.class_path);
+   if(!dimensions)return failure('captured_foundation_dimensions_required');
+   const basis=poseAxes(p.q),longAxis=[0,1].find(i=>Math.abs(basis[i].x*ux+basis[i].y*uy)>.9999&&Math.abs(basis[i].z)<.0001);
+   if(longAxis===undefined)return failure('horizontal_native_panel_axis_not_aligned_with_measured_bay');
+   if(Math.abs(dimensions[longAxis]-pitch)>.1)return failure('measured_bay_pitch_differs_from_native_panel_length');
+   const radialHalfExtent=basis.reduce((n,a,i)=>n+Math.abs(-a.x*uy+a.y*ux)*dimensions[i]/2,0);
+   fitted.push({longAxis,longSize:dimensions[longAxis],radialHalfExtent});
+  }
+ }
  // One complete cross-section per station: independent row sampling made the
  // inner wall, ramps and roof change direction at different places. Use the
  // outermost tangent's required span so every row covers its miter joint.
- const minimumCount=Math.max(1,Math.ceil(Math.abs(sweep)/(2*Math.atan(pitch/(2*Math.max(...radii))))));
+ const coverageAngle=fit_panel_lengths
+  ? Math.min(...fitted.map((f,i)=>2*Math.atan(f.longSize/(2*(radii[i]+f.radialHalfExtent)))))
+  : 2*Math.atan(pitch/(2*Math.max(...radii)));
+ const minimumCount=Math.max(1,Math.ceil(Math.abs(sweep)/coverageAngle));
  const stationBudget=Math.floor(512/selected.length);
  if(minimumCount>stationBudget)return failure('generated_foundation_limit_exceeded');
  // Thick foundation panels expose large overlap ridges at coarse turns.
@@ -85,16 +116,23 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
    if(buildables.length>=512)return failure('generated_foundation_limit_exceeded');
    const a=(j+0.5)*step,radial=r;
    const nz=normal(p.q).z,role=nz>0.9999?'floor':nz< -0.9999?'roof':Math.abs(nz)<0.0001?'wall':'ramp';
+   const scale3d={x:1,y:1,z:1};
+   if(fit_panel_lengths){
+    const f=fitted[i],scale=Math.min(1,2*(r+f.radialHalfExtent)*Math.tan(Math.abs(step)/2)/f.longSize);
+    if(scale<.01)return failure('fitted_panel_length_below_native_pose_policy_bound');
+    scale3d[f.longAxis===0?'x':'y']=scale;
+   }
    buildables.push({part_id:`course-${i+1}-piece-${j+1}`,role,recipe_class:recipe[0].class_path,
     relative_location:{x:sign*radial*Math.sin(a),y:sign*(radius_cm-radial*Math.cos(a)),z:p.p.z-floor},
-    rotation_quat:rotateQ(p.q,a-heading),scale3d:{x:1,y:1,z:1}});
+    rotation_quat:rotateQ(p.q,a-heading),scale3d});
   }
  }
  return {compiled:true,source_fingerprint:traits.source_fingerprint,measured_pitch_cm:pitch,profile_parts:selected.length,
+  reference_frame:{longitudinal:{x:ux,y:uy},heading_degrees:heading*180/Math.PI,transverse_center_cm:center,floor_cm:floor,highest_pivot_cm:Math.max(...selected.map(p=>p.p.z))},
   angular_stations:count,sampling_basis:'shared_stations_with_measured_cross_section_spacing',
   visual_sampling_step_degrees:Math.abs(turn_degrees)/count,
   visual_sampling_limited_by_part_cap:count<requestedCount,
   excluded_nonfoundation_entities:traits.poses.length-parts.length,centerline_basis:'midpoint_of_profile_pivots_not_clearance',courses,
   gamePlacementVerified:false,limitations:['rigid_panel_joints_require_visual_clearance_check','foundation_shell_only_decoration_not_copied','native_save_and_placement_readback_required'],
-  proposal:{action:'generate_native_blueprint',blueprint_name:blueprint_name.trim(),description:`Level foundation shell from saved reference ${traits.source_fingerprint}; ${turn_degrees} degree turn, ${radius_cm/100}m centerline radius. Native placement and joints require inspection.`,layout_schema:'aifactory.generated-blueprint/v6',buildables,commit:true}};
+  proposal:{action:'generate_native_blueprint',blueprint_name:blueprint_name.trim(),description:`Level foundation shell from saved reference ${traits.source_fingerprint}; ${turn_degrees} degree turn, ${radius_cm/100}m centerline radius. ${fit_panel_lengths?'Panel lengths fitted using captured native dimensions. ':''}Native placement and joints require inspection.`,layout_schema:fit_panel_lengths?'aifactory.generated-blueprint/v7':'aifactory.generated-blueprint/v6',buildables,commit:true}};
 }

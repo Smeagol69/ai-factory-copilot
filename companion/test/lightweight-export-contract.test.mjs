@@ -37,7 +37,7 @@ test("a lightweight-only native selection is allowed, but stale or partial selec
   const save = exporter.indexOf("Designer->SaveBlueprint");
   assert.ok(staleRefusal >= 0 && staleRefusal < save);
   assert.match(exporter, /Materialised\.NumMissing\(\) > 0/);
-  assert.match(exporter, /Skipped > 0 \|\| Membership\.Num\(\) != ExpectedAdopted/);
+  assert.match(exporter, /Skipped > 0 \|\| Membership\.Num\(\) \+ CapturedWithoutAdoption != ExpectedAdopted/);
 });
 
 test("selection clear and preview reset lightweight state so invisible structure cannot leak into an export", () => {

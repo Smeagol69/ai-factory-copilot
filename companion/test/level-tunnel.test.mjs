@@ -11,6 +11,7 @@ function graph(){
  const s=buildFactorySnapshot();
  s.content.items.push({class_path:'Desc_TestFoundation',available:true,building:{class_path:foundation}});
  s.content.recipes.push({class_path:'Recipe_TestFoundation',available:true,products:[{item_class:'Desc_TestFoundation',amount:1}],produced_in:['BP_BuildGun']});
+ s.actors.push({actor_id:'MeasuredFoundation',class_path:foundation,kind:'buildable',location:{x:0,y:0,z:0},reflected_properties:[['mWidth',800],['mDepth',800],['mHeight',200]].map(([name,value])=>({name,value:String(value),declared_by:'/Script/FactoryGame.FGBuildableFoundation',source:'unreal_reflection',certainty:'authoritative'}))});
  return buildGraph(s);
 }
 const part=()=>({part_id:'tilted-wall',role:'wall',recipe_class:'Recipe_TestFoundation',relative_location:{x:100,y:200,z:300},rotation_quat:{x:Math.SQRT1_2,y:0,z:0,w:Math.SQRT1_2},scale3d:{x:1,y:1,z:1}});
@@ -23,6 +24,50 @@ test('v6 retains a complete tilted foundation pose without inventing yaw',()=>{
 test('v6 refuses malformed poses and conflicting Euler input',()=>{
  for(const patch of [{rotation_quat:null},{rotation_quat:{x:0,y:0,z:0,w:2}},{rotation_quat:{x:'0',y:0,z:0,w:1}}, {rotation_quat:{x:0,y:NaN,z:0,w:1}}, {scale3d:{x:1,y:2,z:1}}, {yaw:0},{pitch:30},{roll:90}])
   assert.equal(validateAction(graph(),action({...part(),...patch})).valid,false,JSON.stringify(patch));
+});
+
+test('v7 retains one shortened horizontal foundation axis; v6 still refuses it',()=>{
+ const p={...part(),scale3d:{x:.25,y:1,z:1}},a={...action(p),layout_schema:'aifactory.generated-blueprint/v7'};
+ const r=validateAction(graph(),a);
+ assert.equal(r.valid,true,r.reason);assert.deepEqual(r.action.buildables[0].scale3d,p.scale3d);
+ assert.equal(validateAction(graph(),action(p)).valid,false);
+});
+
+test('v7 refuses height changes, expansion, mirroring, two-axis shortening and a tilted shortened axis',()=>{
+ for(const scale3d of [{x:1,y:1,z:.5},{x:2,y:1,z:1},{x:-.5,y:1,z:1},{x:0,y:1,z:1},{x:.009,y:1,z:1},{x:.5,y:.5,z:1},{x:1,y:.5,z:1}]){
+  assert.equal(validateAction(graph(),{...action({...part(),scale3d}),layout_schema:'aifactory.generated-blueprint/v7'}).valid,false,JSON.stringify(scale3d));
+ }
+});
+
+test('opt-in fitted panels shorten only the measured horizontal bay axis and preserve all heights',()=>{
+ const r=compileLevelTunnel(graph(),{reference:reference(),blueprint_name:'Fitted panels',radius_cm:5000,turn_degrees:29.5,fit_panel_lengths:true});
+ assert.equal(r.compiled,true,r.reason);assert.equal(r.proposal.layout_schema,'aifactory.generated-blueprint/v7');
+ for(const p of r.proposal.buildables){assert.ok(p.scale3d.x<1&&p.scale3d.x>=.01);assert.equal(p.scale3d.y,1);assert.equal(p.scale3d.z,1);}
+ assert.deepEqual([...new Set(r.proposal.buildables.map(p=>p.relative_location.z))],[0,1000]);
+ assert.equal(validateAction(graph(),r.proposal).valid,true);
+ const missing=graph();missing.snapshot.actors=[];missing.nodes.clear();
+ assert.equal(compileLevelTunnel(missing,{reference:reference(),blueprint_name:'No dimensions',radius_cm:5000,turn_degrees:29.5,fit_panel_lengths:true}).compiled,false);
+});
+
+test('fitted panels select local Y for a square foundation quarter-turned within its plane',()=>{
+ const ref=reference();
+ for(const p of ref.reference_traits.poses)p.transform.rotation_quat=p.transform.translation_cm.z===0?{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}:{x:.5,y:-.5,z:.5,w:.5};
+ const r=compileLevelTunnel(graph(),{reference:ref,blueprint_name:'Y axis fit',radius_cm:5000,turn_degrees:-29.5,fit_panel_lengths:true});
+ assert.equal(r.compiled,true,r.reason);
+ for(const p of r.proposal.buildables){assert.equal(p.scale3d.x,1);assert.ok(p.scale3d.y<1);assert.equal(p.scale3d.z,1);}
+ assert.equal(validateAction(graph(),r.proposal).valid,true);
+});
+
+test('fitted panel dimensions refuse conflicting authoritative class samples',()=>{
+ const g=graph();g.snapshot.actors.push({...g.snapshot.actors.at(-1),actor_id:'ConflictingFoundation',reflected_properties:[['mWidth',600],['mDepth',800],['mHeight',200]].map(([name,value])=>({name,value:String(value),declared_by:'/Script/FactoryGame.FGBuildableFoundation',source:'unreal_reflection',certainty:'authoritative'}))});
+ const r=compileLevelTunnel(g,{reference:reference(),blueprint_name:'Conflicting dimensions',radius_cm:5000,turn_degrees:29.5,fit_panel_lengths:true});
+ assert.equal(r.compiled,false);assert.equal(r.reason,'captured_foundation_dimensions_required');
+});
+
+test('explicit fitted-panel command emits v7 while legacy tunnel wording retains v6',()=>{
+ const emitted=[];
+ const r=answerLocally('save level tunnel from "Reference" radius 50 m turn 30 degrees as "Fitted" with fitted panels',graph(),{inspectBlueprint:()=>reference(),actions:{emit:a=>emitted.push(...a)}});
+ assert.equal(r.local.solver,'level_tunnel');assert.equal(emitted.length,1);assert.equal(emitted[0].layout_schema,'aifactory.generated-blueprint/v7');
 });
 test('older schemas reject full poses rather than silently flattening them',()=>{
  for(let i=1;i<=5;i++)assert.equal(validateAction(graph(),{...action({...part(),yaw:0}),layout_schema:`aifactory.generated-blueprint/v${i}`}).valid,false);

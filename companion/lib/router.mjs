@@ -47,6 +47,7 @@ import {
 import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
 import { compileLevelTunnel } from "./level-tunnel.mjs";
+import { compileTunnelLighting } from "./tunnel-lighting.mjs";
 import {
   baseBuildActions,
   enclosedFactoryActions,
@@ -3175,12 +3176,23 @@ export function answerLocally(question, graph, services) {
     return localAnswer(plan ? `Requested **${matches[0].name}** at the explicit height, XY and heading. The native hologram checks snapping, clearance and cost; the game will report the actual placement. Say undo to reverse a successful placement.`
       : describePlanRejection() ?? "No action sink is available; no placement action was sent.","blueprint_place_coordinates",started,"Explicit requested coordinates; existing native validated placement and undo, no model call or clearance override.");
   }
-  const tunnel = String(question ?? "").trim().match(/^save level tunnel from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"[.!]?$/i);
+  const lighting=String(question??'').trim().match(/^save tunnel lighting from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"[.!]?$/i);
+  if(lighting){
+    const started=Date.now();
+    const reference=services?.inspectBlueprint?.(lighting[1],{includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
+    const compiled=compileTunnelLighting(graph,{reference,blueprint_name:lighting[4],radius_cm:Number(lighting[2])*100,turn_degrees:Number(lighting[3])});
+    if(!compiled.compiled)return localAnswer(`Lighting stayed unsaved: ${compiled.reason}.`,'tunnel_lighting',started,'No guessed fixtures or action emitted.');
+    const existing=services?.listBlueprints?.()??[];
+    if(existing.some(b=>String(b.name).toLocaleLowerCase()===lighting[4].toLocaleLowerCase()))return localAnswer('That blueprint already exists. Use a new name to preserve it.','tunnel_lighting',started,'Existing file preserved.');
+    const plan=emitValidatedPlan(graph,services,[compiled.proposal]);
+    return localAnswer(plan?`Requested **${lighting[4]}**: ${compiled.ceiling_lights} ceiling lights and ${compiled.emissive_beams} emissive beams along measured rows. This add-on leaves the shell separate. The game must verify the saved file, fixture fit and power before lighting is confirmed.`:describePlanRejection()??'No action sink is available.','tunnel_lighting',started,'Saved reference poses and captured native beam defaults; live geometry and power remain unverified.');
+  }
+  const tunnel = String(question ?? "").trim().match(/^save level tunnel from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"(?: (with fitted panels))?[.!]?$/i);
   if (tunnel) {
     const started = Date.now();
     if (typeof services?.inspectBlueprint !== "function") return localAnswer("Saved full-pose inspection is unavailable; no tunnel action was sent.","level_tunnel",started,"Missing native reference evidence.");
     const reference = services.inspectBlueprint(tunnel[1], {includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
-    const compiled = compileLevelTunnel(graph,{reference,blueprint_name:tunnel[4],radius_cm:Number(tunnel[2])*100,turn_degrees:Number(tunnel[3])});
+    const compiled = compileLevelTunnel(graph,{reference,blueprint_name:tunnel[4],radius_cm:Number(tunnel[2])*100,turn_degrees:Number(tunnel[3]),fit_panel_lengths:!!tunnel[5]});
     if (!compiled.compiled) return localAnswer(`The tunnel stayed unsaved: ${compiled.reason}.`,"level_tunnel",started,"No guessed transforms or action emitted.");
     const existing = typeof services.listBlueprints === "function" ? services.listBlueprints() : [];
     if (existing.some(b=>String(b.name).toLocaleLowerCase()===tunnel[4].toLocaleLowerCase())) return localAnswer("That blueprint name already exists. Use a new name to preserve it.","level_tunnel",started,"Existing player blueprint preserved.");

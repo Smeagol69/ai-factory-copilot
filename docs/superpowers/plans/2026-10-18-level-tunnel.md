@@ -28,3 +28,21 @@ existing non-snapping action for interior inspection; all old routes keep snappi
 Ghidra disabled. No scheduled tasks or visible helper consoles. Only the game writes player blueprints/world. Preserve originals. Rigid panels remain faceted; serialization alone does not prove seam/mesh clearance.
 
 Owner: codex-14540, shared task codex-tunnel-full-pose-20261018, baseline419fa8e, remote master3997694. Prior helper continuations failed quota before work; execute inline, preserve partials. Independent review status must remain honest.
+
+Verified superseding checkpoint: native v3 saved/placed all 270 fine-curve poses;
+v2 undo removed72 and fresh capture contained0. Owner likes current assembly and
+now requests clean emissive seams plus ceiling lights along straight/curved runs.
+
+- [x] Preserve latest bp builder autosave before lighting (SHA256 bea2d2de2fa114d5da6eec5f6483cbab1109c36639de9a8ac9bbb36b85307af0).
+- [x] Reproduce actual full-capture refusal and repair explicit-member writer without moving designer ownership.
+- [x] Add measured, separately undoable native-v1 lighting compiler and local route; six lights/28 beams on actual reference, no shell replacement.
+- [x] Complete1350 companion tests and17 compiled native policy cases; Shipping151inputs builds.
+- [ ] Finish independent reviews, deploy with exact-source/peer checks and backups.
+- [ ] Save complete assembly; compare archive member classes/full poses with live selection.
+- [ ] Generate/place lighting add-on and inspect actual reveals, fixture spacing and native power.
+- [ ] Test v7 fitted-panel native scale/readback/render separately, preserving liked version.
+
+Lighting design call: mirror measured lower beam reveals at the highest profile
+pivot and use the two flat roof fixtures as rows. Angled side lights are not
+copied in this first pass. Native beam default length is nominal evidence, not
+mesh fit; visual gaps/overshoot and power must be measured before claiming done.

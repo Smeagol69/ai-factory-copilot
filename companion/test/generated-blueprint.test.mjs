@@ -602,6 +602,7 @@ test("the model action schema exposes generated relative buildables", () => {
     "aifactory.generated-blueprint/v4",
     "aifactory.generated-blueprint/v5",
     "aifactory.generated-blueprint/v6",
+    "aifactory.generated-blueprint/v7",
   ]);
   assert.ok(item.properties.buildables.items.properties.role.enum.includes("resource_anchor"));
   assert.ok(item.properties.buildables.items.properties.role.enum.includes("miner"));

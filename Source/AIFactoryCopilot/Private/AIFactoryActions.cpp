@@ -1,4 +1,5 @@
 #include "AIFactoryActions.h"
+#include "AIFactoryFoundationPosePolicy.h"
 #include "AIFactoryBaseRestore.h"
 #include "AIFactoryWaypointDisplay.h"
 
@@ -4451,7 +4452,8 @@ namespace
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v3") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v4") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v5") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v6")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v6") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v7")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -4468,7 +4470,8 @@ namespace
             }
 
             TArray<FAIFactoryGeneratedBlueprintPart> Parts;
-            if (LayoutSchema == TEXT("aifactory.generated-blueprint/v6") && Values->Num() > 512)
+            if ((LayoutSchema == TEXT("aifactory.generated-blueprint/v6") ||
+                 LayoutSchema == TEXT("aifactory.generated-blueprint/v7")) && Values->Num() > 512)
             {
                 return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
             }
@@ -4568,7 +4571,8 @@ namespace
                             TEXT("generated_blueprint_part_transform_is_invalid:%d"),
                             Index + 1));
                 }
-                const bool bFullPose = LayoutSchema == TEXT("aifactory.generated-blueprint/v6");
+                const bool bShortenedFoundation = LayoutSchema == TEXT("aifactory.generated-blueprint/v7");
+                const bool bFullPose = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bShortenedFoundation;
                 if (bFullPose)
                 {
                     const TSharedPtr<FJsonObject>* Quaternion = nullptr;
@@ -4591,7 +4595,8 @@ namespace
                         !(*Quaternion)->TryGetNumberField(TEXT("w"), Qw) ||
                         !FMath::IsFinite(Qx) || !FMath::IsFinite(Qy) || !FMath::IsFinite(Qz) || !FMath::IsFinite(Qw) ||
                         !TryReadActionVector(*Object, TEXT("scale3d"), true, Scale) ||
-                        Scale.X != 1.0 || Scale.Y != 1.0 || Scale.Z != 1.0 ||
+                        !AIFactoryFoundationPosePolicy::AllowsScale(Scale.X, Scale.Y, Scale.Z,
+                            2.0*(Qx*Qz-Qw*Qy), 2.0*(Qy*Qz+Qw*Qx), bShortenedFoundation) ||
                         !FMath::IsNearlyEqual(Qx*Qx+Qy*Qy+Qz*Qz+Qw*Qw, 1.0, 0.0002))
                     {
                         return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation"));

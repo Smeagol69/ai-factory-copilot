@@ -1,4 +1,5 @@
 #include "AIFactoryBlueprintExport.h"
+#include "AIFactoryFoundationPosePolicy.h"
 
 #include "AIFactoryActions.h"
 #include "AIFactoryBlueprintResourceAnchor.h"
@@ -2462,12 +2463,25 @@ FAIFactoryActionResult ExportSelection(
     FIntVector ExpectedCaptureDimensions = Designer->GetBlueprintDimensions();
     bool bVerifyCaptureDimensions = false;
     int32 Skipped = 0;
+    int32 CapturedWithoutAdoption = 0;
+    AFGBlueprintSubsystem* const CaptureWriter =
+        AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
     {
         // Scope matters: the guard unwinds at the closing brace, before any
         // readback, so the world is already correct when we ask what happened.
         FScopedDesignerMembership Membership(Designer);
         for (AFGBuildable* Buildable : Buildables)
         {
+            // Generated/loaded pieces may retain the saved designer flag.
+            // The native archive writer below takes an explicit member array;
+            // it does not need to borrow or alter that piece's designer owner.
+            // Keep Adopt's foreign-owner guard for the legacy list-based path.
+            if (IsValid(CaptureWriter) && IsValid(Buildable) &&
+                Buildable->IsBuildableInsideBlueprintDesigner())
+            {
+                ++CapturedWithoutAdoption;
+                continue;
+            }
             if (!Membership.Adopt(Buildable))
             {
                 ++Skipped;
@@ -2483,7 +2497,7 @@ FAIFactoryActionResult ExportSelection(
         }
 
         const int32 ExpectedAdopted = Buildables.Num() + LightweightInstances.Num();
-        if (Skipped > 0 || Membership.Num() != ExpectedAdopted)
+        if (Skipped > 0 || Membership.Num() + CapturedWithoutAdoption != ExpectedAdopted)
         {
             Result.Status = TEXT("failed");
             Result.Reason = TEXT("one_or_more_selected_buildables_could_not_be_adopted_by_the_designer");
@@ -2522,8 +2536,7 @@ FAIFactoryActionResult ExportSelection(
 
         FTransform CaptureOrigin;
         FIntVector CaptureDimensions = Designer->GetBlueprintDimensions();
-        AFGBlueprintSubsystem* WriteSubsystem =
-            AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
+        AFGBlueprintSubsystem* WriteSubsystem = CaptureWriter;
         const bool bRecentred = IsValid(WriteSubsystem) && Members.Num() > 0 &&
             ComputeCaptureFrame(
                 Members, Designer->GetBlueprintDimensions(), CaptureOrigin, CaptureDimensions);
@@ -2623,6 +2636,7 @@ FAIFactoryActionResult ExportSelection(
             Predicted->SetObjectField(TEXT("declared_dimensions_cells"), DimensionJson);
         }
         Predicted->SetNumberField(TEXT("adopted"), Membership.Num());
+        Predicted->SetNumberField(TEXT("captured_with_existing_designer_flag_preserved"), CapturedWithoutAdoption);
         Predicted->SetNumberField(TEXT("skipped"), Skipped);
     }
 
@@ -2722,7 +2736,8 @@ FAIFactoryActionResult GenerateLayout(
     const bool bSchemaV3 = LayoutSchema == TEXT("aifactory.generated-blueprint/v3");
     const bool bSchemaV5 = LayoutSchema == TEXT("aifactory.generated-blueprint/v5");
     // v6 is deliberately foundation-only: full saved poses without new topology.
-    const bool bSchemaV6 = LayoutSchema == TEXT("aifactory.generated-blueprint/v6");
+    const bool bSchemaV7 = LayoutSchema == TEXT("aifactory.generated-blueprint/v7");
+    const bool bSchemaV6 = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bSchemaV7;
     // v5 retains every v4 topology feature and adds explicit saved clocks.
     const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4") || bSchemaV5;
     if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4 && !bSchemaV6)
@@ -2808,7 +2823,11 @@ FAIFactoryActionResult GenerateLayout(
              !Part.ProductionRecipeClassPath.IsEmpty() || !Part.ResourceClassPath.IsEmpty() ||
              !Part.ResourcePurity.IsEmpty() || !Part.ResourceAnchorPartId.IsEmpty() || Part.SortRules.Num() ||
              Part.bHasClockPercent || !Part.RelativeTransform.GetRotation().IsNormalized() ||
-             !Part.RelativeTransform.GetScale3D().Equals(FVector::OneVector, 0.0)))
+             !AIFactoryFoundationPosePolicy::AllowsScale(
+                Part.RelativeTransform.GetScale3D().X, Part.RelativeTransform.GetScale3D().Y,
+                Part.RelativeTransform.GetScale3D().Z,
+                Part.RelativeTransform.GetRotation().GetAxisX().Z,
+                Part.RelativeTransform.GetRotation().GetAxisY().Z, bSchemaV7)))
         {
             return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v6_accepts_only_unit_scale_unconfigured_vanilla_foundations"));
         }

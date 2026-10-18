@@ -10341,3 +10341,40 @@ pending the final integration source/installer review. Native file readback,
 Build Gun preview, placed pieces/cave fit and the full entrance/underground
 construction acceptance scenario are separate, still-open checks; native v1
 readback is not exact isolated per-piece geometry certification.
+
+### Codex — tunnel lighting and complete capture repair (2026-10-18)
+
+Owner explicitly requests clean emissive reveals and ceiling lights through the
+whole curved tunnel. Claim codex-tunnel-full-pose-20261018; deployment owner
+codex-14540; separate blueprint-force-save checkout, preserving Claude/master.
+Current live d89f7cf has the native 270-piece fine curve: all saved and placed
+poses match; the prior 72-piece test undo removed every owned member in a fresh
+capture. Preserve the liked assembly and original Tunnel Halfway blueprint.
+
+The user's actual force-save receipt failed: 422 selected, 115 adopted, 307
+already designer-flagged actors refused. Explicit WriteBlueprintToArchive takes
+the complete member array directly, so the repair copies those pieces without
+adopting them or changing their designer flags/owners. The old list-based fallback
+keeps its ownership guard. Actual post-repair archive membership still needs a
+native save/readback; compilation alone is not proof of a complete capture.
+
+Opt-in v7 fits only the horizontal longitudinal foundation axis from authoritative
+captured dimensions; full heights/tilts/thickness and v1-v6 remain unchanged.
+Shared native policy passes 17 compiled boundary cases. The complete companion
+suite passes 1350 tests. CL513885 Shipping rebuilt successfully, 151 synchronized
+inputs. Not a full cooked/UAT release, and v7 render/collision remains unverified.
+
+The separate tunnel-lighting compiler reuses native v1, with two measured flat
+ceiling-light rows and lower/upper emissive seams. Actual reference gives six
+ceiling lights and 28 beam pieces for the current bend. It creates an add-on,
+not a replacement shell, and refuses missing/malformed/conflicting evidence or
+an existing blueprint name. Nominal native beam length does not certify visual
+mesh bounds; power is explicitly unverified (existing reference lights currently
+report no power). Local independent exact-source reviews are recorded under
+state/live-architect/tunnel-milestone in the lab; failed source-path lookups and
+same-context repairs remain visible. No new Claude inference is claimed.
+
+Before live writes, preserve the current save (backup before-lighting-20261018.sav
+already captured). Verify a new complete blueprint, actual fixture poses, visual
+reveals, ceiling coverage and power separately. No Ghidra, schedules, extra
+launchers or visible helper consoles. Only the native game commits world/files.
