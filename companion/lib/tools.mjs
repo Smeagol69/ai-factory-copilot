@@ -1775,6 +1775,7 @@ export const SOLVER_TOOLS = [
                 additionalProperties: false,
               },
               yaw: { type: "number", description: "Rotation in degrees." },
+              exact_z: {type:"boolean",description:"place_building or place_blueprint: preserve the explicit requested height instead of ground-adjusting it. Native snapping, clearance and cost checks still apply; defaults false."},
               snap_to_ground: {
                 type: "boolean",
                 description: "teleport_player: resolve z by tracing to the ground. Defaults to true. Leave it on.",

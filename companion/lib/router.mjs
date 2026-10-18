@@ -3171,8 +3171,8 @@ export function answerLocally(question, graph, services) {
     const matches = library.filter(b=>String(b.name).toLocaleLowerCase()===blueprintXYZ[1].toLocaleLowerCase());
     if (matches.length!==1) return localAnswer("That saved blueprint is not uniquely available; no placement action was sent.","blueprint_place_coordinates",started,"Exact saved library match required.");
     const plan=emitValidatedPlan(graph,services,[{action:"place_blueprint",blueprint_name:matches[0].name,
-      location:{x:Number(blueprintXYZ[2]),y:Number(blueprintXYZ[3]),z:Number(blueprintXYZ[4])},yaw:Number(blueprintXYZ[5]),commit:true}]);
-    return localAnswer(plan ? `Requested **${matches[0].name}** at the explicit XYZ and heading. The native hologram checks snapping, ground, clearance and cost; the game will report the actual placement. Say undo to reverse a successful placement.`
+      location:{x:Number(blueprintXYZ[2]),y:Number(blueprintXYZ[3]),z:Number(blueprintXYZ[4])},yaw:Number(blueprintXYZ[5]),exact_z:true,commit:true}]);
+    return localAnswer(plan ? `Requested **${matches[0].name}** at the explicit height, XY and heading. The native hologram checks snapping, clearance and cost; the game will report the actual placement. Say undo to reverse a successful placement.`
       : describePlanRejection() ?? "No action sink is available; no placement action was sent.","blueprint_place_coordinates",started,"Explicit requested coordinates; existing native validated placement and undo, no model call or clearance override.");
   }
   const tunnel = String(question ?? "").trim().match(/^save level tunnel from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"[.!]?$/i);

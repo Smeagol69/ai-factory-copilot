@@ -96,6 +96,7 @@ test('explicit blueprint XYZ placement stays deterministic and uses one validate
  assert.equal(r?.local?.solver,'blueprint_place_coordinates');assert.equal(emitted.length,1);
  assert.deepEqual(emitted[0].location,{x:12000,y:-4000,z:800});assert.equal(emitted[0].yaw,0);
  assert.equal(emitted[0].commit,true);assert.equal(Object.hasOwn(emitted[0],'ignore_clearance'),false);
+ assert.equal(emitted[0].exact_z,true);
  const no=[];const refused=answerLocally('place blueprint "Missing" at x=1 y=2 z=3 yaw=0',graph(),{...services,actions:{emit:a=>no.push(...a)}});
  assert.match(refused.reply,/not uniquely/i);assert.equal(no.length,0);
 });

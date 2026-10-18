@@ -2329,7 +2329,8 @@ FAIFactoryActionResult PlaceBuilding(
 FAIFactoryActionResult PlaceBlueprint(
     const FAIFactoryActionContext& Context,
     const FString& BlueprintName,
-    const FTransform& Origin)
+    const FTransform& Origin,
+    const bool bHonourRequestedZ = false)
 {
     const FString Action = TEXT("place_blueprint");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -2453,11 +2454,11 @@ FAIFactoryActionResult PlaceBlueprint(
         Context.Player,
         Inventory,
         Origin,
-        // A blueprint is placed on ground, not onto a named actor, so it keeps
-        // the downward trace.
+        // Ground snapping remains the default. An explicit exact_z request
+        // uses the existing exact-height path, with the same final validators.
         nullptr,
-        false,
-        false,
+        bHonourRequestedZ,
+        /*bIgnoreClearance*/ false,
         Predicted,
         HologramFailure);
     const TArray<FItemAmount> Cost =
@@ -4294,10 +4295,13 @@ namespace
             }
             double Yaw = 0.0;
             Spec->TryGetNumberField(TEXT("yaw"), Yaw);
+            bool bExactBlueprintZ = false;
+            Spec->TryGetBoolField(TEXT("exact_z"), bExactBlueprintZ);
             return PlaceBlueprint(
                 Context,
                 Name,
-                FTransform(FRotator(0.0, Yaw, 0.0), Location));
+                FTransform(FRotator(0.0, Yaw, 0.0), Location),
+                bExactBlueprintZ);
         }
         if (Kind == TEXT("generate_native_blueprint"))
         {

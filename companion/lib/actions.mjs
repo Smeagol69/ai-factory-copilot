@@ -645,6 +645,7 @@ export function validateAction(graph, proposal) {
         blueprint_name: name,
         location,
         yaw: finite(proposal.yaw) ?? 0,
+        ...(proposal.exact_z === true ? {exact_z:true} : {}),
         commit: proposal.commit === true,
       }, proposal),
     };
