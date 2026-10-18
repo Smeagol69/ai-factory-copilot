@@ -38,6 +38,8 @@
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
+#include "AbstractInstanceInterface.h"
+#include "Engine/StaticMesh.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 
@@ -1044,6 +1046,42 @@ namespace
         {
             OutBounds = AllPrimitiveComponents;
             OutSource = TEXT("registered_primitive_components");
+            return true;
+        }
+        // AbstractInstance renders mod beams without actor-owned primitives.
+        // Read the same mesh/relative transform and actor frame used by the
+        // native instance manager, rather than inventing a nominal beam box.
+        const TArray<FInstanceData> Instances =
+            IAbstractInstanceInterface::Execute_GetActorLightweightInstanceData(Buildable);
+        if (Instances.IsEmpty() || Instances.Num() > 1024)
+        {
+            return false;
+        }
+        const FTransform InstanceActorTransform =
+            IAbstractInstanceInterface::Execute_GetLightweightInstanceActorTransform(Buildable);
+        if (!InstanceActorTransform.IsValid()) return false;
+        FBox InstanceBounds(ForceInit);
+        for (const FInstanceData& Instance : Instances)
+        {
+            if (!IsValid(Instance.StaticMesh) || !Instance.RelativeTransform.IsValid() ||
+                (Instance.bApplyRandomOffsetOnInstance && !Instance.PositionOffset.IsNearlyZero()) ||
+                (Instance.bApplyRandomScaleOnInstancesBasedOnOrientation && !Instance.ScaleOffset.IsNearlyZero()))
+            {
+                // Per-instance random displacement is not represented by a
+                // deterministic staged pose. Keep it unknown, never omit it.
+                return false;
+            }
+            const FBox MeshBounds = Instance.StaticMesh->GetBoundingBox();
+            if (!IsFiniteGeneratedBounds(MeshBounds)) return false;
+            const FBox WorldBounds = MeshBounds.TransformBy(
+                Instance.RelativeTransform * InstanceActorTransform);
+            if (!IsFiniteGeneratedBounds(WorldBounds)) return false;
+            InstanceBounds += WorldBounds;
+        }
+        if (IsFiniteGeneratedBounds(InstanceBounds))
+        {
+            OutBounds = InstanceBounds;
+            OutSource = TEXT("native_abstract_instance_mesh_and_transform");
             return true;
         }
         return false;

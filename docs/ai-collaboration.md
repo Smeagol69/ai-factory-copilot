@@ -10378,3 +10378,17 @@ Before live writes, preserve the current save (backup before-lighting-20261018.s
 already captured). Verify a new complete blueprint, actual fixture poses, visual
 reveals, ceiling coverage and power separately. No Ghidra, schedules, extra
 launchers or visible helper consoles. Only the native game commits world/files.
+
+Live capture repair passed: AI Tunnel Work Area Preserved saved528 members,
+including65 lightweight pieces, with413 existing designer flags untouched,
+0 skipped, direct disk header/dimensions readback and empty designer afterwards.
+The full offline parser decoded all528 entities (464 foundations,24 pipe supports,
+18 pipelines,8 lights,4 emissive beams,10 pillars). This is a work-area backup,
+not a claim that unrelated nearby test pieces were excluded.
+
+First lighting save correctly refused before writing: the mod's emissive beams
+expose no clearance/actor primitive bounds. Extend the native bounds resolver
+with AbstractInstance mesh bounding boxes transformed through native relative
+instance and actor frames, as confirmed in exact SDK manager source. Reject
+unknown meshes and nonzero random offsets/scales. All1350 tests still pass;
+Shipping builds. The next live run must verify this path, not waive clearance.
