@@ -84,7 +84,8 @@ struct FAIFactoryUndoStep
     FString Action;
     /**
      * Actors to dismantle to reverse the action. A blueprint records its proxy
-     * once so the game handles the group and lightweight members as one refund.
+     * once; undo resolves its current actor/lightweight members before removal.
+     * A proxy is group metadata and its Dismantle call alone is not group undo.
      */
     TArray<TWeakObjectPtr<AActor>> DismantleActors;
     /** Buildables to remove to undo a placement. */

@@ -1,5 +1,35 @@
 # Two agents, one repo
 
+## Native tunnel live checkpoint and undo repair — Codex, 2026-10-18
+
+The saved Tunnel Halfway profile now produces AI Level Tunnel 28deg: 66 full-pose
+foundation pieces, turning around world up while retaining each course height
+and cross-section tilt. Native archive reload matched 66/66 poses. Native
+placement required real press/release steps (c0f9b7b); optional explicit height
+(dedf3b4) avoids ground-snapping an elevated shell into a dune. Both live copies
+matched all 66 archive poses under one translation: 0 cm maximum position error,
+0.000002958 degrees maximum quaternion error, unit scales. Requested exact height
+16995.943359375 became 16996.943359375 cm through native placement, a reported
+1 cm offset. Clearance checks were retained. This is a runtime module deployment,
+not a new complete UAT/cook release or a universal clipping certificate.
+
+Evidence lives in the unified application's state/live-architect/tunnel-milestone.
+Native Blueprint fingerprint is cb1a1cec1636ee36c10608305cb6a70afba14336aa024abfdfb43dec57020ac8.
+The raised copy remains in bp builder. Originals are preserved. Screenshot and
+raised-placement-pose-proof.json record the actual game, not an illustration.
+
+Live testing exposed an older false-success bug: UndoLast called the proxy's
+Dismantle(), skipped its members, and reported their pre-removal count. All 66
+ground-copy actors remained after save/reload. A regression checks original
+created IDs against a fresh authoritative snapshot and fails 66 != 0. Repair
+resolves current proxy actor/lightweight members, dismantles those individually,
+and counts actual destruction/instance absence. An incomplete undo retains the
+journal and reports remaining IDs. Rollback uses the same membership resolution.
+Exact CL513885 Shipping compilation, 1333 companion tests and separate local
+membership/readback reviews pass; repaired live undo is still pending at this
+source checkpoint. Material-cost refunds and converted-lightweight cases remain
+separate live checks. Codex is the sole deployment owner; Ghidra remains disabled.
+
 ## Full-pose tunnel claim — Codex, 2026-10-18
 
 codex-14540 continues the explicitly approved curved tunnel milestone in the
