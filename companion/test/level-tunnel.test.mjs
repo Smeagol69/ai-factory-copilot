@@ -85,3 +85,8 @@ test('repeated same-class coplanar floors retain spatially distinct cross-sectio
  assert.equal(r.compiled,true,r.reason);assert.equal(r.profile_parts,4);
  assert.equal(new Set(r.courses.map(c=>c.radius_cm)).size,4);
 });
+test('measured foundation planes carry the existing native structural roles',()=>{
+ const r=compileLevelTunnel(graph(),{reference:reference(),blueprint_name:'Roles',radius_cm:5000,turn_degrees:30});
+ assert.equal(r.compiled,true,r.reason);
+ assert.deepEqual([...new Set(r.proposal.buildables.map(p=>p.role))],['floor','wall']);
+});

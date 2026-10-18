@@ -70,7 +70,8 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
   for(let j=0;j<count;j++){
    if(buildables.length>=512)return failure('generated_foundation_limit_exceeded');
    const a=(j+0.5)*step,radial=r*Math.cos(step/2);
-   buildables.push({part_id:`course-${i+1}-piece-${j+1}`,role:'standalone',recipe_class:recipe[0].class_path,
+   const nz=normal(p.q).z,role=nz>0.9999?'floor':nz< -0.9999?'roof':Math.abs(nz)<0.0001?'wall':'ramp';
+   buildables.push({part_id:`course-${i+1}-piece-${j+1}`,role,recipe_class:recipe[0].class_path,
     relative_location:{x:sign*radial*Math.sin(a),y:sign*(radius_cm-radial*Math.cos(a)),z:p.p.z-floor},
     rotation_quat:rotateQ(p.q,a-heading),scale3d:{x:1,y:1,z:1}});
   }
