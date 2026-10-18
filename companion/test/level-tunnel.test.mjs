@@ -90,3 +90,12 @@ test('measured foundation planes carry the existing native structural roles',()=
  assert.equal(r.compiled,true,r.reason);
  assert.deepEqual([...new Set(r.proposal.buildables.map(p=>p.role))],['floor','wall']);
 });
+test('explicit blueprint XYZ placement stays deterministic and uses one validated native action',()=>{
+ const emitted=[],services={listBlueprints:()=>[{name:'Measured arc'}],actions:{emit:a=>emitted.push(...a)}};
+ const r=answerLocally('place blueprint "Measured arc" at x=12000 y=-4000 z=800 yaw=0',graph(),services);
+ assert.equal(r?.local?.solver,'blueprint_place_coordinates');assert.equal(emitted.length,1);
+ assert.deepEqual(emitted[0].location,{x:12000,y:-4000,z:800});assert.equal(emitted[0].yaw,0);
+ assert.equal(emitted[0].commit,true);assert.equal(Object.hasOwn(emitted[0],'ignore_clearance'),false);
+ const no=[];const refused=answerLocally('place blueprint "Missing" at x=1 y=2 z=3 yaw=0',graph(),{...services,actions:{emit:a=>no.push(...a)}});
+ assert.match(refused.reply,/not uniquely/i);assert.equal(no.length,0);
+});
