@@ -2,6 +2,26 @@
 
 ## Native tunnel live checkpoint and undo repair — Codex, 2026-10-18
 
+V2 live follow-up: measured floor turn is -29.5 degrees with reference-center
+radius 3670.707144503067 cm; intersection of three actual floor cross-section
+normals has maximum tangent residual 0.00434 cm. Its start is 348.62982 cm behind
+the reference's nominal end. Original floor row spacing is inconsistent, so an
+exact tile correspondence is not claimed. The native v2 archive saved/reloaded
+72/72 poses; placement matched all 72 with maximum position error below
+0.000000000002 cm and quaternion error below 0.0000025 degrees. Measured attachment
+registration is within 0.00004 cm of the planned anchor. Native soft overlap
+warning was retained. Interior screenshot exposes large thick-panel overlap
+ridges, so v2 was removed. Corrected undo reported 72 removed, zero remaining;
+fresh capture independently confirms all 72 created actor IDs are absent.
+
+Next visual refinement limits shared angle steps to 2 degrees when the 512-part
+budget permits, without reducing the tangent-coverage requirement. Larger valid
+turns can coarsen at the cap, explicitly reported. Heights, tilts and profile
+spacing are retained. Both new tests failed first; all 1340 companion tests pass.
+Local exact-diff review approved the refinement. Runtime appearance/performance
+and the final connected placement still require checking; no new native DLL is
+needed for this companion-only refinement.
+
 Owner feedback: the initial structure looks awful; continue toward visible
 geometry quality. Independent per-course sampling staggered inner/outer wall
 and roof joints (2 versus 5 panels), and chord-center scaling compressed the

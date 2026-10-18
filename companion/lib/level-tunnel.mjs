@@ -63,7 +63,14 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  // One complete cross-section per station: independent row sampling made the
  // inner wall, ramps and roof change direction at different places. Use the
  // outermost tangent's required span so every row covers its miter joint.
- const count=Math.max(1,Math.ceil(Math.abs(sweep)/(2*Math.atan(pitch/(2*Math.max(...radii))))));
+ const minimumCount=Math.max(1,Math.ceil(Math.abs(sweep)/(2*Math.atan(pitch/(2*Math.max(...radii))))));
+ const stationBudget=Math.floor(512/selected.length);
+ if(minimumCount>stationBudget)return failure('generated_foundation_limit_exceeded');
+ // Thick foundation panels expose large overlap ridges at coarse turns.
+ // Refine their angle while keeping complete, aligned cross-sections and the
+ // existing native part bound. Large valid turns can still use coarser steps.
+ const requestedCount=Math.max(minimumCount,Math.ceil(Math.abs(turn_degrees)/2));
+ const count=Math.min(requestedCount,stationBudget);
  const step=sweep/count;
  if(count*selected.length>512)return failure('generated_foundation_limit_exceeded');
  const buildables=[],courses=[];
@@ -85,6 +92,8 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  }
  return {compiled:true,source_fingerprint:traits.source_fingerprint,measured_pitch_cm:pitch,profile_parts:selected.length,
   angular_stations:count,sampling_basis:'shared_stations_with_measured_cross_section_spacing',
+  visual_sampling_step_degrees:Math.abs(turn_degrees)/count,
+  visual_sampling_limited_by_part_cap:count<requestedCount,
   excluded_nonfoundation_entities:traits.poses.length-parts.length,centerline_basis:'midpoint_of_profile_pivots_not_clearance',courses,
   gamePlacementVerified:false,limitations:['rigid_panel_joints_require_visual_clearance_check','foundation_shell_only_decoration_not_copied','native_save_and_placement_readback_required'],
   proposal:{action:'generate_native_blueprint',blueprint_name:blueprint_name.trim(),description:`Level foundation shell from saved reference ${traits.source_fingerprint}; ${turn_degrees} degree turn, ${radius_cm/100}m centerline radius. Native placement and joints require inspection.`,layout_schema:'aifactory.generated-blueprint/v6',buildables,commit:true}};

@@ -69,6 +69,25 @@ test('the full profile retains its measured transverse spacing at each station',
   }
  }
 });
+
+test('visual sampling limits panel angle changes to two degrees when the part budget permits',()=>{
+ const r=compileLevelTunnel(graph(),{reference:reference(),blueprint_name:'Fine turn',radius_cm:5000,turn_degrees:29.5});
+ assert.equal(r.compiled,true,r.reason);
+ assert.ok(29.5/r.angular_stations<=2);
+ assert.ok(r.proposal.buildables.length<=512);
+});
+
+test('visual sampling coarsens truthfully at the part cap instead of losing a previously valid turn',()=>{
+ const ref=reference();
+ const originals=[...ref.reference_traits.poses];
+ ref.reference_traits.poses=[];
+ for(let i=0;i<12;i++)for(const p of originals)ref.reference_traits.poses.push({...p,entity_index:ref.reference_traits.poses.length,transform:{...p.transform,translation_cm:{...p.transform.translation_cm,z:p.transform.translation_cm.z+i*2000}}});
+ ref.reference_traits.entity_total=48;ref.reference_traits.eligible_entity_count=48;
+ const r=compileLevelTunnel(graph(),{reference:ref,blueprint_name:'Bounded fine turn',radius_cm:5000,turn_degrees:90});
+ assert.equal(r.compiled,true,r.reason);
+ assert.ok(r.proposal.buildables.length<=512);
+ assert.equal(r.visual_sampling_limited_by_part_cap,true);
+});
 test('curve refuses missing full poses, inconsistent repeated bays and unsafe inside radii',()=>{
  for(const ref of [null,{available:false},{...reference(),reference_traits:{...reference().reference_traits,poses_truncated:true}}])assert.equal(compileLevelTunnel(graph(),{reference:ref,blueprint_name:'X',radius_cm:5000,turn_degrees:30}).compiled,false);
  const ref=reference();ref.reference_traits.poses[3].transform.translation_cm.z+=1;
