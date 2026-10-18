@@ -1040,13 +1040,27 @@ namespace
         // handed no endpoints cannot advance, so multi-point recipes are still
         // refused here rather than being half-placed from an invented point.
         constexpr int32 MaximumBuildSteps = 8;
+        // Live CL513885 Blueprint evidence: eight release-only events leave
+        // CanConstruct=true but never advance the placement step. The public
+        // API explicitly distinguishes press(false) from release(true). Mirror
+        // a real click for Blueprint holograms; retain the proven input path
+        // for other hologram families and keep the completion gate below.
+        const bool bBlueprintClick = Hologram->IsA<AFGBlueprintHologram>();
+        const auto AdvancePlacementStep = [Hologram, bBlueprintClick]()
+        {
+            if (!bBlueprintClick) return Hologram->DoMultiStepPlacement(true);
+            return Hologram->DoMultiStepPlacement(false) ||
+                Hologram->DoMultiStepPlacement(true);
+        };
+        Predicted->SetStringField(TEXT("hologram_step_input"),
+            bBlueprintClick ? TEXT("press_then_release") : TEXT("release"));
         int32 BuildSteps = 1;
-        bool bPlacementFinished = Hologram->DoMultiStepPlacement(true);
+        bool bPlacementFinished = AdvancePlacementStep();
         while (!bPlacementFinished
             && BuildSteps < MaximumBuildSteps
             && Hologram->CanTakeNextBuildStep())
         {
-            bPlacementFinished = Hologram->DoMultiStepPlacement(true);
+            bPlacementFinished = AdvancePlacementStep();
             ++BuildSteps;
         }
         Predicted->SetNumberField(TEXT("hologram_build_steps"), BuildSteps);
