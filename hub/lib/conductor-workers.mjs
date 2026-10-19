@@ -68,9 +68,12 @@ export class ClaudeWorker extends Worker {
 }
 
 export class CodexWorker extends Worker {
-  constructor({ runtime, cwd, mcpServers }) { super('codex'); Object.assign(this, { runtime, cwd, mcpServers, pending: new Map(), seq: 0, text: '' }); }
+  // resumeThreadId continues an existing thread (the session keeper); ownConfig runs it
+  // with the owner's normal Codex configuration instead of the conductor's overrides.
+  constructor({ runtime, cwd, mcpServers, resumeThreadId = null, ownConfig = false }) { super('codex'); Object.assign(this, { runtime, cwd, mcpServers, resumeThreadId, ownConfig, pending: new Map(), seq: 0, text: '' }); }
   args() {
     const cfg = Object.entries(this.mcpServers).flatMap(([name, s]) => ['-c', `mcp_servers.${name}.command=${JSON.stringify(s.command)}`, '-c', `mcp_servers.${name}.args=${JSON.stringify(s.args)}`]);
+    if (this.ownConfig) return ['app-server', '--listen', 'stdio://'];
     return ['app-server', '--listen', 'stdio://', '-c', 'plugins."agent-pair@personal".enabled=false', ...cfg];
   }
   async start() {
@@ -81,7 +84,10 @@ export class CodexWorker extends Worker {
     const account = await this.rpc('account/read', {});
     if (!account.account || !String(account.account.type).toLowerCase().includes('chatgpt')) throw new Error('Codex needs the ChatGPT subscription login; API-key fallback is disabled');
     try { this.setUsage(await this.rpc('account/rateLimits/read', {})); } catch { /* usage unknown until the first update */ }
-    const r = await this.rpc('thread/start', { serviceName: 'copilot_conductor', ephemeral: false, cwd: this.cwd, modelProvider: 'openai', approvalPolicy: 'never', sandbox: 'workspace-write' });
+    // A resumed thread keeps its own saved settings (model, sandbox, approvals).
+    const r = this.resumeThreadId
+      ? await this.rpc('thread/resume', { threadId: this.resumeThreadId, excludeTurns: true })
+      : await this.rpc('thread/start', { serviceName: 'copilot_conductor', ephemeral: false, cwd: this.cwd, modelProvider: 'openai', approvalPolicy: 'never', sandbox: 'workspace-write' });
     this.threadId = r.thread.id;
   }
   send(v) { if (!this.child?.stdin.writable) throw new Error('Codex worker input is closed'); this.child.stdin.write(JSON.stringify(v) + '\n'); }

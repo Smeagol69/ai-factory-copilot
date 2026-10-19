@@ -357,3 +357,9 @@ test('a worker that hits its usage limit mid-turn waits for the reset and resume
   assert.equal((await again.tick()).kind, 'candidate', 'resumes after the reset');
   assert.equal(prompts.length, 2);
 });
+
+test("Codex's own limit wording ('try again at 10:47 AM') gives the reset", async () => {
+  const { usageLimit } = await import('../lib/conductor.mjs');
+  const r = usageLimit("You’ve hit your usage limit. Upgrade to Pro or try again at 10:47 AM.", { now: new Date(2026, 9, 19, 8, 48).getTime() });
+  assert.deepEqual([new Date(r.resetsAt).getHours(), new Date(r.resetsAt).getMinutes(), r.estimated], [10, 47, false]);
+});

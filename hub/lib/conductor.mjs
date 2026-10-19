@@ -20,7 +20,7 @@ export function usageLimit(text, { now = Date.now(), known = null } = {}) {
   if (!/usage limit|session limit|weekly limit|hit your limit|usageLimitExceeded|rate[_ ]limit(ed| reached| exceeded)|out of (usage|credits)/i.test(t)) return null;
   const epoch = /\|(\d{10,13})\b/.exec(t)?.[1];
   if (epoch) { const ms = +epoch < 1e12 ? +epoch * 1000 : +epoch; if (ms > now) return { resetsAt: ms, estimated: false }; }
-  const clock = /resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(t);
+  const clock = /(?:resets?|try again)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(t);
   if (clock) {
     let h = +clock[1] % 12; if (/pm/i.test(clock[3])) h += 12;
     const d = new Date(now); d.setHours(h, +(clock[2] ?? 0), 0, 0);

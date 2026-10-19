@@ -31,7 +31,12 @@ function renderControls() {
   // Peer requests the conductor handed to a model (newest last).
   $('mail').replaceChildren(...(c.mail ?? []).slice(-4).map(m => el('div', `${new Date(m.t).toLocaleTimeString()} · ${NAME[m.who] ?? m.who}: ${m.text}`)));
   $('workers').replaceChildren(...['codex', 'claude'].map(n => { const w = overview.workers[n] ?? {}; const u = w.usage;
-    return el('div', `${NAME[n]}: ${w.running ? (w.busy ? 'in a turn' : 'ready') : 'not started'}${u?.usedPercent != null ? ` · ${Math.round(u.usedPercent)}% used` : ''}${u?.out ? ' · out of usage' : ''}`); }));
+    return el('div', `${NAME[n]}: ${w.running ? (w.busy ? 'in a turn' : 'ready') : 'not started'}${u?.usedPercent != null ? ` · ${Math.round(u.usedPercent)}% used` : ''}${u?.out ? ' · out of usage' : ''}`); }),
+    // The session keeper: Codex threads stopped by a usage limit continue after the reset.
+    ...(k => !k ? [] : [el('div', !k.enabled ? 'Session keeper: off'
+      : k.resuming.length ? `Session keeper: resuming Codex thread ${k.resuming[0].slice(0, 8)}…`
+      : k.waiting.length ? `Session keeper: Codex thread ${k.waiting[0].threadId.slice(0, 8)}… resumes at ${new Date(k.waiting[0].resetsAt).toLocaleTimeString()}`
+      : `Session keeper: watching${k.last ? ` · last resume ${k.last.status} ${new Date(k.last.at).toLocaleTimeString()}` : ''}`)])(overview.workers.keeper));
 }
 function renderMilestoneWork() {
   const box = $('mwork'), w = overview.milestoneWork, pending = overview.teamPending ?? [];

@@ -7,11 +7,12 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { ClaudeWorker, CodexWorker } from './conductor-workers.mjs';
+import { createSessionKeeper, RESUME_PROMPT } from './session-keeper.mjs';
 
 const exec = promisify(execFile);
 export const worktreeOf = (repo, name) => ({ worktree: join(repo, 'hub/workspaces', `auto-${name}`), branch: `${name}/auto` });
 
-export function createWorkerPool({ root, repo, runtimeDir, node = process.execPath, git = (args, cwd) => exec('git', args, { cwd, windowsHide: true, timeout: 60000 }), onUsage = () => {} }) {
+export function createWorkerPool({ root, repo, runtimeDir, node = process.execPath, git = (args, cwd) => exec('git', args, { cwd, windowsHide: true, timeout: 60000 }), onUsage = () => {}, keepSessions = true, keeperIntervalMs = 60000, resumeTimeoutMs = 6 * 3600000 }) {
   const live = new Map(), starting = new Map();
   let runtime;
   const loadRuntime = async () => runtime ??= (async () => {
@@ -43,14 +44,27 @@ export function createWorkerPool({ root, repo, runtimeDir, node = process.execPa
     live.set(name, worker);
     return worker;
   }
+  // Codex threads on this project that stopped on a usage limit continue by themselves
+  // after the reset (session-keeper.mjs), with the owner's own Codex configuration.
+  const keeper = createSessionKeeper({ root, repo, resume: async t => {
+    const worker = new CodexWorker({ runtime: await loadRuntime(), cwd: t.cwd, mcpServers: {}, resumeThreadId: t.threadId, ownConfig: true });
+    worker.on('usage', u => onUsage('codex', u));
+    await worker.start();
+    let timer;
+    try { return await Promise.race([worker.run(RESUME_PROMPT), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Resumed turn still running after the time limit')), resumeTimeoutMs); })]); }
+    finally { clearTimeout(timer); await worker.stop().catch(() => {}); }
+  } });
+  const keeperTimer = keepSessions ? setInterval(() => { keeper.tick().catch(() => {}); }, keeperIntervalMs) : null;
+  keeperTimer?.unref?.();
   return {
+    keeper,
     async get(name) {
       if (live.has(name)) return live.get(name);
       if (!starting.has(name)) starting.set(name, start(name).finally(() => starting.delete(name)));
       return starting.get(name);
     },
     forget(name) { live.delete(name); },
-    status() { return Object.fromEntries(['codex', 'claude'].map(n => [n, live.has(n) ? { running: true, busy: live.get(n).busy, usage: live.get(n).usage } : { running: false }])); },
-    async stopAll() { for (const w of live.values()) await w.stop().catch(() => {}); live.clear(); },
+    status() { return { ...Object.fromEntries(['codex', 'claude'].map(n => [n, live.has(n) ? { running: true, busy: live.get(n).busy, usage: live.get(n).usage } : { running: false }])), keeper: keeper.status() }; },
+    async stopAll() { clearInterval(keeperTimer); for (const w of live.values()) await w.stop().catch(() => {}); live.clear(); },
   };
 }
