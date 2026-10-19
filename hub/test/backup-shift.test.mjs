@@ -110,3 +110,13 @@ test('Stop aborts a running step and turns the shift off', async () => {
   assert.equal(s.running, null);
   assert.ok(existsSync(join(hub, 'state/team/shift.json')));
 });
+
+test('reads stay small enough for the local model\'s 8K context', async () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'companion/lib/big.mjs'), Array.from({ length: 400 }, (_, i) => `export const line${i} = '${'x'.repeat(120)}';`).join('\n'));
+  const t = createShiftTools({ worktree: dir });
+  const r = await t.dispatch('shift_read_file', { path: 'companion/lib/big.mjs' });
+  assert.ok(r.text.length <= 3500);
+  assert.equal(r.more, true);
+  assert.match((await t.dispatch('shift_read_file', { path: 'companion/lib/big.mjs', start: 1, end: 200 })).error, /1\.\.80/);
+});

@@ -14,6 +14,9 @@ const TEXT = /\.(mjs|js|cjs|json|md|txt|css|html|cpp|h|hpp|cs|ini|ps1|cmd|yml|ya
 const NEVER = /(^|\/)(\.git|node_modules)(\/|$)|^hub\/(runtime|state|models|tools|workspaces)(\/|$)/;
 const WRITABLE = /^(companion|hub|docs|scripts|Source)\//;
 const TEST = /^(companion|hub)\/test\/[\w.-]+\.test\.mjs$/;
+// The local model has an 8K context. Bigger results make Ollama drop the
+// original request from the conversation and the step fails, so keep them small.
+const READ_CHARS = 3500;
 const fail = message => { throw new Error(message); };
 
 export function createShiftTools({ worktree, node = process.execPath, onEvent = () => {} }) {
@@ -38,16 +41,16 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
         .slice(0, 200).map(e => e.isDirectory() ? e.name + '/' : e.name);
       return { path, entries };
     },
-    shift_read_file({ path, start = 1, end = 120 }) {
+    shift_read_file({ path, start = 1, end = 60 }) {
       const file = literal(path);
       if (!TEXT.test(path)) fail('Only text source files can be read');
-      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end - start >= 160) fail('Read 1..160 numbered lines at once');
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end - start >= 80) fail('Read 1..80 numbered lines at once');
       if (!existsSync(file)) return { path, exists: false, sha256: null };
       const data = readFileSync(file);
       if (data.length > 524288) fail('File exceeds the read limit');
       const lines = data.toString('utf8').split(/\r?\n/);
       return { path, exists: true, sha256: hash(data), start, end: Math.min(end, lines.length), totalLines: lines.length,
-        text: lines.slice(start - 1, end).map((l, i) => `${start + i}: ${l}`).join('\n').slice(0, 9000) };
+        text: lines.slice(start - 1, end).map((l, i) => `${start + i}: ${l}`).join('\n').slice(0, READ_CHARS), more: lines.length > end };
     },
     shift_edit_file({ path, expected_sha256 = null, old_text, new_text, content }) {
       const file = literal(path);
@@ -79,7 +82,7 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
       try { const r = await exec(node, ['--test', rest.join('/')], { cwd: join(root, pkg), env, windowsHide: true, timeout: 180000, maxBuffer: 2 * 1024 * 1024 }); output = r.stdout + r.stderr; }
       catch (e) { exitCode = Number.isInteger(e.code) ? e.code : -1; output = String(e.stdout ?? '') + String(e.stderr ?? ''); }
       const summary = (output.match(/^ℹ (tests|pass|fail) \d+$/gm) ?? []).join(', ');
-      return { path, exitCode, passed: exitCode === 0, summary, output: output.slice(-2500) };
+      return { path, exitCode, passed: exitCode === 0, summary, output: output.slice(-800) };
     },
   };
 
