@@ -13,6 +13,7 @@ import {
   formatCostFooter,
 } from "./lib/pricing.mjs";
 import { answerLocally, explainRoutingMiss, LOCAL_COMMAND_CAPABILITIES } from "./lib/router.mjs";
+import { answerStudioGeneration, studioGenerationDirectory, STUDIO_GENERATION_CAPABILITY } from "./lib/studio-generation.mjs";
 import { createTerrainCache } from "./lib/terrain-cache.mjs";
 import { createSnapshotCache, resolveSnapshotCacheDirectory } from "./lib/snapshot-cache.mjs";
 import { buildLeanPayload, compactSnapshot, summarizeSnapshot } from "./lib/snapshot.mjs";
@@ -753,7 +754,8 @@ export function createBridgeServer({ env = process.env } = {}) {
     }
   };
 
-  const solverServices = { listBlueprints, inspectBlueprint, readTerrainScan };
+  const solverServices = { listBlueprints, inspectBlueprint, readTerrainScan,
+    studioGenerationDirectory: studioGenerationDirectory(env) };
   const graphOptions = { conveyorSpeedDivisor };
   const sessions = new Map();
   // Running spend per chat session, so the panel can show a total alongside
@@ -786,7 +788,7 @@ export function createBridgeServer({ env = process.env } = {}) {
           schema: "aifactory.bridge.health",
           bridge_version: BRIDGE_VERSION,
           action_contract_version: ACTION_CONTRACT_VERSION,
-          local_command_capabilities: env.AIFACTORY_LOCAL_ROUTING === "false" ? [] : LOCAL_COMMAND_CAPABILITIES,
+          local_command_capabilities: env.AIFACTORY_LOCAL_ROUTING === "false" ? [STUDIO_GENERATION_CAPABILITY] : LOCAL_COMMAND_CAPABILITIES,
           provider,
           model: providerReadiness.model,
           readiness: providerReadiness,
@@ -1017,9 +1019,9 @@ export function createBridgeServer({ env = process.env } = {}) {
       // arithmetic was already done, and paying to have it narrated is the
       // expensive way to read a number. Falls through when unsure.
       const localAnswer =
-        env.AIFACTORY_LOCAL_ROUTING === "false"
+        answerStudioGeneration(context.question, graph, requestServices) ?? (env.AIFACTORY_LOCAL_ROUTING === "false"
           ? null
-          : answerLocally(context.question, graph, requestServices);
+          : answerLocally(context.question, graph, requestServices));
       let answer = localAnswer;
       let providerFailure = null;
       let providerFailureInfo = null;

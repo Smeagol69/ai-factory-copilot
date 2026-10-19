@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, utimes
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudioGateway, newestSave } from '../lib/studio-gateway.mjs';
+import { createGameLease, LEASE_MS } from '../lib/game-lease.mjs';
 
 const F = '/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
 const pieces = n => Array.from({ length: n }, (_, i) => ({ class_path: F, transform: { translation_cm: { x: i * 800, y: 0, z: 0 }, rotation_quat: { x: 0, y: 0, z: 0, w: 1 }, scale3d: { x: 1, y: 1, z: 1 } } }));
@@ -72,6 +73,93 @@ const typedRoute = { question: ({ proposalHash }) => `studio generate ${proposal
 const savesWithOne = () => { const d = mkdtempSync(join(tmpdir(), 'saves-')); writeFileSync(join(d, 'a.sav'), 's'); return d; };
 const gamePlaytest = (calls, result = { pipelineCompleted: true, committedActions: 1, generated: 'AI Straight', readback: true }) =>
   ({ status: async () => ({ ready: true }), submit: async i => { calls.push(i); return { id: `j${calls.length}` }; }, wait: async () => result });
+const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
+
+for (const ending of ['stopped turn', 'expiry', 'explicit release']) {
+  test(`a mailbox-accepted generation with submit pending retains ownership after ${ending}`, async () => {
+    const accepted = deferred(), submitted = deferred();
+    let t = 1000;
+    const playtest = { ...gamePlaytest([]), submit: async () => { accepted.resolve(); return submitted.promise; } };
+    const { root, repo, gw } = setup('codex', { playtest, saveDir: savesWithOne(), mayOperate: () => true, typedRoute, now: () => t });
+    const job = building(gw, repo);
+    await gw.dispatch('game_lease', { action: 'acquire', purpose: 'build', job_id: job.id, proposal_file: 'proposal.json' });
+    const generation = gw.dispatch('game_generate', {});
+    const lease = createGameLease(root, { mayOperate: () => true, now: () => t });
+    try {
+      await accepted.promise;
+      const pending = JSON.parse(readFileSync(join(root, 'state/studio/game-lease.json'), 'utf8')).requests;
+      assert.equal(pending.length, 1, 'acceptance must already have a durable generation intent');
+      assert.equal(pending[0].operation, 'generate');
+      assert.equal(typeof pending[0].intentId, 'string');
+      assert.ok(pending[0].intentId.length > 0);
+      assert.equal(lease.current().open, 1);
+      if (ending === 'stopped turn') assert.equal(lease.settleAfterTurn('codex', 'Worker stopped'), 'unresolved');
+      if (ending === 'expiry') { t += LEASE_MS + 1; assert.equal(lease.current().unresolved, true); }
+      if (ending === 'explicit release') assert.equal((await gw.dispatch('game_lease', { action: 'release' })).unresolved, true);
+      assert.throws(() => lease.acquire({ session: 'second', worker: 'codex', purpose: 'build' }), /unresolved game transaction/);
+      submitted.resolve({ id: 'accepted-job' });
+      await assert.rejects(generation, /unresolved game transaction/);
+      const recorded = JSON.parse(readFileSync(join(root, 'state/studio/game-lease.json'), 'utf8'));
+      assert.equal(recorded.unresolved, true);
+      assert.equal(recorded.requests[0].id, 'accepted-job', 'late mailbox ID is attached without releasing ownership');
+      assert.equal(recorded.requests[0].intentId, pending[0].intentId);
+    } finally {
+      submitted.resolve({ id: 'accepted-job' });
+      await generation.catch(() => {});
+    }
+  });
+}
+
+for (const mutation of ['proposal', 'agreement', 'lease', 'handoff']) {
+  test(`generation rechecks ${mutation} after asynchronous route preparation before submitting`, async () => {
+    const preparing = deferred(), prepared = deferred(), calls = [];
+    let mayOperate = true;
+    const route = { ...typedRoute, question: async () => { preparing.resolve(); return prepared.promise; } };
+    const { repo, gw } = setup('codex', { playtest: gamePlaytest(calls), saveDir: savesWithOne(), mayOperate: () => mayOperate, typedRoute: route });
+    const job = building(gw, repo);
+    await gw.dispatch('game_lease', { action: 'acquire', purpose: 'build', job_id: job.id, proposal_file: 'proposal.json' });
+    const generation = gw.dispatch('game_generate', {});
+    try {
+      await preparing.promise;
+      assert.equal(calls.length, 0, 'route preparation must finish before the mailbox is called');
+      if (mutation === 'proposal') writeFileSync(join(repo, 'proposal.json'), JSON.stringify(proposalFor(2, { description: 'changed' })));
+      if (mutation === 'agreement') writeFileSync(join(gw.store.dirOf(job.id), 'candidate-1.json'), JSON.stringify(pieces(3)));
+      if (mutation === 'lease') await gw.dispatch('game_lease', { action: 'release' });
+      if (mutation === 'handoff') mayOperate = false;
+      prepared.resolve('prepared typed request');
+      await assert.rejects(generation, /changed|Acquire the game lease|wait for its handoff/);
+      assert.equal(calls.length, 0, 'a changed gate must refuse before submission');
+    } finally {
+      prepared.resolve('prepared typed request');
+      await generation.catch(() => {});
+    }
+  });
+}
+
+test('receipt verification receives the bound proposal hash and the submitted mailbox request', async () => {
+  const calls = [];
+  let expectedHash;
+  const route = { ...typedRoute, verify: (r, proposal, context) => {
+    assert.deepEqual(context, { proposalHash: expectedHash, request: { id: 'j1' } });
+    return typedRoute.verify(r, proposal);
+  } };
+  const { repo, gw } = setup('codex', { playtest: gamePlaytest(calls), saveDir: savesWithOne(), mayOperate: () => true, typedRoute: route });
+  const job = building(gw, repo);
+  expectedHash = (await gw.dispatch('game_lease', { action: 'acquire', purpose: 'build', job_id: job.id, proposal_file: 'proposal.json' })).proposalHash;
+  const result = await gw.dispatch('game_generate', {});
+  assert.equal(result.matchesProposal, true);
+  assert.equal((await gw.dispatch('game_status', {})).lease.open, 0, 'successful submission leaves no pending intent');
+});
+
+test('a verification exception preserves an unknown generation that a failure report cannot clear', async () => {
+  const route = { ...typedRoute, verify: () => { throw new Error('Native receipt was unreadable'); } };
+  const { repo, gw } = setup('codex', { playtest: gamePlaytest([]), saveDir: savesWithOne(), mayOperate: () => true, typedRoute: route });
+  const job = building(gw, repo);
+  await gw.dispatch('game_lease', { action: 'acquire', purpose: 'build', job_id: job.id, proposal_file: 'proposal.json' });
+  await assert.rejects(gw.dispatch('game_generate', {}), /outcome is unknown.*do not retry/);
+  assert.equal((await gw.dispatch('game_status', {})).lease.unresolved, true);
+  await assert.rejects(gw.dispatch('studio_report_build', { job_id: job.id, summary: 'verification failed', built: false }), /unresolved game transaction/);
+});
 
 test('generation backs up the newest save first, submits only the route\'s typed request, and refuses without a save', async () => {
   const saves = mkdtempSync(join(tmpdir(), 'saves-')), user = join(saves, '7656');

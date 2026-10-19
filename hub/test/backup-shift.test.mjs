@@ -96,13 +96,14 @@ test('a shift step works in its own branch, commits, asks for review, and shows 
 
 test('Stop aborts a running step and turns the shift off', async () => {
   const dir = repo(), hub = join(dir, 'hub');
-  let release;
+  let markRunnerReady;
+  const runnerReady = new Promise(resolve => { markRunnerReady = resolve; });
   const shift = createBackupShift({ root: hub, repo: dir, readColumns: () => [sub('Codex', 'out'), sub('Claude', 'out')],
     readMilestones: () => [{ id: 'm1', title: 'Turn', status: 'active' }], postReview: async () => {},
-    runnerFor: () => ({ signal }) => new Promise((_, reject) => { release = reject; signal.addEventListener('abort', () => reject(new Error('aborted'))); }) });
+    runnerFor: () => ({ signal }) => new Promise((_, reject) => { signal.addEventListener('abort', () => reject(new Error('aborted'))); markRunnerReady(); }) });
   await shift.set(true);
   const pending = shift.tick();
-  await new Promise(r => setTimeout(r, 300));
+  await runnerReady;
   assert.ok((await shift.status()).running);
   await shift.stop();
   const step = await pending;

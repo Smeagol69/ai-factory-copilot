@@ -1,5 +1,65 @@
 # Two agents, one repo
 
+## Fixed studio generation command — Codex, 2026-10-19
+
+Owner forwarded Claude's request #657 for the missing fixed companion command.
+Claim `codex-studio-generation-route-20261019`, branch `codex/auto`, baseline
+`50191075a9d113e24078b7d246fa3b251111a934`, after fetch and fast-forward.
+Scopes: companion studio-generation module/router/server/tests; hub route
+adapter/MCP wiring, gateway/lease pending-submit fix and tests; installer runtime
+manifest and this handoff/STATUS/plan. Existing visual artifacts are preserved.
+Use a hash-only command and controlled local proposal directory, normal action
+validation and authoritative native receipt verification. Persist generation
+intent before asynchronous mailbox submission. No conductor activation, operator
+handoff, game placement or native module change is part of this implementation.
+
+Source review: actual Claude subscription session
+`f76ac5e8-66a0-4e43-be8f-1633c0f4666a` approved the final seven source hashes
+after a duplicate-name normalization regression was reproduced and fixed. Full
+companion1376 pass; combined hub276 pass,0 fail,2 skipped. Latest committed masterd03f79f is integrated; Claude's
+unfinished session-keeper changes were read but excluded. Full combined hub
+verification required synchronizing an existing Stop test to actual runner
+readiness instead of an arbitrary300ms sleep; no product change. Deployment
+owner is Codex-30460, companion bundle only; game control remains with the live
+session until the owner's separate studio handoff. No native DLL rebuild needed.
+
+
+## Studio first candidate claim — Codex, 2026-10-19
+
+Job `1c963dbd-77bf-44a3-849e-8889d6d9fc42`, branch `codex/auto` at local
+master `01054b3`. Scope: candidate artifacts under
+`hub/state/studio-jobs/1c963dbd-77bf-44a3-849e-8889d6d9fc42/` only, plus this
+handoff. Reuse the existing tunnel compiler; no runtime/library changes or game
+writes. Read current STATUS, master and the prior sweep compiler evidence.
+Fetching was attempted but this sandbox cannot write shared git FETCH_HEAD.
+The saved sweep and original `walkway walled off ` reference were read through
+studio tools. The requested exact name `walled tunnel` is unavailable.
+Measure against the actual saved exit collar, including its -100cm floor pivot,
+and render/check the two-bay continuation before posting it for Claude.
+
+Candidate handoff: 36 native-size foundations, two 800cm bays along saved +Y.
+Compiler recovered all 18 source courses; original compiler exit matches the
+saved sweep after Z=-100cm registration (maximum rounding 0.000244141cm).
+Each new bay retains exact saved X/Z, quaternion and scale. Focused existing
+compiler suite: 23 pass. Independent read-only review checked all 36 unique
+pieces. Standalone, 54-piece collar context and 540-piece full-sweep context
+were rendered through studio_render and visually inspected. Only the separate
+36-piece candidate is proposed for construction. Native save and in-game join
+are unverified. The unavailable `walled tunnel` name is disclosed in the post.
+Build script, pieces and checks are in the claimed job folder. Render requests
+must run sequentially: simultaneous calls share the renderer's browser profile.
+
+Build-step continuation: both models agreed on candidate 1. Studio `game_ask`
+and `game_capture` refused with "Codex's live session is operating the game;
+conductor game requests wait for its handoff". The target native blueprint is
+absent. After the owner resumed this turn, fetch succeeded; master `122a86e`
+and Claude's `6cb4789` explicitly document this same job waiting for handoff.
+The unchanged studio gateway still reports conductorMayOperate=false. No
+operator flag was changed, no native request was submitted and no world write
+receipt exists. Prepared the exact 36-piece v6 generation action and validated
+it against captured revision1469; this is preparation, not game success. The
+studio currently has no deterministic game_ask custom-piece-file lane.
+
 ## Native tunnel live checkpoint and undo repair — Codex, 2026-10-18
 
 V2 live follow-up: measured floor turn is -29.5 degrees with reference-center

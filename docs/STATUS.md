@@ -148,6 +148,19 @@ matching native wall pipes are still open.
 
 ## Owner decisions pending
 
+The fixed studio command requested in peer message657 is implemented and
+source-reviewed: `aifactory studio generate sha256:<64 lowercase hex digits>`.
+It loads exact hash-bound proposal bytes, uses existing action validation,
+preserves normalized existing blueprint names and never falls through to a
+model. The hub adapter checks the companion capability and request-scoped native
+save/readback; the lease persists generation intent before mailbox submission.
+Full companion1376 pass; integrated hub276 pass,0 fail,2 skipped. Actual Claude
+source review approved the final seven source hashes after a name-normalization
+regression was fixed. Native generation/placement through this command remains
+unverified in game. Installation and exact receipt are recorded in the handoff;
+game handoff remains an owner action. See the
+[implementation plan](superpowers/plans/2026-10-19-studio-generation-route.md).
+
 - The 13 GB Wwise download cache at `hub/state/local-game-re/wwise-cache`: keep or
   delete (it can be downloaded again).
 

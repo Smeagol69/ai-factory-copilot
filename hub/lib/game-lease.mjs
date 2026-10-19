@@ -21,8 +21,10 @@ const bad = (m, statusCode = 409) => Object.assign(new Error(m), { statusCode })
 const sleeper = new Int32Array(new SharedArrayBuffer(4));
 const WORLD = new Set(['generate']); // operations that may change the world or write a native file
 
-// Requests whose outcome nobody knows: submitted with no completion, or reported unknown.
-export const openRequests = l => (l?.requests ?? []).filter(r => r.outcome === 'unknown' || (r.outcome === 'submitted' && !l.requests.some(x => x.id === r.id && x.outcome === 'completed')));
+// Submission itself can await I/O after the mailbox has accepted a request. Its
+// intent must already be open, even before a mailbox ID has come back.
+export const openRequests = l => (l?.requests ?? []).filter(r => r.outcome === 'submitting' || r.outcome === 'unknown' || (r.outcome === 'submitted' && !l.requests.some(x =>
+  x.outcome === 'completed' && (r.intentId ? x.intentId === r.intentId : x.id === r.id))));
 const changedWorld = l => (l?.requests ?? []).some(r => WORLD.has(r.operation));
 
 export function createGameLease(root, { now = Date.now, mayOperate = () => false } = {}) {
@@ -61,10 +63,10 @@ export function createGameLease(root, { now = Date.now, mayOperate = () => false
   const publicView = l => l && { session: l.session ?? null, worker: l.worker, purpose: l.purpose, job: l.job ?? null, agreedHash: l.agreedHash ?? null, proposalHash: l.proposalHash ?? null,
     acquiredAt: l.acquiredAt ?? null, expiresAt: l.expiresAt, unresolved: !!l.unresolved, unresolvedReason: l.unresolvedReason ?? null, requests: l.requests.length, open: openRequests(l).length };
   const blocked = l => bad(`An unresolved game transaction blocks game work: ${l.unresolvedReason}. The owner must check the game and resolve it in the Design studio`);
-  const mine = (session, token) => {
+  const mine = (session, token, allowUnresolved = false) => {
     const l = effective();
     if (!l) throw bad('Acquire the game lease (game_lease acquire) before any game request, and keep it until readback is done');
-    if (l.unresolved) throw blocked(l);
+    if (l.unresolved && !allowUnresolved) throw blocked(l);
     if (l.session !== session || l.token !== token) throw bad(`The game is leased to another session (${l.worker}, ${l.purpose}); wait for it to release`);
     return l;
   };
@@ -84,8 +86,18 @@ export function createGameLease(root, { now = Date.now, mayOperate = () => false
     // Every game request presents the session token; the lease is extended while work continues.
     require: (session, token) => locked(() => { const l = mine(session, token); l.expiresAt = now() + LEASE_MS; write(l); return l; }),
     record: (session, token, receipt) => locked(() => { const l = mine(session, token); l.requests.push({ at: now(), ...receipt }); l.expiresAt = now() + LEASE_MS; write(l); return l.requests.at(-1); }),
+    // Reconcile the durable intent rather than leaving an orphan pending receipt.
+    // A late return may add its mailbox ID after cleanup, but cannot clear the
+    // unresolved transaction or grant this session permission to continue.
+    submitted: (session, token, intentId, id) => locked(() => {
+      const l = mine(session, token, true);
+      const intent = l.requests.find(r => r.intentId === intentId && r.outcome === 'submitting');
+      if (!intent || typeof id !== 'string' || !id) throw bad('The generation submission could not be matched to its pending intent and mailbox ID');
+      Object.assign(intent, { id, outcome: 'submitted' });
+      write(l); return intent;
+    }),
     // An outcome nobody can know: recorded, and the transaction is unresolved at once.
-    unknown: (session, token, receipt, reason) => locked(() => { const l = mine(session, token); l.requests.push({ at: now(), ...receipt, outcome: 'unknown' }); unresolve(l, reason); return 'unresolved'; }),
+    unknown: (session, token, receipt, reason) => locked(() => { const l = mine(session, token, true); l.requests.push({ at: now(), ...receipt, outcome: 'unknown' }); unresolve(l, reason); return 'unresolved'; }),
     receipts: (session, token) => locked(() => mine(session, token).requests.slice()),
     // Explicit release by the owning session. After a world request it is not a way
     // out of the transaction: the lease becomes unresolved instead.

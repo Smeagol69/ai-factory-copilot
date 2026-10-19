@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { ROOT, loadProject } from '../lib/project.mjs';
 import { createStudioGateway } from '../lib/studio-gateway.mjs';
 import { createPlaytestClient } from '../lib/playtest.mjs';
+import { createStudioGenerationRoute } from '../lib/studio-generation-route.mjs';
 
 const worker = process.argv[process.argv.indexOf('--worker') + 1];
 if (!['claude', 'codex'].includes(worker)) { console.error('Use --worker claude|codex'); process.exit(2); }
@@ -14,6 +15,7 @@ const [{ McpServer }, { StdioServerTransport }, { z }] = await Promise.all([
 const repo = resolve(ROOT, '..');
 const { inspectBlueprintStructure } = await import(pathToFileURL(resolve(repo, 'companion/lib/blueprints.mjs')).href);
 const gateway = createStudioGateway({ root: ROOT, repo: process.cwd(), worker, playtest: createPlaytestClient(),
+  typedRoute: createStudioGenerationRoute({ port: project.config.game.companionPort }),
   inspectSaved: async (name, sbp, cfg) => inspectBlueprintStructure(name, sbp, cfg, { includeReferenceTraits: true, maximumEntities: 2000 }) });
 
 const server = new McpServer({ name: 'studio', version: '1.0.0' }, { instructions:
