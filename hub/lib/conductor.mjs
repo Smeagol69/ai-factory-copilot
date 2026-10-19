@@ -9,6 +9,27 @@ import { nextStep } from './studio-store.mjs';
 import { nextMilestoneStep } from './milestone-work.mjs';
 
 export const TURN_TIMEOUT_MS = 45 * 60000;
+// With no reset time reported, look again after this long.
+export const LIMIT_RECHECK_MS = 15 * 60000;
+
+// Did a turn end on a subscription usage limit? Claude says e.g. "Claude AI usage
+// limit reached|1792400000" or "You've hit your session limit · resets 10:20am";
+// Codex "You've hit your usage limit" (usageLimitExceeded). Returns when to resume.
+export function usageLimit(text, { now = Date.now(), known = null } = {}) {
+  const t = String(text ?? '');
+  if (!/usage limit|session limit|weekly limit|hit your limit|usageLimitExceeded|rate[_ ]limit(ed| reached| exceeded)|out of (usage|credits)/i.test(t)) return null;
+  const epoch = /\|(\d{10,13})\b/.exec(t)?.[1];
+  if (epoch) { const ms = +epoch < 1e12 ? +epoch * 1000 : +epoch; if (ms > now) return { resetsAt: ms, estimated: false }; }
+  const clock = /resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(t);
+  if (clock) {
+    let h = +clock[1] % 12; if (/pm/i.test(clock[3])) h += 12;
+    const d = new Date(now); d.setHours(h, +(clock[2] ?? 0), 0, 0);
+    if (d.getTime() <= now) d.setDate(d.getDate() + 1);
+    return { resetsAt: d.getTime(), estimated: false };
+  }
+  if (Number.isFinite(known) && known > now) return { resetsAt: known, estimated: false };
+  return { resetsAt: now + LIMIT_RECHECK_MS, estimated: true };
+}
 const other = w => w === 'codex' ? 'claude' : 'codex';
 const NAME = { codex: 'Codex', claude: 'Claude' };
 // The owner's style references: the direction for any brief that does not name a style.
@@ -144,7 +165,9 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     // A build needs game control; until Codex's live session hands off, wait without spending a turn.
     if (step.kind === 'build' && !mayOperate()) { waiting = { job: job.id, worker: step.worker, reason: "The build waits for game control: Codex's live session has not handed off yet" }; return null; }
     const worker = await workers.get(step.worker);
-    const u = worker.usage;
+    // A limit hit during an earlier turn outlives that worker process (state.outUntil).
+    const until = state.outUntil?.[step.worker] ?? 0;
+    const u = until > now() ? { out: true, resetsAt: until } : worker.usage;
     if (u?.out && (!u.resetsAt || u.resetsAt > now())) {
       waiting = { job: job.id, worker: step.worker, reason: `${NAME[step.worker]} is out of usage${u.resetsAt ? ` until ${new Date(u.resetsAt).toLocaleTimeString()}` : ''}` };
       return null;
@@ -159,12 +182,13 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     // Stop must end the wait even if the worker never answers.
     const stopped = new Promise((_, reject) => { running.abort = reject; });
     let settledTurn; running.settled = new Promise(r => { settledTurn = r; });
-    let ended = 'turn ended';
+    let ended = 'turn ended', said = '';
     try {
       const result = await Promise.race([worker.run(prompt), stopped, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Turn timed out')), TURN_TIMEOUT_MS); })]);
       S.log(job.id, step.worker, `Turn ${result.status}: ${String(result.text ?? '').replace(/\s+/g, ' ').slice(0, 300)}`);
+      if (result.status !== 'completed') said = `${result.text ?? ''} ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error ?? '')}`;
     } catch (error) {
-      ended = `turn ended: ${error.message}`;
+      ended = `turn ended: ${error.message}`; said = error.message;
       S.log(job.id, step.worker, `Turn failed: ${error.message}`);
       // A timed-out or stopped turn may still be running: end the worker process before
       // anything else may touch the game (Codex #652).
@@ -182,6 +206,16 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     if (settled === 'unresolved' && ['build', 'verify'].includes(step.kind)) {
       S.needsOwner(job.id, `${NAME[step.worker]}'s game transaction is unresolved (${ended}). Check the game, then resolve it in the Design studio; nothing is replayed automatically`);
       stale.delete(job.id); log({ job: job.id, step }); return step;
+    }
+    // A usage limit is not a failed step: the step waits for the reset and runs again
+    // by itself (usage is the only brake). A peer request keeps its turn.
+    const limit = usageLimit(said, { now: now(), known: worker.usage?.resetsAt });
+    if (limit) {
+      state.outUntil = { ...state.outUntil, [step.worker]: limit.resetsAt };
+      if (source === 'mail') { state.mailHandled = (state.mailHandled ?? []).filter(id => id !== step.message); state.mailThreads = { ...state.mailThreads, [step.thread]: Math.max(0, (state.mailThreads?.[step.thread] ?? 1) - 1) }; }
+      save(); stale.delete(job.id);
+      S.log(job.id, 'studio', `${NAME[step.worker]} hit its usage limit; its ${step.kind} step resumes by itself at ${new Date(limit.resetsAt).toLocaleTimeString()}${limit.estimated ? ' (reset time not reported; checking again then)' : ''}`);
+      log({ job: job.id, step, usageLimit: limit }); return step;
     }
     // A peer request gets one turn; an unanswered one stays visible in the log.
     if (source === 'mail') { log({ job: job.id, step }); return step; }

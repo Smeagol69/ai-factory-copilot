@@ -324,3 +324,36 @@ test('taking game control back ends a running build turn but keeps the conductor
   assert.equal(lease.current().unresolved, true, 'its submitted generation stays for the owner');
   assert.equal(await c.abortGameTurn('again'), null, 'nothing to end');
 });
+
+test('usage limit messages from both subscriptions give a resume time', async () => {
+  const { usageLimit, LIMIT_RECHECK_MS } = await import('../lib/conductor.mjs');
+  const now = new Date(2026, 9, 19, 9, 0).getTime();
+  assert.equal(usageLimit('Claude AI usage limit reached|1792500000', { now }).resetsAt, 1792500000000);
+  const clock = usageLimit("You've hit your session limit · resets 10:20am (America/New_York)", { now });
+  assert.equal(new Date(clock.resetsAt).getHours(), 10); assert.equal(new Date(clock.resetsAt).getMinutes(), 20);
+  assert.deepEqual(usageLimit("You've hit your usage limit. Upgrade or try again later", { now, known: now + 3600000 }), { resetsAt: now + 3600000, estimated: false });
+  assert.deepEqual(usageLimit('codex error usageLimitExceeded', { now }), { resetsAt: now + LIMIT_RECHECK_MS, estimated: true });
+  assert.equal(usageLimit('Turn timed out', { now }), null);
+  assert.equal(usageLimit('the tests failed', { now }), null);
+});
+
+test('a worker that hits its usage limit mid-turn waits for the reset and resumes by itself, never handing the job to the owner', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Tower' });
+  let t = new Date(2026, 9, 19, 9, 0).getTime(), limited = 3;
+  const prompts = [];
+  const w = { usage: null, async run(prompt) { prompts.push(prompt); if (limited-- > 0) return { status: 'failed', text: "You've hit your session limit · resets 10:20am" }; store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces }); return { status: 'completed', text: 'posted' }; }, async stop() {} };
+  const c = createConductor({ root, store, workers: { get: async () => w }, worktrees, now: () => t });
+  c.set(true);
+  assert.equal((await c.tick()).kind, 'candidate');
+  assert.equal(await c.tick(), null, 'no turn before the reset');
+  assert.match(c.status().waiting.reason, /out of usage until/);
+  assert.equal(prompts.length, 1);
+  assert.equal(store.get(job.id).status, 'designing', 'not handed to the owner');
+  // A restarted hub remembers the limit.
+  const again = createConductor({ root, store, workers: { get: async () => w }, worktrees, now: () => t });
+  assert.equal(await again.tick(), null);
+  t = new Date(2026, 9, 19, 10, 21).getTime();
+  assert.equal((await again.tick()).kind, 'candidate', 'resumes after the reset');
+  assert.equal(prompts.length, 2);
+});
