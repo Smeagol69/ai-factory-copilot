@@ -11,6 +11,7 @@ from mathutils import Matrix, Quaternion, Vector
 argv = sys.argv[sys.argv.index('--') + 1:]
 manifest_path, pieces_path, out_path = argv[0], argv[1], argv[2]
 view = argv[argv.index('--view') + 1] if '--view' in argv else 'both'
+zoom = float(argv[argv.index('--zoom') + 1]) if '--zoom' in argv else 1.0
 manifest = json.load(open(manifest_path, encoding='utf-8-sig'))
 data = json.load(open(pieces_path, encoding='utf-8-sig'))
 pieces = data['pieces'] if isinstance(data, dict) else data
@@ -125,6 +126,12 @@ for p in pieces:
         o.matrix_world = world @ ue_matrix(c['location'], c['rotation_quat'], c['scale'])
         if not o.data.materials: o.data.materials.append(material_for(cls))  # keep the game material when exported
         placed = True
+    if placed and p.get('label'):
+        # A number above the piece (palette sheets), standing up to face the camera side.
+        curve = bpy.data.curves.new('label', 'FONT'); curve.body = str(p['label']); curve.size = 1.6; curve.align_x = 'CENTER'
+        tobj = bpy.data.objects.new('label', curve); built.objects.link(tobj)
+        tobj.location = world.translation + Vector((0, 0, p.get('label_height', 6.0))); tobj.rotation_euler = (math.radians(90), 0, 0)
+        curve.materials.append(material('label', (1.0, 1.0, 1.0), 3.0))
     if placed:
         drawn += 1
         if any(k in cls.lower() for k in ('light', 'flood', 'emissive', 'lamp')):
@@ -164,7 +171,7 @@ def shoot(name, eye, target, lens):
 outs = []
 span = max(size.x, size.y, size.z)
 if view in ('exterior', 'both'):
-    outs.append(shoot('exterior', centre + Vector((span * 1.1, -span * 1.3, span * 0.8)), centre, 35))
+    outs.append(shoot('exterior', centre + Vector((span * 1.1, -span * 1.3, span * 0.8)) * zoom, centre, 35))
 if view in ('interior', 'both'):
     # Along the tunnel: the main direction of the piece positions; eye on the floor, looking down the run.
     # Stand on the walkway: from the middle of the build, find the floor below, then
