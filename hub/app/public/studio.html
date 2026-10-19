@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design studio · Copilot</title><link rel="stylesheet" href="/team.css"><link rel="stylesheet" href="/studio.css"><script src="/studio.js" defer></script></head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">C</span> Copilot <span class="sub">Satisfactory design studio</span></div>
+  <nav><a href="/">Team room</a><a href="/studio" class="selected">Design studio</a><a href="/workshop">Workshop</a></nav>
+  <div class="live" id="live"><span class="dot"></span><span id="live-text">Connecting…</span></div>
+</header>
+<section class="studio-bar">
+  <form id="brief-form" class="brief">
+    <textarea id="brief" maxlength="4000" rows="2" placeholder="Describe the design, e.g. A 4-floor iron plate factory beside the walled tunnel, entrance facing the sweep" aria-label="Design brief"></textarea>
+    <div class="brief-actions"><label>First designer <select id="first"><option value="codex">Codex</option><option value="claude">Claude</option></select></label><button type="submit">Start design</button></div>
+  </form>
+  <div class="controls">
+    <div><strong>Conductor</strong> <span id="cond-state" class="state idle">off</span><div id="cond-detail" class="muted"></div>
+      <div class="row"><button type="button" id="cond-toggle">Turn on</button><button type="button" class="danger" id="cond-stop">Stop</button></div></div>
+    <div><strong>Game control</strong> <span id="op-state" class="muted"></span>
+      <div class="muted">Codex's own session operates the game until it hands off. Then the conductor's Codex worker may save and place.</div>
+      <div class="row"><button type="button" class="secondary" id="op-toggle">Hand game to conductor</button></div></div>
+    <div><strong>Workers</strong><div id="workers" class="muted"></div></div>
+  </div>
+</section>
+<div id="notice" role="status" aria-live="polite"></div>
+<main class="studio-main">
+  <aside class="jobs"><h3>Designs</h3><div id="jobs"></div></aside>
+  <section class="job" id="job"><p class="muted">Start a design above, or pick one on the left.</p></section>
+</main>
+<footer class="muted">Renders are drawn offline from exact piece poses with measured sizes where known: they show proportions, not clipping. The game reads back and validates every build. Each worker's live activity shows in its Team room column.</footer>
+</body></html>
