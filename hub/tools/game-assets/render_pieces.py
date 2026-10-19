@@ -125,6 +125,16 @@ for p in pieces:
         o = bpy.data.objects.new(cls.split('.')[-1], mesh); built.objects.link(o)
         o.matrix_world = world @ ue_matrix(c['location'], c['rotation_quat'], c['scale'])
         if not o.data.materials: o.data.materials.append(material_for(cls))  # keep the game material when exported
+        elif any(k in cls.lower() for k in ('light', 'emissive', 'lamp')):
+            # Light fixtures glow: their game texture drives the emission (lit, as in game at night).
+            for m in o.data.materials:
+                # Only the fixture's own light materials; shared structural materials stay unlit.
+                if not m or not any(k in m.name.lower() for k in ('emis', 'light', 'glow', 'lamp', 'led', 'neon')): continue
+                b = m.node_tree.nodes.get('Principled BSDF') if m and m.node_tree else None
+                if b and b.inputs['Emission Strength'].default_value == 0:
+                    src = b.inputs['Base Color'].links[0].from_socket if b.inputs['Base Color'].links else None
+                    if src: m.node_tree.links.new(src, b.inputs['Emission Color'])
+                    b.inputs['Emission Strength'].default_value = 2.5
         placed = True
     if placed and p.get('label'):
         # A number above the piece (palette sheets), standing up to face the camera side.
@@ -136,7 +146,7 @@ for p in pieces:
         drawn += 1
         if any(k in cls.lower() for k in ('light', 'flood', 'emissive', 'lamp')):
             l = bpy.data.objects.new('lamp', bpy.data.lights.new('lamp', 'POINT')); built.objects.link(l)
-            l.data.energy = 4000; l.data.color = (1.0, 0.82, 0.55); l.data.shadow_soft_size = 0.5
+            l.data.energy = 2500; l.data.color = (1.0, 0.82, 0.55); l.data.shadow_soft_size = 0.5
             l.matrix_world = world @ Matrix.Translation((0, 0, -0.6))
         continue
     missing.add(cls.split('.')[-1])
@@ -158,6 +168,7 @@ sun.data.energy = 2.5; sun.rotation_euler = (math.radians(50), 0, math.radians(3
 scene.render.engine = 'BLENDER_EEVEE' if 'BLENDER_EEVEE' in [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items] else 'BLENDER_EEVEE_NEXT'
 scene.render.resolution_x, scene.render.resolution_y = 1600, 900
 scene.view_settings.view_transform = 'AgX'
+scene.view_settings.exposure = float(argv[argv.index('--exposure') + 1]) if '--exposure' in argv else -1.0
 
 def shoot(name, eye, target, lens):
     cam = bpy.data.objects.new(name, bpy.data.cameras.new(name)); scene.collection.objects.link(cam)
@@ -172,7 +183,11 @@ outs = []
 span = max(size.x, size.y, size.z)
 if view in ('exterior', 'both'):
     outs.append(shoot('exterior', centre + Vector((span * 1.1, -span * 1.3, span * 0.8)) * zoom, centre, 35))
-if view in ('interior', 'both'):
+if view in ('interior', 'both') and isinstance(data, dict) and data.get('camera'):
+    # A camera the design gives (Unreal cm): eye and look-at point.
+    cam = data['camera']; to_b = lambda p: Vector((p['x'] * 0.01, -p['y'] * 0.01, p['z'] * 0.01))
+    outs.append(shoot('interior', to_b(cam['eye']), to_b(cam['look']), cam.get('lens', 16)))
+elif view in ('interior', 'both'):
     # Along the tunnel: the main direction of the piece positions; eye on the floor, looking down the run.
     # Stand on the walkway: from the middle of the build, find the floor below, then
     # the longest open direction (down the tunnel), and look along it from one end.
@@ -184,8 +199,11 @@ if view in ('interior', 'both'):
     floor_z = start.z - hit(start, Vector((0, 0, -1)))
     eye = Vector((centre.x, centre.y, floor_z + 1.7))
     best = max((Vector((math.cos(math.radians(a)), math.sin(math.radians(a)), 0)) for a in range(0, 360, 5)), key=lambda d: hit(eye, d))
-    back = min(hit(eye, -best), 60.0)
-    eye = eye - best * max(back - 2.0, 0.0)
+    # Step back toward the near end, but stay inside the build (open ends have no wall to stop the ray).
+    inside = min((eye - lo).dot(-best) if -best.x + -best.y > 0 else 1e9, 1e9)
+    half_run = abs(Vector((size.x, size.y, 0)).dot(Vector((abs(best.x), abs(best.y), 0)))) / 2
+    back = min(hit(eye, -best), half_run * 0.85)
+    eye = eye - best * max(back - 1.0, 0.0)
     outs.append(shoot('interior', eye, eye + best * 10 + Vector((0, 0, 0.9)), 16))
 print(json.dumps({'drawn': drawn, 'skipped_splines': skipped, 'missing_mesh': sorted(missing), 'renders': outs, 'size_m': [round(size.x, 2), round(size.y, 2), round(size.z, 2)]}))
 
