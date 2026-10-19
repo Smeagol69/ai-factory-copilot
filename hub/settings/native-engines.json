@@ -1,0 +1,12 @@
+﻿{
+  "schema": "copilot.native-engine-policy/v1",
+  "ghidra": {
+    "mode": "disabled-pending-removal",
+    "uninstallRequested": true,
+    "uninstallCompleted": true,
+    "approvalRequired": true,
+    "automaticLaunchAllowed": false,
+    "automaticInstallAllowed": false,
+    "authorization": "Owner explicitly requested uninstalling Ghidra completely until needed again. General reverse-engineering, model-team or Architect requests do not grant permission to reinstall or launch it."
+  }
+}

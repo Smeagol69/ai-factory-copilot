@@ -1,0 +1,19 @@
+[mcp_servers.agent_pair]
+command = "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe"
+args = ["C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/mcp.mjs","--provider","codex"]
+cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"
+
+[mcp_servers.superpowers]
+command = "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe"
+args = ["C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/superpowers.mjs"]
+cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"
+
+[mcp_servers.rea]
+command = "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe"
+args = ["C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/rea.mjs"]
+cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"
+
+[mcp_servers.local_model]
+command = "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe"
+args = ["C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/local-worker.mjs"]
+cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"

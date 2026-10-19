@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "platform": "win32",
+  "architecture": "x64",
+  "engines": [
+    {
+      "id": "ghidra",
+      "version": "12.1.4",
+      "name": "ghidra_12.1.4_PUBLIC_20260921.zip",
+      "url": "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip",
+      "bytes": 569649598,
+      "sha256": "ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db",
+      "directory": "tools/ghidra/ghidra_12.1.4_PUBLIC",
+      "files": [
+        {
+          "path": "support/analyzeHeadless.bat",
+          "sha256": "dd7b9d17d32ed70a71df82a43a21cdaed6c4ce67064e30f8642c149f81c2ae07"
+        },
+        {
+          "path": "Ghidra/application.properties",
+          "sha256": "e84c26b08545eee63d24a1a8a4dd7905e4209538e2e7192093877c435c64eb67"
+        },
+        {
+          "path": "Ghidra/Features/Decompiler/os/win_x86_64/decompile.exe",
+          "sha256": "ea42e06df2a64f95188a12422a35a36cd48fd4a6f621e62b001e82f1bbbe923b"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "id": "java",
+      "version": "21.0.12.1+1",
+      "name": "OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+      "bytes": 205073461,
+      "sha256": "f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e",
+      "directory": "tools/java/jdk-21.0.12.1+1",
+      "files": [
+        {
+          "path": "bin/java.exe",
+          "sha256": "82051fdab26319d77d20cc0065045d05ec00b3e3d05f44935d7c06b96b621d55"
+        },
+        {
+          "path": "bin/javac.exe",
+          "sha256": "00f7c6f9ec89ebba4bb96cf8760403cccf1268df2eae8685900ba38e58a7aff9"
+        },
+        {
+          "path": "release",
+          "sha256": "07117c72ce033949c14878e07fbf2fe23f59a1f8c90a6d1351b5c89099847ce7"
+        },
+        {
+          "path": "legal/java.base/LICENSE",
+          "sha256": "4b9abebc4338048a7c2dc184e9f800deb349366bdf28eb23c2677a77b4c87726"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "project": "satisfactory-mcp-lab",
+  "name": "Satisfactory MCP Lab",
+  "architectProject": "satisfactory-ai-architect",
+  "goal": "Test the reusable model team on Satisfactory: divide useful implementation work, preserve verified knowledge, review exact changes, and report authoritative game outcomes.",
+  "runtime": {
+    "directory": "runtime/agent-pair",
+    "commit": "b727bebede1c7cdd025cc1a7f57981b3e7720beb",
+    "charterSha256": "827b4692ad5d183c0e2ba7969b0a3c83207f93a010b14a30bb4101334a37c9a8",
+    "superpowersVersion": "7.0.0"
+  },
+  "game": {
+    "id": "satisfactory",
+    "directory": "workspaces/architect/integration",
+    "companionPort": 8142
+  },
+  "progressPort": 8794,
+  "appPort": 8795,
+  "startup": { "modelCalls": 0, "gameWrites": 0, "scheduledTasks": 0 }
+}

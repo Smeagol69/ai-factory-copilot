@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-17T01:49:34.627Z",
+  "goal": "Use our verified multi-model MCP foundation to test useful cooperation on Satisfactory.",
+  "installedToolCount": 31,
+  "candidateToolCount": 31,
+  "milestones": [
+    {
+      "id": "project",
+      "title": "Separate Satisfactory project",
+      "benefit": "Tasks, memory and results stay separate from Civ VI.",
+      "status": "done",
+      "evidence": [
+        "New Git workspace and shared MCP project: satisfactory-mcp-lab.",
+        "Existing game and runtime repositories are referenced without copying game code or modifying their files."
+      ]
+    },
+    {
+      "id": "runtime",
+      "title": "Verified MCP and Superpowers foundation",
+      "benefit": "Reuse the tools and lessons already tested on Civ VI.",
+      "status": "done",
+      "evidence": [
+        "Runtime pinned at b727beb, including independently approved file-tool compatibility repairs.",
+        "Real launcher checks reached 31 Agent Pair tools, 18 Superpowers tools, 15 prompts and 238 original resources.",
+        "All 238 Superpowers package files and all 15 skills passed the existing package hash verifier."
+      ]
+    },
+    {
+      "id": "connection",
+      "title": "Satisfactory companion connection",
+      "benefit": "Check game-adapter readiness before spending on a live test.",
+      "status": "blocked",
+      "evidence": [
+        "Latest setup GET to localhost port 8142 could not reach the companion.",
+        "No live snapshot or loaded save has been verified. No game write or deployment was performed."
+      ],
+      "next": "Start or repair the existing Satisfactory companion, then read its authoritative health and snapshot."
+    },
+    {
+      "id": "team-benchmark",
+      "title": "First Satisfactory model-team task",
+      "benefit": "Prove implementation, tests, exact review and retained lessons on a second game.",
+      "status": "planned",
+      "evidence": [
+        "Project launch and status commands issue zero paid inference requests and create no scheduled tasks.",
+        "The new project has no active team coordinator configured; this page does not infer model activity."
+      ],
+      "next": "Select one bounded Satisfactory task with an implementer, an independent reviewer and measurable checks."
+    }
+  ],
+  "nextStep": "Finish setup checks, connect the existing Satisfactory companion, then choose the first bounded team benchmark.",
+  "limits": [
+    "This page is a read-only progress viewer; it cannot control the game or launch a paid worker.",
+    "The models are not being trained. Improvements are tested tools, workflows and retained knowledge.",
+    "MCP heartbeats shown by the shared viewer may include other projects; they do not prove active model work.",
+    "Source and offline tests do not prove a live game action."
+  ]
+}
