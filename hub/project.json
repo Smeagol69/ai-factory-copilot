@@ -12,7 +12,7 @@
   },
   "game": {
     "id": "satisfactory",
-    "directory": "workspaces/architect/integration",
+    "directory": "..",
     "companionPort": 8142
   },
   "progressPort": 8794,

@@ -173,7 +173,7 @@ async function persist(evidence, directory) {
 
 // The application calls this without arguments. Roots and services are injected
 // only by offline tests; no HTTP/model input supplies filesystem paths or code.
-export async function runReferenceDemo({ directory = ROOT, sourceDirectory = join(ROOT, 'workspaces/architect/integration'), services, clock = Date.now } = {}) {
+export async function runReferenceDemo({ directory = ROOT, sourceDirectory = join(ROOT, '..'), services, clock = Date.now } = {}) {
   directory = resolve(directory); sourceDirectory = resolve(sourceDirectory);
   const receipt = { schema: 'copilot.reference-comparison/v1', checkId: randomUUID(), observedAt: new Date(clock()).toISOString(),
     ok: false, status: 'unknown', mode: 'saved_native_blueprint_comparison', modelCalls: 0, gameWrites: 0,

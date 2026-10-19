@@ -222,8 +222,8 @@ test('real existing discovery and native inspection preserve unknown for undecod
       await mkdir(join(file, '..'), { recursive: true });
       await writeFile(file, 'not a native Satisfactory Blueprint');
     }
-    const server = pathToFileURL(resolve('workspaces/architect/integration/companion/server.mjs')).href;
-    const solvers = pathToFileURL(resolve('workspaces/architect/integration/companion/lib/solvers.mjs')).href;
+    const server = pathToFileURL(resolve('../companion/server.mjs')).href;
+    const solvers = pathToFileURL(resolve('../companion/lib/solvers.mjs')).href;
     await writeFile(join(f.sourceDirectory, 'companion/server.mjs'), `export { makeBlueprintReader } from ${JSON.stringify(server)};\n`);
     await writeFile(join(f.sourceDirectory, 'companion/lib/solvers.mjs'), `export { solveBlueprintComparison } from ${JSON.stringify(solvers)};\n`);
     const result = await run({ ...f.options, services: undefined });

@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "agent_pair": {
+      "command": "C:/Users/roesl/Documents/satisfactory/hub/runtime/node/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory/hub/scripts/mcp.mjs",
+        "--provider",
+        "claude"
+      ]
+    },
+    "superpowers": {
+      "command": "C:/Users/roesl/Documents/satisfactory/hub/runtime/node/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory/hub/scripts/superpowers.mjs"
+      ]
+    },
+    "rea": {
+      "command": "C:/Users/roesl/Documents/satisfactory/hub/runtime/node/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory/hub/scripts/rea.mjs"
+      ]
+    },
+    "local_model": {
+      "command": "C:/Users/roesl/Documents/satisfactory/hub/runtime/node/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory/hub/scripts/local-worker.mjs"
+      ]
+    }
+  }
+}

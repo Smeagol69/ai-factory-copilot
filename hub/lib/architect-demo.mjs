@@ -8,7 +8,7 @@ import { auditStructuralGeometry } from './geometry-audit.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const STATE = join(ROOT, 'state/architect');
-const COMPILER = join(ROOT, 'workspaces/architect/integration/companion/lib');
+const COMPILER = join(ROOT, '../companion/lib');
 const MAX_INPUT = 64 * 1024 * 1024, MAX_EXPANDED = 128 * 1024 * 1024, MAX_RECEIPT = 32768;
 const STALE_AFTER_MS = 5 * 60 * 1000;
 const inflate = promisify(gunzip);
@@ -164,7 +164,7 @@ export function createArchitectDemoRunner({ captureDirectory, evidenceDirectory 
       receipt.capture = metadata;
       stage = 'compiler';
       const { buildGraph, compileArchitectStructuralRequest, identity } = await compiler();
-      receipt.compiler = { entry: 'workspaces/architect/integration/companion/lib/architect-structural.mjs',
+      receipt.compiler = { entry: 'companion/lib/architect-structural.mjs',
         function: 'compileArchitectStructuralRequest', ...identity };
       const result = compileArchitectStructuralRequest(buildGraph(snapshot), { blueprint_name: 'AI Architect offline captured-world shell',
         width_cells: 2, depth_cells: 1, wall_courses: 2, open_ends: 'both', commit: false });
