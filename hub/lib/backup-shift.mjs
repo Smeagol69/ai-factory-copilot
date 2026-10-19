@@ -45,7 +45,7 @@ export function createBackupShift({ root, repo, runnerFor, readColumns, readMile
   const dir = join(root, 'state/team'), file = join(dir, 'shift.json'), events = join(dir, 'local-events.jsonl');
   const worktree = join(repo, 'hub/workspaces/local-shift');
   let state = { enabled: false, steps: [], lastStepAt: null, outageSteps: 0 };
-  try { if (existsSync(file)) state = { ...state, ...JSON.parse(readFileSync(file, 'utf8')) }; } catch { /* corrupt → off */ state.enabled = false; }
+  try { if (existsSync(file)) state = { ...state, ...JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')) }; } catch { /* corrupt → off */ state.enabled = false; }
   let running = null, lastDecision = { run: false, reason: 'Not checked yet' };
   const save = () => { mkdirSync(dir, { recursive: true }); const tmp = file + '.tmp'; writeFileSync(tmp, JSON.stringify(state, null, 2) + '\n'); renameSync(tmp, file); };
   const event = e => { mkdirSync(dir, { recursive: true }); appendFileSync(events, JSON.stringify({ t: now(), model: SHIFT.model, ...e }) + '\n'); };

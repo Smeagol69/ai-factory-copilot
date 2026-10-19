@@ -71,3 +71,10 @@ test('models read milestones as plain text from shared memory', () => {
   assert.match(text, /1\. \[▶ ACTIVE\] Lighting — power too/);
   assert.match(text, /2\. \[✓ complete\] Shell$/);
 });
+
+test('a state file saved with a byte-order mark still loads', () => {
+  const root = mkdtempSync(join(tmpdir(), 'team-'));
+  mkdirSync(join(root, 'state/team'), { recursive: true });
+  writeFileSync(join(root, 'state/team/milestones.json'), '﻿' + JSON.stringify({ items: [{ id: 'a', title: 'Kept', status: 'active', notes: '' }] }));
+  assert.equal(createTeamState(root).milestones()[0].title, 'Kept');
+});
