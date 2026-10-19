@@ -19,7 +19,7 @@ const TEST = /^(companion|hub)\/test\/[\w.-]+\.test\.mjs$/;
 const READ_CHARS = 3500;
 const fail = message => { throw new Error(message); };
 
-export function createShiftTools({ worktree, node = process.execPath, onEvent = () => {} }) {
+export function createShiftTools({ worktree, node = process.execPath, onEvent = () => {}, focus = '' }) {
   const root = realpathSync(worktree);
   const literal = path => {
     if (typeof path !== 'string' || !path || path.length > 300 || /[\\:\x00-\x1f*?"<>|]/.test(path) ||
@@ -44,7 +44,8 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
     shift_read_file({ path, start = 1, end = 60 }) {
       const file = literal(path);
       if (!TEXT.test(path)) fail('Only text source files can be read');
-      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end - start >= 80) fail('Read 1..80 numbered lines at once');
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) fail('Give whole line numbers with start ≥ 1 and end ≥ start');
+      end = Math.min(end, start + 79); // too wide a range is clipped, not refused: no wasted tool call
       if (!existsSync(file)) return { path, exists: false, sha256: null };
       const data = readFileSync(file);
       if (data.length > 524288) fail('File exceeds the read limit');
@@ -111,9 +112,17 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
       }
     },
     async context() {
-      const git = async args => (await exec('git', args, { cwd: root, windowsHide: true, timeout: 10000 })).stdout.trim();
-      const [branch, log] = await Promise.all([git(['branch', '--show-current']), git(['log', '-5', '--format=%h %s'])]);
-      return `Shift workspace: the repo on branch ${branch}. Recent commits:\n${log}\nTop level: ${handlers.shift_list_files({}).entries.join(' ')}`;
+      const git = async args => (await exec('git', args, { cwd: root, windowsHide: true, timeout: 10000, maxBuffer: 8 * 1024 * 1024 })).stdout.trim();
+      const [branch, log, files] = await Promise.all([git(['branch', '--show-current']), git(['log', '-5', '--format=%h %s']), git(['ls-files', 'companion/lib', 'companion/test', 'docs'])]);
+      // Hand the small model the files that match the milestone so it doesn't
+      // spend its few tool calls listing folders.
+      const words = String(focus ?? '').toLowerCase().match(/[a-z]{4,}/g)?.filter(w => !['with', 'that', 'into', 'from', 'joined', 'gradual'].includes(w)) ?? [];
+      const related = files.split('\n').filter(f => TEXT.test(f) && words.some(w => f.toLowerCase().includes(w))).slice(0, 10).map(f => {
+        try { return `${f} (${readFileSync(join(root, f), 'utf8').split('\n').length} lines)`; } catch { return f; }
+      });
+      return [`Shift workspace: the repo on branch ${branch}. Recent commits:\n${log}`,
+        related.length ? `Files that match the milestone:\n${related.join('\n')}` : `Top level: ${handlers.shift_list_files({}).entries.join(' ')}`,
+        'You have at most 7 tool calls in this step. Do not list folders you can already see, read only the lines you need (up to 80 at a time), and make your change early.'].join('\n\n');
     },
     async close() {},
   };

@@ -91,7 +91,7 @@ try {
   let latestColumns=[],teamState=null;
   const shift=createBackupShift({root:context.root,repo:mainCheckout,
     readColumns:()=>latestColumns,readMilestones:()=>teamState?.milestones()??[],
-    runnerFor:({worktree,onEvent})=>createOllamaRunner({ensure:options=>localModel.ensure(options),openMcp:async()=>createShiftTools({worktree,onEvent})}),
+    runnerFor:({worktree,onEvent,milestone})=>createOllamaRunner({ensure:options=>localModel.ensure(options),openMcp:async()=>createShiftTools({worktree,onEvent,focus:milestone?.title})}),
     postReview:async review=>{
       const author=new PairStore(context.database,'hauhaucs-local',Date.now,'coordinator');
       try{author.send({project:context.config.project,subject:`Review requested: ${review.branch} ${review.commit.slice(0,7)} (local backup shift)`,

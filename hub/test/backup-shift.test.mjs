@@ -118,5 +118,11 @@ test('reads stay small enough for the local model\'s 8K context', async () => {
   const r = await t.dispatch('shift_read_file', { path: 'companion/lib/big.mjs' });
   assert.ok(r.text.length <= 3500);
   assert.equal(r.more, true);
-  assert.match((await t.dispatch('shift_read_file', { path: 'companion/lib/big.mjs', start: 1, end: 200 })).error, /1\.\.80/);
+  const wide = await t.dispatch('shift_read_file', { path: 'companion/lib/big.mjs', start: 1, end: 200 });
+  assert.equal(wide.end, 80, 'too wide a read is clipped, not refused');
+  assert.equal(wide.more, true);
+  const focused = createShiftTools({ worktree: dir, focus: 'Big tunnel turn' });
+  git(dir, 'add', '-A'); git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'big');
+  assert.match(await focused.context(), /Files that match the milestone:\ncompanion\/lib\/turn\.mjs \(2 lines\)\ncompanion\/test\/turn\.test\.mjs/);
+  assert.match(await focused.context(), /at most 7 tool calls/);
 });
