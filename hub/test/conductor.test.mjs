@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createStudioStore } from '../lib/studio-store.mjs';
 import { createConductor, stepPrompt, pendingRequest, MAX_THREAD_TURNS } from '../lib/conductor.mjs';
 import { normaliseUsage } from '../lib/conductor-workers.mjs';
@@ -285,4 +286,17 @@ test('a build waiting for game control does not hold up the next design or the m
   const next = await c.tick();
   assert.equal(next.kind, 'work', 'with every design blocked or waiting, milestone work goes on');
   assert.equal(prompts.filter(p => /Both of you agreed/.test(p.prompt)).length, 0, 'no build turn was spent');
+});
+
+test('design prompts carry the owner\'s inspiration board as the default style', async () => {
+  const { STYLE_GUIDE } = await import('../lib/conductor.mjs');
+  const { existsSync } = await import('node:fs');
+  assert.ok(existsSync(join(fileURLToPath(new URL('../..', import.meta.url)), STYLE_GUIDE)), 'the style guide is in the repo');
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'A factory hall' });
+  const first = stepPrompt(store.get(job.id), { worker: 'codex', kind: 'candidate' }, worktrees.codex);
+  assert.match(first, /docs\/designs\/inspiration\/README\.md/);
+  assert.match(first, /inspiration, not designs to copy/);
+  assert.match(first, /which inspiration references you drew on/);
+  assert.match(stepPrompt(store.get(job.id), { worker: 'claude', kind: 'critique', candidate: 1 }, worktrees.claude), /owner's style language/);
 });
