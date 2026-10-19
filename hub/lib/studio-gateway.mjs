@@ -82,11 +82,11 @@ export function createStudioGateway({ root, repo, worker, playtest = null, typed
   // building, with its piece list and typed proposal unchanged since they were
   // pinned; checked before every submission. Read-only capture/look is open to
   // either worker holding the lease.
-  const gameGate = (kind = 'read') => {
+  const gameGate = (kind = 'read', token = leaseToken) => {
     if (!playtest) throw new Error('Game mailbox unavailable');
     if (kind === 'write' && worker !== 'codex') throw new Error('Game actions that change the world belong to Codex; post your findings for it instead');
     if (!mayOperate()) throw bad("Codex's live session is operating the game; conductor game requests wait for its handoff");
-    const l = gameLease.require(session, leaseToken);
+    const l = gameLease.require(session, token);
     if (kind === 'write') {
       if (!l.job) throw bad('World-changing requests need a lease tied to the agreed design job (game_lease acquire with job_id and proposal_file)');
       const job = store.get(l.job);
@@ -242,23 +242,34 @@ export function createStudioGateway({ root, repo, worker, playtest = null, typed
     // Generate the native blueprint of exactly the bound proposal. The request text
     // comes from the companion's deterministic typed route, never from a model.
     async game_generate() {
-      const l = gameGate('write');
+      const token = leaseToken, l = gameGate('write', token);
       if (!typedRoute) throw bad('No deterministic typed-generation route exists in the companion yet, so no request can be bound to the agreed proposal. World-changing requests stay off; the validated proposal waits for that route (Codex\'s scope)');
       const proposal = readJson(l.proposalFile);
-      const question = typedRoute.question({ proposal, proposalFile: l.proposalFile, proposalHash: l.proposalHash });
+      const question = await typedRoute.question({ proposal, proposalFile: l.proposalFile, proposalHash: l.proposalHash });
+      // Route preparation can await capability checks and exact-byte staging.
+      // Recheck the same lease, agreement and proposal after that await.
+      gameGate('write', token);
       const backupFile = backup();
-      const base = { operation: 'generate', proposalHash: l.proposalHash };
+      const base = { operation: 'generate', proposalHash: l.proposalHash, intentId: randomUUID() };
+      // Persist before submit: the mailbox may accept while its Promise is still
+      // pending. Stopping, releasing or expiring now must keep exclusive ownership.
+      gameLease.record(session, token, { id: null, ...base, outcome: 'submitting' });
       let job;
-      try { job = await playtest.submit({ operation: 'askall', question }); }
-      catch (e) { gameLease.unknown(session, leaseToken, { id: null, ...base }, `Submitting the generation failed (${e.message}); it may or may not have reached the game`); throw bad(`The generation submission failed and its outcome is unknown: ${e.message}. The transaction is unresolved; do not retry`); }
-      // Recorded before waiting: if this turn dies now, the request stays open for the owner.
-      gameLease.record(session, leaseToken, { id: job.id, ...base, outcome: 'submitted' }); gameLog({ operation: 'generate', id: job.id, proposalHash: l.proposalHash, backupFile });
+      try {
+        job = await playtest.submit({ operation: 'askall', question });
+        gameLease.submitted(session, token, base.intentId, job?.id);
+      }
+      catch (e) { gameLease.unknown(session, token, { id: job?.id ?? null, ...base }, `Submitting the generation failed (${e.message}); it may or may not have reached the game`); throw bad(`The generation submission failed and its outcome is unknown: ${e.message}. The transaction is unresolved; do not retry`); }
+      gameLog({ operation: 'generate', id: job.id, proposalHash: l.proposalHash, backupFile });
+      gameLease.require(session, token); // a stopped or released turn cannot resume
       let r;
       try { r = await playtest.wait(job, { timeoutMs: 120000 }); }
-      catch (e) { gameLease.unknown(session, leaseToken, { id: job.id, ...base }, `Generation request ${job.id}: ${e.message}; its outcome is unknown`); gameLog({ operation: 'generate', id: job.id, unknown: e.message }); throw bad(`The generation outcome is unknown (${e.message}). The transaction is unresolved for the owner; do not retry`); }
-      const v = typedRoute.verify(r, proposal) ?? {};
+      catch (e) { gameLease.unknown(session, token, { id: job.id, ...base }, `Generation request ${job.id}: ${e.message}; its outcome is unknown`); gameLog({ operation: 'generate', id: job.id, unknown: e.message }); throw bad(`The generation outcome is unknown (${e.message}). The transaction is unresolved for the owner; do not retry`); }
+      let v;
+      try { v = await typedRoute.verify(r, proposal, { proposalHash: l.proposalHash, request: job }) ?? {}; }
+      catch (e) { gameLease.unknown(session, token, { id: job.id, ...base }, `Generation request ${job.id} verification failed: ${e.message}; its outcome is unknown`); gameLog({ operation: 'generate', id: job.id, unknown: e.message }); throw bad(`The generation outcome is unknown (${e.message}). The transaction is unresolved for the owner; do not retry`); }
       const receipt = { id: job.id, ...base, outcome: 'completed', committedActions: r.committedActions ?? 0, matchesProposal: v.matchesProposal === true, blueprintName: v.blueprintName ?? null, savedReadback: v.savedReadback === true };
-      gameLease.record(session, leaseToken, receipt); gameLog(receipt);
+      gameLease.record(session, token, receipt); gameLog(receipt);
       return { ...r, ...receipt, saveBackup: backupFile };
     },
   };

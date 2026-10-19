@@ -63,6 +63,17 @@ test('a build report closes only a transaction whose outcomes are all known', ()
   assert.equal(lease.current(), null);
 });
 
+test('a generation still being submitted is open and cannot be closed by another receipt', () => {
+  const lease = createGameLease(fresh(), { mayOperate: () => true });
+  const a = lease.acquire({ session: 'a', worker: 'codex', purpose: 'build' });
+  lease.record('a', a.token, { id: null, intentId: 'pending-generation', operation: 'generate', outcome: 'submitting' });
+  // A completion without this intent's identity cannot make its unknown outcome known.
+  lease.record('a', a.token, { id: null, intentId: 'different-generation', operation: 'generate', outcome: 'completed' });
+  assert.equal(lease.current().open, 1);
+  assert.equal(lease.close('a', a.token), 'unresolved');
+  assert.throws(() => lease.acquire({ session: 'b', worker: 'codex', purpose: 'build' }), /unresolved game transaction/);
+});
+
 test('an unreadable lease record blocks game work until the owner resolves it', () => {
   const root = fresh(), lease = createGameLease(root, { mayOperate: () => true });
   mkdirSync(join(root, 'state/studio'), { recursive: true }); writeFileSync(join(root, 'state/studio/game-lease.json'), '{half');

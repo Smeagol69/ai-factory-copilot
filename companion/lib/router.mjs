@@ -46,6 +46,7 @@ import {
 } from "./solvers.mjs";
 import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
+import { answerStudioGeneration, STUDIO_GENERATION_CAPABILITY } from "./studio-generation.mjs";
 import { compileLevelTunnel } from "./level-tunnel.mjs";
 import { compileTunnelLighting } from "./tunnel-lighting.mjs";
 import { compileTunnelDecorPalette,compileIndustrialTunnelDecor } from "./tunnel-decor.mjs";
@@ -3164,9 +3165,11 @@ export function explainRoutingMiss(question) {
  * Returns null when it does not — the caller then falls through to the model,
  * which is always the safe direction to fail.
  */
-export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer"]);
+export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer", STUDIO_GENERATION_CAPABILITY]);
 
 export function answerLocally(question, graph, services) {
+  const studio = answerStudioGeneration(question, graph, services);
+  if (studio) return studio;
   const industrial=String(question??'').trim().match(/^save industrial tunnel decor from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"( with straight collars)?[.!]?$/i);
   if(industrial){
     const started=Date.now(),name=industrial[4];

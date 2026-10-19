@@ -3,6 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import {
   ACTION_CONTRACT_VERSION,
@@ -22,6 +23,33 @@ const JSON_HEADERS = {
   "Content-Type": "application/json",
   "X-AIFactory-Schema": "1",
 };
+
+test('reserved studio command stays deterministic over HTTP with ordinary local routing disabled', async t => {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'studio-http-'));
+  t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  const blueprintDir=path.join(directory,'blueprints');fs.mkdirSync(blueprintDir);
+  const proposal={action:'generate_native_blueprint',blueprint_name:'Studio HTTP',layout_schema:'aifactory.generated-blueprint/v1',commit:true,
+    buildables:[{part_id:'smelter',role:'machine',recipe_class:'Recipe_SmelterMk1',relative_location:{x:0,y:0,z:0},yaw:0}]};
+  const bytes=JSON.stringify(proposal),hash=createHash('sha256').update(bytes).digest('hex');
+  fs.writeFileSync(path.join(directory,hash+'.json'),bytes);
+  const instance=createBridgeServer({env:{AI_PROVIDER:'openai',AIFACTORY_LOCAL_ROUTING:'false',AIFACTORY_ROUTING_LOG:'off',
+    AIFACTORY_STUDIO_PROPOSAL_DIR:directory,AIFACTORY_BLUEPRINT_DIR:blueprintDir}});
+  await new Promise(resolve=>instance.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>instance.close(resolve)));
+  const url=`http://127.0.0.1:${instance.address().port}`;
+  const health=await (await fetch(url+'/health')).json();
+  assert.ok(health.local_command_capabilities.includes('studio_native_generation_v1'));
+  for(const [question,wantActions] of [[`aifactory studio generate sha256:${hash}`,1],['aifactory studio generate malformed',0]]) {
+    const response=await fetch(url+'/v1/ask',{method:'POST',headers:JSON_HEADERS,
+      body:JSON.stringify({schema:'aifactory.ask',schema_version:1,question,world_snapshot:buildFactorySnapshot()})});
+    assert.equal(response.status,200);
+    const body=await response.json();
+    assert.equal(body.provider,'solvers',JSON.stringify(body));
+    assert.equal(body.local.solver,'studio_native_generation');
+    assert.equal(body.actions.length,wantActions,body.reply);
+    if(wantActions)assert.equal(body.actions[0].blueprint_name,'Studio HTTP');
+  }
+});
 
 test("Architect HTTP responses compare available screenshots with the actual request snapshot", async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "architect-http-vision-"));
