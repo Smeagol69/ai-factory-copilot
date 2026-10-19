@@ -72,3 +72,15 @@ test('stop ends the job and notes are kept for the next prompt', () => {
   assert.throws(() => s.get('not-a-job'), /Unknown job/);
   assert.equal(s.list().length, 1);
 });
+
+test('a blocked build does not go to verification; the build step comes back', () => {
+  const s = store(), job = s.create({ brief: 'Straight' });
+  s.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces: pieces(1) });
+  s.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  s.startBuild(job.id);
+  s.reportBuild(job.id, 'codex', { summary: 'BUILD BLOCKED: no game control', built: false });
+  assert.deepEqual(nextStep(s.get(job.id)), { worker: 'codex', kind: 'build', candidate: 1 });
+  assert.equal(s.get(job.id).build.built, false);
+  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 36 pieces', blueprint_name: 'AI Walled Straight 2 Bays' });
+  assert.deepEqual(nextStep(s.get(job.id)), { worker: 'claude', kind: 'verify', candidate: 1 });
+});

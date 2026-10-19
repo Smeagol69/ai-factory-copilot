@@ -107,6 +107,8 @@ export async function renderPng(pieces, outFile, { title, bounds = {}, browser =
     child.on('error', e => { clearTimeout(timer); reject(e); });
     child.on('exit', () => { clearTimeout(timer); resolve(); });
   });
+  // Edge may hand the work to a helper process and exit before the PNG is written.
+  for (let waited = 0; waited < 15000 && !(existsSync(outFile) && statSync(outFile).size >= 1000); waited += 250) await new Promise(r => setTimeout(r, 250));
   if (!existsSync(outFile) || statSync(outFile).size < 1000) throw new Error('The browser did not save a render');
   return { file: outFile, htmlFile, pieces: count, skipped, unknown };
 }

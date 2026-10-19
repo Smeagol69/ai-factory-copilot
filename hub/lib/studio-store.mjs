@@ -43,7 +43,8 @@ export function nextStep(job) {
   }
   if (job.status === 'agreed') return { worker: 'codex', kind: 'build', candidate: job.agreedCandidate };
   if (job.status === 'building') {
-    if (!job.build) return { worker: 'codex', kind: 'build', candidate: job.agreedCandidate };
+    // A build reported as blocked (e.g. no game control yet) does not count as built.
+    if (!job.build || job.build.built === false) return { worker: 'codex', kind: 'build', candidate: job.agreedCandidate };
     if (!crits.some(c => c.candidate === 'build' && c.at > job.build.at)) return { worker: 'claude', kind: 'verify', candidate: job.agreedCandidate };
     return null;
   }
@@ -65,7 +66,7 @@ export function createStudioStore(root, { now = Date.now } = {}) {
     }
     if (job.status === 'designing' && !nextStep(job) && job.candidates.length) { job.status = 'needs-owner'; log(job, 'studio', `No agreement after ${MAX_ROUNDS} rounds; the owner decides`); }
     const verify = [...job.critiques].reverse().find(c => c.candidate === 'build');
-    if (job.status === 'building' && job.build && verify && verify.at > job.build.at) {
+    if (job.status === 'building' && job.build?.built !== false && job.build && verify && verify.at > job.build.at) {
       job.status = verify.verdict === 'agree' ? 'done' : 'needs-owner';
       log(job, 'studio', verify.verdict === 'agree' ? 'Build verified by both models' : 'The build needs the owner: the reviewer did not agree');
     }
@@ -114,10 +115,10 @@ export function createStudioStore(root, { now = Date.now } = {}) {
       return save(settle(job));
     },
     startBuild(id) { const job = load(id); if (job.status !== 'agreed') throw bad('Nothing agreed yet', 409); job.status = 'building'; log(job, 'studio', 'Build started'); return save(job); },
-    reportBuild(id, author, { summary, blueprint_name }) {
+    reportBuild(id, author, { summary, blueprint_name, built = true }) {
       const job = load(id);
       if (job.status !== 'building') throw bad('The job is not building', 409);
-      job.build = { author, summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
+      job.build = { author, built: built !== false, summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
       log(job, author, `Build reported: ${job.build.summary.slice(0, 200)}`);
       return save(job);
     },

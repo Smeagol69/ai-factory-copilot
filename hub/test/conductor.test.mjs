@@ -86,3 +86,19 @@ test('owner notes reach the next prompt; usage reports from both clients normali
   assert.equal(normaliseUsage({ status: 'allowed', utilization: 0.79 }).usedPercent, 79);
   assert.equal(normaliseUsage({}), null);
 });
+
+test('a build waits for game control without spending a turn', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Straight' });
+  store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  let handedOff = false;
+  const { prompts, workers } = fakes(store, async (name, prompt, s) => s.reportBuild(job.id, name, { summary: 'built', blueprint_name: 'X' }));
+  const c = createConductor({ root, store, workers, worktrees, mayOperate: () => handedOff });
+  c.set(true);
+  assert.equal(await c.tick(), null);
+  assert.match(c.status().waiting.reason, /waits for game control/);
+  assert.equal(prompts.length, 0, 'no turn was spent');
+  handedOff = true;
+  assert.equal((await c.tick()).kind, 'build');
+});

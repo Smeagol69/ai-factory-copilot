@@ -89,8 +89,8 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       const job = store.addCritique(activeId(job_id), worker, { candidate, verdict, critique });
       return { status: job.status, agreedCandidate: job.agreedCandidate, next: nextStep(job) };
     },
-    studio_report_build({ job_id, summary, blueprint_name }) {
-      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name });
+    studio_report_build({ job_id, summary, blueprint_name, built }) {
+      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name, built });
       return { status: job.status, next: nextStep(job) };
     },
     async studio_render({ title = 'Draft', ...rest }) {
