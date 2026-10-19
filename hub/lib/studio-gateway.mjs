@@ -10,6 +10,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createStudioStore, nextStep } from './studio-store.mjs';
 import { renderPng, boundsFromMeasurements } from './design-render.mjs';
 import { createGameLease } from './game-lease.mjs';
+import { loadGameCatalog } from './game-catalog.mjs';
 import { createMilestoneWork, nextMilestoneStep } from './milestone-work.mjs';
 
 // Measured native bounds saved by game runs (e.g. Codex's *-native-measurements.json).
@@ -45,8 +46,11 @@ export function newestSave(dir = SAVE_DIR) {
 }
 
 // The typed proposal must be the agreed piece list, piece for piece: the same
-// buildable (Recipe_X for Build_X), position, rotation and scale, in order.
-const recipeOf = cls => String(cls ?? '').replace(/\/Build_([^/.]+)\.Build_\1_C$/, '/Recipe_$1.Recipe_$1_C');
+// buildable, position, rotation and scale, in order. The buildable's recipe is the one
+// the game itself uses for that class (game catalog); the Build_X -> Recipe_X name
+// rule only for a class the catalog does not list (mod recipes live elsewhere).
+const namedRecipe = cls => String(cls ?? '').replace(/\/Build_([^/.]+)\.Build_\1_C$/, '/Recipe_$1.Recipe_$1_C');
+const recipeOf = cls => loadGameCatalog()?.get(cls)?.recipe_class ?? namedRecipe(cls);
 const near = (a, b, tol) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tol;
 export function proposalMismatch(proposal, pieces) {
   if (proposal?.action !== 'generate_native_blueprint' || !Array.isArray(proposal.buildables)) return 'it must be a typed generate_native_blueprint action with buildables';

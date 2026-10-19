@@ -308,3 +308,15 @@ test('releasing after a generation, without a report, leaves it unresolved (Code
   assert.deepEqual(await gw.dispatch('game_lease', { action: 'release' }), { released: false, unresolved: true, reason: 'World requests were made; only a build report closes them. The owner must check the game and resolve it' });
   assert.equal((await gw.dispatch('game_status', {})).lease.unresolved, true);
 });
+
+test('a mod piece whose recipe is named differently matches through the game catalog, and a wrong recipe is still refused', async () => {
+  const { proposalMismatch } = await import('../lib/studio-gateway.mjs');
+  const { loadGameCatalog } = await import('../lib/game-catalog.mjs');
+  const vent = [...loadGameCatalog().values()].find(b => b.class_path.endsWith('.TallVent_C'));
+  const piece = { class_path: vent.class_path, transform: { translation_cm: { x: 0, y: 0, z: 0 }, rotation_quat: { x: 0, y: 0, z: 0, w: 1 }, scale3d: { x: 1, y: 1, z: 1 } } };
+  const proposal = recipe => ({ action: 'generate_native_blueprint', blueprint_name: 'X', layout_schema: 'aifactory.generated-blueprint/v6', commit: true,
+    buildables: [{ part_id: 'p1', recipe_class: recipe, relative_location: { x: 0, y: 0, z: 0 }, rotation_quat: { x: 0, y: 0, z: 0, w: 1 }, scale3d: { x: 1, y: 1, z: 1 } }] });
+  assert.match(vent.recipe_class, /TallVentRecipe_C$/, 'the game names this recipe differently from the class');
+  assert.equal(proposalMismatch(proposal(vent.recipe_class), [piece]), null);
+  assert.match(proposalMismatch(proposal('/Game/X/Recipe_Wall.Recipe_Wall_C'), [piece]), /buildable 1 is/);
+});
