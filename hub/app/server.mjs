@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { createAppServer } from '../lib/app.mjs';
 import { runtimeContext, projectStatus, companionHealth } from '../lib/project.mjs';
 import { runLocalCheck } from '../lib/checks.mjs';
@@ -15,6 +17,7 @@ import { loadRePolicy } from '../lib/re-policy.mjs';
 import { createReInvestigation } from '../lib/re-investigation.mjs';
 import { createReGameAdapter } from '../lib/re-game-adapter.mjs';
 import { runReModels } from '../lib/re-models.mjs';
+import { createTeamRoom, attachTeamRoom } from '../lib/team-http.mjs';
 
 const context = await runtimeContext();
 const localModel = createLocalModelService({root:context.root});
@@ -75,6 +78,23 @@ try {
   const server = await createAppServer({ root: context.root, project: context.config.project,
     port: context.config.appPort, readStatus, runCheck: runLocalCheck });
   attachLocalChat(server,localChat,{investigation});
+  // The Team room is the front page: live model columns from each app's own logs
+  // and the owner's milestones, published to shared memory for every model.
+  const projects=[context.config.project,context.config.architectProject??context.config.project];
+  // Models work in the main checkout and in worktrees of it; both count as this project.
+  let mainCheckout=dirname(context.root);
+  try{mainCheckout=dirname(resolve(context.root,execFileSync('git',['rev-parse','--git-common-dir'],{cwd:context.root,encoding:'utf8',windowsHide:true,timeout:5000}).trim()));}catch{/* not a git checkout: the repo folder alone */}
+  const room=createTeamRoom({root:context.root,roots:[...new Set([dirname(context.root),mainCheckout])],codexHome:join(homedir(),'.codex'),claudeHome:join(homedir(),'.claude'),
+    defaultLocal:['copilot-hauhau-game:latest'],
+    readLedger:()=>store.db.prepare('SELECT sender, subject, created_at AS t FROM messages WHERE project IN (?, ?) ORDER BY id DESC LIMIT 60').all(...projects),
+    publishMilestones:async value=>{
+      const author=new PairStore(context.database,'copilot-team-room',Date.now,'coordinator');
+      try{
+        const saved=new OfficeMemory(author).remember({project:context.config.project,key:'milestones',value,evidence:['hub/state/team/milestones.json'],tags:['milestones','owner']});
+        return {published:true,entryId:saved?.entry?.id??saved?.id??null};
+      }finally{author.close();}
+    }});
+  attachTeamRoom(server,room);
   server.on('close', () => store.close());
   process.once('SIGINT', () => server.close()); process.once('SIGTERM', () => server.close());
   console.log(`Copilot: http://127.0.0.1:${server.address().port}/`);

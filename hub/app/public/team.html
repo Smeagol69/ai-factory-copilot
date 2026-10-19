@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Team room · Copilot</title><link rel="stylesheet" href="/team.css"><script src="/team.js" defer></script></head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">C</span> Copilot <span class="sub">Satisfactory team room</span></div>
+  <nav><a href="/" class="selected">Team room</a><a href="/workshop">Workshop</a><a href="/workshop#local-chat">Chat with HauhauCS</a></nav>
+  <div class="live" id="live"><span class="dot"></span><span id="live-text">Connecting…</span></div>
+</header>
+<section class="milestones" aria-label="Milestones">
+  <div class="ms-head"><strong>Milestones</strong><span class="muted" id="ms-shared"></span></div>
+  <div class="ms-strip" id="ms-strip"></div>
+  <form class="ms-add" id="ms-add"><input id="ms-title" maxlength="160" placeholder="Add a milestone, e.g. Factory floor blueprint that places in game" aria-label="New milestone"><button type="submit">Add</button></form>
+  <div class="ms-editor" id="ms-editor" hidden></div>
+</section>
+<div id="notice" role="status" aria-live="polite"></div>
+<main class="columns" id="columns" aria-live="off"></main>
+<section class="plug" id="plug">
+  <details><summary>Plug in a model</summary>
+    <div class="plug-grid">
+      <div class="plug-card"><h3>Claude Code or Codex (your subscriptions)</h3>
+        <p>Open this folder in the app. The shared MCP servers load on their own: <span id="servers"></span>. They get the same repo, shared memory (Agent Pair), milestones and task claims. Their column fills in as soon as they work here.</p>
+        <code id="repo-path"></code><button type="button" class="secondary" id="copy-path">Copy folder path</button></div>
+      <div class="plug-card"><h3>Local models (Ollama on this PC, free)</h3>
+        <p>Backup workers take over only when every subscription model is out of usage, and the others review their work. Reviewers check work when asked.</p>
+        <div id="local-list" class="local-list"></div></div>
+      <div class="plug-card later"><h3>Paid API models (DeepSeek, Grok)</h3><p>Not connected. These charge per use; add them later only with your go-ahead.</p></div>
+    </div>
+  </details>
+</section>
+<footer class="muted">Read-only view of each model's own logs (thinking is never shown, keys are redacted). Claude Code and Codex are started and stopped in their own apps. Page refreshes make no model calls.</footer>
+</body></html>

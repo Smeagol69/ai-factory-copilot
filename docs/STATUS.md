@@ -71,11 +71,14 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
    captured no power).
 4. **Save a clean finished tunnel** without the 198 nearby prototype pieces.
 5. **Test the v7 shortened panels separately**, keeping the version the owner likes.
-6. **Team room portal** (project 2, owner-approved direction): one live column per
-   model, a milestone strip the owner fills in and marks complete, one-click
-   connect for Claude Code and Codex on the owner's subscriptions, Ollama models
-   found automatically, and the local model as the backup shift whose work other
-   models review. Design: `docs/superpowers/specs/` (next spec to write).
+6. **Team room portal**: phase 1 is built (2026-10-18, branch `claude/team-room`). It is the hub's
+   front page at <http://127.0.0.1:8795/>: one live column per model, read from its own
+   session log (Codex rollouts, Claude Code transcripts, the hub's local chats), with
+   working / idle / out-of-usage status and reset times, plus the owner's milestone strip.
+   Milestones are published to shared memory (`pair_recall`, key `milestones`). The old
+   page is at `/workshop`. **Phase 2, not built yet:** the backup shift, where HauhauCS
+   takes the next step on its own branch when every subscription model is out of usage,
+   and the others review it. Design: [superpowers/specs/2026-10-18-team-room-design.md](superpowers/specs/2026-10-18-team-room-design.md).
 7. **Creative Architect research** (project 3): look for design-focused models or
    MCP tools that make the Architect better at layouts; add only what earns its place.
 
