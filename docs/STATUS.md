@@ -89,7 +89,19 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
    loop works end to end; the 9B model mostly reads and reports, so expect small steps.
    Claude's usage percentage is not in its logs; the Team room only sees when it hits the limit.
    Design: [superpowers/specs/2026-10-18-team-room-design.md](superpowers/specs/2026-10-18-team-room-design.md).
-7. **Creative Architect research** (project 3): look for design-focused models or
+7. **Conductor and Design studio** (milestone "Full automation between agents", built
+   2026-10-19): the hub runs Codex and Claude turns itself on the owner's subscriptions, with
+   scoped permissions while the owner supervises. At <http://127.0.0.1:8795/studio> the owner
+   writes a brief. Then: a candidate piece list (rendered offline in three views, with measured
+   native sizes where known), a critique by the other model, both agree (or the owner picks), build,
+   verify. Workers live in `hub/workspaces/auto-claude` and `auto-codex`, with the `agent_pair` and
+   `studio` MCP servers. Game actions belong to Codex; the conductor's game tools stay off until
+   Codex's live session hands off (`hub/state/studio/game-operator.json`). Usage is the only
+   brake. **First run (00:37–00:45):** Codex's worker designed "AI Walled Straight — 2 Bays"
+   (36 pieces); Claude's worker verified the join against the sweep byte for byte and agreed. The
+   build waits for the game hand-off (job `1c963dbd`). Design:
+   [superpowers/specs/2026-10-18-conductor-design.md](superpowers/specs/2026-10-18-conductor-design.md).
+8. **Creative Architect research** (project 3): look for design-focused models or
    MCP tools that make the Architect better at layouts; add only what earns its place.
 
 ## Live industrial-tunnel continuation (2026-10-19)

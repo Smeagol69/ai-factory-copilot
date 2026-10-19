@@ -85,18 +85,23 @@ result.
 - The design flow is render and critique in turns, then agree, then build together.
 - Subscriptions plus local HauhauCS, no paid APIs.
 
-## Open: needs the owner
+## Decided: permissions (owner, 2026-10-19)
 
-1. **What may unattended workers do without asking?** Recommended:
-   - code, tests, renders, compiles and commits on their own branches,
-     automatically;
-   - merging to `master` after the other model's review, automatically;
-   - **game actions** (native blueprint save, placing in the world, deploying
-     the mod): see the choice below.
-2. **Game actions:**
-   - (a) automatic, with the save backup the release rule requires;
-   - (b) one "Approve" click in the hub per game action. This is the default
-     until the owner says otherwise.
+The owner wants no prompting and no approval clicks, game actions included,
+and is always at the computer supervising. Workers therefore run without
+prompts, but with **scoped** permissions (not "skip all checks"):
+
+- **Claude worker:** `dontAsk` mode with an explicit tool list: file tools in its
+  worktree, the `agent_pair` and `studio` MCP tools, `git`, and `node`/`npm`.
+  Anything else is refused.
+- **Codex worker:** `workspace-write` sandbox (it can only write inside its
+  worktree), approval `never`, the same two MCP servers.
+- **Game actions:** named, logged `studio` tools (status, capture/look, and
+  ask-the-game, with a save backup first). They're for the Codex worker only,
+  and only after Codex's live session hands off game control (Codex asked for
+  no concurrent game requests). Mod deploys stay out of the automated set.
+- The owner can Stop any turn from the Design studio, and sees every turn live
+  in the Team room.
 
 ## Builder's choices
 
