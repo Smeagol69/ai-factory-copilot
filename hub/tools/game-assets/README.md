@@ -27,3 +27,14 @@ the game install is written.
 Engine version: GAME_UE5_6 (as the modding docs say for the current game).
 Splines (belts, pipes, wires, rails) are not drawn yet; a class without an exported
 mesh is a red marker, never a guess.
+
+4. True sizes for the catalog (after a new export or a re-ingest of the catalog):
+
+       node hub/scripts/catalog-mesh-sizes.mjs D:/SatisfactoryAssets/export/manifest.json
+
+   Each class gets the box around the meshes the game draws for it
+   (`size.source: game-mesh-bounds`). On 2026-10-19: 3,134 of 3,423 classes;
+   the rest are splines, logic and other classes with no static mesh.
+
+The full export lives outside the repo (`D:/SatisfactoryAssets/export`, about 4 GB);
+the hub's real renders read it there (`GAME_ASSETS_MANIFEST` to override).
