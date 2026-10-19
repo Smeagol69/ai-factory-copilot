@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { catalogBounds } from './game-catalog.mjs';
+import { realRenderAvailable, renderReal } from './real-render.mjs';
 
 // Sizes the game reported for placed actors (hub/catalog/game-buildables.json).
 let gameBounds = null;
@@ -101,7 +102,17 @@ export function renderHtml(pieces, { title = 'Design', bounds = {} } = {}) {
 }
 
 export const EDGE_PATHS = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'];
-export async function renderPng(pieces, outFile, { title, bounds = {}, browser = EDGE_PATHS.find(existsSync), timeoutMs = 60000 } = {}) {
+// Real render first (the game's meshes in Blender, real-render.mjs); the box render
+// below only when Blender or the exported assets are missing, and it says so.
+export async function renderPng(pieces, outFile, { title, bounds = {}, browser = EDGE_PATHS.find(existsSync), timeoutMs = 60000, real = true } = {}) {
+  if (real && realRenderAvailable()) {
+    try { return await renderReal(pieces, outFile); }
+    catch (e) { console.error(`Real render failed, using the box render: ${e.message}`); }
+  }
+  return renderBoxPng(pieces, outFile, { title: `${title ?? 'Design'} (box preview, not game meshes)`, bounds, browser, timeoutMs });
+}
+
+export async function renderBoxPng(pieces, outFile, { title, bounds = {}, browser = EDGE_PATHS.find(existsSync), timeoutMs = 60000 } = {}) {
   if (!browser) throw new Error('No Edge or Chrome found to save the render');
   const { html, pieces: count, skipped, unknown } = renderHtml(pieces, { title, bounds });
   mkdirSync(dirname(outFile), { recursive: true });

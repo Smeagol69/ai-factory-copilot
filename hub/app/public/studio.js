@@ -91,7 +91,9 @@ async function loadJob() {
   for (const c of [...job.candidates].reverse()) {
     const card = el('article', null, `cand${job.agreedCandidate === c.n ? ' agreed' : ''}`);
     card.append(el('h3', `Candidate ${c.n}: ${c.title}${job.agreedCandidate === c.n ? '  ✓ agreed' : ''}`), el('div', `by ${NAME[c.author]} · ${c.pieces} pieces · ${new Date(c.at).toLocaleTimeString()}`, 'by'), el('p', c.rationale));
-    if (c.renderUrl) { const img = el('img'); img.src = c.renderUrl; img.alt = `Render of candidate ${c.n}`; img.onclick = () => img.classList.toggle('big'); card.append(img); }
+    if (c.renderUrl) { const img = el('img'); img.src = c.renderUrl; img.alt = `Render of candidate ${c.n}`; img.onclick = () => img.classList.toggle('big'); card.append(img);
+      // The walkway view, when the render was made with the game's real meshes.
+      if (c.interiorUrl) { const inner = el('img'); inner.src = c.interiorUrl; inner.alt = `Walkway view of candidate ${c.n}`; inner.onclick = () => inner.classList.toggle('big'); card.append(inner); } }
     else card.append(el('p', 'Render not available.', 'muted'));
     for (const k of job.critiques.filter(x => x.candidate === c.n)) { const d = el('div', null, 'crit'); d.append(el('span', `${NAME[k.author]}: ${k.verdict === 'agree' ? 'agree' : 'revise'} `, `v ${k.verdict}`), el('span', k.text)); card.append(d); }
     if (['designing', 'needs-owner'].includes(job.status)) { const pick = el('button', 'Pick this one', 'secondary'); pick.type = 'button'; pick.onclick = () => act(`/api/studio/jobs/${job.id}`, { action: 'pick', candidate: c.n }, `Candidate ${c.n} picked; building next.`); card.append(pick); }

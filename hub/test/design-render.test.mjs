@@ -45,7 +45,7 @@ test('broken pieces and splines are skipped and counted, never invented', () => 
 test('a render is saved as a PNG through headless Edge', { skip: !EDGE_PATHS.some(existsSync) && 'no Edge or Chrome on this machine' }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'render-'));
   const pieces = Array.from({ length: 6 }, (_, i) => piece(FOUNDATION, i * 800, 0, 0));
-  const r = await renderPng(pieces, join(dir, 'candidate-1.png'), { title: 'Test strip' });
+  const r = await renderPng(pieces, join(dir, 'candidate-1.png'), { title: 'Test strip', real: false });
   assert.equal(r.pieces, 6);
   assert.ok(existsSync(r.file));
 });

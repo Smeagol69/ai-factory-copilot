@@ -31,7 +31,8 @@ export function createStudioApi({ root, store, conductor, workerStatus = () => (
     return j ? { id: j.id, milestone: j.milestone, status: j.status, next: nextMilestoneStep(j), steps: j.steps, recent: j.events.slice(-15) } : null;
   };
   const summary = j => ({ id: j.id, brief: j.brief, status: j.status, stage: stageOf(j), createdAt: j.createdAt, candidates: j.candidates.length, agreedCandidate: j.agreedCandidate, next: nextStep(j) });
-  const full = j => ({ ...j, stage: stageOf(j), next: nextStep(j), candidates: j.candidates.map(c => ({ ...c, renderUrl: c.render ? `/api/studio/render/${j.id}/${c.render}` : null })) });
+  const full = j => ({ ...j, stage: stageOf(j), next: nextStep(j), candidates: j.candidates.map(c => ({ ...c, renderUrl: c.render ? `/api/studio/render/${j.id}/${c.render}` : null,
+    interiorUrl: c.render && existsSync(join(store.dirOf(j.id), c.render.replace(/\.png$/, '-interior.png'))) ? `/api/studio/render/${j.id}/${c.render.replace(/\.png$/, '-interior.png')}` : null })) });
   return {
     overview: async () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: game.mayOperate(), handoff: await game.view(), gameLease: createGameLease(root).current(),
       milestoneWork: milestoneWork(), teamPending: await teamPending() }),
@@ -67,7 +68,7 @@ export function createStudioApi({ root, store, conductor, workerStatus = () => (
       return args.conductor ? game.handOver() : game.takeBack();
     },
     renderFile(id, name) {
-      if (!uuid.test(id) || !/^candidate-\d{1,3}\.png$/.test(name)) return null;
+      if (!uuid.test(id) || !/^candidate-\d{1,3}(-interior)?\.png$/.test(name)) return null;
       const f = join(store.dirOf(id), name); return existsSync(f) ? f : null;
     },
   };
@@ -85,7 +86,7 @@ export function attachStudio(server, api) {
     (async () => {
       if (req.method === 'GET' && assets.has(url)) { const [f, type] = assets.get(url); res.writeHead(200, { 'Content-Type': type + '; charset=utf-8' }).end(readFileSync(publicFile(f))); return; }
       if (req.method === 'GET' && url === '/api/studio') { json(200, await api.overview()); return; }
-      let m = url.match(/^\/api\/studio\/render\/([0-9a-f-]{36})\/(candidate-\d{1,3}\.png)$/);
+      let m = url.match(/^\/api\/studio\/render\/([0-9a-f-]{36})\/(candidate-\d{1,3}(?:-interior)?\.png)$/);
       if (req.method === 'GET' && m) { const f = api.renderFile(m[1], m[2]); if (!f) { json(404, { error: 'No render' }); return; } res.writeHead(200, { 'Content-Type': 'image/png' }).end(readFileSync(f)); return; }
       m = url.match(/^\/api\/studio\/jobs\/([0-9a-f-]{36})$/);
       if (m && req.method === 'GET') { json(200, api.job(m[1])); return; }
