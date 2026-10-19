@@ -48,7 +48,7 @@ import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
 import { compileLevelTunnel } from "./level-tunnel.mjs";
 import { compileTunnelLighting } from "./tunnel-lighting.mjs";
-import { compileTunnelDecorPalette } from "./tunnel-decor.mjs";
+import { compileTunnelDecorPalette,compileIndustrialTunnelDecor } from "./tunnel-decor.mjs";
 import {
   baseBuildActions,
   enclosedFactoryActions,
@@ -3167,6 +3167,16 @@ export function explainRoutingMiss(question) {
 export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer"]);
 
 export function answerLocally(question, graph, services) {
+  const industrial=String(question??'').trim().match(/^save industrial tunnel decor from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"( with straight collars)?[.!]?$/i);
+  if(industrial){
+    const started=Date.now(),name=industrial[4];
+    if((services?.listBlueprints?.()??[]).some(b=>String(b.name).trim().toLocaleLowerCase()===name.trim().toLocaleLowerCase()))return localAnswer('That blueprint already exists; use a new name to preserve it.','industrial_tunnel_decor',started,'Existing file preserved.');
+    const reference=services?.inspectBlueprint?.(industrial[1],{includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
+    const compiled=compileIndustrialTunnelDecor(graph,{reference,blueprint_name:name,radius_cm:Number(industrial[2])*100,turn_degrees:Number(industrial[3]),straight_collars:Boolean(industrial[5])});
+    if(!compiled.compiled)return localAnswer(`The industrial decor stayed unsaved: ${compiled.reason}.`,'industrial_tunnel_decor',started,'Native prop/floor measurements required; no action emitted.');
+    const plan=emitValidatedPlan(graph,services,[compiled.proposal]);
+    return localAnswer(plan?`Requested **${name}**, ${compiled.placements.length} native-size side-bay props with a 12m central walking corridor reserved and both wall pipe bands left clear. The game must verify the saved file, placement and appearance.`:describePlanRejection()??'No action sink is available.','industrial_tunnel_decor',started,'Measured props and floor; separate add-on, no railway or world placement claimed.');
+  }
   const decorPalette=String(question??'').trim().match(/^save tunnel decor palette as "([^"\r\n]{1,240})"[.!]?$/i);
   if(decorPalette){
     const started=Date.now(),name=decorPalette[1];

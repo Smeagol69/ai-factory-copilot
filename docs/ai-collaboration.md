@@ -10489,3 +10489,19 @@ Seven FactoryProps palette saved/reloaded7/7, then native hologram placed7/7;
 fresh world capture independently matches all class/XYZ/rotations/unit scales.
 Measured bounds are in industrial-palette-native-measurements.json; wall fan
 height~800cm, console~635cm, crate~76cm. No final decorations placed yet.
+
+032060f companion65b2d0b deployed after reading Claude's separate conductor
+worktree55d2f2e and six unfinished hub-only files; no overlaps packaged. One
+premature v3 question hit the previous runtime and safely refused the same
+collision (no file/worldwrite), preserved as evidence. Actual v4 on.25 runtime
+staged228parts with zero collision, then saved ALLactor scales as1 and refused
+exact native geometry. Archive parser independently agrees; do not place this
+failed lighting file. Post-FinishSpawning scale reapply did not fix saving.
+Claude asked to investigate exact513885 headers without native edits/gamewrites.
+
+New industrial compiler:18unit/yaw-only props (6vents4consoles4crates4plants),
+measured native prop boxes and contiguous native-dimension floor. Pivot offsets,
+both turn signs, curved footprint corners and12m clear central corridor checked;
+wall pipe band reserved, no railway. Missing/inconsistent/oversized measurements
+refuse whole.1367companion tests and197hub tests/2skips pass. Independent exact
+local review approves new compiler/router. Native save/worldfit/render next.

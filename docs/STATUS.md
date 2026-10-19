@@ -94,6 +94,26 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
 
 ## Owner decisions pending
 
+### Live industrial-tunnel continuation (2026-10-19)
+
+The owner-approved `AI Walled Sweep 90` remains the504-piece unit-scale native
+baseline. Seven FactoryProps calibration samples saved, reloaded and placed
+7/7; fresh game capture independently matched full poses/unit scales and measured
+their bounds. An18-piece native-size side-bay compiler now uses those measured
+vents, M.A.M. consoles, crates and Ficus plants, a continuous measured floor and
+a reserved12m central walking corridor. It handles either turn sign, preserves
+both wall pipe bands and refuses missing/inconsistent/oversized measurements.
+1367companion tests and197hub tests pass (2hub skips); bounded independent local
+review approved the exact compiler/router. Native save/placement/render pending.
+
+Lighting: reduced .25-size fixtures pass live228-piece collision preflight, but
+the native Blueprint write resets every saved actor scale to1. Exact native
+reload correctly refuses the result; failed file `AI Walled Sweep Lighting 90 v4`
+must not be treated as a verified add-on. No world fixtures were placed. Native
+unit-size props work. Investigate the save/membership phase or use real native
+beam lengths and unit-size lamps; do not waive scale/readback checks. Power and
+matching native wall pipes are still open.
+
 - The 13 GB Wwise download cache at `hub/state/local-game-re/wwise-cache`: keep or
   delete (it can be downloaded again).
 
