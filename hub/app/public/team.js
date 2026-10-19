@@ -77,6 +77,22 @@ function footer(c) {
     const b = el('button', c.status.state === 'out' && c.status.detail.startsWith('Marked') ? 'Clear out mark' : 'Mark out of usage', 'secondary'); b.type = 'button';
     b.onclick = async () => { try { await post('/api/team/models', { action: b.textContent.startsWith('Clear') ? 'clear-out' : 'mark-out', column: c.id }); poll(); } catch (e) { notice(e.message, true); } };
     f.append(b);
+  } else if (c.shift) {
+    const s = c.shift, shiftPost = async action => { try { await post('/api/team/shift', { action }); poll(); } catch (e) { notice(e.message, true); } };
+    const line = el('div', null, 'shift-line');
+    line.append(el('strong', s.running ? 'Backup shift: working' : s.enabled ? 'Backup shift: on' : 'Backup shift: off'),
+      el('span', s.running ? ` · ${s.running.milestone}` : s.enabled ? ` · ${s.decision}` : ' · takes over only when Codex and Claude are both out of usage'));
+    f.append(line);
+    const toggle = el('button', s.enabled ? 'Turn off' : 'Turn on', s.enabled ? 'secondary' : ''); toggle.type = 'button';
+    toggle.onclick = () => shiftPost(s.enabled ? 'off' : 'on');
+    f.append(toggle);
+    if (s.running) { const stop = el('button', 'Stop', 'danger'); stop.type = 'button'; stop.onclick = () => shiftPost('stop'); f.append(stop); }
+    if (s.needsReview?.length) {
+      const list = el('div', null, 'review-list');
+      list.append(el('strong', `Needs review (${s.needsReview.length}) on ${s.branch}:`));
+      for (const r of s.needsReview) list.append(el('div', `${r.commit.slice(0, 7)} · ${r.summary}`));
+      f.append(list);
+    }
   } else {
     f.append(el('span', c.role === 'backup worker' ? 'Works only when every subscription model is out of usage.' : 'Reviews when asked.'));
     const b = el('button', 'Remove', 'secondary'); b.type = 'button';
@@ -104,7 +120,7 @@ function renderColumns() {
   const main = $('columns'), keep = new Set();
   for (const c of view.columns) {
     keep.add(c.id);
-    const key = JSON.stringify([c.status, c.events.length, c.events.at(-1)?.t, c.events.at(-1)?.text, c.usage?.usedPercent, c.sessions?.length, Math.floor(Date.now() / 30000)]);
+    const key = JSON.stringify([c.status, c.shift, c.events.length, c.events.at(-1)?.t, c.events.at(-1)?.text, c.usage?.usedPercent, c.sessions?.length, Math.floor(Date.now() / 30000)]);
     let node = main.querySelector(`[data-col="${CSS.escape(c.id)}"]`);
     const old = colState.get(c.id);
     if (node && old?.key === key) continue;

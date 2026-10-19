@@ -72,3 +72,29 @@ test('milestone changes are saved and published to shared memory; bad input and 
     assert.equal(added.roster.local.length, 2);
   } finally { server.close(); }
 });
+
+test('the backup shift is shown on the local column and switched from the page', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'room-shift-')), root = join(home, 'hub');
+  mkdirSync(join(root, 'state/team'), { recursive: true });
+  writeFileSync(join(root, 'state/team/local-events.jsonl'), JSON.stringify({ t: Date.now(), kind: 'tool', text: 'shift_read_file: companion/lib/turn.mjs', model: 'copilot-hauhau-game:latest' }) + '\n');
+  let enabled = false, running = null;
+  const shift = { status: async () => ({ enabled, running, decision: 'Waiting', branch: 'local/shift', needsReview: [{ commit: 'abcdef1234', summary: 'added a test' }] }),
+    set: async v => { enabled = v; return shift.status(); }, stop: async () => { enabled = false; running = null; return shift.status(); } };
+  const room = createTeamRoom({ root, roots: [REPO], defaultLocal: ['copilot-hauhau-game:latest'], shift, fetchImpl: async () => { throw new Error('offline'); } });
+  const server = createServer((req, res) => res.end('x')); attachTeamRoom(server, room);
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    let v = await (await fetch(base + '/api/team')).json();
+    const local = v.columns.find(c => c.kind === 'local');
+    assert.equal(local.shift.needsReview[0].summary, 'added a test');
+    assert.equal(local.events.at(-1).text, 'shift_read_file: companion/lib/turn.mjs');
+    assert.equal(v.installedLocal, null, 'Ollama offline is unknown, not empty');
+    assert.equal((await (await post(base, '/api/team/shift', { action: 'on' })).json()).shift.enabled, true);
+    running = { startedAt: new Date().toISOString(), milestone: 'Turn' };
+    v = await (await fetch(base + '/api/team')).json();
+    assert.equal(v.columns.find(c => c.kind === 'local').status.state, 'working');
+    assert.equal((await (await post(base, '/api/team/shift', { action: 'stop' })).json()).shift.enabled, false);
+    assert.equal((await post(base, '/api/team/shift', { action: 'explode' })).status, 400);
+  } finally { server.close(); }
+});

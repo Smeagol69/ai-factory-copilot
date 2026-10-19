@@ -227,3 +227,11 @@ export function readLocalChats(dir, { since = 0, limit = 80 } = {}) {
   events.sort((a, b) => a.t - b.t);
   return { events: events.slice(-limit), lastAt: events.at(-1)?.t ?? null };
 }
+
+// The backup shift's own event log (state/team/local-events.jsonl).
+export function readLocalEvents(file, { since = 0, limit = 80 } = {}) {
+  let size; try { size = statSync(file).size; } catch { return []; }
+  return tailLines(file, size).map(parse).filter(e => e && Number.isFinite(e.t) && e.t >= since && typeof e.text === 'string')
+    .map(e => ({ t: e.t, kind: ['say', 'tool', 'result', 'prompt', 'turn'].includes(e.kind) ? e.kind : 'turn', text: clip(e.text, 400), error: e.error === true, session: 'shift', model: typeof e.model === 'string' ? e.model : null }))
+    .slice(-limit);
+}
