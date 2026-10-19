@@ -7,8 +7,8 @@
    "save_session_name": "bp builder",
    "save_id": "2f062482aa6cb93de8fbf60822eacbaeb604ea74e2dacb05a4d427374ee63f70"
   },
-  "world_revision": 1471,
-  "generated_at_utc": "2026-10-19T04:15:27.000Z"
+  "world_revision": 1624,
+  "generated_at_utc": "2026-10-19T21:03:09.591Z"
  },
  "buildables": [
   {
@@ -10089,20 +10089,7 @@
    "owner_mod": "DI_More_Lights",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 245.21967822685838,
-     "y": 0.2525634765625,
-     "z": 78.30788505304326
-    },
-    "extent": {
-     "x": 245.12577563899686,
-     "y": 389.0341796875,
-     "z": 180.81690681207647
-    },
-    "source": "placed-actor-bounds",
-    "samples": 42
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27183,20 +27170,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 1278.2565885452204,
-     "y": 600.8121016319055,
-     "z": 68.89203057378472
-    },
-    "extent": {
-     "x": 1338.2565885452204,
-     "y": 660.8121016319055,
-     "z": 128.89203057378472
-    },
-    "source": "placed-actor-bounds",
-    "samples": 10
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27229,20 +27203,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 237.79100957483752,
-     "y": -81.39893229633162,
-     "z": 26.475545356515795
-    },
-    "extent": {
-     "x": 297.7910095748375,
-     "y": 141.39893229633162,
-     "z": 86.4755453565158
-    },
-    "source": "placed-actor-bounds",
-    "samples": 1
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27253,20 +27214,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 281.90778623579536,
-     "y": -102.6060429976933,
-     "z": -0.0008375798452107119
-    },
-    "extent": {
-     "x": 341.90778623579536,
-     "y": 162.6060429976933,
-     "z": 60.00083757984521
-    },
-    "source": "placed-actor-bounds",
-    "samples": 3
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27453,20 +27401,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 0,
-     "y": 0,
-     "z": -0.0168304443359375
-    },
-    "extent": {
-     "x": 107.48605346679688,
-     "y": 104.5697250366211,
-     "z": 107.34540939331055
-    },
-    "source": "placed-actor-bounds",
-    "samples": 8
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27774,20 +27709,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 50,
-     "y": 0,
-     "z": 0
-    },
-    "extent": {
-     "x": 50,
-     "y": 0,
-     "z": 0
-    },
-    "source": "placed-actor-bounds",
-    "samples": 14
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27833,20 +27755,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": -158599.734375,
-     "y": -303165.0625,
-     "z": -910.94287109375
-    },
-    "extent": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "source": "placed-actor-bounds",
-    "samples": 2
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27890,20 +27799,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 50,
-     "y": 0,
-     "z": 0
-    },
-    "extent": {
-     "x": 50,
-     "y": 0,
-     "z": 0
-    },
-    "source": "placed-actor-bounds",
-    "samples": 186
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -27980,20 +27876,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 149.99644470203202,
-     "y": 0.00008046627044677734,
-     "z": 0.00020670508502007578
-    },
-    "extent": {
-     "x": 149.99653672397835,
-     "y": 46.758113861083984,
-     "z": 99.99305033294058
-    },
-    "source": "placed-actor-bounds",
-    "samples": 264
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -28081,20 +27964,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 0.06174449325772002,
-     "y": 0.16928183600248303,
-     "z": -0.39831210088050284
-    },
-    "extent": {
-     "x": 374.1770156394341,
-     "y": 896.1782118386036,
-     "z": 460.6880291611951
-    },
-    "source": "placed-actor-bounds",
-    "samples": 115
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -28105,20 +27975,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 144695.03125,
-     "y": 302294.375,
-     "z": -4961.93017578125
-    },
-    "extent": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "source": "placed-actor-bounds",
-    "samples": 7
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -28140,20 +27997,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 138886.203125,
-     "y": 268927,
-     "z": -6082.0341796875
-    },
-    "extent": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "source": "placed-actor-bounds",
-    "samples": 6
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -28186,20 +28030,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 299608.0625,
-     "y": -113750.53125,
-     "z": -5246.38671875
-    },
-    "extent": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "source": "placed-actor-bounds",
-    "samples": 21
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -28676,20 +28507,7 @@
    "owner_mod": "FactoryGame",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": -1149.9964507898549,
-     "y": -2.08965502679348e-8,
-     "z": 16.854414990608348
-    },
-    "extent": {
-     "x": 1349.9964507898258,
-     "y": 210.19049881061073,
-     "z": 119.50045112564055
-    },
-    "source": "placed-actor-bounds",
-    "samples": 4
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -29927,20 +29745,7 @@
    "owner_mod": "LightsPlus",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 2000,
-     "y": -0.0000309789611492306,
-     "z": 0
-    },
-    "extent": {
-     "x": 2000.000000774453,
-     "y": 50.00003860835568,
-     "z": 50.00000762939453
-    },
-    "source": "placed-actor-bounds",
-    "samples": 3
-   },
+   "size": null,
    "dims": null
   },
   {
@@ -33338,20 +33143,7 @@
    "owner_mod": "SS_Mod",
    "available": true,
    "size_text": null,
-   "size": {
-    "origin": {
-     "x": 2400,
-     "y": 0,
-     "z": 0
-    },
-    "extent": {
-     "x": 2400,
-     "y": 100,
-     "z": 100
-    },
-    "source": "placed-actor-bounds",
-    "samples": 50
-   },
+   "size": null,
    "dims": null
   },
   {

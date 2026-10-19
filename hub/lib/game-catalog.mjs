@@ -26,6 +26,10 @@ function localBox(actor) {
   // Undo the yaw: world = R(yaw)·local.
   const [lx, ly] = [[dx, dy], [dy, -dx], [-dx, -dy], [-dy, dx]][yaw];
   const [ex, ey] = yaw % 2 ? [e.y, e.x] : [e.x, e.y];
+  // A box the game reports with no size, or whose centre lies far outside it, is not
+  // the piece's own geometry (seen: a wall power pole 3 km from its pivot); unknown instead.
+  const big = Math.max(ex, ey, e.z);
+  if (Math.min(ex, ey, e.z) < 1 || Math.hypot(lx, ly, dz) > 2 * big + 200) return null;
   return { origin: { x: lx, y: ly, z: dz }, extent: { x: ex, y: ey, z: e.z } };
 }
 
@@ -40,7 +44,10 @@ export function buildCatalog(snapshot, { source = {} } = {}) {
       const desc = items.get(product.item_class), cls = desc?.building?.class_path;
       if (!cls || out.has(cls)) continue;
       const placed = actorsByClass.get(cls) ?? [];
-      const box = placed.map(localBox).find(Boolean) ?? null;
+      // Beams, belts, pipes, wires and rails are sized per placement (their length is
+      // chosen when built), so one placed actor's box says nothing about the class.
+      const variable = /Beam|Pipeline|Conveyor|PowerLine|Wire|Railroad|Hypertube/i.test(cls.split('.').pop());
+      const box = variable ? null : placed.map(localBox).find(Boolean) ?? null;
       const withDims = placed.find(a => reflected(a, 'mWidth') != null && reflected(a, 'mHeight') != null);
       const dims = withDims ? { width: reflected(withDims, 'mWidth'), depth: reflected(withDims, 'mDepth'), height: reflected(withDims, 'mHeight') } : null;
       out.set(cls, {
