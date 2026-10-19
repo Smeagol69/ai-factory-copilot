@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudioStore, nextStep, validatePieces, MAX_ROUNDS } from '../lib/studio-store.mjs';
@@ -31,7 +31,9 @@ test('the design runs candidate → critique by the other model → agree → bu
   assert.deepEqual(nextStep(job), { worker: 'codex', kind: 'build', candidate: 2 });
   assert.throws(() => s.addCandidate(job.id, 'codex', { title: 'x', rationale: 'y', pieces: pieces(1) }), /closed/);
   s.startBuild(job.id);
-  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 4 pieces', blueprint_name: 'AI Sweep B' });
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'Saved and placed', blueprint_name: 'AI Sweep B' }), /candidate_sha256 must be the agreed/);
+  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 4 pieces', blueprint_name: 'AI Sweep B', candidate_sha256: s.get(job.id).agreedHash });
+  assert.equal(s.get(job.id).stage, 'placed');
   assert.deepEqual(nextStep(s.get(job.id)), { worker: 'claude', kind: 'verify', candidate: 2 });
   job = s.addCritique(job.id, 'claude', { candidate: 'build', verdict: 'agree', critique: 'Placed poses match the agreed candidate' });
   assert.equal(job.status, 'done');
@@ -81,6 +83,23 @@ test('a blocked build does not go to verification; the build step comes back', (
   s.reportBuild(job.id, 'codex', { summary: 'BUILD BLOCKED: no game control', built: false });
   assert.deepEqual(nextStep(s.get(job.id)), { worker: 'codex', kind: 'build', candidate: 1 });
   assert.equal(s.get(job.id).build.built, false);
-  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 36 pieces', blueprint_name: 'AI Walled Straight 2 Bays' });
+  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 36 pieces', blueprint_name: 'AI Walled Straight 2 Bays', candidate_sha256: s.get(job.id).agreedHash });
   assert.deepEqual(nextStep(s.get(job.id)), { worker: 'claude', kind: 'verify', candidate: 1 });
+});
+
+test('the agreed piece list is pinned by hash; a changed file needs a new review; stages follow what happened', () => {
+  const s = store(), job = s.create({ brief: 'Straight' });
+  assert.equal(s.get(job.id).stage, 'brief');
+  s.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces: pieces(2), source: 'level-tunnel.mjs@82efbd6' });
+  assert.equal(s.get(job.id).stage, 'proposed');
+  s.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  const agreed = s.get(job.id);
+  assert.match(agreed.agreedHash, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(agreed.agreedSource, 'level-tunnel.mjs@82efbd6');
+  assert.equal(agreed.stage, 'agreed');
+  s.startBuild(job.id);
+  writeFileSync(join(s.dirOf(job.id), 'candidate-1.json'), JSON.stringify(pieces(3)));
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'built', candidate_sha256: agreed.agreedHash }), /changed after agreement/);
+  s.reportBuild(job.id, 'codex', { summary: 'BLOCKED: no game control', built: false });
+  assert.equal(s.get(job.id).stage, 'agreed', 'a blocked build is not saved or placed');
 });

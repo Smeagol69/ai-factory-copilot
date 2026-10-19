@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nextStep } from './studio-store.mjs';
+import { createGameLease } from './game-lease.mjs';
 
 const publicFile = n => fileURLToPath(new URL(`../app/public/${n}`, import.meta.url));
 const assets = new Map([['/studio', ['studio.html', 'text/html']], ['/studio.js', ['studio.js', 'text/javascript']], ['/studio.css', ['studio.css', 'text/css']]]);
@@ -23,10 +24,10 @@ async function body(req) {
 export function createStudioApi({ root, store, conductor, workerStatus = () => ({}), pump = () => {} }) {
   const operatorFile = join(root, 'state/studio/game-operator.json');
   const operator = () => { try { return JSON.parse(readFileSync(operatorFile, 'utf8').replace(/^﻿/, '')).conductor === true; } catch { return false; } };
-  const summary = j => ({ id: j.id, brief: j.brief, status: j.status, createdAt: j.createdAt, candidates: j.candidates.length, agreedCandidate: j.agreedCandidate, next: nextStep(j) });
+  const summary = j => ({ id: j.id, brief: j.brief, status: j.status, stage: j.stage, createdAt: j.createdAt, candidates: j.candidates.length, agreedCandidate: j.agreedCandidate, next: nextStep(j) });
   const full = j => ({ ...j, next: nextStep(j), candidates: j.candidates.map(c => ({ ...c, renderUrl: c.render ? `/api/studio/render/${j.id}/${c.render}` : null })) });
   return {
-    overview: () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: operator() }),
+    overview: () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: operator(), gameLease: createGameLease(root).current() }),
     job: id => full(store.get(id)),
     create(args) { const j = store.create({ brief: args.brief, firstDesigner: args.firstDesigner ?? 'codex' }); pump(); return full(j); },
     act(id, args) {

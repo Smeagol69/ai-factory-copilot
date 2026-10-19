@@ -62,11 +62,14 @@ test('asking the game backs up the newest save first, logs, and refuses without 
   const calls = [];
   const playtest = { status: async () => ({ ready: true }), submit: async i => { calls.push(i); return { id: 'job-1' }; }, wait: async () => ({ pipelineCompleted: true, committedActions: 1, worldMutationObserved: true }) };
   const { root, gw } = setup('codex', { playtest, saveDir: saves, mayOperate: () => true });
+  await assert.rejects(gw.dispatch('game_ask', { question: 'x' }), /Acquire the game lease/);
+  await gw.dispatch('game_lease', { action: 'acquire', purpose: 'build AI Sweep B' });
   const r = await gw.dispatch('game_ask', { question: 'Generate native blueprint AI Sweep B' });
   assert.equal(readFileSync(r.saveBackup, 'utf8'), 'new');
   assert.deepEqual(calls, [{ operation: 'askall', question: 'Generate native blueprint AI Sweep B' }]);
   assert.match(readFileSync(join(root, 'state/studio/game-actions.jsonl'), 'utf8'), /"worker":"codex".*"question"/);
   const { gw: noSave } = setup('codex', { playtest, saveDir: mkdtempSync(join(tmpdir(), 'empty-')), mayOperate: () => true });
+  await noSave.dispatch('game_lease', { action: 'acquire', purpose: 'x' });
   await assert.rejects(noSave.dispatch('game_ask', { question: 'x' }), /No save file found/);
   await assert.rejects(gw.dispatch('game_capture', { operation: 'delete' }), /capture or look/);
 });
@@ -80,4 +83,21 @@ test('game requests are Codex-only and wait for the live operator to hand off', 
   const status = await codexBefore.dispatch('game_status', {});
   assert.equal(status.conductorMayOperate, false);
   assert.equal(status.ready, true, 'reading status is always allowed');
+});
+
+test('one game owner at a time: the lease is exclusive, needs the handoff, and the build report frees it', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'lease-')), root = join(home, 'hub'); mkdirSync(root, { recursive: true });
+  const playtest = { status: async () => ({ ready: true }), submit: async () => ({ id: 'j' }), wait: async () => ({ pipelineCompleted: true }) };
+  let handedOff = false;
+  const codex = createStudioGateway({ root, repo: home, worker: 'codex', playtest, render: fakeRender, mayOperate: () => handedOff });
+  const claude = createStudioGateway({ root, repo: home, worker: 'claude', playtest, render: fakeRender, mayOperate: () => handedOff });
+  await assert.rejects(codex.dispatch('game_lease', { action: 'acquire', purpose: 'build' }), /after it hands off/);
+  handedOff = true;
+  await codex.dispatch('game_lease', { action: 'acquire', purpose: 'build' });
+  await assert.rejects(claude.dispatch('game_lease', { action: 'acquire', purpose: 'verify' }), /leased to conductor-codex/);
+  await assert.rejects(claude.dispatch('game_capture', {}), /leased to conductor-codex|Acquire the game lease/);
+  assert.equal((await codex.dispatch('game_status', {})).lease.owner, 'conductor-codex');
+  assert.deepEqual(await codex.dispatch('game_lease', { action: 'release' }), { released: true });
+  await claude.dispatch('game_lease', { action: 'acquire', purpose: 'verify' });
+  assert.equal((await claude.dispatch('game_capture', {})).pipelineCompleted, true, 'read-only capture is open to Claude with the lease');
 });

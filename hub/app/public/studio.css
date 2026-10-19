@@ -15,3 +15,4 @@
 .timeline{margin-top:14px;font-size:12.5px;color:#aab3c0;max-height:260px;overflow:auto;background:var(--deep);border-radius:8px;padding:8px 10px}.timeline div{padding:2px 0}
 .status-pill{font-size:11px;font-weight:600;border-radius:10px;padding:3px 8px;background:#262b33;color:#aab3c0}.status-pill.designing,.status-pill.building{background:#24391e;color:#c5eea4}.status-pill.needs-owner{background:#3a2f17;color:#ffe2a8}.status-pill.done{background:#1f2a3d;color:#a9c6ff}.status-pill.stopped{background:#3a2522;color:#f3b6ad}
 @media(max-width:1000px){.studio-bar,.studio-main{grid-template-columns:1fr}.controls{grid-template-columns:1fr}}
+.stages{display:flex;gap:4px;margin:6px 0}.stages .stage{font-size:11px;padding:3px 8px;border-radius:10px;background:#20262f;color:#6f7a88}.stages .stage.reached{background:#24391e;color:#c5eea4}.stages .stage.now{outline:1px solid #c5eea4}

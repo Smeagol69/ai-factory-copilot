@@ -4,7 +4,7 @@
 // nextStep(): pure, so the rules are easy to read and test.
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 export const WORKERS = ['codex', 'claude'];
 export const MAX_ROUNDS = 4; // critiques per worker before the owner decides
@@ -23,6 +23,15 @@ export function validatePieces(pieces) {
     if (Math.abs(Math.hypot(q.x, q.y, q.z, q.w) - 1) > 0.001) throw bad(`Piece ${i}: rotation_quat must be normalised`);
     return { class_path: p.class_path, transform: { translation_cm: { x: t.x, y: t.y, z: t.z }, rotation_quat: { x: q.x, y: q.y, z: q.z, w: q.w }, scale3d: { x: s.x, y: s.y, z: s.z } } };
   });
+}
+
+// What actually happened, for the owner: brief → proposed → agreed → saved → placed → verified.
+export function stageOf(job) {
+  if (job.status === 'stopped') return 'stopped';
+  if (job.status === 'done') return 'verified';
+  if (job.build?.built) return job.build.placed ? 'placed' : job.build.saved ? 'saved' : 'agreed';
+  if (job.agreedCandidate) return 'agreed';
+  return job.candidates.length ? 'proposed' : 'brief';
 }
 
 // Whose turn is it, and to do what? null means nobody: waiting on the owner or finished.
@@ -55,14 +64,17 @@ export function createStudioStore(root, { now = Date.now } = {}) {
   const base = join(root, 'state/studio/jobs');
   const dir = id => { if (!/^[0-9a-f-]{36}$/.test(id ?? '')) throw bad('Unknown job', 404); return join(base, id); };
   const load = id => { const f = join(dir(id), 'job.json'); if (!existsSync(f)) throw bad('Unknown job', 404); return JSON.parse(readFileSync(f, 'utf8').replace(/^﻿/, '')); };
-  const save = job => { const d = dir(job.id); mkdirSync(d, { recursive: true }); const tmp = join(d, 'job.json.tmp'); writeFileSync(tmp, JSON.stringify(job, null, 2) + '\n'); renameSync(tmp, join(d, 'job.json')); return job; };
+  const save = job => { job.stage = stageOf(job); const d = dir(job.id); mkdirSync(d, { recursive: true }); const tmp = join(d, 'job.json.tmp'); writeFileSync(tmp, JSON.stringify(job, null, 2) + '\n'); renameSync(tmp, join(d, 'job.json')); return job; };
   const log = (job, who, line) => { job.events.push({ t: now(), who, text: String(line).slice(0, 500) }); job.events = job.events.slice(-200); job.updatedAt = new Date(now()).toISOString(); };
+  // Pin the agreed piece list by hash so the build can prove it built exactly this.
+  const hashOf = (id, n) => 'sha256:' + createHash('sha256').update(readFileSync(join(dir(id), `candidate-${n}.json`))).digest('hex');
+  const pin = (job, n) => { job.agreedHash = hashOf(job.id, n); job.agreedSource = job.candidates.find(c => c.n === n)?.source ?? null; };
   const settle = job => {
     // Agreed when the model that did not author the candidate says "agree".
     const agree = [...job.critiques].reverse().find(c => c.verdict === 'agree' && c.candidate !== 'build');
     if (job.status === 'designing' && agree) {
       const cand = job.candidates.find(c => c.n === agree.candidate);
-      if (cand && cand.author !== agree.author) { job.status = 'agreed'; job.agreedCandidate = cand.n; log(job, 'studio', `Both models agree on candidate ${cand.n}: ${cand.title}`); }
+      if (cand && cand.author !== agree.author) { job.status = 'agreed'; job.agreedCandidate = cand.n; pin(job, cand.n); log(job, 'studio', `Both models agree on candidate ${cand.n}: ${cand.title} (${job.agreedHash.slice(0, 19)}…)`); }
     }
     if (job.status === 'designing' && !nextStep(job) && job.candidates.length) { job.status = 'needs-owner'; log(job, 'studio', `No agreement after ${MAX_ROUNDS} rounds; the owner decides`); }
     const verify = [...job.critiques].reverse().find(c => c.candidate === 'build');
@@ -114,11 +126,18 @@ export function createStudioStore(root, { now = Date.now } = {}) {
       log(job, author, `${verdict === 'agree' ? 'Agrees with' : 'Asks to revise'} ${candidate === 'build' ? 'the build' : `candidate ${candidate}`}`);
       return save(settle(job));
     },
-    startBuild(id) { const job = load(id); if (job.status !== 'agreed') throw bad('Nothing agreed yet', 409); job.status = 'building'; log(job, 'studio', 'Build started'); return save(job); },
-    reportBuild(id, author, { summary, blueprint_name, built = true }) {
+    startBuild(id) { const job = load(id); if (job.status !== 'agreed') throw bad('Nothing agreed yet', 409); if (!job.agreedHash) pin(job, job.agreedCandidate); job.status = 'building'; log(job, 'studio', 'Build started'); return save(job); },
+    reportBuild(id, author, { summary, blueprint_name, built = true, saved, placed, candidate_sha256 }) {
       const job = load(id);
       if (job.status !== 'building') throw bad('The job is not building', 409);
-      job.build = { author, built: built !== false, summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
+      if (built !== false) {
+        if (!job.agreedHash) throw bad('No pinned piece list for this job; it needs a new review', 409);
+        // Only the exact agreed piece list may be reported as built (Codex #647).
+        if (candidate_sha256 !== job.agreedHash) throw bad(`candidate_sha256 must be the agreed piece list's hash ${job.agreedHash}; anything else needs a new review`, 409);
+        if (hashOf(id, job.agreedCandidate) !== job.agreedHash) throw bad('The agreed piece file changed after agreement; it needs a new review', 409);
+      }
+      const ok = built !== false;
+      job.build = { author, built: ok, saved: ok && saved !== false, placed: ok && placed !== false, candidate_sha256: ok ? candidate_sha256 : null, summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
       log(job, author, `Build reported: ${job.build.summary.slice(0, 200)}`);
       return save(job);
     },
@@ -128,7 +147,7 @@ export function createStudioStore(root, { now = Date.now } = {}) {
     pick(id, n) {
       const job = load(id); const c = job.candidates.find(x => x.n === Number(n));
       if (!c) throw bad('Unknown candidate', 404);
-      job.status = 'agreed'; job.agreedCandidate = c.n; log(job, 'owner', `Owner picked candidate ${c.n}`); return save(job);
+      job.status = 'agreed'; job.agreedCandidate = c.n; pin(job, c.n); log(job, 'owner', `Owner picked candidate ${c.n}`); return save(job);
     },
     // Notes reach both models in their next prompt; they do not change the turn order.
     note(id, line) { const job = load(id); const s = text(line, 2000, 'Note'); job.notes.push({ t: now(), text: s }); log(job, 'owner', `Note: ${s}`); return save(job); },

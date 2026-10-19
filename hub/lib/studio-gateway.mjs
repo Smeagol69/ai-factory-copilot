@@ -8,6 +8,7 @@ import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createStudioStore, nextStep } from './studio-store.mjs';
 import { renderPng, boundsFromMeasurements } from './design-render.mjs';
+import { createGameLease } from './game-lease.mjs';
 
 // Measured native bounds saved by game runs (e.g. Codex's *-native-measurements.json).
 export function loadMeasuredBounds(root) {
@@ -40,12 +41,16 @@ export function newestSave(dir = SAVE_DIR) {
   return best?.p ?? null;
 }
 
-export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root) }) {
+export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root), lease = null }) {
   // Game requests: the Codex worker only, and only after the live operator hands off.
-  const gameGate = () => {
+  const holder = `conductor-${worker}`;
+  const gameLease = lease ?? createGameLease(root, { now, mayOperate });
+  // World-changing requests are Codex's; read-only capture/look is open to either
+  // worker. Both need the game lease, held for the whole build/verify transaction.
+  const gameGate = (kind = 'read') => {
     if (!playtest) throw new Error('Game mailbox unavailable');
-    if (worker !== 'codex') throw new Error('Game actions belong to Codex; post your findings for it instead');
-    if (!mayOperate()) throw new Error("Codex's live session is operating the game; conductor game requests wait for its handoff");
+    if (kind === 'write' && worker !== 'codex') throw new Error('Game actions that change the world belong to Codex; post your findings for it instead');
+    return gameLease.require(holder);
   };
   const store = createStudioStore(root, { now });
   const studio = join(root, 'state/studio');
@@ -74,7 +79,7 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
   const tools = {
     studio_job({ job_id } = {}) {
       const job = store.get(activeId(job_id)), d = store.dirOf(job.id);
-      return { id: job.id, brief: job.brief, status: job.status, next: nextStep(job), notes: job.notes.map(n => n.text), agreedCandidate: job.agreedCandidate, build: job.build,
+      return { id: job.id, brief: job.brief, status: job.status, stage: job.stage, next: nextStep(job), notes: job.notes.map(n => n.text), agreedCandidate: job.agreedCandidate, agreedHash: job.agreedHash ?? null, build: job.build,
         candidates: job.candidates.map(c => ({ ...c, pieces_file: join(d, c.file), render_png: c.render ? join(d, c.render) : null })),
         critiques: job.critiques, recent: job.events.slice(-12).map(e => `${e.who}: ${e.text}`) };
     },
@@ -89,9 +94,11 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       const job = store.addCritique(activeId(job_id), worker, { candidate, verdict, critique });
       return { status: job.status, agreedCandidate: job.agreedCandidate, next: nextStep(job) };
     },
-    studio_report_build({ job_id, summary, blueprint_name, built }) {
-      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name, built });
-      return { status: job.status, next: nextStep(job) };
+    studio_report_build({ job_id, summary, blueprint_name, built, saved, placed, candidate_sha256 }) {
+      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name, built, saved, placed, candidate_sha256 });
+      // The report closes the build transaction (readback is done): free the game.
+      if (gameLease.release(holder)) gameLog({ operation: 'lease-release', reason: 'build reported' });
+      return { status: job.status, stage: job.stage, next: nextStep(job) };
     },
     async studio_render({ title = 'Draft', ...rest }) {
       mkdirSync(join(studio, 'scratch'), { recursive: true });
@@ -119,17 +126,22 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
     },
     async game_status() {
       if (!playtest) throw new Error('Game mailbox unavailable');
-      return { ...(await playtest.status()), conductorMayOperate: mayOperate(), worker };
+      return { ...(await playtest.status()), conductorMayOperate: mayOperate(), lease: gameLease.current(), worker };
+    },
+    game_lease({ action, purpose, job_id }) {
+      if (action === 'acquire') { const l = gameLease.acquire(holder, { purpose, job: job_id ?? null }); gameLog({ operation: 'lease-acquire', purpose: l.purpose }); return { holder: l.owner, expiresAt: l.expiresAt }; }
+      if (action === 'release') { const released = gameLease.release(holder); if (released) gameLog({ operation: 'lease-release' }); return { released }; }
+      throw bad('action is acquire or release');
     },
     async game_capture({ operation = 'capture' } = {}) {
-      gameGate();
+      gameGate('read');
       if (!['capture', 'look'].includes(operation)) throw bad('operation is capture or look');
       const job = await playtest.submit({ operation }); gameLog({ operation, id: job.id });
       const r = await playtest.wait(job); gameLog({ operation, id: job.id, completed: r.pipelineCompleted });
       return r;
     },
     async game_ask({ question }) {
-      gameGate();
+      gameGate('write');
       if (typeof question !== 'string' || !question.trim() || question.length > 4000) throw bad('question is 1–4000 characters');
       const backupFile = backup();
       const job = await playtest.submit({ operation: 'askall', question }); gameLog({ operation: 'askall', id: job.id, question, backupFile });

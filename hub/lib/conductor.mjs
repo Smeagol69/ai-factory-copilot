@@ -21,13 +21,13 @@ export function stepPrompt(job, step, { worktree, branch }) {
       ? `Your candidate ${step.revising} got a "revise" critique. Read it with studio_job, then post an improved candidate with studio_post_candidate that answers every point.`
       : 'Make the first candidate design for the brief. Build the piece list with the project\'s own compilers (companion/lib, e.g. level-tunnel.mjs for tunnels; see how Codex built "AI Walled Sweep 90" in docs/history and git log). Read reference blueprints with studio_read_blueprint. Render drafts with studio_render and look at them before posting. Post with studio_post_candidate: a short title, and a rationale saying what you checked.',
     critique: `Critique candidate ${step.candidate} by ${NAME[other(step.worker)]}. Open its render PNG and piece file (paths in studio_job). Check proportions, joints and seams, clashes and gaps, fit to the brief and to any reference, and that it only uses buildable pieces. Then studio_post_critique with verdict "agree" if it should be built, or "revise" with concrete changes. If you have a better concrete variant, post it with studio_post_candidate after your critique.`,
-    build: `Both of you agreed on candidate ${step.candidate}. Build it: generate the native blueprint and place it in the game with game_ask (the newest save is backed up automatically), check the result with game_capture / game_ask readback and studio_read_blueprint, then studio_report_build with the receipts you observed. If the game refuses something or you cannot build, call studio_report_build with built: false and report exactly what it said.`,
-    verify: `${NAME[other(step.worker)]} reported building candidate ${step.candidate}. Verify it: compare the saved blueprint (studio_read_blueprint) and a fresh game_capture against the agreed candidate's piece file. Then studio_post_critique with candidate "build", verdict "agree" if it matches, or "revise" with exactly what differs.`,
+    build: `Both of you agreed on candidate ${step.candidate} (pinned ${job.agreedHash ?? 'hash in studio_job'}). Build exactly that piece list. First take the game lease (game_lease acquire) and keep it until readback is done. Generate the native blueprint and place it with game_ask (the newest save is backed up automatically), check the result with game_capture / game_ask readback and studio_read_blueprint, then studio_report_build with candidate_sha256, saved/placed, and the receipts you observed. Never replay a world-changing request whose outcome is unknown; report it instead. If the game refuses something or you cannot build, call studio_report_build with built: false and report exactly what it said.`,
+    verify: `${NAME[other(step.worker)]} reported building candidate ${step.candidate}. Verify it: compare the saved blueprint (studio_read_blueprint) against the agreed candidate's piece file. For a fresh world capture, take the game lease first (game_lease acquire), use game_capture, then release it. Then studio_post_critique with candidate "build", verdict "agree" if it matches, or "revise" with exactly what differs.`,
   }[step.kind];
   return `${head}\n\nYOUR STEP: ${body}\n\nEnd your turn when the step is posted.`;
 }
 
-export function createConductor({ root, store, workers, worktrees, now = Date.now, log = () => {}, mayOperate = () => true }) {
+export function createConductor({ root, store, workers, worktrees, now = Date.now, log = () => {}, mayOperate = () => true, lease = null }) {
   const file = join(root, 'state/studio/conductor.json');
   let state = { enabled: false };
   try { if (existsSync(file)) state = { ...state, ...JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')) }; } catch { state.enabled = false; }
@@ -66,6 +66,8 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
     } finally {
       clearTimeout(timer);
       running = null;
+      // A turn never leaves the game leased behind it.
+      if (lease?.release(`conductor-${step.worker}`)) store.log(job.id, 'studio', `Released ${NAME[step.worker]}'s game lease at the end of its turn`);
     }
     // A turn that leaves the same next step has not moved the job forward.
     const after = store.get(job.id), again = JSON.stringify(nextStep(after));

@@ -27,7 +27,7 @@ test('the conductor runs a whole design without anyone prompting: candidate, cri
   const { prompts, workers } = fakes(store, async (name, prompt, s) => {
     if (/YOUR STEP: Make the first candidate/.test(prompt)) s.addCandidate(job.id, name, { title: 'Sweep', rationale: 'r', pieces });
     else if (/YOUR STEP: Critique candidate/.test(prompt)) s.addCritique(job.id, name, { candidate: 1, verdict: 'agree', critique: 'good' });
-    else if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'saved and placed', blueprint_name: 'AI Sweep' });
+    else if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'saved and placed', blueprint_name: 'AI Sweep', candidate_sha256: s.get(job.id).agreedHash });
     else if (/YOUR STEP: .* reported building/.test(prompt)) s.addCritique(job.id, name, { candidate: 'build', verdict: 'agree', critique: 'matches' });
   });
   const c = createConductor({ root, store, workers, worktrees });
@@ -93,7 +93,7 @@ test('a build waits for game control without spending a turn', async () => {
   store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
   store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
   let handedOff = false;
-  const { prompts, workers } = fakes(store, async (name, prompt, s) => s.reportBuild(job.id, name, { summary: 'built', blueprint_name: 'X' }));
+  const { prompts, workers } = fakes(store, async (name, prompt, s) => s.reportBuild(job.id, name, { summary: 'built', blueprint_name: 'X', candidate_sha256: s.get(job.id).agreedHash }));
   const c = createConductor({ root, store, workers, worktrees, mayOperate: () => handedOff });
   c.set(true);
   assert.equal(await c.tick(), null);

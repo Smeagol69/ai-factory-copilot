@@ -25,6 +25,7 @@ import { createConductor } from '../lib/conductor.mjs';
 import { createWorkerPool, worktreeOf } from '../lib/conductor-pool.mjs';
 import { createStudioApi, attachStudio } from '../lib/studio-http.mjs';
 import { conductorMayOperate } from '../lib/studio-gateway.mjs';
+import { createGameLease } from '../lib/game-lease.mjs';
 
 const context = await runtimeContext();
 const localModel = createLocalModelService({root:context.root});
@@ -124,6 +125,7 @@ try {
   const pool=createWorkerPool({root:context.root,repo:mainCheckout,runtimeDir:context.runtime,node:join(context.root,'runtime/node/node.exe'),
     onUsage:(name,u)=>{liveUsage[name]=u;}});
   const conductor=createConductor({root:context.root,store:studioStore,workers:pool,mayOperate:()=>conductorMayOperate(context.root),
+    lease:createGameLease(context.root,{mayOperate:()=>conductorMayOperate(context.root)}),
     worktrees:{codex:worktreeOf(mainCheckout,'codex'),claude:worktreeOf(mainCheckout,'claude')}});
   let pumping=false;
   const pump=()=>{if(pumping)return;pumping=true;(async()=>{try{while(await conductor.tick());}catch{/* next pump */}finally{pumping=false;}})();};

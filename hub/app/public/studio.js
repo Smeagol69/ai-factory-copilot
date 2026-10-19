@@ -19,7 +19,8 @@ function renderControls() {
   $('cond-detail').textContent = c.running ? `${NAME[c.running.worker]}: ${c.running.kind}${c.running.candidate ? ` (candidate ${c.running.candidate})` : ''} since ${new Date(c.running.startedAt).toLocaleTimeString()}`
     : c.waiting ? c.waiting.reason : on ? 'Waiting for a design that needs a turn' : 'Off: designs wait until you turn it on';
   $('cond-toggle').textContent = on ? 'Turn off' : 'Turn on';
-  $('op-state').textContent = overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates';
+  const l = overview.gameLease;
+  $('op-state').textContent = (overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates') + (l ? ` · leased to ${l.owner} (${l.purpose}) until ${new Date(l.expiresAt).toLocaleTimeString()}` : '');
   $('op-toggle').textContent = overview.conductorMayOperateGame ? 'Take game control back' : 'Hand game to conductor';
   $('workers').replaceChildren(...['codex', 'claude'].map(n => { const w = overview.workers[n] ?? {}; const u = w.usage;
     return el('div', `${NAME[n]}: ${w.running ? (w.busy ? 'in a turn' : 'ready') : 'not started'}${u?.usedPercent != null ? ` · ${Math.round(u.usedPercent)}% used` : ''}${u?.out ? ' · out of usage' : ''}`); }));
@@ -40,7 +41,9 @@ async function loadJob() {
   const pill = el('span', STATUS[job.status] ?? job.status, `status-pill ${job.status}`);
   const h = el('h2'); h.append(el('span', job.brief + ' '), pill);
   const next = job.next ? `Next: ${NAME[job.next.worker]} — ${job.next.kind}${job.next.candidate ? ` (candidate ${job.next.candidate})` : ''}` : job.status === 'needs-owner' ? 'Waiting for you: pick a candidate or add a note' : '';
-  head.append(h, el('div', `Started ${new Date(job.createdAt).toLocaleString()} · first designer ${NAME[job.firstDesigner]}${next ? ` · ${next}` : ''}`, 'meta'));
+  const STAGES = ['proposed', 'agreed', 'saved', 'placed', 'verified'], at = STAGES.indexOf(job.stage);
+  const stages = el('div', null, 'stages'); for (const [i, s] of STAGES.entries()) stages.append(el('span', s, `stage${i <= at ? ' reached' : ''}${i === at ? ' now' : ''}`));
+  head.append(h, stages, el('div', `Started ${new Date(job.createdAt).toLocaleString()} · first designer ${NAME[job.firstDesigner]}${next ? ` · ${next}` : ''}${job.agreedHash ? ` · agreed piece list ${job.agreedHash.slice(0, 19)}…` : ''}`, 'meta'));
   const actions = el('div', null, 'actions'), note = el('input'); note.placeholder = 'Note for both models (they see it next turn)'; note.maxLength = 2000; note.setAttribute('aria-label', 'Note for both models');
   const send = el('button', 'Add note', 'secondary'); send.type = 'button'; send.onclick = () => note.value.trim() && act(`/api/studio/jobs/${job.id}`, { action: 'note', text: note.value }, 'Note added.');
   const stop = el('button', 'Stop this design', 'danger'); stop.type = 'button'; stop.onclick = () => act(`/api/studio/jobs/${job.id}`, { action: 'stop' }, 'Design stopped.');
