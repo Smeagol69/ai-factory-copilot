@@ -102,3 +102,41 @@ test('a build waits for game control without spending a turn', async () => {
   handedOff = true;
   assert.equal((await c.tick()).kind, 'build');
 });
+
+test('with no design open, the models work on the active milestone: build, review, team merge, swap', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const { createMilestoneWork } = await import('../lib/milestone-work.mjs');
+  const work = createMilestoneWork(root);
+  let milestones = [{ id: 'm1', title: 'Tunnel lighting powered', status: 'active', notes: '' }];
+  const merges = [];
+  let n = 0;
+  const { prompts, workers } = fakes(store, async (name, prompt) => {
+    const job = work.open();
+    if (/YOUR STEP: Review step/.test(prompt)) { const s = job.steps.at(-1); work.reviewStep(job.id, name, { step: s.n, commit: s.commit, verdict: 'approve', review: 'tests pass' }); }
+    else work.reportStep(job.id, name, { summary: `step by ${name}`, commit: String(1000000 + ++n), branch: `${name}/auto` });
+  });
+  const c = createConductor({ root, store, workers, worktrees, work, readMilestones: () => milestones, merge: async ({ commit, message }) => { merges.push(message); return { mergeCommit: commit }; } });
+  c.set(true);
+  const kinds = [];
+  for (let i = 0; i < 6; i++) { const s = await c.tick(); if (s) kinds.push(`${s.worker}:${s.kind}`); }
+  assert.deepEqual(kinds, ['codex:work', 'claude:review', 'hub:merge', 'claude:work', 'codex:review', 'hub:merge']);
+  assert.match(merges[0], /Milestone step 1 by Codex, reviewed by Claude/);
+  assert.match(prompts[0].prompt, /ACTIVE MILESTONE \(set by the owner\): Tunnel lighting powered/);
+  assert.match(prompts[0].prompt, /git merge team\/auto/);
+  // The owner completes the milestone: the open job closes and nothing more runs.
+  milestones = [{ ...milestones[0], status: 'complete' }];
+  assert.equal(await c.tick(), null);
+  assert.equal(work.list()[0].status, 'closed');
+});
+
+test('a design job always comes before milestone work', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const { createMilestoneWork } = await import('../lib/milestone-work.mjs');
+  const work = createMilestoneWork(root);
+  store.create({ brief: 'Factory floor' });
+  const { workers } = fakes(store, async (name, prompt, s) => s.addCandidate(s.list()[0].id, name, { title: 'A', rationale: 'r', pieces }));
+  const c = createConductor({ root, store, workers, worktrees, work, readMilestones: () => [{ id: 'm1', title: 'X', status: 'active' }] });
+  c.set(true);
+  assert.equal((await c.tick()).kind, 'candidate');
+  assert.equal(work.list().length, 0);
+});

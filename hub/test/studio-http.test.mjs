@@ -40,3 +40,28 @@ test('the studio page and API: brief, conductor switch, game handoff, renders, o
     assert.equal((await post('/api/studio/jobs', { brief: '' })).status, 400);
   } finally { server.close(); }
 });
+
+test('the studio shows milestone work and team work waiting for master; the owner merges and resumes', async () => {
+  const { createMilestoneWork } = await import('../lib/milestone-work.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'studio-mw-')), store = createStudioStore(root), work = createMilestoneWork(root);
+  const job = work.create({ milestone: { id: 'm1', title: 'Lighting' } });
+  work.reportStep(job.id, 'codex', { summary: 'BeamLength for beams', commit: 'abcdef1' });
+  let merged = 0, pumps = 0;
+  const conductor = { status: () => ({ enabled: true, running: null, waiting: null }), set: () => ({}), stop: async () => ({}) };
+  const server = createServer((req, res) => res.end('x'));
+  attachStudio(server, createStudioApi({ root, store, conductor, work, pump: () => pumps++,
+    teamPending: async () => ['abc1234 Milestone step 1 by Codex, reviewed by Claude'], mergeTeam: async () => ({ merged: ++merged, mergeCommit: 'f00' }) }));
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`, post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  try {
+    const o = await (await fetch(base + '/api/studio')).json();
+    assert.equal(o.milestoneWork.milestone.title, 'Lighting');
+    assert.deepEqual(o.milestoneWork.next, { worker: 'claude', kind: 'review', step: 1 });
+    assert.equal(o.teamPending.length, 1);
+    assert.equal((await (await post('/api/studio/team-merge', {})).json()).merged, 1);
+    assert.equal((await (await post('/api/studio/milestone-work', { action: 'stop' })).json()).status, 'stopped');
+    assert.equal((await (await post('/api/studio/milestone-work', { action: 'resume' })).json()).resumed, true);
+    assert.equal(work.list()[0].status, 'closed', 'a fresh job takes over on the next turn');
+    assert.equal(pumps, 1);
+  } finally { server.close(); }
+});

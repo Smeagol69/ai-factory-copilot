@@ -26,6 +26,7 @@ import { createWorkerPool, worktreeOf } from '../lib/conductor-pool.mjs';
 import { createStudioApi, attachStudio } from '../lib/studio-http.mjs';
 import { conductorMayOperate } from '../lib/studio-gateway.mjs';
 import { createGameLease } from '../lib/game-lease.mjs';
+import { createMilestoneWork, mergeApprovedStep, mergeTeamIntoMaster, teamPending } from '../lib/milestone-work.mjs';
 
 const context = await runtimeContext();
 const localModel = createLocalModelService({root:context.root});
@@ -124,12 +125,18 @@ try {
   const studioStore=createStudioStore(context.root);
   const pool=createWorkerPool({root:context.root,repo:mainCheckout,runtimeDir:context.runtime,node:join(context.root,'runtime/node/node.exe'),
     onUsage:(name,u)=>{liveUsage[name]=u;}});
+  const milestoneWork=createMilestoneWork(context.root);
   const conductor=createConductor({root:context.root,store:studioStore,workers:pool,mayOperate:()=>conductorMayOperate(context.root),
     lease:createGameLease(context.root,{mayOperate:()=>conductorMayOperate(context.root)}),
-    worktrees:{codex:worktreeOf(mainCheckout,'codex'),claude:worktreeOf(mainCheckout,'claude')}});
+    worktrees:{codex:worktreeOf(mainCheckout,'codex'),claude:worktreeOf(mainCheckout,'claude')},
+    // With no design open, the models work on the owner's active milestone; approved
+    // steps go to team/auto, and the owner merges team/auto into master.
+    work:milestoneWork,readMilestones:()=>room.state.milestones(),
+    merge:({commit,message})=>mergeApprovedStep({repo:mainCheckout,commit,message})});
   let pumping=false;
   const pump=()=>{if(pumping)return;pumping=true;(async()=>{try{while(await conductor.tick());}catch{/* next pump */}finally{pumping=false;}})();};
-  attachStudio(server,createStudioApi({root:context.root,store:studioStore,conductor,workerStatus:()=>pool.status(),pump}));
+  attachStudio(server,createStudioApi({root:context.root,store:studioStore,conductor,workerStatus:()=>pool.status(),pump,
+    work:milestoneWork,teamPending:()=>teamPending({repo:mainCheckout}),mergeTeam:()=>mergeTeamIntoMaster({repo:mainCheckout})}));
   const conductorTimer=setInterval(pump,30000);
   server.on('close', () => { clearInterval(shiftTimer); clearInterval(conductorTimer); pool.stopAll(); store.close(); });
   process.once('SIGINT', () => server.close()); process.once('SIGTERM', () => server.close());

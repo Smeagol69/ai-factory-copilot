@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { nextStep } from './studio-store.mjs';
+import { nextMilestoneStep } from './milestone-work.mjs';
 
 export const TURN_TIMEOUT_MS = 45 * 60000;
 const other = w => w === 'codex' ? 'claude' : 'codex';
@@ -27,7 +28,18 @@ export function stepPrompt(job, step, { worktree, branch }) {
   return `${head}\n\nYOUR STEP: ${body}\n\nEnd your turn when the step is posted.`;
 }
 
-export function createConductor({ root, store, workers, worktrees, now = Date.now, log = () => {}, mayOperate = () => true, lease = null }) {
+export function milestonePrompt(job, step, { worktree, branch }) {
+  const m = job.milestone, last = job.steps.at(-1);
+  const head = [`You are ${NAME[step.worker]}, working with ${NAME[other(step.worker)]} on the owner's Satisfactory project. The owner is watching live but is not prompting; the hub runs your turns.`,
+    `ACTIVE MILESTONE (set by the owner): ${m.title}${m.notes ? `\nOwner notes: ${m.notes}` : ''}`,
+    `Your worktree is ${worktree} on branch ${branch}. Read AGENTS.md, docs/STATUS.md and hub/AGENTS.md if you have not this session. studio_milestone shows every step and review so far. The game is the authority: never claim an in-game result without a tool receipt; game actions need the game lease and belong to Codex.`].join('\n\n');
+  const body = step.kind === 'review'
+    ? `Review step ${step.step} by ${NAME[last.author]}: commit ${last.commit}${last.branch ? ` on ${last.branch}` : ''}. "${last.summary.slice(0, 600)}". In your worktree look at exactly that commit (git show ${last.commit}; check it out detached to run its tests), check it really moves the milestone forward, is correct and tested, and keeps every working feature. Do not change files. Then studio_review_step with commit ${last.commit}, verdict "approve" or "changes" with concrete fixes.`
+    : `${step.fixing ? `Your step ${step.fixing} got "changes requested": read the review in studio_milestone and fix every point.` : 'Take ONE concrete, reviewable step toward the milestone: the most useful next thing, small enough to review in one sitting.'} First bring your branch up to date: git merge team/auto (or git merge master if team/auto does not exist yet). Make the change with tests, run them, commit on your branch, then studio_report_step with a summary (what changed, how you verified it), the commit hash (git rev-parse HEAD) and your branch.`;
+  return `${head}\n\nYOUR STEP: ${body}\n\nEnd your turn when the step is reported.`;
+}
+
+export function createConductor({ root, store, workers, worktrees, now = Date.now, log = () => {}, mayOperate = () => true, lease = null, work = null, readMilestones = null, merge = async () => ({ error: 'merging is not configured' }) }) {
   const file = join(root, 'state/studio/conductor.json');
   let state = { enabled: false };
   try { if (existsSync(file)) state = { ...state, ...JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')) }; } catch { state.enabled = false; }
@@ -35,12 +47,41 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
   let running = null, waiting = null;
   const stale = new Map(); // jobId → turns that did not change the next step
 
+  // Design jobs come first; with none open, the models work on the owner's
+  // ACTIVE milestone in build → review cycles (milestone-work.mjs).
+  function pick() {
+    const job = store.list().filter(j => ['designing', 'agreed', 'building'].includes(j.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+    if (job) { const step = nextStep(job); if (step) return { source: 'design', job, step }; }
+    if (!work || !readMilestones) return null;
+    const active = readMilestones().find(m => m.status === 'active') ?? null;
+    let mj = work.open();
+    if (mj && (!active || mj.milestone.id !== active.id)) { work.close(mj.id, active ? 'The owner made another milestone active' : 'The owner completed or paused this milestone'); mj = null; }
+    if (!mj && active) {
+      const last = work.list().find(j => j.milestone.id === active.id);
+      if (last && ['needs-owner', 'stopped'].includes(last.status)) { waiting = { job: last.id, reason: `Milestone work waits for you: ${last.events.at(-1)?.text ?? last.status}` }; return null; }
+      mj = work.create({ milestone: active });
+    }
+    if (!mj) return null;
+    const step = nextMilestoneStep(mj);
+    return step ? { source: 'milestone', job: mj, step } : null;
+  }
+
   async function tick() {
     if (!state.enabled || running) return null;
-    const job = store.list().filter(j => ['designing', 'agreed', 'building'].includes(j.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-    if (!job) { waiting = null; return null; }
-    const step = nextStep(job);
-    if (!step) { waiting = null; return null; }
+    waiting = null;
+    const picked = pick();
+    if (!picked) return null;
+    const { source, job, step } = picked;
+    const S = source === 'design'
+      ? { get: id => store.get(id), log: (...a) => store.log(...a), needsOwner: (...a) => store.needsOwner(...a), next: nextStep, prompt: j => stepPrompt(j, step, worktrees[step.worker]) }
+      : { get: id => work.get(id), log: (...a) => work.log(...a), needsOwner: (...a) => work.needsOwner(...a), next: nextMilestoneStep, prompt: j => milestonePrompt(j, step, worktrees[step.worker]) };
+    if (step.kind === 'merge') {
+      // No model turn: the hub adds the approved step to the team branch.
+      const s = job.steps[step.step - 1];
+      const result = await merge({ commit: s.commit, message: `Milestone step ${s.n} by ${NAME[s.author]}, reviewed by ${NAME[s.review.author]}: ${s.summary.replace(/\s+/g, ' ').slice(0, 120)}` });
+      work.markMerged(job.id, s.n, result);
+      return step;
+    }
     // A build needs game control; until Codex's live session hands off, wait without spending a turn.
     if (step.kind === 'build' && !mayOperate()) { waiting = { job: job.id, worker: step.worker, reason: "The build waits for game control: Codex's live session has not handed off yet" }; return null; }
     const worker = await workers.get(step.worker);
@@ -49,31 +90,30 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
       waiting = { job: job.id, worker: step.worker, reason: `${NAME[step.worker]} is out of usage${u.resetsAt ? ` until ${new Date(u.resetsAt).toLocaleTimeString()}` : ''}` };
       return null;
     }
-    waiting = null;
     if (step.kind === 'build' && job.status === 'agreed') store.startBuild(job.id);
     const before = JSON.stringify(step);
-    running = { job: job.id, worker: step.worker, kind: step.kind, candidate: step.candidate ?? null, startedAt: now() };
-    store.log(job.id, 'studio', `${NAME[step.worker]}'s turn: ${step.kind}${step.candidate ? ` (candidate ${step.candidate})` : ''}`);
-    const prompt = stepPrompt(store.get(job.id), step, worktrees[step.worker]);
+    running = { job: job.id, source, worker: step.worker, kind: step.kind, candidate: step.candidate ?? null, step: step.step ?? null, startedAt: now() };
+    S.log(job.id, 'studio', `${NAME[step.worker]}'s turn: ${step.kind}${step.candidate ? ` (candidate ${step.candidate})` : ''}${step.step ? ` (step ${step.step})` : ''}`);
+    const prompt = S.prompt(S.get(job.id));
     let timer;
     // Stop must end the wait even if the worker never answers.
     const stopped = new Promise((_, reject) => { running.abort = reject; });
     try {
       const result = await Promise.race([worker.run(prompt), stopped, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Turn timed out')), TURN_TIMEOUT_MS); })]);
-      store.log(job.id, step.worker, `Turn ${result.status}: ${String(result.text ?? '').replace(/\s+/g, ' ').slice(0, 300)}`);
+      S.log(job.id, step.worker, `Turn ${result.status}: ${String(result.text ?? '').replace(/\s+/g, ' ').slice(0, 300)}`);
     } catch (error) {
-      store.log(job.id, step.worker, `Turn failed: ${error.message}`);
+      S.log(job.id, step.worker, `Turn failed: ${error.message}`);
     } finally {
       clearTimeout(timer);
       running = null;
       // A turn never leaves the game leased behind it.
-      if (lease?.release(`conductor-${step.worker}`)) store.log(job.id, 'studio', `Released ${NAME[step.worker]}'s game lease at the end of its turn`);
+      if (lease?.release(`conductor-${step.worker}`)) S.log(job.id, 'studio', `Released ${NAME[step.worker]}'s game lease at the end of its turn`);
     }
     // A turn that leaves the same next step has not moved the job forward.
-    const after = store.get(job.id), again = JSON.stringify(nextStep(after));
+    const again = JSON.stringify(S.next(S.get(job.id)));
     if (again === before) {
       const n = (stale.get(job.id) ?? 0) + 1; stale.set(job.id, n);
-      if (n >= 2) { store.needsOwner(job.id, `${NAME[step.worker]} did not finish its ${step.kind} step in two turns`); stale.delete(job.id); }
+      if (n >= 2) { S.needsOwner(job.id, `${NAME[step.worker]} did not finish its ${step.kind} step in two turns`); stale.delete(job.id); }
     } else stale.delete(job.id);
     log({ job: job.id, step });
     return step;

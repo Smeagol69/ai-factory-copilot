@@ -17,13 +17,39 @@ function renderControls() {
   $('cond-state').textContent = c.running ? 'working' : on ? 'on' : 'off';
   $('cond-state').className = `state ${c.running ? 'working' : on ? 'standby' : 'idle'}`;
   $('cond-detail').textContent = c.running ? `${NAME[c.running.worker]}: ${c.running.kind}${c.running.candidate ? ` (candidate ${c.running.candidate})` : ''} since ${new Date(c.running.startedAt).toLocaleTimeString()}`
-    : c.waiting ? c.waiting.reason : on ? 'Waiting for a design that needs a turn' : 'Off: designs wait until you turn it on';
+    : c.waiting ? c.waiting.reason : on ? 'Waiting: no design open and no milestone step due' : 'Off: designs wait until you turn it on';
   $('cond-toggle').textContent = on ? 'Turn off' : 'Turn on';
   const l = overview.gameLease;
   $('op-state').textContent = (overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates') + (l ? ` · leased to ${l.owner} (${l.purpose}) until ${new Date(l.expiresAt).toLocaleTimeString()}` : '');
   $('op-toggle').textContent = overview.conductorMayOperateGame ? 'Take game control back' : 'Hand game to conductor';
   $('workers').replaceChildren(...['codex', 'claude'].map(n => { const w = overview.workers[n] ?? {}; const u = w.usage;
     return el('div', `${NAME[n]}: ${w.running ? (w.busy ? 'in a turn' : 'ready') : 'not started'}${u?.usedPercent != null ? ` · ${Math.round(u.usedPercent)}% used` : ''}${u?.out ? ' · out of usage' : ''}`); }));
+}
+function renderMilestoneWork() {
+  const box = $('mwork'), w = overview.milestoneWork, pending = overview.teamPending ?? [];
+  if (!w && !pending.length) { box.replaceChildren(); return; }
+  const parts = [];
+  if (w) {
+    const next = w.next ? (w.next.worker === 'hub' ? 'Next: the hub adds the approved step to team/auto' : `Next: ${NAME[w.next.worker]} — ${w.next.kind}${w.next.step ? ` step ${w.next.step}` : ''}${w.next.fixing ? ` (fixing step ${w.next.fixing})` : ''}`) : '';
+    parts.push(el('h3', `Milestone work: ${w.milestone.title}`), el('div', `${w.status}${next ? ' · ' + next : ''} · Codex and Claude take turns building and reviewing; approved steps go to team/auto`, 'muted'));
+    const steps = el('div', null, 'steps');
+    for (const s of [...w.steps].reverse().slice(0, 8)) {
+      const line = el('div', null, 'stepline');
+      line.append(el('strong', `Step ${s.n} · ${NAME[s.author]} · ${s.commit.slice(0, 7)} `), el('span', s.summary.slice(0, 220)));
+      if (s.review) line.append(el('div', `${NAME[s.review.author]}: ${s.review.verdict === 'approve' ? 'approved' : 'changes requested'} — ${s.review.text.slice(0, 200)}`, s.review.verdict === 'approve' ? 'ok' : 'chg'));
+      if (s.merged) line.append(el('div', s.merged.error ? `Not merged: ${s.merged.error}` : 'On team/auto', s.merged.error ? 'err' : 'ok'));
+      steps.append(line);
+    }
+    parts.push(steps);
+  }
+  const row = el('div', null, 'row');
+  row.append(el('span', pending.length ? `${pending.length} reviewed step${pending.length === 1 ? '' : 's'} on team/auto, not in master yet` : 'team/auto has nothing new for master', 'muted'));
+  if (pending.length) { const m = el('button', 'Merge team work into master'); m.type = 'button'; m.title = pending.join(String.fromCharCode(10));
+    m.onclick = () => { if (confirm('Merge these reviewed steps into master?' + String.fromCharCode(10, 10) + pending.join(String.fromCharCode(10)))) act('/api/studio/team-merge', {}, 'Team work merged into master.'); }; row.append(m); }
+  if (w && w.status === 'working') { const s = el('button', 'Stop milestone work', 'danger'); s.type = 'button'; s.onclick = () => act('/api/studio/milestone-work', { action: 'stop' }, 'Milestone work stopped.'); row.append(s); }
+  if (w && ['needs-owner', 'stopped'].includes(w.status)) { const r = el('button', 'Resume milestone work', 'secondary'); r.type = 'button'; r.onclick = () => act('/api/studio/milestone-work', { action: 'resume' }, 'Milestone work resumes.'); row.append(r); }
+  parts.push(row);
+  box.replaceChildren(...parts);
 }
 function renderJobs() {
   const list = $('jobs');
@@ -80,7 +106,7 @@ async function poll() {
     const r = await fetch('/api/studio', { cache: 'no-store' }); if (!r.ok) throw new Error(`Status ${r.status}`);
     overview = await r.json();
     if (!selected && overview.jobs[0]) selected = overview.jobs[0].id;
-    renderControls(); renderJobs(); await loadJob();
+    renderControls(); renderMilestoneWork(); renderJobs(); await loadJob();
     $('live').className = 'live ok'; $('live-text').textContent = `Live · ${new Date().toLocaleTimeString()}`;
   } catch (e) { $('live').className = 'live bad'; $('live-text').textContent = `Not updating: ${e.message}`; }
 }

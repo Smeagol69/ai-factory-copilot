@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { createStudioStore, nextStep } from './studio-store.mjs';
 import { renderPng, boundsFromMeasurements } from './design-render.mjs';
 import { createGameLease } from './game-lease.mjs';
+import { createMilestoneWork, nextMilestoneStep } from './milestone-work.mjs';
 
 // Measured native bounds saved by game runs (e.g. Codex's *-native-measurements.json).
 export function loadMeasuredBounds(root) {
@@ -41,7 +42,9 @@ export function newestSave(dir = SAVE_DIR) {
   return best?.p ?? null;
 }
 
-export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root), lease = null }) {
+export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root), lease = null, milestones = null }) {
+  const work = milestones ?? createMilestoneWork(root, { now });
+  const openWork = id => id ? work.get(id) : work.open() ?? (() => { throw bad('No open milestone job'); })();
   // Game requests: the Codex worker only, and only after the live operator hands off.
   const holder = `conductor-${worker}`;
   const gameLease = lease ?? createGameLease(root, { now, mayOperate });
@@ -99,6 +102,20 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       // The report closes the build transaction (readback is done): free the game.
       if (gameLease.release(holder)) gameLog({ operation: 'lease-release', reason: 'build reported' });
       return { status: job.status, stage: job.stage, next: nextStep(job) };
+    },
+    studio_milestone({ job_id } = {}) {
+      const job = openWork(job_id);
+      return { id: job.id, milestone: job.milestone, status: job.status, next: nextMilestoneStep(job),
+        steps: job.steps.map(s => ({ n: s.n, author: s.author, branch: s.branch, commit: s.commit, summary: s.summary, fixing: s.fixing, review: s.review, merged: s.merged })),
+        recent: job.events.slice(-12).map(e => `${e.who}: ${e.text}`) };
+    },
+    studio_report_step({ job_id, summary, commit, branch }) {
+      const job = work.reportStep(openWork(job_id).id, worker, { summary, commit, branch });
+      return { step: job.steps.length, next: nextMilestoneStep(job) };
+    },
+    studio_review_step({ job_id, step, commit, verdict, review }) {
+      const job = work.reviewStep(openWork(job_id).id, worker, { step, commit, verdict, review });
+      return { next: nextMilestoneStep(job) };
     },
     async studio_render({ title = 'Draft', ...rest }) {
       mkdirSync(join(studio, 'scratch'), { recursive: true });

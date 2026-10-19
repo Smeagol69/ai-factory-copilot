@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nextStep, stageOf } from './studio-store.mjs';
+import { nextMilestoneStep } from './milestone-work.mjs';
 import { createGameLease } from './game-lease.mjs';
 
 const publicFile = n => fileURLToPath(new URL(`../app/public/${n}`, import.meta.url));
@@ -21,13 +22,28 @@ async function body(req) {
   catch { throw Object.assign(Error('Invalid JSON request'), { statusCode: 400 }); }
 }
 
-export function createStudioApi({ root, store, conductor, workerStatus = () => ({}), pump = () => {} }) {
+export function createStudioApi({ root, store, conductor, workerStatus = () => ({}), pump = () => {}, work = null, teamPending = async () => [], mergeTeam = async () => ({ error: 'Not configured' }) }) {
+  // Milestone work for the page: the open (or latest) job with its steps and reviews.
+  const milestoneWork = () => {
+    const j = work?.open() ?? work?.list()[0] ?? null;
+    return j ? { id: j.id, milestone: j.milestone, status: j.status, next: nextMilestoneStep(j), steps: j.steps, recent: j.events.slice(-15) } : null;
+  };
   const operatorFile = join(root, 'state/studio/game-operator.json');
   const operator = () => { try { return JSON.parse(readFileSync(operatorFile, 'utf8').replace(/^﻿/, '')).conductor === true; } catch { return false; } };
   const summary = j => ({ id: j.id, brief: j.brief, status: j.status, stage: stageOf(j), createdAt: j.createdAt, candidates: j.candidates.length, agreedCandidate: j.agreedCandidate, next: nextStep(j) });
   const full = j => ({ ...j, stage: stageOf(j), next: nextStep(j), candidates: j.candidates.map(c => ({ ...c, renderUrl: c.render ? `/api/studio/render/${j.id}/${c.render}` : null })) });
   return {
-    overview: () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: operator(), gameLease: createGameLease(root).current() }),
+    overview: async () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: operator(), gameLease: createGameLease(root).current(),
+      milestoneWork: milestoneWork(), teamPending: await teamPending() }),
+    async teamMerge() { const r = await mergeTeam(); if (r.error) throw Object.assign(Error(r.error), { statusCode: 409 }); return r; },
+    milestoneAction(args) {
+      const j = work?.list()[0];
+      if (!j) throw Object.assign(Error('No milestone work yet'), { statusCode: 404 });
+      if (args.action === 'stop') return work.stop(j.id);
+      // Resume after the owner sorted out a stop or a failed merge: a fresh job continues the milestone.
+      if (args.action === 'resume') { if (['needs-owner', 'stopped'].includes(j.status)) work.close(j.id, 'Resumed by the owner'); pump(); return { resumed: true }; }
+      throw Object.assign(Error('Unknown milestone action'), { statusCode: 400 });
+    },
     job: id => full(store.get(id)),
     create(args) { const j = store.create({ brief: args.brief, firstDesigner: args.firstDesigner ?? 'codex' }); pump(); return full(j); },
     act(id, args) {
@@ -65,7 +81,7 @@ export function attachStudio(server, api) {
     if (req.headers.host !== authority || (req.headers.origin && req.headers.origin !== origin) || req.headers['sec-fetch-site'] === 'cross-site') { req.resume(); json(403, { error: 'Local application origin required' }); return; }
     (async () => {
       if (req.method === 'GET' && assets.has(url)) { const [f, type] = assets.get(url); res.writeHead(200, { 'Content-Type': type + '; charset=utf-8' }).end(readFileSync(publicFile(f))); return; }
-      if (req.method === 'GET' && url === '/api/studio') { json(200, api.overview()); return; }
+      if (req.method === 'GET' && url === '/api/studio') { json(200, await api.overview()); return; }
       let m = url.match(/^\/api\/studio\/render\/([0-9a-f-]{36})\/(candidate-\d{1,3}\.png)$/);
       if (req.method === 'GET' && m) { const f = api.renderFile(m[1], m[2]); if (!f) { json(404, { error: 'No render' }); return; } res.writeHead(200, { 'Content-Type': 'image/png' }).end(readFileSync(f)); return; }
       m = url.match(/^\/api\/studio\/jobs\/([0-9a-f-]{36})$/);
@@ -74,6 +90,8 @@ export function attachStudio(server, api) {
       if (req.method === 'POST' && url === '/api/studio/jobs') { json(200, api.create(await body(req))); return; }
       if (req.method === 'POST' && url === '/api/studio/conductor') { json(200, await api.conductorAction(await body(req))); return; }
       if (req.method === 'POST' && url === '/api/studio/operator') { json(200, api.setOperator(await body(req))); return; }
+      if (req.method === 'POST' && url === '/api/studio/team-merge') { req.resume(); json(200, await api.teamMerge()); return; }
+      if (req.method === 'POST' && url === '/api/studio/milestone-work') { json(200, api.milestoneAction(await body(req))); return; }
       req.resume(); json(404, { error: 'Unknown studio route' });
     })().catch(e => { if (!res.writableEnded) json(e.statusCode ?? 503, { error: String(e.message ?? 'Studio unavailable').slice(0, 300) }); });
   });
