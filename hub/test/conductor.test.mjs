@@ -363,3 +363,10 @@ test("Codex's own limit wording ('try again at 10:47 AM') gives the reset", asyn
   const r = usageLimit("You’ve hit your usage limit. Upgrade to Pro or try again at 10:47 AM.", { now: new Date(2026, 9, 19, 8, 48).getTime() });
   assert.deepEqual([new Date(r.resetsAt).getHours(), new Date(r.resetsAt).getMinutes(), r.estimated], [10, 47, false]);
 });
+
+test("a weekly limit's full date ('try again at Oct 24th, 2026 4:44 PM') is read exactly", async () => {
+  const { usageLimit } = await import('../lib/conductor.mjs');
+  const r = usageLimit('You’ve hit your usage limit. Upgrade to Pro or try again at Oct 24th, 2026 4:44 PM.', { now: new Date(2026, 9, 19, 13, 30).getTime() });
+  const d = new Date(r.resetsAt);
+  assert.deepEqual([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), r.estimated], [2026, 9, 24, 16, 44, false]);
+});

@@ -20,6 +20,14 @@ export function usageLimit(text, { now = Date.now(), known = null } = {}) {
   if (!/usage limit|session limit|weekly limit|hit your limit|usageLimitExceeded|rate[_ ]limit(ed| reached| exceeded)|out of (usage|credits)/i.test(t)) return null;
   const epoch = /\|(\d{10,13})\b/.exec(t)?.[1];
   if (epoch) { const ms = +epoch < 1e12 ? +epoch * 1000 : +epoch; if (ms > now) return { resetsAt: ms, estimated: false }; }
+  // A weekly limit names the date: "try again at Oct 24th, 2026 4:44 PM".
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const dated = /(?:resets?|try again)\s+(?:at|on)?\s*([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(?:(\d{4})\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(t);
+  if (dated && MONTHS.includes(dated[1].toLowerCase())) {
+    let h = +dated[4] % 12; if (/pm/i.test(dated[6])) h += 12;
+    const d = new Date(+(dated[3] ?? new Date(now).getFullYear()), MONTHS.indexOf(dated[1].toLowerCase()), +dated[2], h, +(dated[5] ?? 0));
+    if (d.getTime() > now) return { resetsAt: d.getTime(), estimated: false };
+  }
   const clock = /(?:resets?|try again)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(t);
   if (clock) {
     let h = +clock[1] % 12; if (/pm/i.test(clock[3])) h += 12;
