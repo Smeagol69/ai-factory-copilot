@@ -19,8 +19,10 @@ test('an identity rotation gives world axes and boxes span the piece size', () =
   assert.deepEqual(axes({ x: 0, y: 0, z: 0, w: 1 }), [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }]);
   const { boxes } = pieceBoxes([piece(FOUNDATION, 100, 200, 300)]);
   const xs = boxes[0].v.map(v => v.x), zs = boxes[0].v.map(v => v.z);
-  assert.deepEqual([Math.min(...xs), Math.max(...xs)], [-300, 500]);
-  assert.deepEqual([Math.min(...zs), Math.max(...zs)], [200, 400]);
+  // Sizes come from the game catalog where the game reported them (float cm), so compare to 0.05 cm.
+  const near = (got, want) => got.every((g, i) => Math.abs(g - want[i]) < 0.05);
+  assert.ok(near([Math.min(...xs), Math.max(...xs)], [-300, 500]), xs.join());
+  assert.ok(near([Math.min(...zs), Math.max(...zs)], [200, 400]), zs.join());
 });
 
 test('a 90 degree yaw turns the box footprint', () => {
@@ -59,4 +61,15 @@ test('measured native bounds are used, and unmeasured pieces become labelled mar
   const html = renderHtml([piece('/x/Build_CeilingLight.Build_CeilingLight_C')]).html;
   assert.match(html, /red markers = size unknown: Build_CeilingLight_C/);
   assert.match(html, /cannot certify clipping/);
+});
+
+test('the game catalog: only placeable game classes are eligible, and game-reported sizes come from it', async () => {
+  const { loadGameCatalog, ineligible, catalogBounds } = await import('../lib/game-catalog.mjs');
+  const catalog = loadGameCatalog();
+  assert.ok(catalog.size > 500, 'the catalog lists the game\'s placeable buildings');
+  assert.equal(ineligible(FOUNDATION), null);
+  assert.match(ineligible('/Game/Made/Up/Build_NeonTube.Build_NeonTube_C'), /not a building the game can place/);
+  assert.match(ineligible('/x/y', null), /catalog is missing/);
+  const b = catalogBounds()[FOUNDATION];
+  assert.ok(Math.abs(b.extent.x - 400) < 0.01 && Math.abs(b.extent.z - 100) < 0.01, 'the 8x2 foundation is 8 m x 2 m as the game reported');
 });

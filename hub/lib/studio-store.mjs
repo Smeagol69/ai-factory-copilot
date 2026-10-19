@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { ineligible } from './game-catalog.mjs';
 
 export const WORKERS = ['codex', 'claude'];
 export const MAX_ROUNDS = 4; // critiques per worker before the owner decides
@@ -18,6 +19,9 @@ export function validatePieces(pieces) {
   return pieces.map((p, i) => {
     const t = p?.transform?.translation_cm, q = p?.transform?.rotation_quat, s = p?.transform?.scale3d ?? { x: 1, y: 1, z: 1 };
     if (typeof p?.class_path !== 'string' || !/^\/(Game|Script|[A-Za-z_]+)\//.test(p.class_path) || p.class_path.length > 300) throw bad(`Piece ${i}: class_path must be a game class path`);
+    // Only what the game itself can place: no invented assets (owner rule, 2026-10-19).
+    const why = ineligible(p.class_path);
+    if (why) throw bad(`Piece ${i} (${p.class_path.split('.').pop()}): ${why}. Use only classes from hub/catalog/game-buildables.json`);
     const nums = [t?.x, t?.y, t?.z, q?.x, q?.y, q?.z, q?.w, s.x, s.y, s.z];
     if (!nums.every(Number.isFinite)) throw bad(`Piece ${i}: transform needs translation_cm, rotation_quat and scale3d numbers`);
     if (Math.abs(Math.hypot(q.x, q.y, q.z, q.w) - 1) > 0.001) throw bad(`Piece ${i}: rotation_quat must be normalised`);

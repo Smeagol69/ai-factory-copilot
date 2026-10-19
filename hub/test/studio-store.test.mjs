@@ -131,3 +131,10 @@ test('a build report claims only what the game receipts show (Codex #652)', () =
   assert.equal(b.placed, null);
   assert.equal(s.get(job.id).stage, 'agreed');
 });
+
+test('a candidate may use only pieces the game can place (owner rule: no made-up assets)', () => {
+  const s = store(), job = s.create({ brief: 'Tower' });
+  const invented = [{ ...pieces(1)[0], class_path: '/Game/Made/Up/Build_NeonTube.Build_NeonTube_C' }];
+  assert.throws(() => s.addCandidate(job.id, 'codex', { title: 'Neon', rationale: 'r', pieces: invented }), /Build_NeonTube_C\): it is not a building the game can place/);
+  assert.equal(s.addCandidate(job.id, 'codex', { title: 'Real', rationale: 'r', pieces: pieces(2) }).pieces, 2);
+});

@@ -7,6 +7,11 @@ import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { catalogBounds } from './game-catalog.mjs';
+
+// Sizes the game reported for placed actors (hub/catalog/game-buildables.json).
+let gameBounds = null;
+const gameBox = cls => (gameBounds ??= catalogBounds())[cls];
 
 // Standard structural sizes only. Everything else needs a measured native bound
 // (Codex's measurement files) or it is drawn as a small marker and reported as
@@ -46,7 +51,7 @@ export function pieceBoxes(pieces, { bounds = {} } = {}) {
   for (const p of pieces) {
     const t = p?.transform?.translation_cm, q = p?.transform?.rotation_quat, s3 = p?.transform?.scale3d ?? { x: 1, y: 1, z: 1 };
     if (!t || !q || ![t.x, t.y, t.z, q.x, q.y, q.z, q.w].every(Number.isFinite)) { skipped.push(p?.class_path ?? 'unknown'); continue; }
-    const measured = bounds[p.class_path], std = measured ? null : pieceSize(p.class_path);
+    const measured = bounds[p.class_path] ?? gameBox(p.class_path), std = measured ? null : pieceSize(p.class_path);
     if (std === 'spline') { skipped.push(p.class_path); continue; }
     let half, centre = { x: 0, y: 0, z: 0 }, isUnknown = false;
     if (measured) { half = [measured.extent.x, measured.extent.y, measured.extent.z]; centre = measured.origin; }

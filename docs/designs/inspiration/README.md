@@ -42,6 +42,18 @@ the brief first, then against this language.
 7. **Repetition with rhythm.** Window grids, light bars in groups of three, ribs
    at a fixed pitch: the same element repeated at an even pitch reads as designed.
 
+## Only real game pieces (owner rule)
+
+Designs and renders use **only buildings the game itself can place**: the
+classes in [`hub/catalog/game-buildables.json`](../../../hub/catalog/game-buildables.json),
+pulled from the game's live recipe registry (base game and the owner's installed
+mods) by `hub/scripts/ingest-game-catalog.mjs`. No made-up assets: a neon tube or
+glass ring that is not in that list cannot appear in a candidate, and the studio
+refuses any candidate that uses one. Sizes come only from what the game reported
+(placed-actor bounds, reflected width/depth/height); a piece the game has not
+measured is drawn as a red "size unknown" marker, never guessed. Regenerate the
+catalog after a new world capture or a mod change.
+
 ## Translating it into Satisfactory (to be measured, not assumed)
 
 These are **candidate** mappings for designers to try and measure; none is
