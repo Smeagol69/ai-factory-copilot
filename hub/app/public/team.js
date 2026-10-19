@@ -107,7 +107,9 @@ function feed(c, old) {
   for (const e of c.events) {
     const row = el('div', null, `ev ${e.kind}${e.error ? ' error' : ''}`);
     const t = el('span', time(e.t), 't'); t.title = `${new Date(e.t).toLocaleString()} · session ${e.session ?? ''}`;
-    row.append(t, el('span', e.text, 'txt'));
+    row.append(t);
+    if (String(e.session ?? '').startsWith('auto·')) { const b = el('span', 'auto', 'auto'); b.title = 'A turn the conductor ran (Design studio)'; row.append(b); }
+    row.append(el('span', e.text, 'txt'));
     box.append(row);
   }
   // Follow new activity unless the reader scrolled up to look at something.

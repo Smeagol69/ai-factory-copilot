@@ -8,6 +8,8 @@ import { join } from 'node:path';
 
 const TAIL_BYTES = 524288, HEAD_BYTES = 65536;
 export const WORKING_MS = 120000;
+// Sessions the conductor runs live in hub/workspaces/auto-<name>; they get an "auto·" session tag.
+const AUTO = /[\\/]hub[\\/]workspaces[\\/]auto-(claude|codex)([\\/]|$)/i;
 const LIMIT_TEXT = /usage limit|hit your limit|limit reached|out of (?:extra )?usage/i;
 
 export function redact(text) {
@@ -110,6 +112,7 @@ export function parseClaude(lines, roots) {
     if (j.type === 'custom-title' && j.customTitle) { out.title = clip(j.customTitle, 80); continue; }
     if (!inProject(j.cwd, roots)) continue;
     out.sessionId ??= j.sessionId ?? null;
+    if (AUTO.test(j.cwd)) out.auto = true;
     const t = ms(j.timestamp), content = j.message?.content;
     if (j.type === 'assistant') {
       if (j.isApiErrorMessage) {
@@ -170,7 +173,7 @@ export function createFeedReader({ codexHome, claudeHome, roots, windowMs = 48 *
         const meta = metas.get(f.file);
         if (!meta || !inProject(meta.cwd, roots)) continue;
         const v = cached(f, parseCodex);
-        codexParts.push({ ...v, session: (meta.id ?? '').slice(-6), parent: meta.parent, lastAt: f.mtimeMs });
+        codexParts.push({ ...v, session: (AUTO.test(meta.cwd ?? '') ? 'auto·' : '') + (meta.id ?? '').slice(-6), parent: meta.parent, lastAt: f.mtimeMs });
         if (v.usage && (!usage || v.usage.at > usage.at)) usage = v.usage;
         if (v.limitAt && v.limitAt > (limitAt ?? 0)) limitAt = v.limitAt;
       }
@@ -181,7 +184,7 @@ export function createFeedReader({ codexHome, claudeHome, roots, windowMs = 48 *
       for (const f of claudeFiles) {
         const v = cached(f, lines => parseClaude(lines, roots));
         if (!v.events.length) continue;
-        claudeParts.push({ ...v, session: (v.sessionId ?? '').slice(0, 6) });
+        claudeParts.push({ ...v, session: (v.auto ? 'auto·' : '') + (v.sessionId ?? '').slice(0, 6) });
         if (v.limitAt && v.limitAt > (claudeLimit ?? 0)) claudeLimit = v.limitAt;
       }
       const sessions = parts => parts.map(p => ({ id: p.session, title: p.title ?? null, lastAt: p.events.at(-1)?.t ?? null }))

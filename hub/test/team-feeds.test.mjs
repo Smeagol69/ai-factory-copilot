@@ -143,3 +143,9 @@ test('a cut-off Codex shell result still shows its exit code', () => {
   assert.equal(v.events[0].text, 'exit 0: line one line two that goes on and o');
   assert.equal(v.events[0].error, false);
 });
+
+test('conductor-run sessions are tagged auto', () => {
+  const v = parseClaude([JSON.stringify({ type: 'assistant', cwd: ROOT + '/hub/workspaces/auto-claude', sessionId: 'abcdef12', timestamp: iso(1), message: { role: 'assistant', content: [{ type: 'text', text: 'Critiquing candidate 1' }] } })], [ROOT]);
+  assert.equal(v.auto, true);
+  assert.equal(parseClaude([JSON.stringify({ type: 'assistant', cwd: ROOT, timestamp: iso(1), message: { role: 'assistant', content: [{ type: 'text', text: 'x' }] } })], [ROOT]).auto, undefined);
+});
