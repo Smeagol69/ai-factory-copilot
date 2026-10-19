@@ -14,8 +14,8 @@
   <div class="controls">
     <div><strong>Conductor</strong> <span id="cond-state" class="state idle">off</span><div id="cond-detail" class="muted"></div>
       <div class="row"><button type="button" id="cond-toggle">Turn on</button><button type="button" class="danger" id="cond-stop">Stop</button></div></div>
-    <div><strong>Game control</strong> <span id="op-state" class="muted"></span>
-      <div class="muted">Codex's own session operates the game until it hands off. Then the conductor's Codex worker may save and place.</div>
+    <div><strong>Game control</strong> <span id="op-state" class="muted"></span><ul id="op-checks" class="checks" aria-label="Handoff readiness"></ul>
+      <div class="muted">Codex's own session operates the game until you hand it over. Handover needs every check below; the conductor's Codex worker then generates only agreed, piece-checked designs through the fixed command.</div>
       <div class="row"><button type="button" class="secondary" id="op-toggle">Hand game to conductor</button> <button type="button" class="danger" id="op-resolve" hidden>I checked the game: resolve</button></div></div>
     <div><strong>Workers</strong><div id="workers" class="muted"></div><div id="mail" class="muted" aria-live="polite"></div></div>
   </div>

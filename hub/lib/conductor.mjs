@@ -199,6 +199,14 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     tick,
     status: () => ({ enabled: state.enabled, running, waiting, mail: (state.mailLog ?? []).slice(-8) }),
     set(enabled) { state.enabled = !!enabled; save(); return { enabled: state.enabled }; },
+    // The owner took game control back: end a running build/verify turn (its worker
+    // is stopped and its lease settled) but keep the conductor on for design work.
+    async abortGameTurn(reason) {
+      const r = running;
+      if (!r || !['build', 'verify'].includes(r.kind)) return null;
+      r.abort?.(new Error(reason)); await r.settled;
+      return { worker: r.worker, kind: r.kind, job: r.job };
+    },
     async stop() {
       state.enabled = false; save();
       // Aborting the wait makes tick() stop the worker and settle its game lease.

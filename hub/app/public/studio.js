@@ -23,6 +23,11 @@ function renderControls() {
   $('op-state').textContent = (overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates') + (l ? l.unresolved ? ` · UNRESOLVED game transaction (${l.worker}): ${l.unresolvedReason}` : ` · leased to ${l.worker} (${l.purpose}) until ${new Date(l.expiresAt).toLocaleTimeString()}` : '');
   $('op-resolve').hidden = !l?.unresolved;
   $('op-toggle').textContent = overview.conductorMayOperateGame ? 'Take game control back' : 'Hand game to conductor';
+  // Readiness: the handover is refused by the hub unless every check passes; the button says why.
+  const checks = overview.handoff?.checks ?? [], failing = checks.filter(c => !c.ok);
+  $('op-checks').replaceChildren(...checks.map(c => el('li', `${c.ok ? '✓' : '✗'} ${c.label}: ${c.detail}`, c.ok ? 'ok' : 'err')));
+  $('op-toggle').disabled = !overview.conductorMayOperateGame && failing.length > 0;
+  $('op-toggle').title = $('op-toggle').disabled ? `Not ready: ${failing.map(c => c.label).join('; ')}` : '';
   // Peer requests the conductor handed to a model (newest last).
   $('mail').replaceChildren(...(c.mail ?? []).slice(-4).map(m => el('div', `${new Date(m.t).toLocaleTimeString()} · ${NAME[m.who] ?? m.who}: ${m.text}`)));
   $('workers').replaceChildren(...['codex', 'claude'].map(n => { const w = overview.workers[n] ?? {}; const u = w.usage;
@@ -103,7 +108,10 @@ $('brief-form').addEventListener('submit', async e => {
 $('cond-toggle').onclick = () => act('/api/studio/conductor', { action: overview?.conductor.enabled ? 'off' : 'on' });
 $('cond-stop').onclick = () => act('/api/studio/conductor', { action: 'stop' }, 'Conductor stopped; the running turn was ended.');
 $('op-resolve').onclick = () => { if (confirm('Did you check the game? Resolving clears the unresolved transaction; nothing is replayed.')) act('/api/studio/conductor', { action: 'resolve-game' }, 'Game transaction resolved.'); };
-$('op-toggle').onclick = () => act('/api/studio/operator', { conductor: !overview?.conductorMayOperateGame });
+$('op-toggle').onclick = () => {
+  if (overview?.conductorMayOperateGame) { act('/api/studio/operator', { conductor: false }, 'Game control taken back; any running game turn was ended.'); return; }
+  if (confirm('Hand the game to the conductor?' + String.fromCharCode(10, 10) + 'Codex must have stopped operating the game in its own session. The conductor then generates only agreed, piece-checked designs through the fixed command; you can take control back at any time.')) act('/api/studio/operator', { conductor: true }, 'Game handed to the conductor.');
+};
 
 async function poll() {
   try {

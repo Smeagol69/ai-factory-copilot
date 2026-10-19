@@ -300,3 +300,27 @@ test('design prompts carry the owner\'s inspiration board as the default style',
   assert.match(first, /which inspiration references you drew on/);
   assert.match(stepPrompt(store.get(job.id), { worker: 'claude', kind: 'critique', candidate: 1 }, worktrees.claude), /owner's style language/);
 });
+
+test('taking game control back ends a running build turn but keeps the conductor on', async () => {
+  const { createGameLease } = await import('../lib/game-lease.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Straight' });
+  store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  const lease = createGameLease(root, { mayOperate: () => true });
+  let entered; const inTurn = new Promise(r => { entered = r; });
+  const { w, workers } = fakes(store, async () => {
+    const l = lease.acquire({ session: 'conductor-codex:t', worker: 'codex', purpose: 'build', job: job.id });
+    lease.record('conductor-codex:t', l.token, { id: 'g1', operation: 'generate', outcome: 'submitted' });
+    entered(); await new Promise(() => {});
+  });
+  const c = createConductor({ root, store, workers, worktrees, lease });
+  c.set(true);
+  const turn = c.tick(); await inTurn;
+  assert.deepEqual(await c.abortGameTurn('The owner took game control back'), { worker: 'codex', kind: 'build', job: job.id }, 'a running build is ended');
+  await turn;
+  assert.equal(w.codex.stopped, true);
+  assert.equal(c.status().enabled, true, 'design work goes on');
+  assert.equal(lease.current().unresolved, true, 'its submitted generation stays for the owner');
+  assert.equal(await c.abortGameTurn('again'), null, 'nothing to end');
+});

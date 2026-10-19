@@ -2,12 +2,13 @@
 // conductor runs Codex and Claude through candidate → critique → agree → build,
 // and every render, critique and decision shows here. Same local-origin rules
 // as the rest of the hub.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nextStep, stageOf } from './studio-store.mjs';
 import { nextMilestoneStep } from './milestone-work.mjs';
 import { createGameLease } from './game-lease.mjs';
+import { createGameHandoff } from './game-handoff.mjs';
 
 const publicFile = n => fileURLToPath(new URL(`../app/public/${n}`, import.meta.url));
 const assets = new Map([['/studio', ['studio.html', 'text/html']], ['/studio.js', ['studio.js', 'text/javascript']], ['/studio.css', ['studio.css', 'text/css']]]);
@@ -22,18 +23,17 @@ async function body(req) {
   catch { throw Object.assign(Error('Invalid JSON request'), { statusCode: 400 }); }
 }
 
-export function createStudioApi({ root, store, conductor, workerStatus = () => ({}), pump = () => {}, work = null, teamPending = async () => [], mergeTeam = async () => ({ error: 'Not configured' }) }) {
+export function createStudioApi({ root, store, conductor, workerStatus = () => ({}), pump = () => {}, work = null, teamPending = async () => [], mergeTeam = async () => ({ error: 'Not configured' }), handoff = null }) {
+  const game = handoff ?? createGameHandoff({ root, conductor });
   // Milestone work for the page: the open (or latest) job with its steps and reviews.
   const milestoneWork = () => {
     const j = work?.open() ?? work?.list()[0] ?? null;
     return j ? { id: j.id, milestone: j.milestone, status: j.status, next: nextMilestoneStep(j), steps: j.steps, recent: j.events.slice(-15) } : null;
   };
-  const operatorFile = join(root, 'state/studio/game-operator.json');
-  const operator = () => { try { return JSON.parse(readFileSync(operatorFile, 'utf8').replace(/^﻿/, '')).conductor === true; } catch { return false; } };
   const summary = j => ({ id: j.id, brief: j.brief, status: j.status, stage: stageOf(j), createdAt: j.createdAt, candidates: j.candidates.length, agreedCandidate: j.agreedCandidate, next: nextStep(j) });
   const full = j => ({ ...j, stage: stageOf(j), next: nextStep(j), candidates: j.candidates.map(c => ({ ...c, renderUrl: c.render ? `/api/studio/render/${j.id}/${c.render}` : null })) });
   return {
-    overview: async () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: operator(), gameLease: createGameLease(root).current(),
+    overview: async () => ({ jobs: store.list().slice(0, 30).map(summary), conductor: conductor.status(), workers: workerStatus(), conductorMayOperateGame: game.mayOperate(), handoff: await game.view(), gameLease: createGameLease(root).current(),
       milestoneWork: milestoneWork(), teamPending: await teamPending() }),
     async teamMerge() { const r = await mergeTeam(); if (r.error) throw Object.assign(Error(r.error), { statusCode: 409 }); return r; },
     milestoneAction(args) {
@@ -60,10 +60,11 @@ export function createStudioApi({ root, store, conductor, workerStatus = () => (
       if (args.action === 'resolve-game') { if (conductor.status().running) throw Object.assign(Error('Wait for the running turn to end first'), { statusCode: 409 }); return { resolved: createGameLease(root).resolve() }; }
       throw Object.assign(Error('Unknown conductor action'), { statusCode: 400 });
     },
-    setOperator(args) {
+    // The owner's handoff: refused unless every readiness check passes now; taking
+    // control back ends any running game turn first.
+    async setOperator(args) {
       if (typeof args.conductor !== 'boolean') throw Object.assign(Error('conductor must be true or false'), { statusCode: 400 });
-      mkdirSync(join(root, 'state/studio'), { recursive: true }); writeFileSync(operatorFile, JSON.stringify({ conductor: args.conductor, at: new Date().toISOString() }) + '\n');
-      return { conductorMayOperateGame: args.conductor };
+      return args.conductor ? game.handOver() : game.takeBack();
     },
     renderFile(id, name) {
       if (!uuid.test(id) || !/^candidate-\d{1,3}\.png$/.test(name)) return null;
@@ -91,7 +92,7 @@ export function attachStudio(server, api) {
       if (m && req.method === 'POST') { json(200, api.act(m[1], await body(req))); return; }
       if (req.method === 'POST' && url === '/api/studio/jobs') { json(200, api.create(await body(req))); return; }
       if (req.method === 'POST' && url === '/api/studio/conductor') { json(200, await api.conductorAction(await body(req))); return; }
-      if (req.method === 'POST' && url === '/api/studio/operator') { json(200, api.setOperator(await body(req))); return; }
+      if (req.method === 'POST' && url === '/api/studio/operator') { json(200, await api.setOperator(await body(req))); return; }
       if (req.method === 'POST' && url === '/api/studio/team-merge') { req.resume(); json(200, await api.teamMerge()); return; }
       if (req.method === 'POST' && url === '/api/studio/milestone-work') { json(200, api.milestoneAction(await body(req))); return; }
       req.resume(); json(404, { error: 'Unknown studio route' });
