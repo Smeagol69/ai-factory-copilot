@@ -61,12 +61,23 @@ test('asking the game backs up the newest save first, logs, and refuses without 
   assert.equal(newestSave(saves), join(user, 'new.sav'));
   const calls = [];
   const playtest = { status: async () => ({ ready: true }), submit: async i => { calls.push(i); return { id: 'job-1' }; }, wait: async () => ({ pipelineCompleted: true, committedActions: 1, worldMutationObserved: true }) };
-  const { root, gw } = setup('codex', { playtest, saveDir: saves });
+  const { root, gw } = setup('codex', { playtest, saveDir: saves, mayOperate: () => true });
   const r = await gw.dispatch('game_ask', { question: 'Generate native blueprint AI Sweep B' });
   assert.equal(readFileSync(r.saveBackup, 'utf8'), 'new');
   assert.deepEqual(calls, [{ operation: 'askall', question: 'Generate native blueprint AI Sweep B' }]);
   assert.match(readFileSync(join(root, 'state/studio/game-actions.jsonl'), 'utf8'), /"worker":"codex".*"question"/);
-  const { gw: noSave } = setup('codex', { playtest, saveDir: mkdtempSync(join(tmpdir(), 'empty-')) });
+  const { gw: noSave } = setup('codex', { playtest, saveDir: mkdtempSync(join(tmpdir(), 'empty-')), mayOperate: () => true });
   await assert.rejects(noSave.dispatch('game_ask', { question: 'x' }), /No save file found/);
   await assert.rejects(gw.dispatch('game_capture', { operation: 'delete' }), /capture or look/);
+});
+
+test('game requests are Codex-only and wait for the live operator to hand off', async () => {
+  const playtest = { status: async () => ({ ready: true }), submit: async () => ({ id: 'x' }), wait: async () => ({}) };
+  const { gw: claude } = setup('claude', { playtest, mayOperate: () => true });
+  await assert.rejects(claude.dispatch('game_ask', { question: 'place it' }), /belong to Codex/);
+  const { gw: codexBefore } = setup('codex', { playtest });
+  await assert.rejects(codexBefore.dispatch('game_capture', {}), /wait for its handoff/);
+  const status = await codexBefore.dispatch('game_status', {});
+  assert.equal(status.conductorMayOperate, false);
+  assert.equal(status.ready, true, 'reading status is always allowed');
 });

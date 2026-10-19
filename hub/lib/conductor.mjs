@@ -54,8 +54,10 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
     store.log(job.id, 'studio', `${NAME[step.worker]}'s turn: ${step.kind}${step.candidate ? ` (candidate ${step.candidate})` : ''}`);
     const prompt = stepPrompt(store.get(job.id), step, worktrees[step.worker]);
     let timer;
+    // Stop must end the wait even if the worker never answers.
+    const stopped = new Promise((_, reject) => { running.abort = reject; });
     try {
-      const result = await Promise.race([worker.run(prompt), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Turn timed out')), TURN_TIMEOUT_MS); })]);
+      const result = await Promise.race([worker.run(prompt), stopped, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Turn timed out')), TURN_TIMEOUT_MS); })]);
       store.log(job.id, step.worker, `Turn ${result.status}: ${String(result.text ?? '').replace(/\s+/g, ' ').slice(0, 300)}`);
     } catch (error) {
       store.log(job.id, step.worker, `Turn failed: ${error.message}`);
@@ -79,7 +81,7 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
     set(enabled) { state.enabled = !!enabled; save(); return { enabled: state.enabled }; },
     async stop() {
       state.enabled = false; save();
-      if (running) { const w = await workers.get(running.worker); await w.stop().catch(() => {}); workers.forget?.(running.worker); }
+      if (running) { const r = running, w = await workers.get(r.worker); await w.stop().catch(() => {}); workers.forget?.(r.worker); r.abort?.(new Error('Stopped by the owner')); }
       return { enabled: false };
     },
   };

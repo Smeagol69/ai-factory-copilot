@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pieceSize, axes, pieceBoxes, viewSvg, renderHtml, renderPng, EDGE_PATHS } from '../lib/design-render.mjs';
+import { pieceSize, axes, pieceBoxes, viewSvg, renderHtml, renderPng, boundsFromMeasurements, EDGE_PATHS } from '../lib/design-render.mjs';
 
 const FOUNDATION = '/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
 const piece = (cls, x = 0, y = 0, z = 0, q = { x: 0, y: 0, z: 0, w: 1 }) => ({ class_path: cls, transform: { translation_cm: { x, y, z }, rotation_quat: q, scale3d: { x: 1, y: 1, z: 1 } } });
@@ -11,8 +11,8 @@ const piece = (cls, x = 0, y = 0, z = 0, q = { x: 0, y: 0, z: 0, w: 1 }) => ({ c
 test('piece sizes come from the class family', () => {
   assert.deepEqual(pieceSize(FOUNDATION), [800, 800, 200]);
   assert.deepEqual(pieceSize('/x/Build_Wall_Concrete_8x4.Build_Wall_Concrete_8x4_C'), [800, 20, 400]);
-  assert.equal(pieceSize('/x/Build_Pipeline_NoIndicator.Build_Pipeline_NoIndicator_C'), null);
-  assert.deepEqual(pieceSize('/x/Build_Something_New.Build_Something_New_C'), [100, 100, 100]);
+  assert.equal(pieceSize('/x/Build_Pipeline_NoIndicator.Build_Pipeline_NoIndicator_C'), 'spline');
+  assert.equal(pieceSize('/x/Build_CeilingLight.Build_CeilingLight_C'), null, 'lights are never guessed');
 });
 
 test('an identity rotation gives world axes and boxes span the piece size', () => {
@@ -46,4 +46,17 @@ test('a render is saved as a PNG through headless Edge', { skip: !EDGE_PATHS.som
   const r = await renderPng(pieces, join(dir, 'candidate-1.png'), { title: 'Test strip' });
   assert.equal(r.pieces, 6);
   assert.ok(existsSync(r.file));
+});
+
+test('measured native bounds are used, and unmeasured pieces become labelled markers', () => {
+  const FAN = '/Factory_Prop_Mod/FactoryDecorMod/WallFan/Steel/SteelWallFan.SteelWallFan_C';
+  const bounds = boundsFromMeasurements([{ measurements: [{ class_path: FAN, local_bounds_origin_cm: { x: 0, y: 0, z: 400 }, bounds_extent_cm: { x: 168.5, y: 400, z: 400 } }, { class_path: 'bad' }] }]);
+  assert.deepEqual(Object.keys(bounds), [FAN]);
+  const { boxes, unknown } = pieceBoxes([piece(FAN), piece('/x/Build_CeilingLight.Build_CeilingLight_C')], { bounds });
+  const zs = boxes[0].v.map(v => v.z);
+  assert.deepEqual([Math.min(...zs), Math.max(...zs)], [0, 800], 'the fan stands 8 m tall from its pivot');
+  assert.deepEqual(unknown, ['Build_CeilingLight_C']);
+  const html = renderHtml([piece('/x/Build_CeilingLight.Build_CeilingLight_C')]).html;
+  assert.match(html, /red markers = size unknown: Build_CeilingLight_C/);
+  assert.match(html, /cannot certify clipping/);
 });

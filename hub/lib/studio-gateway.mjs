@@ -7,7 +7,23 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readF
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createStudioStore, nextStep } from './studio-store.mjs';
-import { renderPng } from './design-render.mjs';
+import { renderPng, boundsFromMeasurements } from './design-render.mjs';
+
+// Measured native bounds saved by game runs (e.g. Codex's *-native-measurements.json).
+export function loadMeasuredBounds(root) {
+  const files = [];
+  const visit = (d, depth) => { let es; try { es = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of es) { const p = join(d, e.name); if (e.isDirectory() && depth > 0) visit(p, depth - 1);
+      else if (e.isFile() && /measurements.*\.json$/i.test(e.name) && statSync(p).size < 4 * 1024 * 1024) { try { files.push(JSON.parse(readFileSync(p, 'utf8').replace(/^﻿/, ''))); } catch { /* unreadable file: skipped */ } } } };
+  visit(join(root, 'state/live-architect'), 2); visit(join(root, 'state/studio/measurements'), 0);
+  return boundsFromMeasurements(files);
+}
+
+// Codex's live session is the only game operator until it hands off. The flag
+// lives in state/studio/game-operator.json: {"conductor": true} after handoff.
+export function conductorMayOperate(root) {
+  try { return JSON.parse(readFileSync(join(root, 'state/studio/game-operator.json'), 'utf8').replace(/^﻿/, '')).conductor === true; } catch { return false; }
+}
 
 const bad = m => Object.assign(new Error(m), { statusCode: 400 });
 const LOCAL = process.env.LOCALAPPDATA ?? '';
@@ -24,7 +40,13 @@ export function newestSave(dir = SAVE_DIR) {
   return best?.p ?? null;
 }
 
-export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now }) {
+export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root) }) {
+  // Game requests: the Codex worker only, and only after the live operator hands off.
+  const gameGate = () => {
+    if (!playtest) throw new Error('Game mailbox unavailable');
+    if (worker !== 'codex') throw new Error('Game actions belong to Codex; post your findings for it instead');
+    if (!mayOperate()) throw new Error("Codex's live session is operating the game; conductor game requests wait for its handoff");
+  };
   const store = createStudioStore(root, { now });
   const studio = join(root, 'state/studio');
   const readPieces = ({ pieces, pieces_file }) => {
@@ -59,7 +81,7 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
     async studio_post_candidate({ job_id, title, rationale, source, ...rest }) {
       const id = activeId(job_id), cand = store.addCandidate(id, worker, { title, rationale, source, pieces: readPieces(rest) });
       let render_png = null, render_error = null;
-      try { const r = await render(store.piecesOf(id, cand.n), join(store.dirOf(id), `candidate-${cand.n}.png`), { title: `Candidate ${cand.n} by ${worker}: ${cand.title}` }); store.setRender(id, cand.n, `candidate-${cand.n}.png`); render_png = r.file; }
+      try { const r = await render(store.piecesOf(id, cand.n), join(store.dirOf(id), `candidate-${cand.n}.png`), { title: `Candidate ${cand.n} by ${worker}: ${cand.title}`, bounds: bounds() }); store.setRender(id, cand.n, `candidate-${cand.n}.png`); render_png = r.file; }
       catch (e) { render_error = e.message; }
       return { candidate: cand.n, pieces: cand.pieces, render_png, render_error, next: nextStep(store.get(id)) };
     },
@@ -74,7 +96,7 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
     async studio_render({ title = 'Draft', ...rest }) {
       mkdirSync(join(studio, 'scratch'), { recursive: true });
       const file = join(studio, 'scratch', `${randomUUID()}.png`);
-      const r = await render(readPieces(rest), file, { title });
+      const r = await render(readPieces(rest), file, { title, bounds: bounds() });
       return { render_png: r.file, pieces: r.pieces, skipped: r.skipped };
     },
     async studio_read_blueprint({ name }) {
@@ -97,17 +119,17 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
     },
     async game_status() {
       if (!playtest) throw new Error('Game mailbox unavailable');
-      return playtest.status();
+      return { ...(await playtest.status()), conductorMayOperate: mayOperate(), worker };
     },
     async game_capture({ operation = 'capture' } = {}) {
-      if (!playtest) throw new Error('Game mailbox unavailable');
+      gameGate();
       if (!['capture', 'look'].includes(operation)) throw bad('operation is capture or look');
       const job = await playtest.submit({ operation }); gameLog({ operation, id: job.id });
       const r = await playtest.wait(job); gameLog({ operation, id: job.id, completed: r.pipelineCompleted });
       return r;
     },
     async game_ask({ question }) {
-      if (!playtest) throw new Error('Game mailbox unavailable');
+      gameGate();
       if (typeof question !== 'string' || !question.trim() || question.length > 4000) throw bad('question is 1–4000 characters');
       const backupFile = backup();
       const job = await playtest.submit({ operation: 'askall', question }); gameLog({ operation: 'askall', id: job.id, question, backupFile });
