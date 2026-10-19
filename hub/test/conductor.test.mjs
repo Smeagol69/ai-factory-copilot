@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -401,15 +401,15 @@ test('a peer request for a model that is out of usage does not hold up the other
   const job = store.create({ brief: 'Straight' });
   store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
   store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
-  let ledger = [];
+  // History is already recorded up to #661, so request #662 is pending on the first tick.
+  mkdirSync(join(root, 'state/studio'), { recursive: true }); writeFileSync(join(root, 'state/studio/conductor.json'), JSON.stringify({ enabled: false, mailSince: 661 }));
+  const ledger = [{ id: 662, sender: 'claude-40324', recipient: null, reply_to: null, subject: 'Review please: 13554f2' }];
   const { prompts, w, workers } = fakes(store, async (name, prompt, s) => {
     if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'generated', blueprint_name: 'X', built: true, candidate_sha256: s.get(job.id).agreedHash, evidence: gen('X') });
   });
   w.codex.usage = { out: true, resetsAt: Date.now() + 5 * 86400000 };
   const c = createConductor({ root, store, workers, worktrees, readMail: () => ledger });
   c.set(true);
-  await c.tick(); // first look records where history ends
-  ledger = [{ id: 662, sender: 'claude-40324', recipient: null, reply_to: null, subject: 'Review please: 13554f2' }];
   const s = await c.tick();
   assert.deepEqual([s.worker, s.kind], ['claude', 'build'], 'Claude builds while the request for Codex waits');
   assert.equal(prompts.length, 1);
