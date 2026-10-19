@@ -1,4 +1,6 @@
 #include "AIFactoryBlueprintExport.h"
+#include "AIFactoryFoundationPosePolicy.h"
+#include "AIFactoryFixturePosePolicy.h"
 
 #include "AIFactoryActions.h"
 #include "AIFactoryBlueprintResourceAnchor.h"
@@ -8,6 +10,7 @@
 #include "FGBlueprintSubsystem.h"
 #include "FGCharacterPlayer.h"
 #include "FGClearanceInterface.h"
+#include "AIFactoryGeneratedGeometry.h"
 #include "FGFactoryBlueprintTypes.h"
 #include "FGPlayerController.h"
 #include "Buildables/FGBuildableConveyorBase.h"
@@ -36,6 +39,10 @@
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
+#include "AbstractInstanceInterface.h"
+#include "Engine/StaticMesh.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 
 /**
  * Writing a real `.sbp` from buildings that are standing in the world.
@@ -404,7 +411,7 @@ namespace
             Part.Role != TEXT("ramp") && Part.Role != TEXT("machine") &&
             Part.Role != TEXT("standalone") &&
             Part.Role != TEXT("resource_anchor") && Part.Role != TEXT("miner") &&
-            Part.Role != TEXT("splitter"))
+            Part.Role != TEXT("splitter") && Part.Role != TEXT("beam"))
         {
             OutReason = TEXT("generated_part_role_is_unsupported:") + Part.PartId;
             return false;
@@ -1040,6 +1047,42 @@ namespace
         {
             OutBounds = AllPrimitiveComponents;
             OutSource = TEXT("registered_primitive_components");
+            return true;
+        }
+        // AbstractInstance renders mod beams without actor-owned primitives.
+        // Read the same mesh/relative transform and actor frame used by the
+        // native instance manager, rather than inventing a nominal beam box.
+        const TArray<FInstanceData> Instances =
+            IAbstractInstanceInterface::Execute_GetActorLightweightInstanceData(Buildable);
+        if (Instances.IsEmpty() || Instances.Num() > 1024)
+        {
+            return false;
+        }
+        const FTransform InstanceActorTransform =
+            IAbstractInstanceInterface::Execute_GetLightweightInstanceActorTransform(Buildable);
+        if (!InstanceActorTransform.IsValid()) return false;
+        FBox InstanceBounds(ForceInit);
+        for (const FInstanceData& Instance : Instances)
+        {
+            if (!IsValid(Instance.StaticMesh) || !Instance.RelativeTransform.IsValid() ||
+                (Instance.bApplyRandomOffsetOnInstance && !Instance.PositionOffset.IsNearlyZero()) ||
+                (Instance.bApplyRandomScaleOnInstancesBasedOnOrientation && !Instance.ScaleOffset.IsNearlyZero()))
+            {
+                // Per-instance random displacement is not represented by a
+                // deterministic staged pose. Keep it unknown, never omit it.
+                return false;
+            }
+            const FBox MeshBounds = Instance.StaticMesh->GetBoundingBox();
+            if (!IsFiniteGeneratedBounds(MeshBounds)) return false;
+            const FBox WorldBounds = MeshBounds.TransformBy(
+                Instance.RelativeTransform * InstanceActorTransform);
+            if (!IsFiniteGeneratedBounds(WorldBounds)) return false;
+            InstanceBounds += WorldBounds;
+        }
+        if (IsFiniteGeneratedBounds(InstanceBounds))
+        {
+            OutBounds = InstanceBounds;
+            OutSource = TEXT("native_abstract_instance_mesh_and_transform");
             return true;
         }
         return false;
@@ -1848,7 +1891,7 @@ namespace
     bool IsGeneratedStructuralRole(const FString& Role)
     {
         return Role == TEXT("floor") || Role == TEXT("pillar") ||
-            Role == TEXT("wall") || Role == TEXT("roof") || Role == TEXT("ramp");
+            Role == TEXT("wall") || Role == TEXT("roof") || Role == TEXT("ramp") || Role == TEXT("beam");
     }
 
     /**
@@ -1981,6 +2024,27 @@ namespace
         int32 ExactPipelineLinks = 0;
         TArray<AAIFactoryBlueprintResourceAnchor*> LoadedResourceAnchors;
         TArray<AFGBuildableResourceExtractorBase*> LoadedMiners;
+
+        TArray<AIFactoryGeneratedGeometry::FPart> ExpectedGeometry;
+        TArray<AIFactoryGeneratedGeometry::FPart> ActualGeometry;
+        for (const FResolvedGeneratedPart& Part : ExpectedParts)
+        {
+            ExpectedGeometry.Add({Part.Source.PartId,
+                IsValid(Part.BuildableClass.Get()) ? Part.BuildableClass.Get()->GetPathName() : FString(),
+                Part.Source.RelativeTransform * GeneratedToArchive});
+        }
+        for (AFGBuildable* Candidate : Loaded)
+        {
+            if (IsValid(Candidate)) ActualGeometry.Add({FString(), Candidate->GetClass()->GetPathName(), Candidate->GetActorTransform()});
+        }
+        int32 ExactPartTransforms = 0;
+        const bool bExactGeometry = AIFactoryGeneratedGeometry::Match(
+            ExpectedGeometry, ActualGeometry, ExactPartTransforms, OutReason);
+        Observed->SetNumberField(TEXT("expected_saved_part_transforms"), ExpectedGeometry.Num());
+        Observed->SetNumberField(TEXT("exact_saved_part_transforms"), ExactPartTransforms);
+        Observed->SetNumberField(TEXT("native_readback_position_tolerance_cm"), AIFactoryGeneratedGeometry::PositionToleranceCm);
+        Observed->SetBoolField(TEXT("exact_native_geometry_readback"), bExactGeometry);
+        if (!bExactGeometry) return false;
 
         int32 ExactClockSettings = 0;
         TSet<AFGBuildable*> ClockMatchedActors;
@@ -2438,12 +2502,25 @@ FAIFactoryActionResult ExportSelection(
     FIntVector ExpectedCaptureDimensions = Designer->GetBlueprintDimensions();
     bool bVerifyCaptureDimensions = false;
     int32 Skipped = 0;
+    int32 CapturedWithoutAdoption = 0;
+    AFGBlueprintSubsystem* const CaptureWriter =
+        AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
     {
         // Scope matters: the guard unwinds at the closing brace, before any
         // readback, so the world is already correct when we ask what happened.
         FScopedDesignerMembership Membership(Designer);
         for (AFGBuildable* Buildable : Buildables)
         {
+            // Generated/loaded pieces may retain the saved designer flag.
+            // The native archive writer below takes an explicit member array;
+            // it does not need to borrow or alter that piece's designer owner.
+            // Keep Adopt's foreign-owner guard for the legacy list-based path.
+            if (IsValid(CaptureWriter) && IsValid(Buildable) &&
+                Buildable->IsBuildableInsideBlueprintDesigner())
+            {
+                ++CapturedWithoutAdoption;
+                continue;
+            }
             if (!Membership.Adopt(Buildable))
             {
                 ++Skipped;
@@ -2459,7 +2536,7 @@ FAIFactoryActionResult ExportSelection(
         }
 
         const int32 ExpectedAdopted = Buildables.Num() + LightweightInstances.Num();
-        if (Skipped > 0 || Membership.Num() != ExpectedAdopted)
+        if (Skipped > 0 || Membership.Num() + CapturedWithoutAdoption != ExpectedAdopted)
         {
             Result.Status = TEXT("failed");
             Result.Reason = TEXT("one_or_more_selected_buildables_could_not_be_adopted_by_the_designer");
@@ -2498,8 +2575,7 @@ FAIFactoryActionResult ExportSelection(
 
         FTransform CaptureOrigin;
         FIntVector CaptureDimensions = Designer->GetBlueprintDimensions();
-        AFGBlueprintSubsystem* WriteSubsystem =
-            AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
+        AFGBlueprintSubsystem* WriteSubsystem = CaptureWriter;
         const bool bRecentred = IsValid(WriteSubsystem) && Members.Num() > 0 &&
             ComputeCaptureFrame(
                 Members, Designer->GetBlueprintDimensions(), CaptureOrigin, CaptureDimensions);
@@ -2542,13 +2618,24 @@ FAIFactoryActionResult ExportSelection(
             Predicted->SetObjectField(TEXT("blueprint_dimensions_cells"), DimensionsJson);
             Predicted->SetNumberField(TEXT("blueprint_dimension_unit_cm"), AIFactoryCaptureGeometry::CellCm);
 
+            Predicted->SetBoolField(TEXT("native_archive_may_have_written_file"), true);
+            Predicted->SetStringField(TEXT("blueprint_archive_path"),
+                FPaths::Combine(WriteSubsystem->GetSessionBlueprintPath(),
+                    AFGBlueprintSubsystem::SanitizeBlueprintFileName(BlueprintName) + TEXT(".sbp")));
             const FBlueprintHeader WrittenHeader = WriteSubsystem->WriteBlueprintToArchive(
                 Record, CaptureOrigin, Members, ExpectedCaptureDimensions);
-            if (WrittenHeader.Dimensions != ExpectedCaptureDimensions)
+            // CL513885's native method already calls WriteBlueprintToDisk.
+            // Stopping here used to report a failed export even though the
+            // file existed (the owner's nine-piece tunnel capture). Keep the
+            // returned metadata as diagnostics; the mandatory disk readback
+            // below is the authority for the dimensions of the saved file.
+            const bool bReturnDimensionsMatch = WrittenHeader.Dimensions == ExpectedCaptureDimensions;
+            Predicted->SetBoolField(TEXT("native_archive_return_dimensions_match_capture"), bReturnDimensionsMatch);
+            Predicted->SetStringField(TEXT("native_archive_return_dimensions_cells"), WrittenHeader.Dimensions.ToString());
+            if (!bReturnDimensionsMatch)
             {
-                Result.Status = TEXT("failed");
-                Result.Reason = TEXT("native_capture_archive_dimensions_mismatch");
-                return Result;
+                Predicted->SetStringField(TEXT("native_archive_return_warning"),
+                    TEXT("native_capture_archive_dimensions_mismatch"));
             }
             bVerifyCaptureDimensions = true;
             const bool bWrittenToDisk = WriteSubsystem->WriteBlueprintToDisk(Record);
@@ -2588,6 +2675,7 @@ FAIFactoryActionResult ExportSelection(
             Predicted->SetObjectField(TEXT("declared_dimensions_cells"), DimensionJson);
         }
         Predicted->SetNumberField(TEXT("adopted"), Membership.Num());
+        Predicted->SetNumberField(TEXT("captured_with_existing_designer_flag_preserved"), CapturedWithoutAdoption);
         Predicted->SetNumberField(TEXT("skipped"), Skipped);
     }
 
@@ -2617,9 +2705,22 @@ FAIFactoryActionResult ExportSelection(
 
     if (bVerifyCaptureDimensions)
     {
-        const FBlueprintHeader* ReadHeader = Subsystem->GetHeaderByName(BlueprintName);
+        // Refresh/descriptor caches are useful for registering the Blueprint,
+        // but must not certify a stale header when a name is overwritten. Parse
+        // the actual disk file through the game's exact native serializer.
+        const FString ArchivePath = FPaths::Combine(Subsystem->GetSessionBlueprintPath(),
+            AFGBlueprintSubsystem::SanitizeBlueprintFileName(BlueprintName) + TEXT(".sbp"));
+        Observed->SetStringField(TEXT("blueprint_archive_path"), ArchivePath);
+        TUniquePtr<FArchive> HeaderReader(IFileManager::Get().CreateFileReader(*ArchivePath));
+        FBlueprintHeader DiskHeader;
+        const bool bDiskHeaderReadable = HeaderReader &&
+            AFGBlueprintSubsystem::SerializeBlueprintHeader(*HeaderReader, DiskHeader) && !HeaderReader->IsError();
+        Observed->SetBoolField(TEXT("disk_header_parsed_directly"), bDiskHeaderReadable);
+        const FBlueprintHeader* ReadHeader = bDiskHeaderReadable ? &DiskHeader : nullptr;
         const bool bDimensionsMatch = ReadHeader && ReadHeader->Dimensions == ExpectedCaptureDimensions;
         Observed->SetBoolField(TEXT("blueprint_dimensions_match_capture"), bDimensionsMatch);
+        Observed->SetStringField(TEXT("expected_dimensions_cells"), ExpectedCaptureDimensions.ToString());
+        Observed->SetStringField(TEXT("disk_dimensions_cells"), ReadHeader ? ReadHeader->Dimensions.ToString() : TEXT("unknown"));
         if (!bDimensionsMatch)
         {
             Result.Status = TEXT("failed");
@@ -2673,13 +2774,21 @@ FAIFactoryActionResult GenerateLayout(
     const bool bSchemaV2 = LayoutSchema == TEXT("aifactory.generated-blueprint/v2");
     const bool bSchemaV3 = LayoutSchema == TEXT("aifactory.generated-blueprint/v3");
     const bool bSchemaV5 = LayoutSchema == TEXT("aifactory.generated-blueprint/v5");
+    // v6 is deliberately foundation-only: full saved poses without new topology.
+    const bool bSchemaV7 = LayoutSchema == TEXT("aifactory.generated-blueprint/v7");
+    const bool bSchemaV8 = LayoutSchema == TEXT("aifactory.generated-blueprint/v8");
+    const bool bSchemaV6 = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bSchemaV7;
     // v5 retains every v4 topology feature and adds explicit saved clocks.
     const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4") || bSchemaV5;
-    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4)
+    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4 && !bSchemaV6 && !bSchemaV8)
     {
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("unsupported_generated_blueprint_schema"));
+    }
+    if ((bSchemaV6 || bSchemaV8) && (Parts.Num() > 512 || Conveyors.Num() || PowerWires.Num() || Pipelines.Num()))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
     }
     if (bSchemaV1 &&
         (Conveyors.Num() > 0 || PowerWires.Num() > 0 || Pipelines.Num() > 0))
@@ -2746,6 +2855,39 @@ FAIFactoryActionResult GenerateLayout(
         if (!ResolveGeneratedPart(Part, Context.World, Entry, Failure))
         {
             return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+        if (!bSchemaV8 && Part.Role == TEXT("beam"))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_beam_role_requires_v8"));
+        }
+        if (bSchemaV8 &&
+            ((Part.Role != TEXT("beam") && Part.Role != TEXT("standalone")) ||
+             Entry.BuildableClass->GetPathName() != (Part.Role == TEXT("beam")
+                ? TEXT("/SS_Mod/Builders/Beams/Build_EmissiveBeam_4x2.Build_EmissiveBeam_4x2_C")
+                : TEXT("/Game/FactoryGame/Buildable/Factory/CeilingLight/Build_CeilingLight.Build_CeilingLight_C")) ||
+             !Part.ProductionRecipeClassPath.IsEmpty() || !Part.ResourceClassPath.IsEmpty() ||
+             !Part.ResourcePurity.IsEmpty() || !Part.ResourceAnchorPartId.IsEmpty() || Part.SortRules.Num() ||
+             Part.bHasClockPercent || !Part.RelativeTransform.GetRotation().IsNormalized() ||
+             !AIFactoryFixturePosePolicy::AllowsScale(Part.RelativeTransform.GetScale3D().X,
+                Part.RelativeTransform.GetScale3D().Y, Part.RelativeTransform.GetScale3D().Z,
+                Part.RelativeTransform.GetRotation().GetAxisX().Z, Part.Role == TEXT("beam"))))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v8_requires_exact_unconfigured_fixture_class_role_and_bounded_scale"));
+        }
+        if (bSchemaV6 &&
+            (!Entry.BuildableClass->GetPathName().StartsWith(TEXT("/Game/FactoryGame/Buildable/Building/Foundation/")) ||
+             (Part.Role != TEXT("floor") && Part.Role != TEXT("wall") && Part.Role != TEXT("roof") &&
+              Part.Role != TEXT("ramp") && Part.Role != TEXT("pillar") && Part.Role != TEXT("standalone")) ||
+             !Part.ProductionRecipeClassPath.IsEmpty() || !Part.ResourceClassPath.IsEmpty() ||
+             !Part.ResourcePurity.IsEmpty() || !Part.ResourceAnchorPartId.IsEmpty() || Part.SortRules.Num() ||
+             Part.bHasClockPercent || !Part.RelativeTransform.GetRotation().IsNormalized() ||
+             !AIFactoryFoundationPosePolicy::AllowsScale(
+                Part.RelativeTransform.GetScale3D().X, Part.RelativeTransform.GetScale3D().Y,
+                Part.RelativeTransform.GetScale3D().Z,
+                Part.RelativeTransform.GetRotation().GetAxisX().Z,
+                Part.RelativeTransform.GetRotation().GetAxisY().Z, bSchemaV7)))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v6_accepts_only_unit_scale_unconfigured_vanilla_foundations"));
         }
         if (Entry.ProductionRecipe)
         {
@@ -3122,6 +3264,29 @@ FAIFactoryActionResult GenerateLayout(
         BoundsSources->SetNumberField(Entry.Key, Entry.Value);
     }
     Predicted->SetObjectField(TEXT("native_bounds_sources"), BoundsSources);
+    // Bounded measured evidence survives a refused preflight, so subsequent
+    // fixture fitting can use real native geometry instead of guessed sizes.
+    if (bSchemaV8)
+    {
+        TArray<TSharedPtr<FJsonValue>> PartBounds;
+        const auto VectorJson = [](const FVector& V)
+        {
+            const TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
+            J->SetNumberField(TEXT("x"), V.X); J->SetNumberField(TEXT("y"), V.Y); J->SetNumberField(TEXT("z"), V.Z);
+            return J;
+        };
+        for (const FStagedGeneratedPart& Part : Staging.Get())
+        {
+            const TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
+            J->SetStringField(TEXT("part_id"), Part.Resolved.Source.PartId);
+            J->SetStringField(TEXT("class_path"), Part.Resolved.BuildableClass->GetPathName());
+            J->SetStringField(TEXT("source"), Part.BoundsSource);
+            J->SetObjectField(TEXT("minimum_cm"), VectorJson(Part.CollisionBounds.Min));
+            J->SetObjectField(TEXT("maximum_cm"), VectorJson(Part.CollisionBounds.Max));
+            PartBounds.Add(MakeShared<FJsonValueObject>(J));
+        }
+        Predicted->SetArrayField(TEXT("native_part_bounds"), PartBounds);
+    }
     Predicted->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
     Predicted->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
     Predicted->SetNumberField(TEXT("staged_pipelines"), Staging.NumPipelines());
@@ -3252,13 +3417,14 @@ FAIFactoryActionResult GenerateLayout(
     AFGBlueprintSubsystem* Subsystem =
         AFGBlueprintSubsystem::GetBlueprintSubsystem(Context.World);
     bool bReadable = false;
-    bool bExactNativeReadback = bSchemaV1;
+    bool bExactNativeReadback = false;
+    Observed->SetBoolField(TEXT("exact_native_geometry_readback"), false);
     FString NativeReadbackFailure;
     if (IsValid(Subsystem))
     {
         Subsystem->RefreshBlueprintsAndDescriptors();
         bReadable = Subsystem->ReadBlueprintFromDisc(BlueprintName);
-        if (bReadable && (bSchemaV2 || bSchemaV3 || bSchemaV4))
+        if (bReadable)
         {
             UFGBlueprintDescriptor* Descriptor =
                 Subsystem->GetBlueprintDescriptorByNameString(BlueprintName);

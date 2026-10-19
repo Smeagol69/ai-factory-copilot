@@ -1,4 +1,6 @@
 #include "AIFactoryCopilotUISubsystem.h"
+#include "AIFactoryActions.h"
+#include "AIFactoryDismantleMarks.h"
 #include "AIFactoryBuildGunRotation.h"
 #include "AIFactoryUpgrade.h"
 #include "Hologram/FGHologram.h"
@@ -61,6 +63,11 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 namespace
 {
@@ -1976,6 +1983,29 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
         AIFactoryBlueprintExport::ExportSelection(
             Context, Name, Buildables, SelectionLightweight);
 
+    // This direct in-game path bypasses the bridge, so persist its actual
+    // native result here. A returned-header warning alone cannot describe
+    // whether the file exists or what the disk readback found.
+    const TSharedPtr<FJsonObject> ExportReceipt = AIFactoryActions::ResultToJson(Result);
+    ExportReceipt->SetStringField(TEXT("blueprint_name"), Name);
+    ExportReceipt->SetStringField(TEXT("captured_at_utc"), FDateTime::UtcNow().ToIso8601());
+    ExportReceipt->SetStringField(TEXT("source"), TEXT("in_game_force_save"));
+    FString ArchivePath;
+    if (Result.Predicted.IsValid() &&
+        Result.Predicted->TryGetStringField(TEXT("blueprint_archive_path"), ArchivePath))
+    {
+        ExportReceipt->SetBoolField(TEXT("archive_exists_after_attempt"), IFileManager::Get().FileExists(*ArchivePath));
+        ExportReceipt->SetNumberField(TEXT("archive_bytes_after_attempt"), IFileManager::Get().FileSize(*ArchivePath));
+    }
+    FString ReceiptJson;
+    if (FJsonSerializer::Serialize(ExportReceipt.ToSharedRef(), TJsonWriterFactory<>::Create(&ReceiptJson)))
+    {
+        const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("AIFactoryCopilot/Diagnostics"));
+        IFileManager::Get().MakeDirectory(*Directory, true);
+        FFileHelper::SaveStringToFile(ReceiptJson,
+            *FPaths::Combine(Directory, TEXT("latest-blueprint-export.json")));
+    }
+
     // Report what the game said, not what was attempted.
     if (Result.bCommitted)
     {
@@ -1992,9 +2022,15 @@ void UAIFactoryCopilotUISubsystem::ExportSelectionAsBlueprint()
     }
     else
     {
-        AppendTranscript(TEXT("COPILOT"), FString::Printf(
-            TEXT("The export did not complete: %s"),
-            Result.Reason.IsEmpty() ? TEXT("the game gave no reason") : *Result.Reason));
+        FString Failure = FString::Printf(TEXT("The export did not complete: %s"),
+            Result.Reason.IsEmpty() ? TEXT("the game gave no reason") : *Result.Reason);
+        bool bMayHaveWritten = false;
+        if (Result.Predicted.IsValid() &&
+            Result.Predicted->TryGetBoolField(TEXT("native_archive_may_have_written_file"), bMayHaveWritten) && bMayHaveWritten)
+        {
+            Failure += TEXT(" A file may already exist in your blueprint library, but export verification did not pass.");
+        }
+        AppendTranscript(TEXT("COPILOT"), Failure);
     }
 }
 
@@ -3831,16 +3867,15 @@ void UAIFactoryCopilotUISubsystem::ShowCommandHelp(bool bBecauseSlashWasTyped)
  * here dismantles -- the marks are borrowed as a pointer, and the existing
  * exporter runs unchanged afterwards.
  *
- * The lightweight caveat is measured rather than assumed. Marked foundations
- * live in FDismantleLightweightBundle, which has no public accessor, so
- * whether they also appear among the pending actors is not something the
- * headers settle. GetNumPendingDismantleActors is the game's own count; when
- * it exceeds what was captured, the shortfall is reported. A capture that
- * looks complete and is missing every wall is the exact failure that cost a
- * day here already.
+ * CL513885 native inspection established that GetPendingDismantleActors also
+ * AddUnique's the crosshair actor, whereas GetNumPending...(false) counts only
+ * marks. Separate those explicitly. Temporary structural actors are resolved
+ * to stable lightweight refs before the user moves focus back to the panel.
  */
 void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
 {
+    // A failed new selection must never leave an older selection armed.
+    ClearSelectionPreview();
     AFGPlayerController* Controller = GetLocalPlayerController();
     UWorld* World = IsValid(Controller) ? Controller->GetWorld() : nullptr;
     AFGCharacterPlayer* Character =
@@ -3862,19 +3897,19 @@ void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
         return;
     }
 
-    // Clear everything first. A dismantle selection that quietly kept lightweight
-    // refs from a previous box would export structure the player never marked.
-    ClearSelectionPreview();
-
+    const int32 GameCount = Dismantle->GetNumPendingDismantleActors(false);
     TArray<AActor*> Marked = Dismantle->GetPendingDismantleActors();
-    // A player who has aimed at one thing and marked none plainly means that one.
-    if (Marked.Num() == 0)
+    AActor* const Aimed = Dismantle->GetSelectedActor();
+    const AIFactoryDismantleMarks::FSelection Selection = AIFactoryDismantleMarks::Resolve(
+        GameCount, Marked.Num(), !Marked.IsEmpty() && IsValid(Aimed) && Marked.Last() == Aimed);
+    if (!Selection.Valid)
     {
-        if (AActor* Aimed = Dismantle->GetSelectedActor(); IsValid(Aimed))
-        {
-            Marked.Add(Aimed);
-        }
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(TEXT(
+            "The dismantle tool reports %d marks but returned %d objects. Re-mark before saving; no partial selection was armed."),
+            GameCount, Marked.Num()));
+        return;
     }
+    Marked.SetNum(Selection.KeepCount);
 
     // Overlay entries are built in this same loop rather than by re-walking
     // the world afterwards; the buildables are already in hand here.
@@ -3882,16 +3917,21 @@ void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
     FBox Volume(ForceInit);
 
     int32 Filtered = 0;
+    int32 DesignersExcluded = 0;
+    int32 Unresolved = 0;
+    TSet<const FRuntimeBuildableInstanceData*> CapturedInstances;
     for (AActor* Actor : Marked)
     {
         AFGBuildable* Buildable = Cast<AFGBuildable>(Actor);
         if (!IsValid(Buildable))
         {
+            ++Unresolved;
             continue;
         }
         const FString ClassName = Buildable->GetClass()->GetName();
         if (ClassName.Contains(TEXT("BlueprintDesigner")))
         {
+            ++DesignersExcluded;
             continue;
         }
         // The visible category filters still apply, so a player who has
@@ -3902,14 +3942,46 @@ void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
             ++Filtered;
             continue;
         }
-        SelectionActorIds.Add(Buildable->GetPathName());
+        // Dismantle can expose a pooled actor for a foundation or wall. Its
+        // pathname may be reused after the gun loses focus; capture the same
+        // stable native reference already used by box/precision selection.
+        FLightweightBuildableInstanceRef SelectedInstance;
+        const bool bConverted = UFGLightweightBuildableBlueprintLibrary::
+            GetLightweightBuildableInstanceFromConvertedBuildableOrTemporary(Buildable, SelectedInstance);
+        if (!bConverted && Buildable->GetIsLightweightTemporary())
+        {
+            SelectedInstance.InitializeFromTemporary(Buildable);
+        }
+        const bool bLightweight = bConverted || Buildable->GetIsLightweightTemporary();
+        const FRuntimeBuildableInstanceData* InstanceData = bLightweight
+            ? SelectedInstance.ResolveBuildableInstanceData() : nullptr;
+        if (bLightweight)
+        {
+            if (!InstanceData)
+            {
+                ++Unresolved;
+                continue;
+            }
+            if (CapturedInstances.Contains(InstanceData)) continue;
+            CapturedInstances.Add(InstanceData);
+            SelectionLightweight.Add(SelectedInstance);
+            ++LightweightCount;
+        }
+        else
+        {
+            if (SelectionActorIds.Contains(Buildable->GetPathName())) continue;
+            SelectionActorIds.Add(Buildable->GetPathName());
+        }
         ++SelectionCategoryCounts[Category];
-        if (const TSubclassOf<UFGRecipe> Recipe = Buildable->GetBuiltWithRecipe())
+        if (const TSubclassOf<UFGRecipe> Recipe = bLightweight
+                ? SelectedInstance.GetBuiltWithRecipe() : Buildable->GetBuiltWithRecipe())
         {
             SelectionRecipeCounts.FindOrAdd(Recipe) += 1;
         }
 
-        const FBox Bounds = Buildable->GetCachedBounds();
+        const FBox Bounds = InstanceData && InstanceData->BoundingBox.IsValid
+            ? InstanceData->BoundingBox.TransformBy(InstanceData->Transform)
+            : Buildable->GetCachedBounds();
         const FBox Use = Bounds.IsValid != 0
             ? Bounds
             : FBox(Buildable->GetActorLocation() - FVector(60.0, 60.0, 60.0),
@@ -3921,9 +3993,20 @@ void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
         Volume += Use;
     }
 
-    if (SelectionActorIds.Num() == 0)
+    if (Unresolved > 0)
     {
-        AppendTranscript(TEXT("COPILOT"), Filtered > 0
+        ClearSelectionPreview();
+        AppendTranscript(TEXT("COPILOT"), FString::Printf(TEXT(
+            "%d marked objects are missing or unsupported for Blueprint capture. Re-mark before saving; no partial selection was armed."),
+            Unresolved));
+        return;
+    }
+    const int32 SelectedCount = SelectionActorIds.Num() + LightweightCount;
+    if (SelectedCount == 0)
+    {
+        AppendTranscript(TEXT("COPILOT"), DesignersExcluded > 0
+            ? TEXT("Blueprint Designers cannot be included in their own capture. Mark the buildings you want saved.")
+            : Filtered > 0
             ? FString::Printf(TEXT(
                 "All %d marked buildings were removed by the category filters. Tick the ones you want above."),
                 Filtered)
@@ -3943,34 +4026,28 @@ void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()
     }
     RefreshSelectionCost();
 
-    // The game's own count of what is marked, against what was captured. Any
-    // difference is lightweight structure the actor list does not expose, and
-    // saying so is the whole point.
-    const int32 GameCount = Dismantle->GetNumPendingDismantleActors(true);
-    const int32 Missing = FMath::Max(0, GameCount - Marked.Num());
-
-    FString Message = FString::Printf(
-        TEXT("Adopted %d marked buildings from the dismantle tool. Name it and press Save blueprint."),
-        SelectionActorIds.Num());
+    FString Message = Selection.AimedOnly
+        ? FString::Printf(TEXT("No objects were marked; selected %d aimed building. Name it and press Save blueprint."), SelectedCount)
+        : FString::Printf(TEXT("Adopted %d marked buildings from the dismantle tool. Name it and press Save blueprint."), SelectedCount);
+    if (LightweightCount > 0)
+    {
+        Message += FString::Printf(TEXT(" Includes %d lightweight pieces."), LightweightCount);
+    }
     if (Filtered > 0)
     {
         Message += FString::Printf(TEXT(" %d were excluded by your category filters."), Filtered);
     }
-    if (Missing > 0)
+    if (DesignersExcluded > 0)
     {
-        Message += FString::Printf(
-            TEXT(" The game reports %d marked in total, so %d are structural pieces this ")
-            TEXT("selection cannot see. Use the box sliders for those -- they read lightweight ")
-            TEXT("buildables directly."),
-            GameCount, Missing);
+        Message += FString::Printf(TEXT(" %d Blueprint Designers were excluded."), DesignersExcluded);
     }
     AppendTranscript(TEXT("COPILOT"), Message);
 
     if (SelectionCountText.IsValid())
     {
         SelectionCountText->SetText(FText::FromString(FString::Printf(
-            TEXT("%d from dismantle marks%s"),
-            SelectionActorIds.Num(),
-            Missing > 0 ? *FString::Printf(TEXT("  |  %d structural not captured"), Missing) : TEXT(""))));
+            TEXT("%d selected%s"),
+            SelectedCount,
+            Selection.AimedOnly ? TEXT("  |  aimed fallback, no marks") : TEXT("  |  from dismantle marks"))));
     }
 }

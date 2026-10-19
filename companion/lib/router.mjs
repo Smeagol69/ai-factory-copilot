@@ -46,6 +46,8 @@ import {
 } from "./solvers.mjs";
 import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
+import { compileLevelTunnel } from "./level-tunnel.mjs";
+import { compileTunnelLighting } from "./tunnel-lighting.mjs";
 import {
   baseBuildActions,
   enclosedFactoryActions,
@@ -3164,6 +3166,42 @@ export function explainRoutingMiss(question) {
 export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer"]);
 
 export function answerLocally(question, graph, services) {
+  const blueprintXYZ = String(question ?? "").trim().match(/^place blueprint "([^"\r\n]{1,240})" at x=(-?\d+(?:\.\d+)?) y=(-?\d+(?:\.\d+)?) z=(-?\d+(?:\.\d+)?) yaw=(-?\d+(?:\.\d+)?)$/i);
+  if (blueprintXYZ) {
+    const started = Date.now(), library = typeof services?.listBlueprints === "function" ? services.listBlueprints() : [];
+    const matches = library.filter(b=>String(b.name).toLocaleLowerCase()===blueprintXYZ[1].toLocaleLowerCase());
+    if (matches.length!==1) return localAnswer("That saved blueprint is not uniquely available; no placement action was sent.","blueprint_place_coordinates",started,"Exact saved library match required.");
+    const plan=emitValidatedPlan(graph,services,[{action:"place_blueprint",blueprint_name:matches[0].name,
+      location:{x:Number(blueprintXYZ[2]),y:Number(blueprintXYZ[3]),z:Number(blueprintXYZ[4])},yaw:Number(blueprintXYZ[5]),exact_z:true,commit:true}]);
+    return localAnswer(plan ? `Requested **${matches[0].name}** at the explicit height, XY and heading. The native hologram checks snapping, clearance and cost; the game will report the actual placement. Say undo to reverse a successful placement.`
+      : describePlanRejection() ?? "No action sink is available; no placement action was sent.","blueprint_place_coordinates",started,"Explicit requested coordinates; existing native validated placement and undo, no model call or clearance override.");
+  }
+  const lighting=String(question??'').trim().match(/^save tunnel lighting from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"(?: (with fitted fixtures))?[.!]?$/i);
+  if(lighting){
+    const started=Date.now();
+    const reference=services?.inspectBlueprint?.(lighting[1],{includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
+    const compiled=compileTunnelLighting(graph,{reference,blueprint_name:lighting[4],radius_cm:Number(lighting[2])*100,turn_degrees:Number(lighting[3]),fit_fixtures:!!lighting[5]});
+    if(!compiled.compiled)return localAnswer(`Lighting stayed unsaved: ${compiled.reason}.`,'tunnel_lighting',started,'No guessed fixtures or action emitted.');
+    const existing=services?.listBlueprints?.()??[];
+    if(existing.some(b=>String(b.name).toLocaleLowerCase()===lighting[4].toLocaleLowerCase()))return localAnswer('That blueprint already exists. Use a new name to preserve it.','tunnel_lighting',started,'Existing file preserved.');
+    const plan=emitValidatedPlan(graph,services,[compiled.proposal]);
+    return localAnswer(plan?`Requested **${lighting[4]}**: ${compiled.ceiling_lights} ceiling lights and ${compiled.emissive_beams} emissive beams along measured rows. This add-on leaves the shell separate. The game must verify the saved file, fixture fit and power before lighting is confirmed.`:describePlanRejection()??'No action sink is available.','tunnel_lighting',started,'Saved reference poses and captured native beam defaults; live geometry and power remain unverified.');
+  }
+  const tunnel = String(question ?? "").trim().match(/^save level tunnel from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"(?: (with fitted panels))?[.!]?$/i);
+  if (tunnel) {
+    const started = Date.now();
+    if (typeof services?.inspectBlueprint !== "function") return localAnswer("Saved full-pose inspection is unavailable; no tunnel action was sent.","level_tunnel",started,"Missing native reference evidence.");
+    const reference = services.inspectBlueprint(tunnel[1], {includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
+    const compiled = compileLevelTunnel(graph,{reference,blueprint_name:tunnel[4],radius_cm:Number(tunnel[2])*100,turn_degrees:Number(tunnel[3]),fit_panel_lengths:!!tunnel[5]});
+    if (!compiled.compiled) return localAnswer(`The tunnel stayed unsaved: ${compiled.reason}.`,"level_tunnel",started,"No guessed transforms or action emitted.");
+    const existing = typeof services.listBlueprints === "function" ? services.listBlueprints() : [];
+    if (existing.some(b=>String(b.name).toLocaleLowerCase()===tunnel[4].toLocaleLowerCase())) return localAnswer("That blueprint name already exists. Use a new name to preserve it.","level_tunnel",started,"Existing player blueprint preserved.");
+    const plan = emitValidatedPlan(graph,services,[compiled.proposal]);
+    return localAnswer(plan
+      ? `Requested **${tunnel[4]}**: ${compiled.proposal.buildables.length} foundations from your measured ${compiled.profile_parts}-piece profile, turning ${tunnel[3]}° with every course kept level. The game will report native save/readback success. ${compiled.excluded_nonfoundation_entities} non-foundation reference objects were excluded. This is a faceted foundation shell; its panel joints and destination still need inspection.`
+      : describePlanRejection() ?? "No action sink is available; no tunnel action was sent.",
+      "level_tunnel",started,"Exact saved poses and captured unlocked recipes; deterministic local geometry, no model call.");
+  }
   const baseRestore = String(question ?? "").trim().match(/^(check|restore|spawn)\s+(?:saved\s+)?base\s+([A-Za-z0-9_-]{1,80})(?:\s+(?:at\s+)?(?:its\s+)?(?:original|saved|exact)\s+(?:coordinates|xyz|position))?[.!]?$/i);
   if (baseRestore) {
     const commit = baseRestore[1].toLowerCase() !== "check";
@@ -5508,16 +5546,17 @@ export function answerLocally(question, graph, services) {
         action: "teleport_player",
         target: teleport.target,
         // Without a stated Z the numbers are a map reference, not a height.
-        // Snapping is on either way: the validator warns that turning it off
-        // drops the player through the world, and nobody asking this wants that.
-        snap_to_ground: true,
+        // Interior playtesting needs an explicit supplied height. Keep legacy
+        // snapping unless the caller also explicitly requests exact height.
+        snap_to_ground: !(teleport.had_z && /\bat exact height\b/i.test(question)),
         commit: true,
       };
       if (emitValidatedPlan(graph, services, [action])) {
         return localAnswer(
           `Teleporting to \`x=${round(teleport.target.x)}, y=${round(teleport.target.y)}` +
             (teleport.had_z ? `, z=${round(teleport.target.z)}` : "") + "`" +
-            (teleport.had_z ? "" : " — no height given, so you land on the ground there") +
+            (!action.snap_to_ground ? " at the exact requested height" :
+              teleport.had_z ? " with ground snapping" : " — no height given, so you land on the ground there") +
             ". The mod reports where you actually arrive.",
           "teleport_player",
           started,

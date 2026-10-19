@@ -37,6 +37,7 @@ const LEVEL_HEIGHT_M = 4;
 const MAXIMUM_MAP_CELLS = 80;
 const MAXIMUM_LEVELS_DRAWN = 8;
 const MAXIMUM_BUILDING_ROWS = 400;
+const MAXIMUM_TRANSPORT_ROWS = 40;
 
 function rolePriority(role) {
   const index = ROLE_GLYPHS.findIndex(([name]) => name === role);
@@ -194,6 +195,90 @@ function buildingTable(buildings) {
   return lines.join("\n");
 }
 
+const observedCount = value => Number.isInteger(value) && value >= 0 ? value : "unknown";
+const observedNumber = value => Number.isFinite(value) ? value : "unknown";
+const transportCell = value => typeof value === "string" && value.trim()
+  ? value.replace(/[\r\n]+/g, " ").replace(/\|/g, "\\|") : "unknown";
+
+function observedPoint(point) {
+  return [point?.x, point?.y, point?.z].every(Number.isFinite)
+    ? `(${point.x}, ${point.y}, ${point.z})` : "unknown";
+}
+
+function boundedSplinePointOmissions(topology) {
+  // The shared decoders count declared-minus-returned points as truncated.
+  // That includes rejected malformed points, which are not a size-bound loss.
+  const total = observedCount(topology?.spline_points_truncated);
+  const malformed = observedCount(topology?.malformed_spline_point_count);
+  return total !== "unknown" && malformed !== "unknown" && total >= malformed ? total - malformed : "unknown";
+}
+
+function transportTable(headers, records, label, row) {
+  if (!Array.isArray(records)) return `_Unknown: ${label} detail records were not recorded._`;
+  if (!records.length) return `_No ${label} detail records returned._`;
+  const shown = records.slice(0, MAXIMUM_TRANSPORT_ROWS);
+  const lines = [`| ${headers.join(" | ")} |`, `| ${headers.map(() => "---").join(" | ")} |`,
+    ...shown.map(record => `| ${row(record).join(" | ")} |`)];
+  if (shown.length < records.length) {
+    lines.push("", `_${records.length - shown.length} further ${label} are not shown in this sheet; see the JSON decode._`);
+  }
+  return lines.join("\n");
+}
+
+function transportSection(topology, kind) {
+  const hyper = kind === "hypertube";
+  const heading = hyper ? "Hypertubes" : "Railroad tracks";
+  const scope = hyper ? "reciprocal_native_hypertube_component_references_and_saved_pipe_hyper_splines"
+    : "saved_native_railroad_track_spline_records";
+  const out = [`### ${heading}`, ""];
+  if (topology?.status !== "decoded" || topology.scope !== scope) {
+    out.push(`Unknown — ${transportCell(topology?.reason ?? (topology ? "unsupported or unavailable topology format" : "not recorded in this decode"))}.`, "");
+    return out.join("\n");
+  }
+  if (hyper) {
+    out.push(`- **${observedCount(topology.reciprocal_connection_pair_count)}** reciprocal native hypertube pairs, ` +
+      `**${observedCount(topology.native_hypertube_entity_count)}** native hypertube entities, ` +
+      `**${observedCount(topology.hypertube_pipe_entity_count)}** saved PipeHyper spline records`);
+  } else {
+    out.push(`- **${observedCount(topology.native_rail_track_entity_count)}** native railroad track records`);
+  }
+  out.push(`- **${observedCount(topology.total_spline_point_count)}** saved spline points`, "");
+  if (hyper) {
+    out.push(transportTable(["Saved component A", "Saved component B"], topology.connections, "hypertube links",
+      link => [transportCell(link?.endpoint_a?.component_instance_name), transportCell(link?.endpoint_b?.component_instance_name)]), "");
+  }
+  const headers = [hyper ? "PipeHyper instance" : "Track instance", ...(!hyper ? ["Saved graph ID (metadata)"] : []),
+    "Saved points", "Start (cm)", "End (cm)", "Chord lower bound (cm)", "Spline state", "Malformed points"];
+  out.push(transportTable(headers, hyper ? topology.pipe_hyper_records : topology.rail_tracks,
+    hyper ? "PipeHyper records" : "rail records", record => {
+      const valid = record?.spline_data_state === "valid" && record.malformed_spline_point_count === 0;
+      return [
+        transportCell(hyper ? record?.pipe_instance_name : record?.track_instance_name),
+        ...(!hyper ? [record?.track_graph_id_state === "valid" ? observedNumber(record.track_graph_id) : "unknown"] : []),
+        observedCount(record?.spline_point_count), valid ? observedPoint(record?.blueprint_relative_endpoints_cm?.start_cm) : "unknown",
+        valid ? observedPoint(record?.blueprint_relative_endpoints_cm?.end_cm) : "unknown",
+        valid ? observedNumber(record?.chord_length_cm) : "unknown",
+        transportCell(record?.spline_data_state), observedCount(record?.malformed_spline_point_count),
+      ];
+    }), "");
+  out.push(`Malformed spline points: ${observedCount(topology.malformed_spline_point_count)}; ` +
+    `missing spline data: ${observedCount(topology.missing_spline_data_count)}; ` +
+    `malformed spline data: ${observedCount(topology.malformed_spline_data_count)}.`);
+  if (hyper) {
+    out.push(`Decoder bounded omissions: ${observedCount(topology.connections_truncated)} hypertube links, ` +
+      `${observedCount(topology.pipe_records_truncated)} PipeHyper records, ${boundedSplinePointOmissions(topology)} spline points.`);
+  } else {
+    out.push(`Decoder bounded omissions: ${observedCount(topology.rail_track_records_truncated)} rail records, ` +
+      `${boundedSplinePointOmissions(topology)} spline points.`);
+  }
+  out.push("", "Endpoints are Blueprint-relative saved observations. Chord length is a straight-line lower bound, not curved travel distance.");
+  out.push("Endpoints and chord are unknown for malformed or unrecorded spline data; malformed points are separate from bounded omissions.");
+  out.push("Saved links, spline endpoints and graph IDs do not certify traversal, track joins, external hookups or destination fit.");
+  if (topology.caveat) out.push("", transportCell(topology.caveat));
+  out.push("");
+  return out.join("\n");
+}
+
 /**
  * The whole sheet as Markdown.
  */
@@ -272,6 +357,11 @@ export function renderBlueprintSheet(decode, { jsonPath = null } = {}) {
   out.push("");
   out.push(roleCensusTable(decode.buildings));
   out.push("");
+
+  out.push("## Saved transport topology");
+  out.push("");
+  out.push(transportSection(decode.hypertube_topology, "hypertube"));
+  out.push(transportSection(decode.rail_topology, "rail"));
 
   out.push("## Plan view");
   out.push("");

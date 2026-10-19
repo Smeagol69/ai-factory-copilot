@@ -1,5 +1,230 @@
 # Two agents, one repo
 
+## Native tunnel live checkpoint and undo repair — Codex, 2026-10-18
+
+V2 live follow-up: measured floor turn is -29.5 degrees with reference-center
+radius 3670.707144503067 cm; intersection of three actual floor cross-section
+normals has maximum tangent residual 0.00434 cm. Its start is 348.62982 cm behind
+the reference's nominal end. Original floor row spacing is inconsistent, so an
+exact tile correspondence is not claimed. The native v2 archive saved/reloaded
+72/72 poses; placement matched all 72 with maximum position error below
+0.000000000002 cm and quaternion error below 0.0000025 degrees. Measured attachment
+registration is within 0.00004 cm of the planned anchor. Native soft overlap
+warning was retained. Interior screenshot exposes large thick-panel overlap
+ridges, so v2 was removed. Corrected undo reported 72 removed, zero remaining;
+fresh capture independently confirms all 72 created actor IDs are absent.
+
+Next visual refinement limits shared angle steps to 2 degrees when the 512-part
+budget permits, without reducing the tangent-coverage requirement. Larger valid
+turns can coarsen at the cap, explicitly reported. Heights, tilts and profile
+spacing are retained. Both new tests failed first; all 1340 companion tests pass.
+Local exact-diff review approved the refinement. Runtime appearance/performance
+and the final connected placement still require checking; no new native DLL is
+needed for this companion-only refinement.
+
+Owner feedback: the initial structure looks awful; continue toward visible
+geometry quality. Independent per-course sampling staggered inner/outer wall
+and roof joints (2 versus 5 panels), and chord-center scaling compressed the
+cross-section. V2 uses shared angular stations sized by the outer tangent span
+and preserves full transverse spacing, heights and tilts. All 1338 tests pass;
+the updated native module compiles. V2 archive/save/placement/visual checks are
+pending. A full 36/36 saved-reference foundation match in the live world supplies
+an actual connection anchor; do not place another arbitrary floating test copy.
+
+The first member-undo repair removed all 66 test actors in the next authoritative
+snapshot. Its immediate response falsely said 66 remaining because native
+destruction is deferred. Current source additionally checks the verified public
+GetIsDismantled flag and prevents duplicate refunding of those marked actors.
+Repaired synchronous response and save/reload verification remain pending.
+
+The saved Tunnel Halfway profile now produces AI Level Tunnel 28deg: 66 full-pose
+foundation pieces, turning around world up while retaining each course height
+and cross-section tilt. Native archive reload matched 66/66 poses. Native
+placement required real press/release steps (c0f9b7b); optional explicit height
+(dedf3b4) avoids ground-snapping an elevated shell into a dune. Both live copies
+matched all 66 archive poses under one translation: 0 cm maximum position error,
+0.000002958 degrees maximum quaternion error, unit scales. Requested exact height
+16995.943359375 became 16996.943359375 cm through native placement, a reported
+1 cm offset. Clearance checks were retained. This is a runtime module deployment,
+not a new complete UAT/cook release or a universal clipping certificate.
+
+Evidence lives in the unified application's state/live-architect/tunnel-milestone.
+Native Blueprint fingerprint is cb1a1cec1636ee36c10608305cb6a70afba14336aa024abfdfb43dec57020ac8.
+The raised copy remains in bp builder. Originals are preserved. Screenshot and
+raised-placement-pose-proof.json record the actual game, not an illustration.
+
+Live testing exposed an older false-success bug: UndoLast called the proxy's
+Dismantle(), skipped its members, and reported their pre-removal count. All 66
+ground-copy actors remained after save/reload. A regression checks original
+created IDs against a fresh authoritative snapshot and fails 66 != 0. Repair
+resolves current proxy actor/lightweight members, dismantles those individually,
+and counts actual destruction/instance absence. An incomplete undo retains the
+journal and reports remaining IDs. Rollback uses the same membership resolution.
+Exact CL513885 Shipping compilation, 1333 companion tests and separate local
+membership/readback reviews pass; repaired live undo is still pending at this
+source checkpoint. Material-cost refunds and converted-lightweight cases remain
+separate live checks. Codex is the sole deployment owner; Ghidra remains disabled.
+
+## Full-pose tunnel claim — Codex, 2026-10-18
+
+codex-14540 continues the explicitly approved curved tunnel milestone in the
+existing isolated codex/blueprint-force-save-513885 checkout. Prior root/helper
+sessions are stopped or quota-failed, not concurrent writers. Preserve reader
+partials and all working features. Claimed native Actions/BlueprintExport,
+companion actions/tools/router/new level-tunnel module/test, and this plan/docs.
+Add foundation-only full-quaternion schema v6; preserve v1-v5 unchanged. Root is
+the sole live-game/deployment operator. Fetch read master3997694 before edits.
+See docs/superpowers/plans/2026-10-18-level-tunnel.md for checks and honest limits.
+
+## Claimed saved-pose reader integration — Codex, 2026-10-17
+
+User requests all available models improving Architect and supplies a tunnel
+whose panels must turn horizontally without changing their cross-section.
+Codex-2932 owns only `companion/lib/blueprints.mjs` and its existing test file
+on `codex/blueprint-force-save-513885`. Integrate Claude's exact helper artifacts
+81322c9/69665af after source review, preserving default reader output and all
+native serializers. The opt-in carrier retains full quaternion/scale and saved
+palette evidence; it does not certify joins, clearance or game placement.
+Native bridge is live in bp builder: read-only capture and askall completed
+with no actions/mutation. Root Codex owns integration and runtime deployment;
+no replacement game DLL is needed for this reader change. Google authored
+partial horizontal-turn cases (MAX_TOKENS retained); HauhauCS wrote a real
+checklist via MCP. Its check timeout is being repaired/read back, not replayed
+as another edit. Native Codex subagents remain quota-limited until6:16PM.
+
+## Force-save repair ready for runtime installation — Codex, 2026-10-17
+
+Deployment owner: Codex-2932, branch `codex/blueprint-force-save-513885`.
+Runtime source commit selected for installation: d95e47a.
+Integrated base is d1f4569 (3c0998a code plus handoff documents), containing
+remote master 3997694. Claude checkout `satisfactory-claude` is clean at
+8891d2b; that commit is an ancestor of master. The separate, clean Claude
+reference-traits checkout at 81322c9 remains unintegrated and is not a build
+input. The old `satisfactory-codex-native-blueprints` checkout at cccd601 has
+uncommitted August 17 export-action prototypes. They are preserved untouched;
+the current integrated export action, exact-world transfer and lightweight
+capture implementations supersede that early designer-only proposal. None of
+those uncommitted files are inputs to this repair.
+Final preflight also inspected the September 7 untracked rotation prototypes in
+`satisfactory-hud-axis-rotation` at 53dea4f. The integrated tree already contains
+the subsequent rotation implementation, input handlers and native tests; retain
+the historical checkout untouched. The unified MCP application's separate dirty
+checkout is ongoing authorized app work and is not a native module build input.
+
+The user has closed the game and authorized installation. This is a runtime
+repair of the DLL and plugin descriptor only, preserving the installed cooked
+assets, SML module map, companion and game configuration. It is not a completed
+new UAT/cook release. Backups and SHA-256 deployment receipts belong under the
+unified application's `state/local-game-re/`. Repeat the clean-game, upstream,
+peer-checkout and exact-source checks immediately before copying.
+
+The native archive function in the installed CL513885 game already writes a
+file. A returned-header dimension discrepancy therefore cannot establish that
+no export happened. Keep it as a warning, require the explicit disk write to
+succeed, require the native readback, then parse the actual disk header with
+the native serializer and compare its dimensions. Never certify a cached
+descriptor or an older file after a failed write. Persist force-save results
+to `Diagnostics/latest-blueprint-export.json`, including archive existence and
+size after an attempted write. Do not automatically delete a player's file.
+
+Dismantle adoption now uses the marked count without the crosshair increment.
+The native getter appends the aimed actor uniquely, so keep exactly the marked
+prefix and ignore an extra unmarked aim. Resolve temporary/converted lightweight
+buildables to stable instance references. Reject incomplete marked sets rather
+than silently saving a subset; retain the existing aimed-only fallback when no
+objects are explicitly marked. This preserves the owner's dismantle-tool to
+force-save workflow and does not require box selection.
+
+Verified: 1,301/1,301 companion tests; 13/13 compiled C++ count-selection cases;
+exact SDK513885/SML3.12.0 source/header validation; fresh FactoryGameSteam Win64
+Shipping module build with 147 synchronized inputs. SDK Wwise integration is
+2025.1.6.9117.4248. DLL SHA-256:
+`3149792C3E9A833952AEEE5EB79151C15DCC07C66C58228B60E16B6B7161C707`.
+Claude independently reviewed the selection and disk-readback changes; its
+FString format compile finding was fixed before the successful build.
+
+Still open: live game startup/crash check and mark/adopt/save/place verification,
+including lightweight structural pieces and unique-name/overwrite cases. The
+matching full Editor build is still running for the subsequent complete cook
+and archive. The original user's nine-entity archive is readable by the offline
+parser; this alone is not proof of successful native placement. The exact cause
+of the previous returned-header discrepancy remains unproven.
+
+## Claimed force-save repair — Codex, 2026-10-17
+
+Branch `codex/blueprint-force-save-513885` starts at d1f4569; remote master
+3997694 was fetched and read before this claim. Codex-2932 continues the same
+session's native export lane in a separate checkout. Scope: native capture
+archive/disk dimension validation, exact dismantle lightweight selection when
+the matching SDK exposes it, actionable export diagnostics, focused regression
+tests and SDK513885 build/package verification. Preserve prior working exports,
+selection recentering, complete-selection checks and game-authoritative writes.
+Read-only investigation of the installed game precedes any fix. Never report a
+save as successful from the write call alone. Deployment owner: Codex; the game
+is running and must be safely closed before a final copy. Other checkouts and
+unfinished reference-learning work remain untouched.
+
+## Claimed reference learning extension — Codex + Claude, 2026-10-17
+
+Continue from reviewed3c0998a on codex/native-playtest-validation. Codex owns
+existing reader/comparison/solver/tool/provider integration, integration tests,
+plan/handoff and the local application view. A separate bounded Claude task owns
+only new blueprint-reference-traits.mjs and its unit test. Extend the existing
+compare_blueprint_layouts tool with opt-in, fingerprinted saved pose/palette
+evidence; no new serializer, writer or solver count. Preserve duplicate pieces,
+quaternions/scales, nonstandard mod actors, missing appearance and bounded-search
+limits. No fit, rendered appearance, live functionality or generated curved/
+decorative fidelity is implied. Native SDK dependency remains separately open.
+Plan: docs/superpowers/plans/2026-10-17-reference-traits.md. All work stays under
+the consolidated home with hidden subprocesses and explicit independent review.
+
+## Validation extension handoff — Codex + Claude, 2026-10-17
+
+Extends the existing Copilot3997694. Claude's bounded SDK worker supplied the
+offline transport decoder patch, then hit our28-tool limit during final fixture
+verification. Its exact partial/usage was preserved; Codex repaired missing
+existing-decoder imports and legacy struct-array serializer fixtures. Separate
+review approved decoder and corrected reference sheets at exact hashes. No
+policy refusal was observed, and no fresh paid implementation replay was used.
+
+Structural v1 now reloads through the same native isolated Blueprint world as
+later formats. Every requested part must uniquely match saved class, position,
+quaternion and scale. The dedicated native Automation test actually ran:1/1
+passed. This fixes the old bExactNativeReadback=bSchemaV1 shortcut; it does not
+certify a live saved file, terrain or destination clearance.
+
+The default-off PlaytestMailbox calls existing game-owned capture/look/AskBridge
+paths. Independent review caught and fixed the engine's delete-before-replace
+file move: consumption now publishes immutable per-ID flushed markers through
+the verified no-replace physical MoveFileW path. Exact loaded-world/controller
+identity is checked before dispatch and callback actions. Readiness is published
+only after marker recovery; refusals preserve valid requested identity. Native
+and lab client reviews approve the final source. Crash/reload behavior has not
+yet been exercised in a packaged game.
+
+Verification:1299/1299 companion npm tests; lab49passed/1explicit native-engine
+skip; exact502094 headers; final FactoryEditor Development and FactoryGameSteam
+Shipping builds passed. Native Automation1/1passed. `scripts/validate.ps1`
+correctly refuses installed game CL513885 (1.2.4.1, updatedOct12), because the
+only current SDK targets502094. No new native package or game files were
+deployed. Matching official SDK513885 is being prepared separately; do not bump
+GameVersion or bypass this gate without matching headers/build/package checks.
+Existing game installation, private supplied Blueprints and foreign worktrees
+are preserved. Live generation/fit/placement/image acceptance remains open.
+
+## Claimed next validation loop — Codex, 2026-10-17
+
+Branch `codex/native-playtest-validation`, baseline3997694. Owner codex-17476
+claims native Blueprint export readback and its contract regression; new
+opt-in PlaytestMailbox helper plus Subsystem/Settings/config integration and
+mailbox tests; reference sheet transport summaries/tests; append-only handoff,
+Architect docs and changelog. A separate Claude author checkout will own only
+blueprint-decode.mjs and a new transport-decode test. No arbitrary shell/console
+or direct world-write bypass: tests reuse game-owned chat/ask validation and
+actual correlated outcomes. Preserve all working features. Existing captured
+reference transport decoders are reused. Native headers/build/package and exact
+review are required before deployment; no live outcome is inferred from tests.
+
 Claude and Codex both work on this project. Neither can see the other's chat,
 so **git is the only channel between us** and this file is the noticeboard.
 
@@ -10116,3 +10341,74 @@ pending the final integration source/installer review. Native file readback,
 Build Gun preview, placed pieces/cave fit and the full entrance/underground
 construction acceptance scenario are separate, still-open checks; native v1
 readback is not exact isolated per-piece geometry certification.
+
+### Codex — tunnel lighting and complete capture repair (2026-10-18)
+
+Owner explicitly requests clean emissive reveals and ceiling lights through the
+whole curved tunnel. Claim codex-tunnel-full-pose-20261018; deployment owner
+codex-14540; separate blueprint-force-save checkout, preserving Claude/master.
+Current live d89f7cf has the native 270-piece fine curve: all saved and placed
+poses match; the prior 72-piece test undo removed every owned member in a fresh
+capture. Preserve the liked assembly and original Tunnel Halfway blueprint.
+
+The user's actual force-save receipt failed: 422 selected, 115 adopted, 307
+already designer-flagged actors refused. Explicit WriteBlueprintToArchive takes
+the complete member array directly, so the repair copies those pieces without
+adopting them or changing their designer flags/owners. The old list-based fallback
+keeps its ownership guard. Actual post-repair archive membership still needs a
+native save/readback; compilation alone is not proof of a complete capture.
+
+Opt-in v7 fits only the horizontal longitudinal foundation axis from authoritative
+captured dimensions; full heights/tilts/thickness and v1-v6 remain unchanged.
+Shared native policy passes 17 compiled boundary cases. The complete companion
+suite passes 1350 tests. CL513885 Shipping rebuilt successfully, 151 synchronized
+inputs. Not a full cooked/UAT release, and v7 render/collision remains unverified.
+
+The separate tunnel-lighting compiler reuses native v1, with two measured flat
+ceiling-light rows and lower/upper emissive seams. Actual reference gives six
+ceiling lights and 28 beam pieces for the current bend. It creates an add-on,
+not a replacement shell, and refuses missing/malformed/conflicting evidence or
+an existing blueprint name. Nominal native beam length does not certify visual
+mesh bounds; power is explicitly unverified (existing reference lights currently
+report no power). Local independent exact-source reviews are recorded under
+state/live-architect/tunnel-milestone in the lab; failed source-path lookups and
+same-context repairs remain visible. No new Claude inference is claimed.
+
+Before live writes, preserve the current save (backup before-lighting-20261018.sav
+already captured). Verify a new complete blueprint, actual fixture poses, visual
+reveals, ceiling coverage and power separately. No Ghidra, schedules, extra
+launchers or visible helper consoles. Only the native game commits world/files.
+
+Live capture repair passed: AI Tunnel Work Area Preserved saved528 members,
+including65 lightweight pieces, with413 existing designer flags untouched,
+0 skipped, direct disk header/dimensions readback and empty designer afterwards.
+The full offline parser decoded all528 entities (464 foundations,24 pipe supports,
+18 pipelines,8 lights,4 emissive beams,10 pillars). This is a work-area backup,
+not a claim that unrelated nearby test pieces were excluded.
+
+First lighting save correctly refused before writing: the mod's emissive beams
+expose no clearance/actor primitive bounds. Extend the native bounds resolver
+with AbstractInstance mesh bounding boxes transformed through native relative
+instance and actor frames, as confirmed in exact SDK manager source. Reject
+unknown meshes and nonzero random offsets/scales. All1350 tests still pass;
+Shipping builds. The next live run must verify this path, not waive clearance.
+
+Actual second lighting run verified28 AbstractInstance beam mesh bounds and6
+native lamp component bounds. It then refused overlapping full-size ceiling
+lights before a file/world write. Opt-in generated v8 therefore fits only the
+exact vanilla CeilingLight (uniform .05..1 shrink) and SS_Mod EmissiveBeam_4x2
+(horizontal local X .01..1, Y/Z unchanged). Typed beam role is v8-only; legitimate
+structural beam joints remain recorded while lamp collisions remain checked.
+No configuration/topology and at most512 fixtures. V1-v7 remain unchanged.
+
+The explicit lighting command accepts `with fitted fixtures`: shared <=2-degree
+beam stations use measured radius/chord/native default length; lamps use .3
+uniform scale and measured native roof thickness to preserve exposure beneath
+the inner roof face. Per-piece native bounds are retained even on a refused
+v8 preflight. Actual fit, archive scale persistence, rendering and power are
+still separate live checks. All1352 companion tests and30 compiled pose-policy
+cases pass; exact Shipping152-input source synchronization/build passes.
+Bounded independent local native/bridge/compiler reviews returned approval.
+Compiler reviewer mistakenly described a fixed0.5 count: actual code uses
+ceil(abs(turn)/2), as independently checked by deterministic tests. No reliance
+on that reviewer claim; exact native readback and live collision remain required.

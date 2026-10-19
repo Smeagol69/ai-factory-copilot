@@ -1658,7 +1658,7 @@ export const SOLVER_TOOLS = [
               description: { type: "string", description: "generate_native_blueprint: description stored in the native Blueprint record." },
               layout_schema: {
                 type: "string",
-                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5"],
+                enum: ["aifactory.generated-blueprint/v1", "aifactory.generated-blueprint/v2", "aifactory.generated-blueprint/v3", "aifactory.generated-blueprint/v4", "aifactory.generated-blueprint/v5", "aifactory.generated-blueprint/v6", "aifactory.generated-blueprint/v7", "aifactory.generated-blueprint/v8"],
                 description: "generate_native_blueprint: exact generated-layout contract version.",
               },
               buildables: {
@@ -1668,7 +1668,7 @@ export const SOLVER_TOOLS = [
                   type: "object",
                   properties: {
                     part_id: { type: "string" },
-                    role: { type: "string", enum: ["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner"] },
+                    role: { type: "string", enum: ["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner", "beam"] },
                     recipe_class: { type: "string", description: "Exact unlocked Build Gun recipe class." },
                     production_recipe_class: { type: "string", description: "Optional exact unlocked recipe to configure on a compatible manufacturer." },
                     clock_percent: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "v5 only: required pending clock on a configured manufacturer. Native min/max and capability checks apply; exact setting must survive saved-archive readback. Older schemas refuse this field." },
@@ -1682,8 +1682,10 @@ export const SOLVER_TOOLS = [
                       additionalProperties: false,
                     },
                     yaw: { type: "number" },
+                    rotation_quat: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"},w:{type:"number"}},required:["x","y","z","w"],additionalProperties:false,description:"v6/v7 foundations or v8 exact fixtures: full unit quaternion; omit Euler fields."},
+                    scale3d: {type:"object",properties:{x:{type:"number"},y:{type:"number"},z:{type:"number"}},required:["x","y","z"],additionalProperties:false,description:"v6 unit scale; v7 foundations shorten one horizontal X/Y axis [.01,1]. v8 only exact vanilla CeilingLight standalone uniformly shrinks [.05,1], or SS_Mod EmissiveBeam_4x2 beam shortens horizontal local X [.01,1] with Y/Z=1. No other class/config/topology allowed."},
                   },
-                  required: ["part_id", "recipe_class", "relative_location", "yaw"],
+                  required: ["part_id", "recipe_class", "relative_location"],
                   additionalProperties: false,
                 },
               },
@@ -1773,6 +1775,7 @@ export const SOLVER_TOOLS = [
                 additionalProperties: false,
               },
               yaw: { type: "number", description: "Rotation in degrees." },
+              exact_z: {type:"boolean",description:"place_building or place_blueprint: preserve the explicit requested height instead of ground-adjusting it. Native snapping, clearance and cost checks still apply; defaults false."},
               snap_to_ground: {
                 type: "boolean",
                 description: "teleport_player: resolve z by tracing to the ground. Defaults to true. Leave it on.",

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AIFactorySettings.h"
+#include "AIFactoryPlaytestMailbox.h"
 #include "AIFactorySnapshot.h"
 #include "Subsystem/ModSubsystem.h"
 #include "AIFactorySubsystem.generated.h"
@@ -38,7 +39,8 @@ public:
         UCommandSender* Sender,
         const FString& Question,
         const FAIFactorySnapshotRequest& Request,
-        bool bEchoToGameChat = true);
+        bool bEchoToGameChat = true,
+        const FString& PlaytestRequestId = FString());
     void ResetBridgeConversation(UCommandSender* Sender);
 
     /**
@@ -57,6 +59,7 @@ protected:
 
 private:
     FAIFactorySettings Settings;
+    FAIFactoryPlaytestMailbox PlaytestMailbox;
     uint64 WorldRevision = 1;
     uint32 WorldFingerprint = 0;
 

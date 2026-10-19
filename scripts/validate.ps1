@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$StarterProjectPath = $env:AIFACTORY_STARTER_PROJECT,
-    [string]$GamePath = $env:AIFACTORY_GAME_PATH
+    [string]$GamePath = $env:AIFACTORY_GAME_PATH,
+    [string]$EngineRoot = $env:AIFACTORY_ENGINE_ROOT
 )
 
 $ErrorActionPreference = 'Stop'
@@ -255,6 +256,12 @@ if ($upstream) {
     )
     foreach ($check in $checks) {
         $path = Join-Path $upstream $check.Path
+        # Consolidated installs keep SDKs under the application home and reuse
+        # an existing engine. Do not assume they are sibling directories.
+        $enginePrefix = '..\UnrealEngine-CSS\'
+        if ($EngineRoot -and $check.Path.StartsWith($enginePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            $path = Join-Path $EngineRoot $check.Path.Substring($enginePrefix.Length)
+        }
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "Reference header missing: $($check.Path)"
         }

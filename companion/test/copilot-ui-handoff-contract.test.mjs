@@ -112,7 +112,9 @@ test("native Blueprint export can adopt dismantle marks without dismantling", ()
   assert.match(adopt, /ClearSelectionPreview\(\)/);
   assert.match(adopt, /RefreshSelectionCost\(\)/);
   assert.match(adopt, /AIFactoryOverlay::DrawSelection/);
-  assert.match(adopt, /GetNumPendingDismantleActors\(true\)/);
+  // The true variant includes an unmarked crosshair target, so it cannot be
+  // compared to the explicit pending-mark list.
+  assert.match(adopt, /GetNumPendingDismantleActors\(false\)/);
   assert.match(adopt, /SelectionCategoryEnabled\[Category\]/);
   assert.doesNotMatch(adopt, /DismantleCurrentBuildables|Server_DismantleActors/);
 });

@@ -37,7 +37,7 @@ test("a lightweight-only native selection is allowed, but stale or partial selec
   const save = exporter.indexOf("Designer->SaveBlueprint");
   assert.ok(staleRefusal >= 0 && staleRefusal < save);
   assert.match(exporter, /Materialised\.NumMissing\(\) > 0/);
-  assert.match(exporter, /Skipped > 0 \|\| Membership\.Num\(\) != ExpectedAdopted/);
+  assert.match(exporter, /Skipped > 0 \|\| Membership\.Num\(\) \+ CapturedWithoutAdoption != ExpectedAdopted/);
 });
 
 test("selection clear and preview reset lightweight state so invisible structure cannot leak into an export", () => {
@@ -65,4 +65,14 @@ test("lightweight demolition removes the stable selected references directly", (
   assert.match(demolition, /for \(FLightweightBuildableInstanceRef& Ref : SelectionLightweight\)/);
   assert.match(demolition, /Ref\.IsValid\(\) && Ref\.Remove\(\)/);
   assert.doesNotMatch(demolition, /SelectionLightweight\.Sort/);
+});
+
+test("dismantle force-save preserves temporary lightweight identities and counts only marked actors", () => {
+  const selection = selector.slice(selector.indexOf("void UAIFactoryCopilotUISubsystem::SelectDismantleMarks()"));
+  assert.match(selection, /GetLightweightBuildableInstanceFromConvertedBuildableOrTemporary/);
+  assert.match(selection, /SelectedInstance\.InitializeFromTemporary\(Buildable\)/);
+  assert.match(selection, /SelectionLightweight\.Add/);
+  assert.match(selection, /GetNumPendingDismantleActors\(false\)/);
+  assert.doesNotMatch(selection, /GetNumPendingDismantleActors\(true\)/);
+  assert.doesNotMatch(selection, /structural pieces this/);
 });

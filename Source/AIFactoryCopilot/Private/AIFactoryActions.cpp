@@ -1,4 +1,6 @@
 #include "AIFactoryActions.h"
+#include "AIFactoryFoundationPosePolicy.h"
+#include "AIFactoryFixturePosePolicy.h"
 #include "AIFactoryBaseRestore.h"
 #include "AIFactoryWaypointDisplay.h"
 
@@ -167,11 +169,24 @@ namespace
         TArray<FInventoryStack> Refund;
     };
 
+    bool IsActionBuildableRemoved(AFGBuildable* Buildable)
+    {
+        // Native dismantling marks this immediately but may defer destroying
+        // the actor until a later frame. Do not refund a marked actor twice.
+        return !IsValid(Buildable) || Buildable->IsActorBeingDestroyed() ||
+            Buildable->GetIsDismantled();
+    }
+
     FAIFactoryRefundDelivery DismantleWithRefund(
         AActor* DismantleActor,
         AFGCharacterPlayer* Player)
     {
         FAIFactoryRefundDelivery Delivery;
+        if (AFGBuildable* Buildable = Cast<AFGBuildable>(DismantleActor);
+            Buildable && IsActionBuildableRemoved(Buildable))
+        {
+            return Delivery;
+        }
         if (!IsValid(DismantleActor) ||
             !DismantleActor->GetClass()->ImplementsInterface(
                 UFGDismantleInterface::StaticClass()))
@@ -373,34 +388,98 @@ namespace
         TrimActionUndoJournal();
     }
 
+    FAIFactoryUndoStep ResolveUndoStepMembers(
+        const FAIFactoryUndoStep& Recorded,
+        UWorld* World)
+    {
+        FAIFactoryUndoStep Resolved = Recorded;
+        AFGLightweightBuildableSubsystem* Lightweight =
+            IsValid(World) ? AFGLightweightBuildableSubsystem::Get(World) : nullptr;
+        for (const TWeakObjectPtr<AActor>& Weak : Recorded.DismantleActors)
+        {
+            AFGBlueprintProxy* Proxy = Cast<AFGBlueprintProxy>(Weak.Get());
+            if (!IsValid(Proxy) || Proxy->IsActorBeingDestroyed())
+            {
+                continue;
+            }
+            // A proxy is group metadata, not the game's dismantle controller.
+            // Its native Dismantle() alone can leave every member standing.
+            // Resolve current membership before mutation, including actors
+            // converted to lightweight instances since placement.
+            TArray<AFGBuildable*> Members;
+            Proxy->CollectBuildables(Members);
+            for (AFGBuildable* Member : Members)
+            {
+                if (!IsActionBuildableRemoved(Member))
+                {
+                    Resolved.SpawnedBuildables.AddUnique(Member);
+                }
+            }
+            if (!IsValid(Lightweight))
+            {
+                continue;
+            }
+            for (const FBuildableClassLightweightIndices& Entry :
+                 Proxy->GetLightweightClassAndIndices())
+            {
+                for (const int32 Index : Entry.Indices)
+                {
+                    const FRuntimeBuildableInstanceData* Data =
+                        Lightweight->GetRuntimeDataForBuildableClassAndIndex(
+                            Entry.BuildableClass, Index);
+                    if (!Data || !Data->IsValid())
+                    {
+                        continue;
+                    }
+                    if (Resolved.LightweightBuildables.ContainsByPredicate(
+                            [&](const FAIFactoryLightweightUndoRef& Ref)
+                            {
+                                return Ref.BuildableClass == Entry.BuildableClass &&
+                                    Ref.RuntimeIndex == Index;
+                            }))
+                    {
+                        continue;
+                    }
+                    FAIFactoryLightweightUndoRef Ref;
+                    Ref.BuildableClass = Entry.BuildableClass;
+                    Ref.RuntimeIndex = Index;
+                    Ref.BuiltWithRecipe = Data->BuiltWithRecipe;
+                    Ref.Transform = Data->Transform;
+                    Resolved.LightweightBuildables.Add(Ref);
+                }
+            }
+        }
+        return Resolved;
+    }
+
     int32 RollBackActionUndoFrom(const int32 FirstStep)
     {
         int32 Reversed = 0;
         for (int32 Index = GAIFactoryUndoJournal.Num() - 1; Index >= FirstStep; --Index)
         {
-            const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal[Index];
-            if (Step.DismantleActors.Num() > 0)
+            const FAIFactoryUndoStep Step = ResolveUndoStepMembers(
+                GAIFactoryUndoJournal[Index],
+                GAIFactoryUndoJournal[Index].Player.IsValid()
+                    ? GAIFactoryUndoJournal[Index].Player->GetWorld() : nullptr);
+            // Remove members before the proxy. The proxy self-destructs when
+            // its final member is gone; it must not replace member dismantling.
+            for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
             {
-                for (const TWeakObjectPtr<AActor>& Weak : Step.DismantleActors)
+                if (AFGBuildable* Buildable = Weak.Get();
+                    !IsActionBuildableRemoved(Buildable))
                 {
-                    if (AActor* Actor = Weak.Get(); IsValid(Actor))
-                    {
-                        DismantleWithRefund(Actor, Step.Player.Get());
-                        ++Reversed;
-                    }
+                    DismantleWithRefund(Buildable, Step.Player.Get());
+                    ++Reversed;
                 }
             }
-            else
+            for (const TWeakObjectPtr<AActor>& Weak : Step.DismantleActors)
             {
-                // Compatibility for journal entries made before grouped
-                // dismantle targets were introduced.
-                for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
+                if (AActor* Actor = Weak.Get();
+                    IsValid(Actor) && !Actor->IsActorBeingDestroyed() &&
+                    !Cast<AFGBlueprintProxy>(Actor))
                 {
-                    if (AFGBuildable* Buildable = Weak.Get(); IsValid(Buildable))
-                    {
-                        DismantleWithRefund(Buildable, Step.Player.Get());
-                        ++Reversed;
-                    }
+                    DismantleWithRefund(Actor, Step.Player.Get());
+                    ++Reversed;
                 }
             }
             for (const FAIFactoryLightweightUndoRef& Ref : Step.LightweightBuildables)
@@ -1040,13 +1119,27 @@ namespace
         // handed no endpoints cannot advance, so multi-point recipes are still
         // refused here rather than being half-placed from an invented point.
         constexpr int32 MaximumBuildSteps = 8;
+        // Live CL513885 Blueprint evidence: eight release-only events leave
+        // CanConstruct=true but never advance the placement step. The public
+        // API explicitly distinguishes press(false) from release(true). Mirror
+        // a real click for Blueprint holograms; retain the proven input path
+        // for other hologram families and keep the completion gate below.
+        const bool bBlueprintClick = Hologram->IsA<AFGBlueprintHologram>();
+        const auto AdvancePlacementStep = [Hologram, bBlueprintClick]()
+        {
+            if (!bBlueprintClick) return Hologram->DoMultiStepPlacement(true);
+            return Hologram->DoMultiStepPlacement(false) ||
+                Hologram->DoMultiStepPlacement(true);
+        };
+        Predicted->SetStringField(TEXT("hologram_step_input"),
+            bBlueprintClick ? TEXT("press_then_release") : TEXT("release"));
         int32 BuildSteps = 1;
-        bool bPlacementFinished = Hologram->DoMultiStepPlacement(true);
+        bool bPlacementFinished = AdvancePlacementStep();
         while (!bPlacementFinished
             && BuildSteps < MaximumBuildSteps
             && Hologram->CanTakeNextBuildStep())
         {
-            bPlacementFinished = Hologram->DoMultiStepPlacement(true);
+            bPlacementFinished = AdvancePlacementStep();
             ++BuildSteps;
         }
         Predicted->SetNumberField(TEXT("hologram_build_steps"), BuildSteps);
@@ -2315,7 +2408,8 @@ FAIFactoryActionResult PlaceBuilding(
 FAIFactoryActionResult PlaceBlueprint(
     const FAIFactoryActionContext& Context,
     const FString& BlueprintName,
-    const FTransform& Origin)
+    const FTransform& Origin,
+    const bool bHonourRequestedZ = false)
 {
     const FString Action = TEXT("place_blueprint");
     const FString Blocked = CheckActionPreconditions(Context);
@@ -2439,11 +2533,11 @@ FAIFactoryActionResult PlaceBlueprint(
         Context.Player,
         Inventory,
         Origin,
-        // A blueprint is placed on ground, not onto a named actor, so it keeps
-        // the downward trace.
+        // Ground snapping remains the default. An explicit exact_z request
+        // uses the existing exact-height path, with the same final validators.
         nullptr,
-        false,
-        false,
+        bHonourRequestedZ,
+        /*bIgnoreClearance*/ false,
         Predicted,
         HologramFailure);
     const TArray<FItemAmount> Cost =
@@ -3897,7 +3991,8 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
         return FAIFactoryActionResult::Refuse(Action, TEXT("nothing_to_undo"));
     }
 
-    const FAIFactoryUndoStep& Step = GAIFactoryUndoJournal.Last();
+    const FAIFactoryUndoStep Step = ResolveUndoStepMembers(
+        GAIFactoryUndoJournal.Last(), Context.World);
 
     FAIFactoryActionResult Result;
     Result.Action = Action;
@@ -3925,17 +4020,19 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
     int32 RefundDropped = 0;
     TArray<AFGBuildable*> LiveBuildables;
     TArray<AFGBuildable*> LiveLightweightBuildables;
+    TArray<FAIFactoryLightweightUndoRef> LiveLightweightRefs;
+    TMap<AFGBuildable*, FString> OriginalPaths;
     for (const TWeakObjectPtr<AFGBuildable>& Weak : Step.SpawnedBuildables)
     {
         AFGBuildable* Buildable = Weak.Get();
-        if (!IsValid(Buildable))
+        if (IsActionBuildableRemoved(Buildable))
         {
             // The player may have removed it already; that is not a failure.
             ++AlreadyGone;
             continue;
         }
-        Result.RemovedActorIds.Add(Buildable->GetPathName());
-        LiveBuildables.Add(Buildable);
+        OriginalPaths.Add(Buildable, Buildable->GetPathName());
+        LiveBuildables.AddUnique(Buildable);
     }
 
     // Resolve every lightweight target before dismantling anything persistent.
@@ -3956,50 +4053,48 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
                 Action,
                 TEXT("could_not_materialize_lightweight_buildable_for_undo"));
         }
-        Result.RemovedActorIds.Add(Temporary->GetPathName());
+        OriginalPaths.Add(Temporary, Temporary->GetPathName());
         LiveLightweightBuildables.Add(Temporary);
+        LiveLightweightRefs.Add(Ref);
     }
 
     int32 DismantleTargets = 0;
-    for (const TWeakObjectPtr<AActor>& Weak : Step.DismantleActors)
+    for (AFGBuildable* Buildable : LiveBuildables)
     {
-        AActor* Actor = Weak.Get();
-        if (!IsValid(Actor))
+        if (IsActionBuildableRemoved(Buildable))
         {
             continue;
         }
-        if (!Cast<AFGBuildable>(Actor))
+        const FAIFactoryRefundDelivery Refund =
+            DismantleWithRefund(Buildable, Context.Player);
+        RefundedItemUnits += Refund.ItemUnits;
+        RefundedToInventory += Refund.AddedToInventory;
+        RefundDropped += Refund.DroppedOnGround;
+        ++DismantleTargets;
+    }
+    for (const TWeakObjectPtr<AActor>& Weak : Step.DismantleActors)
+    {
+        AActor* Actor = Weak.Get();
+        if (!IsValid(Actor) || Actor->IsActorBeingDestroyed() ||
+            Cast<AFGBlueprintProxy>(Actor))
         {
-            Result.RemovedActorIds.AddUnique(Actor->GetPathName());
+            continue;
         }
+        const FString OriginalPath = Actor->GetPathName();
         const FAIFactoryRefundDelivery Refund =
             DismantleWithRefund(Actor, Context.Player);
         RefundedItemUnits += Refund.ItemUnits;
         RefundedToInventory += Refund.AddedToInventory;
         RefundDropped += Refund.DroppedOnGround;
         ++DismantleTargets;
-    }
-    if (DismantleTargets == 0)
-    {
-        // Older journal entries and a vanished blueprint proxy fall back to
-        // dismantling each still-live buildable.
-        for (AFGBuildable* Buildable : LiveBuildables)
+        if (!IsValid(Actor) || Actor->IsActorBeingDestroyed())
         {
-            if (!IsValid(Buildable))
-            {
-                continue;
-            }
-            const FAIFactoryRefundDelivery Refund =
-                DismantleWithRefund(Buildable, Context.Player);
-            RefundedItemUnits += Refund.ItemUnits;
-            RefundedToInventory += Refund.AddedToInventory;
-            RefundDropped += Refund.DroppedOnGround;
-            ++DismantleTargets;
+            Result.RemovedActorIds.AddUnique(OriginalPath);
         }
     }
     for (AFGBuildable* Temporary : LiveLightweightBuildables)
     {
-        if (!IsValid(Temporary))
+        if (IsActionBuildableRemoved(Temporary))
         {
             continue;
         }
@@ -4010,7 +4105,59 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
         RefundDropped += Refund.DroppedOnGround;
         ++DismantleTargets;
     }
-    Removed = LiveBuildables.Num() + LiveLightweightBuildables.Num();
+    // Count readback, not intent. An accepted dismantle call does not prove
+    // removal, and a proxy's destruction proves nothing about its members.
+    int32 Remaining = 0;
+    TArray<TSharedPtr<FJsonValue>> RemainingIds;
+    for (AFGBuildable* Buildable : LiveBuildables)
+    {
+        const FString& Path = OriginalPaths.FindChecked(Buildable);
+        if (IsActionBuildableRemoved(Buildable))
+        {
+            ++Removed;
+            Result.RemovedActorIds.AddUnique(Path);
+        }
+        else
+        {
+            ++Remaining;
+            RemainingIds.Add(MakeShared<FJsonValueString>(Path));
+        }
+    }
+    for (int32 Index = 0; Index < LiveLightweightRefs.Num(); ++Index)
+    {
+        FLightweightBuildableInstanceRef Instance;
+        if (!ResolveLightweightUndoRef(
+                LiveLightweightRefs[Index], Context.World, Instance))
+        {
+            ++Removed;
+            Result.RemovedActorIds.AddUnique(
+                OriginalPaths.FindChecked(LiveLightweightBuildables[Index]));
+        }
+        else
+        {
+            ++Remaining;
+            RemainingIds.Add(MakeShared<FJsonValueString>(FString::Printf(
+                TEXT("%s:lightweight:%d"),
+                *LiveLightweightRefs[Index].BuildableClass->GetPathName(),
+                LiveLightweightRefs[Index].RuntimeIndex)));
+        }
+    }
+    if (Remaining > 0)
+    {
+        TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
+        Observed->SetNumberField(TEXT("buildings_removed"), Removed);
+        Observed->SetNumberField(TEXT("buildings_remaining"), Remaining);
+        Observed->SetArrayField(TEXT("remaining_building_ids"), RemainingIds);
+        Observed->SetBoolField(TEXT("removal_readback_complete"), false);
+        Observed->SetNumberField(TEXT("refund_item_units"), RefundedItemUnits);
+        Observed->SetNumberField(TEXT("refund_added_to_player_inventory"), RefundedToInventory);
+        Observed->SetNumberField(TEXT("refund_dropped_on_ground"), RefundDropped);
+        Result.Observed = Observed;
+        Result.bCommitted = true;
+        Result.Status = TEXT("failed");
+        Result.Reason = TEXT("undo_incomplete_journal_retained");
+        return Result;
+    }
 
     // Items granted by the step are handed back, capped at what is still held
     // so undo can never confiscate a stack the player earned separately.
@@ -4042,6 +4189,8 @@ FAIFactoryActionResult UndoLast(const FAIFactoryActionContext& Context)
 
     TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
     Observed->SetNumberField(TEXT("buildings_removed"), Removed);
+    Observed->SetNumberField(TEXT("buildings_remaining"), 0);
+    Observed->SetBoolField(TEXT("removal_readback_complete"), true);
     Observed->SetNumberField(TEXT("items_taken_back"), ItemsReclaimed);
     Observed->SetNumberField(TEXT("dismantle_targets"), DismantleTargets);
     Observed->SetNumberField(TEXT("already_gone"), AlreadyGone);
@@ -4280,10 +4429,13 @@ namespace
             }
             double Yaw = 0.0;
             Spec->TryGetNumberField(TEXT("yaw"), Yaw);
+            bool bExactBlueprintZ = false;
+            Spec->TryGetBoolField(TEXT("exact_z"), bExactBlueprintZ);
             return PlaceBlueprint(
                 Context,
                 Name,
-                FTransform(FRotator(0.0, Yaw, 0.0), Location));
+                FTransform(FRotator(0.0, Yaw, 0.0), Location),
+                bExactBlueprintZ);
         }
         if (Kind == TEXT("generate_native_blueprint"))
         {
@@ -4300,7 +4452,9 @@ namespace
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v2") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v3") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v4") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v5")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v5") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v6") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v7")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -4317,6 +4471,11 @@ namespace
             }
 
             TArray<FAIFactoryGeneratedBlueprintPart> Parts;
+            if ((LayoutSchema == TEXT("aifactory.generated-blueprint/v6") ||
+                 LayoutSchema == TEXT("aifactory.generated-blueprint/v7")) && Values->Num() > 512)
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
+            }
             Parts.Reserve(Values->Num());
             for (int32 Index = 0; Index < Values->Num(); ++Index)
             {
@@ -4412,6 +4571,47 @@ namespace
                         FString::Printf(
                             TEXT("generated_blueprint_part_transform_is_invalid:%d"),
                             Index + 1));
+                }
+                const bool bShortenedFoundation = LayoutSchema == TEXT("aifactory.generated-blueprint/v7");
+                const bool bFittedFixture = LayoutSchema == TEXT("aifactory.generated-blueprint/v8");
+                const bool bFullPose = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bShortenedFoundation || bFittedFixture;
+                if (bFullPose)
+                {
+                    const TSharedPtr<FJsonObject>* Quaternion = nullptr;
+                    FVector Scale;
+                    double Qx = 0.0, Qy = 0.0, Qz = 0.0, Qw = 0.0;
+                    for (const TCHAR* Field : {TEXT("production_recipe_class"), TEXT("clock_percent"), TEXT("sort_rules"),
+                         TEXT("resource_class"), TEXT("resource_purity"), TEXT("resource_anchor_part_id")})
+                    {
+                        if ((*Object)->HasField(Field))
+                        {
+                            return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_accepts_only_unconfigured_foundations"));
+                        }
+                    }
+                    if ((*Object)->HasField(TEXT("yaw")) || (*Object)->HasField(TEXT("pitch")) ||
+                        (*Object)->HasField(TEXT("roll")) ||
+                        !(*Object)->TryGetObjectField(TEXT("rotation_quat"), Quaternion) || !Quaternion ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("x"), Qx) ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("y"), Qy) ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("z"), Qz) ||
+                        !(*Quaternion)->TryGetNumberField(TEXT("w"), Qw) ||
+                        !FMath::IsFinite(Qx) || !FMath::IsFinite(Qy) || !FMath::IsFinite(Qz) || !FMath::IsFinite(Qw) ||
+                        !TryReadActionVector(*Object, TEXT("scale3d"), true, Scale) ||
+                        !(bFittedFixture
+                            ? AIFactoryFixturePosePolicy::AllowsScale(Scale.X, Scale.Y, Scale.Z, 2.0*(Qx*Qz-Qw*Qy), Part.Role == TEXT("beam"))
+                            : AIFactoryFoundationPosePolicy::AllowsScale(Scale.X, Scale.Y, Scale.Z,
+                                2.0*(Qx*Qz-Qw*Qy), 2.0*(Qy*Qz+Qw*Qx), bShortenedFoundation)) ||
+                        !FMath::IsNearlyEqual(Qx*Qx+Qy*Qy+Qz*Qz+Qw*Qw, 1.0, 0.0002))
+                    {
+                        return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation"));
+                    }
+                    Part.RelativeTransform = FTransform(FQuat(Qx,Qy,Qz,Qw), RelativeLocation, Scale);
+                    continue;
+                }
+                if ((*Object)->HasField(TEXT("rotation_quat")) || (*Object)->HasField(TEXT("scale3d")) ||
+                    (*Object)->HasField(TEXT("pitch")) || (*Object)->HasField(TEXT("roll")))
+                {
+                    return FAIFactoryActionResult::Refuse(Kind, TEXT("full_pose_requires_generated_v6"));
                 }
                 double Yaw = 0.0;
                 if (!(*Object)->TryGetNumberField(TEXT("yaw"), Yaw) ||

@@ -233,6 +233,22 @@ function savedHypertubePipe(instanceName, points, overrides = {}) {
 }
 
 /** Creates a real compressed .sbp through the same pinned parser we read with. */
+test('saved reference traits are opt-in and preserve native quaternion and palette evidence', () => {
+  const prop = nativeEntity('/Factory_Prop_Mod/Decor/FicusPlant.FicusPlant_C', 'Persistent_Level:PersistentLevel.FicusPlant_1', {x:10,y:20,z:30}, SMELTER_RECIPE);
+  prop.transform.rotation = {x:0,y:Math.sin(Math.PI/8),z:0,w:Math.cos(Math.PI/8)};
+  prop.properties.mColorSlot = {type:'ByteProperty',name:'mColorSlot',propertyTagType:{name:'ByteProperty',children:[]},value:{type:'None',value:18}};
+  const {sbp,sbpcfg} = makeNativeBlueprint({extraEntities:[prop]});
+  const ordinary = inspectBlueprintStructure('Native test', sbp, sbpcfg);
+  assert.equal(Object.hasOwn(ordinary, 'reference_traits'), false);
+  const inspected = inspectBlueprintStructure('Native test', sbp, sbpcfg, {includeReferenceTraits:true});
+  assert.equal(inspected.reference_traits.source_fingerprint, inspected.source_fingerprint);
+  assert.equal(inspected.reference_traits.entity_total, 3);
+  assert.equal(inspected.reference_traits.eligible_entity_count, 3);
+  const pose = inspected.reference_traits.poses.find(row=>row.class_path.includes('FicusPlant'));
+  assert(Math.abs(pose.transform.rotation_quat.y-Math.sin(Math.PI/8))<1e-6);
+  assert.equal(pose.appearance.color_slot, 18);
+});
+
 function makeNativeBlueprint({ connected = false, extraEntities = [] } = {}) {
   const constructor = nativeEntity(
     "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
