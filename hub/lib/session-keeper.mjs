@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { usageLimit } from './conductor.mjs';
 
-export const RESUME_PROMPT = 'Your usage limit has reset. Continue exactly where you left off: finish the task you were on, keep to the coordination rules (claims, reviews, game ownership) and report as you normally would. The owner is supervising but is not prompting.';
+export const RESUME_PROMPT = 'Your usage limit has reset. First read the shared ledger messages since you stopped (pair_read_messages): the owner or Claude may have taken over or changed decisions meanwhile. Then continue exactly where you left off: finish the task you were on, keep to the coordination rules (claims, reviews, game ownership) and report as you normally would. The owner is supervising but is not prompting.';
 const DAY = 86400000, TAIL_BYTES = 512 * 1024;
 const inside = (dir, root) => { const d = resolve(dir).toLowerCase(), r = resolve(root).toLowerCase(); return d === r || d.startsWith(r + '\\') || d.startsWith(r + '/'); };
 

@@ -67,5 +67,6 @@ test('the keeper can be switched off, and its message tells the model to carry o
   const keeper = createSessionKeeper({ root, repo: REPO, now: () => new Date(2026, 9, 19, 11, 0).getTime(), find: o => findStalled({ ...o, sessionsDir: sessions }), resume: async () => { throw new Error('must not run'); } });
   keeper.set(false);
   assert.deepEqual(await keeper.tick(), []);
-  assert.match(RESUME_PROMPT, /Continue exactly where you left off/);
+  assert.match(RESUME_PROMPT, /continue exactly where you left off/i);
+  assert.match(RESUME_PROMPT, /read the shared ledger messages since you stopped/);
 });

@@ -36,7 +36,7 @@ export function createWorkerPool({ root, repo, runtimeDir, node = process.execPa
     const [rt, cwd] = await Promise.all([loadRuntime(), ensureWorktree(name)]);
     const worker = name === 'claude'
       ? new ClaudeWorker({ runtime: rt, cwd, mcpServers: mcpServers(name), addDirs: [join(root, 'state/studio')],
-          guidance: 'You are a conductor-run Claude worker in the owner\'s Satisfactory repo. The owner supervises live in the hub Team room. Work only in your worktree and on your branch; use the studio and agent_pair tools for design and coordination. Game actions belong to Codex.' })
+          guidance: 'You are a conductor-run Claude worker in the owner\'s Satisfactory repo. The owner supervises live in the hub Team room. Work only in your worktree and on your branch; use the studio and agent_pair tools for design and coordination. Either model may build an agreed design through the game lease (the other verifies).' })
       : new CodexWorker({ runtime: rt, cwd, mcpServers: mcpServers(name) });
     worker.on('usage', u => onUsage(name, u));
     worker.on('fault', () => live.delete(name));

@@ -29,6 +29,7 @@ export function conductorMayOperate(root) {
 }
 
 const bad = m => Object.assign(new Error(m), { statusCode: 400 });
+export const GAME_BUILDERS = ['codex', 'claude'];
 const LOCAL = process.env.LOCALAPPDATA ?? '';
 export const SAVE_DIR = join(LOCAL, 'FactoryGame/Saved/SaveGames');
 export const BLUEPRINT_DIR = join(LOCAL, 'FactoryGame/Saved/SaveGames/blueprints');
@@ -84,7 +85,9 @@ export function createStudioGateway({ root, repo, worker, playtest = null, typed
   // either worker holding the lease.
   const gameGate = (kind = 'read', token = leaseToken) => {
     if (!playtest) throw new Error('Game mailbox unavailable');
-    if (kind === 'write' && worker !== 'codex') throw new Error('Game actions that change the world belong to Codex; post your findings for it instead');
+    // Codex and Claude may both build agreed designs (owner decision 2026-10-19, while
+    // Codex was out of weekly usage); every other safeguard below is unchanged.
+    if (kind === 'write' && !GAME_BUILDERS.includes(worker)) throw new Error('Game actions that change the world belong to the studio builders (Codex and Claude); post your findings instead');
     if (!mayOperate()) throw bad("Codex's live session is operating the game; conductor game requests wait for its handoff");
     const l = gameLease.require(session, token);
     if (kind === 'write') {

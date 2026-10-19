@@ -193,10 +193,10 @@ test('without a deterministic companion route nothing can change the world', asy
   assert.equal(calls.length, 0);
 });
 
-test('game requests are Codex-only and wait for the live operator to hand off', async () => {
+test('game requests go only to the studio builders (Codex and Claude) and wait for the live operator to hand off', async () => {
   const playtest = { status: async () => ({ ready: true }), submit: async () => ({ id: 'x' }), wait: async () => ({}) };
   const { gw: claude } = setup('claude', { playtest, mayOperate: () => true, typedRoute });
-  await assert.rejects(claude.dispatch('game_generate', {}), /belong to Codex/);
+  await assert.rejects(claude.dispatch('game_generate', {}), /Acquire the game lease/, 'Claude may build too (owner, 2026-10-19); the lease and every other check still apply');
   const { gw: codexBefore } = setup('codex', { playtest });
   await assert.rejects(codexBefore.dispatch('game_capture', {}), /wait for its handoff/);
   const status = await codexBefore.dispatch('game_status', {});

@@ -58,7 +58,8 @@ export function nextStep(job) {
   if (job.status === 'building') {
     // A build reported as blocked (e.g. no game control yet) does not count as built.
     if (!job.build || job.build.built === false) return { worker: 'codex', kind: 'build', candidate: job.agreedCandidate };
-    if (!crits.some(c => c.candidate === 'build' && c.at > job.build.at)) return { worker: 'claude', kind: 'verify', candidate: job.agreedCandidate };
+    // The model that did not build verifies (either may build; owner, 2026-10-19).
+    if (!crits.some(c => c.candidate === 'build' && c.at > job.build.at)) return { worker: job.build.author === 'claude' ? 'codex' : 'claude', kind: 'verify', candidate: job.agreedCandidate };
     return null;
   }
   return null;

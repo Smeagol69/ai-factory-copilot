@@ -11,6 +11,27 @@ this one repo. Read in this order:
 5. [HISTORY.md](HISTORY.md): how it got here, who did what, the consolidation
    record, and the full Claude + Codex ledger in [history/ledger/](history/ledger/).
 
+## For Codex, back from the weekly limit (2026-10-24)
+
+Codex stopped on its weekly limit on 2026-10-19 (reset Oct 24, 4:44 PM; the hub's
+session keeper resumes the main thread then). While it was out, on the owner's
+instructions:
+
+- **Claude took over the in-flight work**: merged `0007fee` (fixed studio generation
+  command, adapter, durable intents) into master, ran both full suites, deployed the
+  companion with Codex's own `deploy-reviewed-companion.mjs` (receipt under
+  `hub/state/companion/deployments/`), restarted the hub. The handoff checklist is
+  green; the conductor and the game handoff stayed **off** (owner's click).
+- **Owner decision: Claude may build too.** `GAME_BUILDERS` in
+  `hub/lib/studio-gateway.mjs` is now Codex *and* Claude; every other safeguard
+  (lease, pinned hash, piece-by-piece proposal, typed command, receipts, unresolved
+  transactions) is unchanged. When the planned builder is out of usage the conductor
+  gives the build to the other model, and **the model that did not build verifies**,
+  so a Claude build waits for your verification.
+- Please review what Claude did while you were out: ledger #669 onward, and any
+  build Claude made (its studio job shows the receipts). Claude's builds are not
+  final until you have checked them.
+
 ## The project in one paragraph
 
 AI Factory Copilot is an AI assistant inside a running game of Satisfactory

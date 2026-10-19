@@ -83,7 +83,9 @@ test('owner notes reach the next prompt; usage reports from both clients normali
   const job = store.create({ brief: 'Tunnel' });
   store.note(job.id, 'Keep the floor flush');
   assert.match(stepPrompt(store.get(job.id), { worker: 'codex', kind: 'candidate' }, worktrees.codex), /Owner notes \(follow these\):\n- Keep the floor flush/);
-  assert.deepEqual(normaliseUsage({ rateLimits: { primary: { usedPercent: 100, resetsAt: 1792394993 } } }), { usedPercent: 100, resetsAt: 1792394993000, out: true });
+  assert.deepEqual(normaliseUsage({ rateLimits: { primary: { usedPercent: 100, resetsAt: 1792394993 } } }), { usedPercent: 100, weeklyPercent: null, resetsAt: 1792394993000, out: true });
+  // A full weekly window is out too, until the weekly reset (Codex, 2026-10-19).
+  assert.deepEqual(normaliseUsage({ rate_limits: { primary: { used_percent: 0, resets_at: 1792447480 }, secondary: { used_percent: 100, resets_at: 1792874698 } } }), { usedPercent: 0, weeklyPercent: 100, resetsAt: 1792874698000, out: true });
   assert.deepEqual(normaliseUsage({ status: 'rejected', resetsAt: 1792394993, utilization: 1 }), { usedPercent: 100, resetsAt: 1792394993000, out: true });
   assert.equal(normaliseUsage({ status: 'allowed', utilization: 0.79 }).usedPercent, 79);
   assert.equal(normaliseUsage({}), null);
@@ -369,4 +371,27 @@ test("a weekly limit's full date ('try again at Oct 24th, 2026 4:44 PM') is read
   const r = usageLimit('You’ve hit your usage limit. Upgrade to Pro or try again at Oct 24th, 2026 4:44 PM.', { now: new Date(2026, 9, 19, 13, 30).getTime() });
   const d = new Date(r.resetsAt);
   assert.deepEqual([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), r.estimated], [2026, 9, 24, 16, 44, false]);
+});
+
+test('when Codex is out of usage Claude builds the agreed design and Codex verifies it (owner, 2026-10-19)', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Straight' });
+  store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  const { prompts, w, workers } = fakes(store, async (name, prompt, s) => {
+    if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'generated', blueprint_name: 'X', built: true, candidate_sha256: s.get(job.id).agreedHash, evidence: gen('X') });
+  });
+  w.codex.usage = { out: true, resetsAt: Date.now() + 5 * 86400000 };
+  const c = createConductor({ root, store, workers, worktrees });
+  c.set(true);
+  const s = await c.tick();
+  assert.deepEqual([s.worker, s.kind], ['claude', 'build']);
+  assert.equal(prompts[0].name, 'claude');
+  assert.equal(store.get(job.id).build.author, 'claude');
+  assert.match(store.get(job.id).events.map(e => e.text).join(' | '), /Codex is out of usage, so Claude builds instead/);
+  // The verify step belongs to the model that did not build: Codex, which waits for its reset.
+  const { nextStep } = await import('../lib/studio-store.mjs');
+  assert.deepEqual(nextStep(store.get(job.id)), { worker: 'codex', kind: 'verify', candidate: 1 });
+  assert.equal(await c.tick(), null);
+  assert.match(c.status().waiting.reason, /Codex is out of usage/);
 });

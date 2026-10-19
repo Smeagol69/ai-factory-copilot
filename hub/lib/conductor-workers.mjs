@@ -19,8 +19,13 @@ export function normaliseUsage(raw) {
   // Codex: {rateLimits:{primary:{usedPercent,resetsAt}}} (or snake_case); Claude: {status, resetsAt, utilization}.
   const r = raw?.rateLimits ?? raw?.rate_limits ?? raw;
   const p = r?.primary;
-  if (p) { const used = p.usedPercent ?? p.used_percent; const reset = p.resetsAt ?? p.resets_at;
-    return { usedPercent: Number.isFinite(used) ? used : null, resetsAt: Number.isFinite(reset) ? (reset < 1e12 ? reset * 1000 : reset) : null, out: used >= 100 }; }
+  if (p) {
+    // The 5-hour window, and the weekly one: either at 100% means out until it resets.
+    const ms = v => Number.isFinite(v) ? (v < 1e12 ? v * 1000 : v) : null;
+    const used = p.usedPercent ?? p.used_percent, reset = ms(p.resetsAt ?? p.resets_at);
+    const s = r.secondary, sUsed = s ? (s.usedPercent ?? s.used_percent) : null, sReset = s ? ms(s.resetsAt ?? s.resets_at) : null;
+    const full = [used >= 100 ? reset : null, sUsed >= 100 ? sReset : null].filter(v => v !== null);
+    return { usedPercent: Number.isFinite(used) ? used : null, weeklyPercent: Number.isFinite(sUsed) ? sUsed : null, resetsAt: full.length ? Math.max(...full) : reset, out: used >= 100 || sUsed >= 100 }; }
   if (r?.status) { const reset = r.resetsAt ?? r.resets_at; const used = Number.isFinite(r.utilization) ? r.utilization * (r.utilization <= 1 ? 100 : 1) : null;
     return { usedPercent: used, resetsAt: Number.isFinite(reset) ? (reset < 1e12 ? reset * 1000 : reset) : null, out: r.status === 'rejected' }; }
   return null;

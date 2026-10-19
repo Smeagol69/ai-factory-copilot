@@ -64,7 +64,7 @@ export function milestonePrompt(job, step, { worktree, branch }) {
   const m = job.milestone, last = job.steps.at(-1);
   const head = [`You are ${NAME[step.worker]}, working with ${NAME[other(step.worker)]} on the owner's Satisfactory project. The owner is watching live but is not prompting; the hub runs your turns.`,
     `ACTIVE MILESTONE (set by the owner): ${m.title}${m.notes ? `\nOwner notes: ${m.notes}` : ''}`,
-    `Your worktree is ${worktree} on branch ${branch}. Read AGENTS.md, docs/STATUS.md and hub/AGENTS.md if you have not this session. studio_milestone shows every step and review so far. The game is the authority: never claim an in-game result without a tool receipt; game actions need the game lease and belong to Codex.`].join('\n\n');
+    `Your worktree is ${worktree} on branch ${branch}. Read AGENTS.md, docs/STATUS.md and hub/AGENTS.md if you have not this session. studio_milestone shows every step and review so far. The game is the authority: never claim an in-game result without a tool receipt; game actions need the game lease; either model may build an agreed design and the other verifies.`].join('\n\n');
   const body = step.kind === 'review'
     ? `Review step ${step.step} by ${NAME[last.author]}: commit ${last.commit}${last.branch ? ` on ${last.branch}` : ''}. "${last.summary.slice(0, 600)}". In your worktree look at exactly that commit (git show ${last.commit}; check it out detached to run its tests), check it really moves the milestone forward, is correct and tested, and keeps every working feature. Do not change files. Then studio_review_step with commit ${last.commit}, verdict "approve" or "changes" with concrete fixes.`
     : `${step.fixing ? `Your step ${step.fixing} got "changes requested": read the review in studio_milestone and fix every point.` : 'Take ONE concrete, reviewable step toward the milestone: the most useful next thing, small enough to review in one sitting.'} First bring your branch up to date: git merge team/auto (or git merge master if team/auto does not exist yet). Make the change with tests, run them, commit on your branch, then studio_report_step with a summary (what changed, how you verified it), the commit hash (git rev-parse HEAD) and your branch.`;
@@ -157,7 +157,9 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     waiting = null;
     const picked = mail() ?? pick();
     if (!picked) return null;
-    const { source, job, step } = picked;
+    const { source, job } = picked;
+    let step = picked.step;
+    const planned = JSON.stringify(step); // progress is judged against the planned step
     const S = source === 'mail'
       ? { get: () => step, log: mailLog, needsOwner: (id, text) => mailLog(id, 'studio', text), next: () => null, prompt: () => mailPrompt(step, worktrees[step.worker]) }
       : source === 'design'
@@ -172,6 +174,21 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     }
     // A build needs game control; until Codex's live session hands off, wait without spending a turn.
     if (step.kind === 'build' && !mayOperate()) { waiting = { job: job.id, worker: step.worker, reason: "The build waits for game control: Codex's live session has not handed off yet" }; return null; }
+    // Either model may build an agreed design (owner, 2026-10-19): when the planned
+    // builder is out of usage and the other is not, the other builds; the model that
+    // did not build verifies.
+    if (step.kind === 'build') {
+      const outOfUsage = async n => {
+        if ((state.outUntil?.[n] ?? 0) > now()) return true;
+        const u = (await workers.get(n).catch(() => null))?.usage;
+        return !!(u?.out && (!u.resetsAt || u.resetsAt > now()));
+      };
+      const alt = other(step.worker);
+      if (await outOfUsage(step.worker) && !(await outOfUsage(alt))) {
+        S.log(job.id, 'studio', `${NAME[step.worker]} is out of usage, so ${NAME[alt]} builds instead (owner decision 2026-10-19); ${NAME[step.worker]} verifies`);
+        step = { ...step, worker: alt };
+      }
+    }
     const worker = await workers.get(step.worker);
     // A limit hit during an earlier turn outlives that worker process (state.outUntil).
     const until = state.outUntil?.[step.worker] ?? 0;
@@ -182,7 +199,7 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     }
     if (source === 'mail') { state.mailHandled = [...(state.mailHandled ?? []), step.message].slice(-200); state.mailThreads = { ...state.mailThreads, [step.thread]: (state.mailThreads?.[step.thread] ?? 0) + 1 }; save(); }
     if (step.kind === 'build' && job.status === 'agreed') store.startBuild(job.id);
-    const before = JSON.stringify(step);
+    const before = planned;
     running = { job: job.id, source, worker: step.worker, kind: step.kind, candidate: step.candidate ?? null, step: step.step ?? null, message: step.message ?? null, startedAt: now() };
     S.log(job.id, 'studio', `${NAME[step.worker]}'s turn: ${step.kind}${step.candidate ? ` (candidate ${step.candidate})` : ''}${step.step ? ` (step ${step.step})` : ''}${step.message ? ` (message #${step.message} from ${step.from})` : ''}`);
     const prompt = S.prompt(S.get(job.id));
