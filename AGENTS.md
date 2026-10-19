@@ -53,6 +53,20 @@ files, the ledger and localhost health; they must not launch Git or other tools.
 Run source verification at startup or on an explicit check. REA's local wrapper
 must enforce hidden child launches even where an upstream helper omits the flag.
 
+**Ghidra is disabled and pending removal at the owner's request (2026-10-17).**
+Automatic approval review blocked deletion of its verified portable folder;
+do not claim it was uninstalled or retry deletion through another tool.
+Never
+reinstall it or start Ghidra, its JVM/headless server or decompiler without a
+new explicit user approval. General Architect/RE/model-team authorization,
+"use all tools", native smoke-test flags and status checks are not approval.
+Respect `settings/native-engines.json` and the REA process launch gate. Keep
+saved analysis reports. Continue other supported work without Ghidra.
+The separately installed global `ghidra-mcp.exe` was found running under Claude;
+its `mcpServers.ghidra` registration in `C:/Users/roesl/.claude.json` was removed
+and the process stopped. Its file deletion was also rejected. Do not restore
+that registration or launch the remaining executable without explicit approval.
+
 Run `npm test` before commits. Report offline tests separately from live game
 verification. The structural revision milestone is reviewed and deployed;
 read docs/AI-ARCHITECT-PLAN.md for the next site-fit and live-readback acceptance

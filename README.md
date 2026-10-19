@@ -6,6 +6,27 @@ Keep the executable here; make a shortcut instead of moving it by itself.
 The EXE compiled successfully. Its Node startup path and server reuse were
 tested; automatic tool approval blocked direct EXE launch verification.
 
+## Talk directly to your local model
+
+Open Copilot and choose **Chat with HauhauCS**, or use
+<http://127.0.0.1:8795/#local-chat>. Choose **New chat**, enter a message and
+press **Send**. Conversations are saved locally; use the conversation selector
+to return to one. **Stop** cancels the active local request. Failures and
+interrupted requests stay visible and are never automatically replayed.
+
+The installed local model is HauhauCS Qwen3.5 9B Q4_K_M through Ollama, with
+project-local storage and a hidden server. It uses local hardware without an
+API billing fallback. Startup and status refreshes do not run inference.
+
+The project-local Claude and Codex MCP profiles also expose `local_model`:
+`local_model_status`, `local_model_chat`, and `local_model_cancel`. Reconnect
+their MCP clients to load the added server. They can delegate an explicit
+request and continue the same conversation by ID. Within a request, HauhauCS
+can read shared project context and record attributed handoffs for the team.
+This is bounded collaboration; continuous autonomous work and source/game
+editing are not enabled through the chat interface. See
+[LOCAL-WORKER.md](docs/LOCAL-WORKER.md) for verification and limitations.
+
 The control room shows dated model work, a captured-world Architect draft and
 geometry audit, MCP connections, REA analysis, task claims and saved receipts.
 The same startup also starts/reuses the bundled Satisfactory bridge quietly.

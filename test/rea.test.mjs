@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import childProcess from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { promisify } from 'node:util';
 import * as rea from '../lib/rea.mjs';
@@ -140,13 +141,16 @@ test('failed REA checks link only receipts and evidence files that actually exis
   } finally { await writeFile(latest, saved); }
 });
 
-test('REA native environment uses only the project-pinned portable engine paths', async () => {
+test('owner-disabled Ghidra is not configured or verified by status refreshes', async () => {
   const status = await reaStatus();
-  assert.equal(status.native.installed, true);
+  assert.equal(status.native.installed, existsSync(resolve('tools/ghidra/ghidra_12.1.4_PUBLIC/support/analyzeHeadless.bat')));
   assert.equal(status.native.provider, 'ghidra');
   const environment = await reaEnvironment();
-  assert.equal(environment.GHIDRA_INSTALL_DIR, resolve('tools/ghidra/ghidra_12.1.4_PUBLIC'));
-  assert.equal(environment.JAVA_HOME, resolve('tools/java/jdk-21.0.12.1+1'));
+  assert.equal(environment.GHIDRA_INSTALL_DIR, undefined);
+  assert.equal(environment.JAVA_HOME, undefined);
+  assert.equal(status.native.status, 'disabled-by-owner');
+  assert.equal(status.native.automaticLaunchAllowed, false);
+  assert.equal(status.native.automaticInstallAllowed, false);
   assert.equal(status.native.allEnginesVerified, false);
   assert.equal(typeof rea.runReaNativeCheck, 'function');
 });
@@ -158,7 +162,10 @@ test('native check refuses an unbounded deadline without launching an engine', a
 
 // No engine is launched: modify and restore bytes in one owned executable JAR.
 // Catches a stale native receipt surviving changes beyond the install sentinels.
-test('native verification expires when an executing Ghidra JAR changes', async () => {
+test('native verification expires when an executing Ghidra JAR changes', async t => {
+  if ((await reaStatus()).native.automaticLaunchAllowed === false) {
+    t.skip('Owner disabled Ghidra; do not mutate or inventory its engine files.'); return;
+  }
   const jar = resolve('tools/ghidra/ghidra_12.1.4_PUBLIC/Ghidra/Framework/Utility/lib/Utility.jar');
   const original = await readFile(jar);
   const before = await reaStatus();
@@ -176,7 +183,7 @@ test('native verification expires when an executing Ghidra JAR changes', async (
 });
 
 test('explicit real Ghidra check decompiles the owned PE without executing it',
-  { skip: process.env.REA_NATIVE_SMOKE !== '1', timeout: 210000 }, async () => {
+  { skip: 'Owner disabled Ghidra and requested uninstall; new explicit approval is required.', timeout: 210000 }, async () => {
     const result = await rea.runReaNativeCheck();
     assert.equal(result.ok, true, JSON.stringify(result));
     assert.equal(result.provider, 'ghidra');

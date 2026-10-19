@@ -12,3 +12,8 @@ cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"
 command = "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe"
 args = ["C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/rea.mjs"]
 cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"
+
+[mcp_servers.local_model]
+command = "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe"
+args = ["C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/local-worker.mjs"]
+cwd = "C:/Users/roesl/Documents/satisfactory-mcp-lab"

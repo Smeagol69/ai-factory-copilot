@@ -4,6 +4,45 @@ let current;
 function card(title, value, detail) { const n = el('article', null, 'card'); n.append(el('h3', title), el('div', value, 'value'), el('p', detail)); return n; }
 function listItem(title, detail, tag) { const n = el('div', null, 'item'); if (tag) n.append(el('span', tag, 'tag')); n.append(el('strong', title), el('small', detail)); return n; }
 function modelWork(s) {
+  const currentJobs = s.currentWork?.jobs ?? [];
+  const currentPanel = byId('current-work');
+  if (currentPanel) {
+    const labels = { queued: 'Queued', running: 'Running (reported)', completed: 'Completed', partial: 'Partial output', failed: 'Failed', unavailable: 'Unavailable', cancelled: 'Stopped', unknown: 'Unknown' };
+    const cards = currentJobs.map(w => {
+      const n = el('article', null, 'worker');
+      n.append(el('div', `${w.provider.toUpperCase()} · ${w.taskId}`, 'eyebrow'), el('h3', w.task ?? 'Assigned model job'));
+      const state = w.status === 'running' && !w.fresh ? 'Current activity unknown' : labels[w.status] ?? 'Unknown';
+      n.append(el('strong', state), el('p', w.model ?? 'Model identity not reported', 'muted'));
+      const calls = w.toolCallsCompleted == null ? 'Tool calls unknown' : `${w.toolCallsCompleted} completed tool calls`;
+      n.append(el('small', w.evidenceLabel ?? `${calls} · ${w.verifiedArtifacts} files match their saved hashes`));
+      for (const a of w.artifacts ?? []) n.append(el('small', `${a.verified ? 'Verified file' : 'File unverified'}: ${a.path ?? 'unknown'}${a.sha256 ? ` · SHA-256 ${a.sha256}` : ''}${a.reason ? ` · ${a.reason}` : ''}`));
+      if (w.omittedArtifacts) n.append(el('small', `${w.omittedArtifacts} additional artifact claims omitted; output verification is incomplete.`));
+      if (w.status === 'completed' && !w.outputVerified) n.append(el('small', 'Completion reported; current output is not verified.'));
+      if (w.tests) n.append(el('small', `Reported checks: ${w.tests.passed ?? '?'} passed, ${w.tests.failed ?? '?'} failed${w.tests.command ? ` · ${w.tests.command}` : ''}`));
+      if (w.error) n.append(el('small', `${w.error.code ?? 'Job error'}: ${w.error.message ?? 'See saved receipt'}`));
+      n.append(el('small', `Report: ${w.updatedAt ? new Date(w.updatedAt).toLocaleString() : 'unknown'} · ${w.reportPath}`));
+      return n;
+    });
+    const table = el('table', null, 'worker-summary');
+    const head = el('thead'), heading = el('tr');
+    for (const title of ['Agent', 'Result', 'Proof', 'Checks']) heading.append(el('th', title));
+    head.append(heading); table.append(head);
+    const body = el('tbody');
+    currentJobs.forEach((w, index) => {
+      const row = el('tr');
+      const agent = w.provider.toUpperCase() + (w.provider === 'codex' ? ` ${index + 1}` : '');
+      const result = w.status === 'completed' && !w.outputVerified ? 'Reported complete; output unverified' : w.status === 'running' && !w.fresh ? 'Activity unknown' : labels[w.status] ?? 'Unknown';
+      row.append(el('td', agent), el('td', result), el('td', `${w.verifiedArtifacts} verified files${w.toolCallsCompleted == null ? '' : ` · ${w.toolCallsCompleted} tool calls`}`),
+        el('td', w.tests ? `${w.tests.passed ?? '?'} passed · ${w.tests.failed ?? '?'} failed` : w.error ? 'Needs sign-in or attention' : 'Not reported'));
+      body.append(row);
+    });
+    table.append(body);
+    const details = el('details'), summary = el('summary', 'Inspect tasks, files, hashes and errors'), cardGrid = el('div', null, 'model-work');
+    cardGrid.append(...cards); details.append(summary, cardGrid);
+    currentPanel.replaceChildren(table, details);
+    if (!currentJobs.length) currentPanel.textContent = 'No current job receipts available. Task claims alone do not prove model work.';
+    if (s.currentWork?.unavailableReports) currentPanel.append(el('p', `${s.currentWork.unavailableReports} expected job reports are missing or unreadable; those agents' activity is unknown.`, 'muted'));
+  }
   const workers = s.modelWork?.workers ?? [];
   byId('model-work').replaceChildren(...workers.map(w => {
     const n = el('article', null, 'worker');
@@ -96,7 +135,7 @@ async function refresh() {
     byId('home').textContent = s.home;
     byId('storage').textContent = s.storage.sharedLedger + ' ' + s.storage.credentials;
     byId('rea-details').textContent = s.rea.installed ? `Local package ${s.rea.version}. MCP and CLI use the same bundled installation. Findings are stored in state/rea/.` : 'The local REA package could not be verified.';
-    byId('rea-native').textContent = s.rea.native?.verified ? 'Ghidra: native analysis verified on the owned test program.' : 'Native decompiler: verification pending. External engine installation alone does not prove analysis works.';
+    byId('rea-native').textContent = s.rea.native?.disabledByUser || s.rea.native?.status === 'disabled-by-owner' ? 'Ghidra is disabled at your request.' : s.rea.native?.verified ? 'Ghidra: native analysis verified on the owned test program.' : 'Native decompiler: verification pending. External engine installation alone does not prove analysis works.';
     byId('rea-limitations').replaceChildren(...(s.rea.limitations ?? []).map(t => el('div', typeof t === 'string' ? t : JSON.stringify(t))));
     byId('tasks').replaceChildren(...s.tasks.slice(0, 8).map(t => listItem(t.id, `${t.owner} · ${t.description}`, t.status)));
     if (!s.tasks.length) byId('tasks').textContent = 'No task claims in this project yet.';

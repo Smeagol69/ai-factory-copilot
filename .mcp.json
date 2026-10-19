@@ -19,6 +19,12 @@
       "args": [
         "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/rea.mjs"
       ]
+    },
+    "local_model": {
+      "command": "C:/Users/roesl/Documents/satisfactory-mcp-lab/runtime/node/node.exe",
+      "args": [
+        "C:/Users/roesl/Documents/satisfactory-mcp-lab/scripts/local-worker.mjs"
+      ]
     }
   }
 }

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, utimes } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import { createArchitectDemoRunner } from '../lib/architect-demo.mjs';
 
 const BASE = resolve('state/architect');
@@ -111,6 +112,89 @@ test('an invalid completion timestamp uses the valid generated timestamp without
     const result = await f.run();
     assert.equal(result.ok, true);
     assert.equal(result.capture.completedAtUtc, null);
+    assert.equal(result.capture.freshness.basis, 'generated_at_utc');
+    assert.equal(result.capture.freshness.ageMs, 5 * 24 * 60 * 60 * 1000);
+  } finally { await cleanup(f.root); }
+});
+
+test('a fresh raw capture supersedes an older cached world even when the cache file was touched later', async () => {
+  const f = await fixture();
+  try {
+    const raw = snapshot();
+    raw.world_revision = 78;
+    raw.generated_at_utc = '2026-10-16T04:58:00.000Z';
+    raw.capture_completed_at_utc = '2026-10-16T04:59:00.000Z';
+    const bytes = Buffer.from(JSON.stringify(raw));
+    const rawPath = join(f.root, 'captures/latest.json');
+    const cachePath = join(f.root, 'captures', `${'a'.repeat(64)}-world.json.gz`);
+    await writeFile(rawPath, bytes);
+    await utimes(rawPath, new Date('2026-10-16T04:59:00.000Z'), new Date('2026-10-16T04:59:00.000Z'));
+    await utimes(cachePath, new Date('2026-10-17T05:00:00.000Z'), new Date('2026-10-17T05:00:00.000Z'));
+    const result = await f.run();
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.capture.worldRevision, 78);
+    assert.match(result.capture.source, /\/latest\.json$/);
+    assert.equal(result.capture.cacheSchema, null);
+    assert.equal(result.capture.sha256, createHash('sha256').update(bytes).digest('hex'));
+    assert.equal(result.capture.freshness.status, 'recent_saved_capture');
+    assert.equal(result.capture.freshness.ageMs, 60000);
+    assert.equal(result.capture.freshness.basis, 'capture_completed_at_utc');
+    assert.equal(result.liveGameVerified, false);
+  } finally { await cleanup(f.root); }
+});
+
+test('capture time also selects among cached worlds instead of the newest copied file', async () => {
+  const f = await fixture();
+  try {
+    const directory = join(f.root, 'captures');
+    const oldPath = join(directory, `${'a'.repeat(64)}-world.json.gz`);
+    const freshPath = join(directory, `${'b'.repeat(64)}-world.json.gz`);
+    const envelope = JSON.parse(gunzipSync(await readFile(oldPath)).toString('utf8'));
+    envelope.snapshot.world_revision = envelope.world_revision = 79;
+    // Completion is the observation boundary even when capture generation started earlier.
+    envelope.snapshot.capture_completed_at_utc = '2026-10-16T04:59:00.000Z';
+    await writeFile(freshPath, gzipSync(JSON.stringify(envelope)));
+    const raw = snapshot(); raw.world_revision = 78; raw.generated_at_utc = '2026-10-15T05:00:00.000Z';
+    await writeFile(join(directory, 'latest.json'), JSON.stringify(raw));
+    await utimes(oldPath, new Date('2026-10-17T05:00:00.000Z'), new Date('2026-10-17T05:00:00.000Z'));
+    await utimes(freshPath, new Date('2026-10-12T05:00:00.000Z'), new Date('2026-10-12T05:00:00.000Z'));
+    const result = await f.run();
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.capture.worldRevision, 79);
+    assert.match(result.capture.source, new RegExp(`/${'b'.repeat(64)}-world\\.json\\.gz$`));
+    assert.equal(result.capture.cacheSchema, 'aifactory.snapshot-cache/v1');
+    assert.equal(result.capture.freshness.ageMs, 60000);
+    assert.equal(result.capture.freshness.basis, 'capture_completed_at_utc');
+  } finally { await cleanup(f.root); }
+});
+
+test('a later nearby raw capture keeps the cached whole-world scope instead of replacing it', async () => {
+  const f = await fixture();
+  try {
+    const raw = snapshot();
+    raw.world_revision = 78; raw.generated_at_utc = '2026-10-16T04:59:00.000Z';
+    raw.world.scan_radius_meters = 250;
+    await writeFile(join(f.root, 'captures/latest.json'), JSON.stringify(raw));
+    const result = await f.run();
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.capture.worldRevision, 77);
+    assert.equal(result.capture.wholeWorld, true);
+    assert.equal(result.capture.freshness.status, 'stale');
+  } finally { await cleanup(f.root); }
+});
+
+test('equally dated captures use file time to select the later saved observation', async () => {
+  const f = await fixture();
+  try {
+    const raw = snapshot(); raw.world_revision = 78;
+    const cachePath = join(f.root, 'captures', `${'a'.repeat(64)}-world.json.gz`);
+    const rawPath = join(f.root, 'captures/latest.json');
+    await writeFile(rawPath, JSON.stringify(raw));
+    await utimes(cachePath, new Date('2026-10-11T05:00:01.000Z'), new Date('2026-10-11T05:00:01.000Z'));
+    await utimes(rawPath, new Date('2026-10-11T05:00:02.000Z'), new Date('2026-10-11T05:00:02.000Z'));
+    const result = await f.run();
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.capture.worldRevision, 78);
     assert.equal(result.capture.freshness.basis, 'generated_at_utc');
     assert.equal(result.capture.freshness.ageMs, 5 * 24 * 60 * 60 * 1000);
   } finally { await cleanup(f.root); }

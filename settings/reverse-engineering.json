@@ -1,0 +1,14 @@
+{
+  "schema": "copilot.re-policy/v1",
+  "scope": "all-projects-in-this-mcp-application",
+  "purpose": "reverse-engineering",
+  "hostedModelsAllowed": true,
+  "maxCostUsd": null,
+  "authorization": "User explicitly authorized unlimited hosted-model usage until reverse-engineering work is complete, for reverse-engineering only. In-game questions and commands must use local Ollama without paid fallback.",
+  "phaseTimeoutMs": 1800000,
+  "maxParallelModels": 2,
+  "maxToolCallsPerModelTurn": 24,
+  "maxUnchangedFailures": 2,
+  "gameRequestsPaidFallback": false,
+  "automaticPromptPolling": false
+}

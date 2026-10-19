@@ -13,3 +13,7 @@ tools/rea/*.tgz
 tools/ghidra/
 tools/java/
 tools/satisfactory-sdk-513885/
+models/ollama/
+
+tools/wwise-cli/
+*.bak

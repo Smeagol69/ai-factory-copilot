@@ -1,0 +1,179 @@
+{
+  "schema": "copilot.agent-evidence-cases/v1",
+  "cases": [
+    {
+      "id": "case-01-queued-no-receipts",
+      "input": {
+        "taskId": "task-101",
+        "status": "queued",
+        "updatedAt": "2026-10-17T22:39:35.000Z",
+        "toolReceipts": [],
+        "artifacts": []
+      },
+      "expected": {
+        "status": "queued",
+        "canClaimWorking": false,
+        "canClaimArtifact": false
+      },
+      "reason": "Task queued with no tool receipts in progress."
+    },
+    {
+      "id": "case-02-running-valid-receipt",
+      "input": {
+        "taskId": "task-102",
+        "status": "running",
+        "updatedAt": "2026-10-17T22:39:50.000Z",
+        "toolReceipts": [
+          {
+            "name": "pair_context",
+            "status": "success"
+          }
+        ],
+        "artifacts": []
+      },
+      "expected": {
+        "status": "running",
+        "canClaimWorking": true,
+        "canClaimArtifact": false
+      },
+      "reason": "Active tool receipt present without final artifact result."
+    },
+    {
+      "id": "case-03-completed-valid-artifact",
+      "input": {
+        "taskId": "task-103",
+        "status": "completed",
+        "updatedAt": "2026-10-17T22:39:45.000Z",
+        "toolReceipts": [
+          {
+            "name": "pair_send_message",
+            "status": "success"
+          }
+        ],
+        "artifacts": [
+          {
+            "taskId": "task-103",
+            "path": "workspaces/team-proof/out.json",
+            "declaredSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "actualSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      },
+      "expected": {
+        "status": "completed",
+        "canClaimWorking": true,
+        "canClaimArtifact": true
+      },
+      "reason": "Completed status, tool receipt, fresh timestamp, and matching SHA256 artifact."
+    },
+    {
+      "id": "case-04-bare-model-completion",
+      "input": {
+        "taskId": "task-104",
+        "status": "completed",
+        "updatedAt": "2026-10-17T22:39:55.000Z",
+        "toolReceipts": [],
+        "artifacts": []
+      },
+      "expected": {
+        "status": "unknown",
+        "canClaimWorking": false,
+        "canClaimArtifact": false
+      },
+      "reason": "Bare model completion string without tool receipts is unknown."
+    },
+    {
+      "id": "case-05-refusal-failure",
+      "input": {
+        "taskId": "task-105",
+        "status": "failed",
+        "updatedAt": "2026-10-17T22:39:10.000Z",
+        "toolReceipts": [],
+        "artifacts": [],
+        "errorCode": "refusal"
+      },
+      "expected": {
+        "status": "failed",
+        "canClaimWorking": false,
+        "canClaimArtifact": false
+      },
+      "reason": "Task explicitly failed due to refusal error code."
+    },
+    {
+      "id": "case-06-quota-exhausted",
+      "input": {
+        "taskId": "task-106",
+        "status": "failed",
+        "updatedAt": "2026-10-17T22:39:20.000Z",
+        "toolReceipts": [],
+        "artifacts": [],
+        "errorCode": "quota_exhausted"
+      },
+      "expected": {
+        "status": "failed",
+        "canClaimWorking": false,
+        "canClaimArtifact": false
+      },
+      "reason": "Task failed due to capacity quota exhaustion."
+    },
+    {
+      "id": "case-07-hash-mismatch-partial",
+      "input": {
+        "taskId": "task-107",
+        "status": "completed",
+        "updatedAt": "2026-10-17T22:39:40.000Z",
+        "toolReceipts": [
+          {
+            "name": "pair_send_message",
+            "status": "success"
+          }
+        ],
+        "artifacts": [
+          {
+            "taskId": "task-107",
+            "path": "workspaces/team-proof/data.bin",
+            "declaredSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "actualSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ]
+      },
+      "expected": {
+        "status": "partial",
+        "canClaimWorking": false,
+        "canClaimArtifact": false
+      },
+      "reason": "Completed evidence with declared versus actual SHA256 mismatch."
+    },
+    {
+      "id": "case-08-stale-timestamp",
+      "input": {
+        "taskId": "task-108",
+        "status": "completed",
+        "updatedAt": "2026-10-17T22:38:50.000Z",
+        "toolReceipts": [
+          {
+            "name": "pair_send_message",
+            "status": "success"
+          }
+        ],
+        "artifacts": [
+          {
+            "taskId": "task-108",
+            "path": "workspaces/team-proof/proof.txt",
+            "declaredSha256": "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e",
+            "actualSha256": "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"
+          }
+        ]
+      },
+      "expected": {
+        "status": "unknown",
+        "canClaimWorking": false,
+        "canClaimArtifact": false
+      },
+      "reason": "Evidence updated >60s prior to current timestamp is stale."
+    }
+  ],
+  "limitations": [
+    "Offline authored cases; no tests executed or models activated by these cases."
+  ]
+}
