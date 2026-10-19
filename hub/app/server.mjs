@@ -132,6 +132,8 @@ try {
     // With no design open, the models work on the owner's active milestone; approved
     // steps go to team/auto, and the owner merges team/auto into master.
     work:milestoneWork,readMilestones:()=>room.state.milestones(),
+    // Peer requests on the shared ledger wake the model they are addressed to.
+    readMail:()=>store.db.prepare('SELECT id, sender, recipient, reply_to, subject FROM messages WHERE project IN (?, ?) ORDER BY id DESC LIMIT 200').all(...projects).reverse(),
     merge:({commit,message})=>mergeApprovedStep({repo:mainCheckout,commit,message})});
   let pumping=false;
   const pump=()=>{if(pumping)return;pumping=true;(async()=>{try{while(await conductor.tick());}catch{/* next pump */}finally{pumping=false;}})();};

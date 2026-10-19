@@ -4,7 +4,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudioStore } from '../lib/studio-store.mjs';
-import { createConductor, stepPrompt } from '../lib/conductor.mjs';
+import { createConductor, stepPrompt, pendingRequest, MAX_THREAD_TURNS } from '../lib/conductor.mjs';
 import { normaliseUsage } from '../lib/conductor-workers.mjs';
 
 const F = '/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
@@ -188,4 +188,56 @@ test('an unused lease is simply released when a turn ends', async () => {
   await c.tick();
   assert.equal(lease.current(), null);
   assert.match(store.get(job.id).events.map(e => e.text).join(' | '), /Released Codex's unused game lease/);
+});
+
+// The ledger around the safeguards review, as it was on 2026-10-19.
+const LEDGER = [
+  { id: 650, sender: 'claude-40324', recipient: null, reply_to: 647, subject: '#647 safeguards built; please review 04a9e65 before any game handoff' },
+  { id: 652, sender: 'codex-30460', recipient: 'claude-40324', reply_to: 650, subject: 'Request changes: three reproduced safeguards gaps before handoff' },
+  { id: 653, sender: 'codex-30460', recipient: 'claude-40324', reply_to: 650, subject: 'Final request_changes aed6d53: timeout blocker; both suites pass' },
+  { id: 655, sender: 'claude-40324', recipient: null, reply_to: 653, subject: 'Re-review: studio game safeguards repaired (#652/#653) at 77a5cf6' },
+];
+
+test('an unanswered peer request is the other model\'s turn; answered threads, notes and old history are not', () => {
+  assert.deepEqual(pendingRequest(LEDGER, { since: 654 }), { worker: 'codex', kind: 'mail', message: 655, thread: 650, from: 'claude-40324', subject: LEDGER[3].subject });
+  assert.equal(pendingRequest(LEDGER, { since: 600 }).message, 655, '650, 652 and 653 were answered later in the same thread');
+  assert.equal(pendingRequest(LEDGER, { since: 654, handled: [655] }), null, 'one turn per request');
+  const answered = [...LEDGER, { id: 656, sender: 'codex-1', recipient: 'claude-40324', reply_to: 655, subject: 'APPROVE 77a5cf6' }];
+  assert.equal(pendingRequest(answered, { since: 654 }), null);
+  assert.equal(pendingRequest([{ id: 700, sender: 'claude-1', recipient: null, reply_to: null, subject: 'master is current on GitHub' }]), null, 'a plain note asks for nothing');
+  assert.equal(pendingRequest([{ id: 701, sender: 'codex-1', recipient: 'codex-2', reply_to: null, subject: 'please review' }]), null, 'same-model messages stay between them');
+  assert.equal(pendingRequest([{ id: 702, sender: 'hauhaucs-local', recipient: null, reply_to: null, subject: 'Review requested: local/shift' }]), null);
+});
+
+test('the conductor wakes the addressed model for a peer request before any design work, once', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  store.create({ brief: 'Factory floor' });
+  let ledger = LEDGER.slice(0, 3);
+  const { prompts, workers } = fakes(store, async () => {});
+  const c = createConductor({ root, store, workers, worktrees, readMail: () => ledger });
+  c.set(true);
+  await c.tick(); // the first look only records where history ends
+  prompts.length = 0;
+  ledger = LEDGER;
+  const s = await c.tick();
+  assert.deepEqual([s.worker, s.kind, s.message], ['codex', 'mail', 655]);
+  assert.match(prompts[0].prompt, /message #655: "Re-review: studio game safeguards repaired/);
+  assert.match(prompts[0].prompt, /pair_send_message, reply_to 655/);
+  assert.equal(prompts[0].name, 'codex');
+  assert.equal((await c.tick()).kind, 'candidate', 'then the design work continues; the request is not repeated');
+  assert.match(c.status().mail.map(m => m.text).join(' | '), /Codex's turn: mail \(message #655 from claude-40324\)/);
+});
+
+test('two models cannot ping-pong forever: a thread gets a few automatic turns, then waits for the owner', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const ledger = [];
+  let id = 100;
+  const { prompts, workers } = fakes(store, async name => { ledger.push({ id: ++id, sender: `${name}-1`, recipient: null, reply_to: id - 1, subject: 'Please review my answer?' }); });
+  const c = createConductor({ root, store, workers, worktrees, readMail: () => ledger });
+  c.set(true);
+  await c.tick();
+  ledger.push({ id: ++id, sender: 'claude-1', recipient: null, reply_to: null, subject: 'Please review this' });
+  for (let i = 0; i < 20; i++) await c.tick();
+  assert.equal(prompts.length, MAX_THREAD_TURNS);
+  assert.match(c.status().mail.at(-1).text, /waits for the owner/);
 });

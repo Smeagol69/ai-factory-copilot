@@ -16,7 +16,7 @@ function renderControls() {
   const c = overview.conductor, on = c.enabled;
   $('cond-state').textContent = c.running ? 'working' : on ? 'on' : 'off';
   $('cond-state').className = `state ${c.running ? 'working' : on ? 'standby' : 'idle'}`;
-  $('cond-detail').textContent = c.running ? `${NAME[c.running.worker]}: ${c.running.kind}${c.running.candidate ? ` (candidate ${c.running.candidate})` : ''} since ${new Date(c.running.startedAt).toLocaleTimeString()}`
+  $('cond-detail').textContent = c.running ? `${NAME[c.running.worker]}: ${c.running.kind}${c.running.candidate ? ` (candidate ${c.running.candidate})` : ''}${c.running.message ? ` (answering message #${c.running.message})` : ''} since ${new Date(c.running.startedAt).toLocaleTimeString()}`
     : c.waiting ? c.waiting.reason : on ? 'Waiting: no design open and no milestone step due' : 'Off: designs wait until you turn it on';
   $('cond-toggle').textContent = on ? 'Turn off' : 'Turn on';
   const l = overview.gameLease;

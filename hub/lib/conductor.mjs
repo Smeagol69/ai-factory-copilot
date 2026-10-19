@@ -39,7 +39,39 @@ export function milestonePrompt(job, step, { worktree, branch }) {
   return `${head}\n\nYOUR STEP: ${body}\n\nEnd your turn when the step is reported.`;
 }
 
-export function createConductor({ root, store, workers, worktrees, now = Date.now, log = () => {}, mayOperate = () => true, lease = null, work = null, readMilestones = null, merge = async () => ({ error: 'merging is not configured' }) }) {
+// Peer requests on the shared ledger (agent_pair messages). A request from one model
+// that the other has not answered in the same thread gets the other model a turn, so
+// reviews and questions move without the owner relaying them.
+const ASKS = /review|request|question|please|wanted|answer|\?/i;
+// A verdict or note closes the loop: it never wakes the other model.
+const VERDICT = /^\W*(approve|approved|approval|lgtm|fyi|done|thanks|ack)\b/i;
+// Automatic turns per thread before the owner looks (a ping-pong guard).
+export const MAX_THREAD_TURNS = 6;
+export const familyOf = sender => /^claude/i.test(sender ?? '') ? 'claude' : /^codex/i.test(sender ?? '') ? 'codex' : null;
+export function pendingRequest(messages, { since = 0, handled = [] } = {}) {
+  const byId = new Map(messages.map(m => [m.id, m]));
+  const root = m => { let r = m; for (let i = 0; i < 100 && r.reply_to && byId.has(r.reply_to); i++) r = byId.get(r.reply_to); return r.id; };
+  for (const m of messages) {
+    if (m.id <= since || handled.includes(m.id)) continue;
+    const from = familyOf(m.sender); if (!from) continue;
+    const to = m.recipient ? familyOf(m.recipient) : other(from);
+    if (to !== other(from) || !ASKS.test(m.subject ?? '') || VERDICT.test(m.subject ?? '')) continue;
+    const thread = root(m);
+    if (messages.some(x => x.id > m.id && familyOf(x.sender) === to && root(x) === thread)) continue;
+    return { worker: to, kind: 'mail', message: m.id, thread, from: m.sender, subject: String(m.subject).slice(0, 200) };
+  }
+  return null;
+}
+
+export function mailPrompt(step, { worktree, branch }) {
+  return [`You are ${NAME[step.worker]}, working with ${NAME[other(step.worker)]} on the owner's Satisfactory project. The owner is watching live but is not prompting; the hub runs your turns.`,
+    `${step.from} sent a request on the shared ledger (agent_pair, project satisfactory-mcp-lab), message #${step.message}: "${step.subject}". Nobody on your side has answered it yet.`,
+    `Your worktree is ${worktree} on branch ${branch}. Read AGENTS.md and docs/STATUS.md if you have not this session.`,
+    `YOUR STEP: read message #${step.message} and the messages it replies to (pair_read_messages; use after_id to page). Do what it asks within your role. For a review: check exactly the named commit and hashes in your worktree (git fetch is not needed: the repo is local; check out the commit detached), run the tests or reproducers it names, and do not change master. For changes requested of you: make them on your branch with tests and commit. Never use the game unless the request is a game step that is yours and the hub allows it. Then answer with pair_send_message, reply_to ${step.message}: what you checked or changed (exact commit/hashes) and your verdict.`,
+    'End your turn when the reply is sent.'].join('\n\n');
+}
+
+export function createConductor({ readMail = null, root, store, workers, worktrees, now = Date.now, log = () => {}, mayOperate = () => true, lease = null, work = null, readMilestones = null, merge = async () => ({ error: 'merging is not configured' }) }) {
   const file = join(root, 'state/studio/conductor.json');
   let state = { enabled: false };
   try { if (existsSync(file)) state = { ...state, ...JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')) }; } catch { state.enabled = false; }
@@ -47,7 +79,22 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
   let running = null, waiting = null;
   const stale = new Map(); // jobId → turns that did not change the next step
 
-  // Design jobs come first; with none open, the models work on the owner's
+  function mail() {
+    if (!readMail) return null;
+    let messages; try { messages = readMail(); } catch { return null; }
+    // The first look starts from now: older threads are history, not requests.
+    if (state.mailSince == null) { state.mailSince = messages.reduce((m, x) => Math.max(m, x.id), 0); save(); return null; }
+    for (;;) {
+      const step = pendingRequest(messages, { since: state.mailSince, handled: state.mailHandled ?? [] });
+      if (!step) return null;
+      if ((state.mailThreads?.[step.thread] ?? 0) < MAX_THREAD_TURNS) return { source: 'mail', job: { id: `mail-${step.message}` }, step };
+      state.mailHandled = [...(state.mailHandled ?? []), step.message].slice(-200);
+      mailLog(null, 'studio', `Thread #${step.thread} had ${MAX_THREAD_TURNS} automatic turns; message #${step.message} waits for the owner`);
+    }
+  }
+  const mailLog = (...a) => { state.mailLog = [...(state.mailLog ?? []), { t: new Date(now()).toISOString(), who: a[1], text: a[2] }].slice(-30); save(); };
+
+  // Peer requests come first, then design jobs; with none open, the models work on the owner's
   // ACTIVE milestone in build → review cycles (milestone-work.mjs).
   function pick() {
     const job = store.list().filter(j => ['designing', 'agreed', 'building'].includes(j.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
@@ -69,10 +116,12 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
   async function tick() {
     if (!state.enabled || running) return null;
     waiting = null;
-    const picked = pick();
+    const picked = mail() ?? pick();
     if (!picked) return null;
     const { source, job, step } = picked;
-    const S = source === 'design'
+    const S = source === 'mail'
+      ? { get: () => step, log: mailLog, needsOwner: (id, text) => mailLog(id, 'studio', text), next: () => null, prompt: () => mailPrompt(step, worktrees[step.worker]) }
+      : source === 'design'
       ? { get: id => store.get(id), log: (...a) => store.log(...a), needsOwner: (...a) => store.needsOwner(...a), next: nextStep, prompt: j => stepPrompt(j, step, worktrees[step.worker]) }
       : { get: id => work.get(id), log: (...a) => work.log(...a), needsOwner: (...a) => work.needsOwner(...a), next: nextMilestoneStep, prompt: j => milestonePrompt(j, step, worktrees[step.worker]) };
     if (step.kind === 'merge') {
@@ -90,10 +139,11 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
       waiting = { job: job.id, worker: step.worker, reason: `${NAME[step.worker]} is out of usage${u.resetsAt ? ` until ${new Date(u.resetsAt).toLocaleTimeString()}` : ''}` };
       return null;
     }
+    if (source === 'mail') { state.mailHandled = [...(state.mailHandled ?? []), step.message].slice(-200); state.mailThreads = { ...state.mailThreads, [step.thread]: (state.mailThreads?.[step.thread] ?? 0) + 1 }; save(); }
     if (step.kind === 'build' && job.status === 'agreed') store.startBuild(job.id);
     const before = JSON.stringify(step);
-    running = { job: job.id, source, worker: step.worker, kind: step.kind, candidate: step.candidate ?? null, step: step.step ?? null, startedAt: now() };
-    S.log(job.id, 'studio', `${NAME[step.worker]}'s turn: ${step.kind}${step.candidate ? ` (candidate ${step.candidate})` : ''}${step.step ? ` (step ${step.step})` : ''}`);
+    running = { job: job.id, source, worker: step.worker, kind: step.kind, candidate: step.candidate ?? null, step: step.step ?? null, message: step.message ?? null, startedAt: now() };
+    S.log(job.id, 'studio', `${NAME[step.worker]}'s turn: ${step.kind}${step.candidate ? ` (candidate ${step.candidate})` : ''}${step.step ? ` (step ${step.step})` : ''}${step.message ? ` (message #${step.message} from ${step.from})` : ''}`);
     const prompt = S.prompt(S.get(job.id));
     let timer;
     // Stop must end the wait even if the worker never answers.
@@ -122,6 +172,8 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
       S.needsOwner(job.id, `${NAME[step.worker]}'s game transaction is unresolved (${ended}). Check the game, then resolve it in the Design studio; nothing is replayed automatically`);
       stale.delete(job.id); log({ job: job.id, step }); return step;
     }
+    // A peer request gets one turn; an unanswered one stays visible in the log.
+    if (source === 'mail') { log({ job: job.id, step }); return step; }
     // A turn that leaves the same next step has not moved the job forward.
     const again = JSON.stringify(S.next(S.get(job.id)));
     if (again === before) {
@@ -134,7 +186,7 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
 
   return {
     tick,
-    status: () => ({ enabled: state.enabled, running, waiting }),
+    status: () => ({ enabled: state.enabled, running, waiting, mail: (state.mailLog ?? []).slice(-8) }),
     set(enabled) { state.enabled = !!enabled; save(); return { enabled: state.enabled }; },
     async stop() {
       state.enabled = false; save();
