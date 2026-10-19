@@ -10505,3 +10505,25 @@ both turn signs, curved footprint corners and12m clear central corridor checked;
 wall pipe band reserved, no railway. Missing/inconsistent/oversized measurements
 refuse whole.1367companion tests and197hub tests/2skips pass. Independent exact
 local review approves new compiler/router. Native save/worldfit/render next.
+
+Live result (2026-10-19): e91eb17 deployed with companion runtime1f96e53a;
+DLL0614e6dd unchanged. One operator: codex-14540. Peer master41b5b19 and separate
+Claude55d2f2e conductor work checked before copy; no unfinished peer code packaged.
+AI Walled Sweep Industrial 90 v1 saved/reloaded18/18 and placed18/18. Fresh world
+capture matched every full native pose/unit scale. All504 approved shell scales
+now verified too; its saved SHA10447E8D still equals the untouched backup.
+Hologram yaw30deg differs from shell30.4500029deg. Independent actual-transform
+floor check:1372samples,0unsupported, maxcontacterror.004145cm, mincentraloffset
+644.837cm. The planned12m central corridor survives actual placement rounding.
+One interior night view inspected and saved; final daytime finish remains open.
+Compact proof/image committed under docs/history/tunnel-milestone/evidence.
+
+Own failed228fixture v4 file moved with hash verification to local
+failed-lighting-v4 evidence directory, outside playable Blueprint library.
+No lights placed; native saving loses scale after staging. Stage reapply was not
+the root repair. Do not replay that failed file or waive exact geometry checks.
+Next: precise native save-phase diagnosis or unit-size fixtures/native SetLength,
+real wall-pipe splines/supports/connectivity, power, then clean522-member composite
+export. The last native journal entry is a player teleport for visual inspection;
+do not blindly undo expecting to remove the18props. Calibration7props remain in
+a separate test area. The user alone marks the active milestone complete.

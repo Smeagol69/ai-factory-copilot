@@ -1,8 +1,8 @@
-# Status: where the work stands (2026-10-18)
+# Status: where the work stands (2026-10-19)
 
-**Start here.** This is the single picture of the project as of 2026-10-18,
-right after every Claude and Codex branch, every nested checkout and the
-separate MCP Lab were consolidated into this one repo. Read in this order:
+**Start here.** Updated with the 2026-10-19 live industrial-tunnel proof after
+the branches, nested checkouts and separate MCP Lab were consolidated into
+this one repo. Read in this order:
 
 1. this file: where the latest progress is, what's verified, what's next;
 2. [AGENTS.md](../AGENTS.md): the rules, the release process and the traps;
@@ -35,9 +35,9 @@ the game exists: bases, factories, tunnels.**
   where the local copy differed), on GitHub as well, so every hash quoted in the
   ledger and in `docs/ai-collaboration.md` still resolves.
 - Tests, no game needed:
-  - `cd companion; npm install; npm test`: **1359 pass, 0 fail**
+  - `cd companion; npm install; npm test`: **1367 pass, 0 fail**
   - `cd hub; runtime\node\node.exe --test --test-isolation=none test/*.test.mjs`:
-    **168 pass, 0 fail, 2 skipped**
+    **197 pass, 0 fail, 2 skipped**
 - Start: double-click **`Start Copilot.cmd`**. It opens the hub at
   <http://127.0.0.1:8795/>, starts the bridge, and writes the MCP launchers
   (`.mcp.json`, `.codex/config.toml`) that Claude Code and Codex use when they
@@ -58,20 +58,20 @@ Proof files: [history/tunnel-milestone/](history/tunnel-milestone/README.md).
 | Curve refined (v2 had visible joint ridges, v3 "Fine Turn" fixed them within the piece budget) | **Partly.** All 270 v3 poses verified. `visualJointsVerified` is still **false**: nobody has formally inspected the joints. The owner's screenshots look clean |
 | `AI Tunnel Work Area Preserved.sbp`: whole area re-saved (528 members) | **Yes.** 330/330 wanted members (60 original + 270 generated) at exact class and position (max error 0.00014 cm). It also caught 198 nearby test pieces |
 | `AI Walled Sweep 90.sbp`: gradual64m-radius turn with straight connection sections | **Owner approved.** All504 placed class/position/rotation poses match the actual archive. The attempted v7 fitted-size readback failed because the archive retained unit scales; the owner likes that actual unit-scale shell. Preserve it. Physical attachment to the straight is not yet verified. |
-| Lighting and industrial pedestrian-tunnel decoration | **In progress.** Native5454D8EF and companion aa6aa24 are deployed. Live checks found a missed outer v8 dispatch gate and lost scaled poses. A reviewed native repair is built, not yet installed. Exact prop calibration comes before decoration. No railway; preserve a clear walking route and future beltway space. |
+| Industrial pedestrian-tunnel decoration | **First pass verified in game.** `AI Walled Sweep Industrial 90 v1`: 18 native-size props saved/reloaded and placed; every full world pose checked. 1,372 footprint samples land on the approved shell's flat floor, with the central 12m corridor clear. See the 2026-10-19 proof below. |
+| Lighting | **Open.** DLL0614e6dd and companion e91eb17 are installed. The 228-fixture plan clears native collision checks, but the game writes every actor scale as1. Exact reload refuses it. The failed file is quarantined; no new world fixtures were placed. |
 
 Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\Bp Builder\`.
 
 ## What to do next, in order
 
-1. **Install and test the reviewed native stage repair** with a fresh save backup
-   and peer/source checks. Reapply validated scaled poses after construction,
-   report before/staged/requested scale and retain exact saved-geometry checks.
-   Do not overwrite the approved504-piece unit-scale shell.
-2. **Test the lights and real Factory Props palette**. The bridge's old
-   BP_BuildGun-only producer filter excluded815 unlocked props using native
-   `/Script/FactoryGame.FGBuildGun`; its regression test and fix pass. Seven
-   calibration props need native save/place/bounds readback before decoration.
+1. **Fix native fixture persistence**, or use real native beam lengths and
+   unit-size lamps. Construction already retains requested scales; saving loses
+   them. Inspect membership and serialization phases, keeping exact readback.
+   Preserve the approved 504-piece shell and the placed 18-piece decor kit.
+2. **Match the original wall pipes through the curve**, using measured native
+   spline geometry, real support placement and reciprocal native connections.
+   The decoration reserves those wall bands; it does not supply new pipes yet.
 3. **Verify the lights get power** in the game (the original source lamps
    captured no power).
 4. **Save a clean finished tunnel** without the 198 nearby prototype pieces.
@@ -92,19 +92,26 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
 7. **Creative Architect research** (project 3): look for design-focused models or
    MCP tools that make the Architect better at layouts; add only what earns its place.
 
-## Owner decisions pending
+## Live industrial-tunnel continuation (2026-10-19)
 
-### Live industrial-tunnel continuation (2026-10-19)
+The owner-approved `AI Walled Sweep 90` remains the 504-piece unit-scale native
+baseline, with identical saved bytes. Seven FactoryProps calibration samples
+saved, reloaded and placed 7/7; fresh capture matched their full poses and scales.
+The measured side-bay compiler created **AI Walled Sweep Industrial 90 v1**:
+6 vents, 4 M.A.M. consoles, 4 crates and 4 Ficus plants, all native size.
+The game saved/reloaded and placed **18/18**. Fresh world capture matched every
+class/position/rotation/unit scale; all 504 original shell scales also checked.
+The hologram rounded heading by -0.450003 degrees; floor sampling accounted for
+this actual heading: **1,372 supported samples**, maximum floor-height error
+0.0042cm, and nearest prop footprint 644.84cm from the central path.
+One interior night view was inspected; final daytime finish is still open.
 
-The owner-approved `AI Walled Sweep 90` remains the504-piece unit-scale native
-baseline. Seven FactoryProps calibration samples saved, reloaded and placed
-7/7; fresh game capture independently matched full poses/unit scales and measured
-their bounds. An18-piece native-size side-bay compiler now uses those measured
-vents, M.A.M. consoles, crates and Ficus plants, a continuous measured floor and
-a reserved12m central walking corridor. It handles either turn sign, preserves
-both wall pipe bands and refuses missing/inconsistent/oversized measurements.
-1367companion tests and197hub tests pass (2hub skips); bounded independent local
-review approved the exact compiler/router. Native save/placement/render pending.
+Companion **1367 pass**, hub **197 pass / 2 skipped**; exact compiler/router
+reviewed by the configured local model. Source e91eb17, DLL0614e6dd, companion
+runtime1f96e53a; deployment owner codex-14540. Save backups and raw evidence stay
+under `hub/state/live-architect/tunnel-milestone`. Compact proof and actual image:
+[industrial accents](history/tunnel-milestone/evidence/industrial-accents-2026-10-19.json),
+[night inspection](history/tunnel-milestone/evidence/industrial-accents-night-2026-10-19.png).
 
 Lighting: reduced .25-size fixtures pass live228-piece collision preflight, but
 the native Blueprint write resets every saved actor scale to1. Exact native
@@ -113,6 +120,8 @@ must not be treated as a verified add-on. No world fixtures were placed. Native
 unit-size props work. Investigate the save/membership phase or use real native
 beam lengths and unit-size lamps; do not waive scale/readback checks. Power and
 matching native wall pipes are still open.
+
+## Owner decisions pending
 
 - The 13 GB Wwise download cache at `hub/state/local-game-re/wwise-cache`: keep or
   delete (it can be downloaded again).

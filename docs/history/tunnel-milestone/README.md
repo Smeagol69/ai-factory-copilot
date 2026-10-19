@@ -22,3 +22,14 @@ under 300 KB are here; home-folder paths are masked as `%USERPROFILE%`.
 
 The plan with its checkboxes is
 [../../superpowers/plans/2026-10-18-level-tunnel.md](../../superpowers/plans/2026-10-18-level-tunnel.md).
+
+## Industrial side bays (2026-10-19)
+
+[Compact live proof](evidence/industrial-accents-2026-10-19.json) and
+[actual night inspection](evidence/industrial-accents-night-2026-10-19.png).
+`AI Walled Sweep Industrial 90 v1` saved/reloaded and placed 18 native-size props:
+6 vents, 4 consoles, 4 crates, 4 plants. All world poses match native readback;
+1,372 footprint samples sit on the approved shell's floor. A 12m central corridor
+remains clear. The hologram rounded heading by 0.45 degrees; the floor proof uses
+that actual heading. Original shell bytes and all 504 unit scales are preserved.
+Lighting, native wall-pipe continuation and final daytime visual review remain open.

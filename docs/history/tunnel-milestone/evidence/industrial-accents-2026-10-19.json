@@ -1,0 +1,39 @@
+{
+  "schema": "aifactory.industrial-accents-proof/v1",
+  "sourceCommit": "e91eb17e0be8c8a9cca5c52b28158a3b19c4f73a",
+  "blueprint": "AI Walled Sweep Industrial 90 v1",
+  "blueprintSha256": "fe0fab632a2893f85fa35626449ed62ddcf92ac8d67bc6b3bb2a78f98a0838ee",
+  "sourceFingerprint": "sha256:458e364dd1087d094ee73309e998f5afa8a050461c0e300e892a2bfe781501e6",
+  "nativeSaveJob": "ab8f26ce-3dcc-49aa-be47-fef21c744d0c",
+  "nativePlacementJob": "12aec849-e5b0-4895-ba7b-69a21f76e46a",
+  "nativeSavedAndReloadedParts": 18,
+  "nativePlacedParts": 18,
+  "freshCaptureAt": "2026-10-19T04:12:53.188Z",
+  "matchedWorldPoses": 18,
+  "approvedShellUnitScalesVerified": 504,
+  "approvedShellBytesUnchanged": true,
+  "actualHologramYawDegrees": 30.000000000000025,
+  "headingDriftDegrees": -0.45000289937380344,
+  "maximumWorldPositionErrorCm": 5.999908354159067e-11,
+  "maximumWorldRotationErrorDegrees": 0.0000024148365394514667,
+  "maximumFloorContactErrorCm": 0.00414460143292672,
+  "footprintSamples": 1372,
+  "unsupportedFloorSamples": 0,
+  "minimumCentralOffsetCm": 644.8372912878604,
+  "central12mReserved": true,
+  "decor": {
+    "vents": 6,
+    "consoles": 4,
+    "crates": 4,
+    "ficus": 4,
+    "rails": 0
+  },
+  "visualInspection": "One interior night viewpoint inspected; final daytime finish, lighting and pipes remain open.",
+  "lighting": "228 fitted fixtures clear staging but native archive loses nonunit scales. Exact reload refuses. Failed own file quarantined; no fixtures placed.",
+  "checks": {
+    "companionPassed": 1367,
+    "hubPassed": 197,
+    "hubSkipped": 2
+  },
+  "artifactsRoot": "hub/state/live-architect/tunnel-milestone"
+}
