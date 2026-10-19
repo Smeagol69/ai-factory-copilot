@@ -395,3 +395,24 @@ test('when Codex is out of usage Claude builds the agreed design and Codex verif
   assert.equal(await c.tick(), null);
   assert.match(c.status().waiting.reason, /Codex is out of usage/);
 });
+
+test('a peer request for a model that is out of usage does not hold up the other model\'s build', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Straight' });
+  store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  let ledger = [];
+  const { prompts, w, workers } = fakes(store, async (name, prompt, s) => {
+    if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'generated', blueprint_name: 'X', built: true, candidate_sha256: s.get(job.id).agreedHash, evidence: gen('X') });
+  });
+  w.codex.usage = { out: true, resetsAt: Date.now() + 5 * 86400000 };
+  const c = createConductor({ root, store, workers, worktrees, readMail: () => ledger });
+  c.set(true);
+  await c.tick(); // first look records where history ends
+  ledger = [{ id: 662, sender: 'claude-40324', recipient: null, reply_to: null, subject: 'Review please: 13554f2' }];
+  const s = await c.tick();
+  assert.deepEqual([s.worker, s.kind], ['claude', 'build'], 'Claude builds while the request for Codex waits');
+  assert.equal(prompts.length, 1);
+  assert.equal(await c.tick(), null, 'then nothing is left that a model with usage can do');
+  assert.match(c.status().waiting.reason, /Codex is out of usage until .*; (message #662|its verify step) waits for it/);
+});

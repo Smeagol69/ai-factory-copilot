@@ -111,14 +111,17 @@ export function createConductor({ readMail = null, root, store, workers, worktre
   let running = null, waiting = null;
   const stale = new Map(); // jobId → turns that did not change the next step
 
-  function mail() {
+  function mail(out = new Map()) {
     if (!readMail) return null;
+    const skipped = [];
     let messages; try { messages = readMail(); } catch { return null; }
     // The first look starts from now: older threads are history, not requests.
     if (state.mailSince == null) { state.mailSince = messages.reduce((m, x) => Math.max(m, x.id), 0); save(); return null; }
     for (;;) {
-      const step = pendingRequest(messages, { since: state.mailSince, handled: state.mailHandled ?? [] });
+      const step = pendingRequest(messages, { since: state.mailSince, handled: [...(state.mailHandled ?? []), ...skipped] });
       if (!step) return null;
+      // A request for a model that is out of usage waits for it without holding up the rest.
+      if (out.has(step.worker)) { skipped.push(step.message); waiting ??= { job: `mail-${step.message}`, worker: step.worker, reason: outReason(out, step.worker, `message #${step.message}`) }; continue; }
       if ((state.mailThreads?.[step.thread] ?? 0) < MAX_THREAD_TURNS) return { source: 'mail', job: { id: `mail-${step.message}` }, step };
       state.mailHandled = [...(state.mailHandled ?? []), step.message].slice(-200);
       mailLog(null, 'studio', `Thread #${step.thread} had ${MAX_THREAD_TURNS} automatic turns; message #${step.message} waits for the owner`);
@@ -128,14 +131,19 @@ export function createConductor({ readMail = null, root, store, workers, worktre
 
   // Peer requests come first, then design jobs; with none open, the models work on the owner's
   // ACTIVE milestone in build → review cycles (milestone-work.mjs).
-  function pick() {
-    // Oldest first, but a job whose build waits for game control does not hold up
-    // the others: it waits without spending a turn while the next design goes on.
+  function pick(out = new Map()) {
+    // Oldest first, but a job that cannot go on now (its build waits for game control,
+    // or its model is out of usage) does not hold up the others.
     const open = store.list().filter(j => ['designing', 'agreed', 'building'].includes(j.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     for (const job of open) {
-      const step = nextStep(job);
+      let step = nextStep(job);
       if (!step) continue;
       if (step.kind === 'build' && !mayOperate()) { waiting ??= { job: job.id, worker: step.worker, reason: "The build waits for game control: Codex's live session has not handed off yet" }; continue; }
+      // Either model may build an agreed design (owner, 2026-10-19): when the planned
+      // builder is out of usage and the other is not, the other builds; the model that
+      // did not build verifies.
+      if (step.kind === 'build' && out.has(step.worker) && !out.has(other(step.worker))) step = { ...step, worker: other(step.worker), reassignedFrom: step.worker };
+      if (out.has(step.worker)) { waiting ??= { job: job.id, worker: step.worker, reason: outReason(out, step.worker, `its ${step.kind} step`) }; continue; }
       return { source: 'design', job, step };
     }
     if (!work || !readMilestones) return null;
@@ -149,17 +157,31 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     }
     if (!mj) return null;
     const step = nextMilestoneStep(mj);
+    if (step && out.has(step.worker)) { waiting ??= { job: mj.id, worker: step.worker, reason: outReason(out, step.worker, `its ${step.kind} step`) }; return null; }
     return step ? { source: 'milestone', job: mj, step } : null;
   }
+
+  // Which models are out of usage right now (a limit seen in a turn, or the worker's
+  // own usage report, which counts the weekly window too).
+  async function outOfUsage(name) {
+    const until = state.outUntil?.[name] ?? 0;
+    if (until > now()) return { resetsAt: until };
+    const u = (await workers.get(name).catch(() => null))?.usage;
+    return u?.out && (!u.resetsAt || u.resetsAt > now()) ? { resetsAt: u.resetsAt ?? null } : null;
+  }
+  const outReason = (out, name, what) => `${NAME[name]} is out of usage${out.get(name)?.resetsAt ? ` until ${new Date(out.get(name).resetsAt).toLocaleTimeString()}` : ''}; ${what} waits for it`;
 
   async function tick() {
     if (!state.enabled || running) return null;
     waiting = null;
-    const picked = mail() ?? pick();
+    const out = new Map();
+    for (const n of ['codex', 'claude']) { const o = await outOfUsage(n); if (o) out.set(n, o); }
+    const picked = mail(out) ?? pick(out);
     if (!picked) return null;
     const { source, job } = picked;
-    let step = picked.step;
-    const planned = JSON.stringify(step); // progress is judged against the planned step
+    const { reassignedFrom, ...step } = picked.step;
+    // Progress is judged against the planned step (before any builder swap).
+    const planned = JSON.stringify(reassignedFrom ? { ...step, worker: reassignedFrom } : step);
     const S = source === 'mail'
       ? { get: () => step, log: mailLog, needsOwner: (id, text) => mailLog(id, 'studio', text), next: () => null, prompt: () => mailPrompt(step, worktrees[step.worker]) }
       : source === 'design'
@@ -177,18 +199,7 @@ export function createConductor({ readMail = null, root, store, workers, worktre
     // Either model may build an agreed design (owner, 2026-10-19): when the planned
     // builder is out of usage and the other is not, the other builds; the model that
     // did not build verifies.
-    if (step.kind === 'build') {
-      const outOfUsage = async n => {
-        if ((state.outUntil?.[n] ?? 0) > now()) return true;
-        const u = (await workers.get(n).catch(() => null))?.usage;
-        return !!(u?.out && (!u.resetsAt || u.resetsAt > now()));
-      };
-      const alt = other(step.worker);
-      if (await outOfUsage(step.worker) && !(await outOfUsage(alt))) {
-        S.log(job.id, 'studio', `${NAME[step.worker]} is out of usage, so ${NAME[alt]} builds instead (owner decision 2026-10-19); ${NAME[step.worker]} verifies`);
-        step = { ...step, worker: alt };
-      }
-    }
+    if (reassignedFrom) S.log(job.id, 'studio', `${NAME[reassignedFrom]} is out of usage, so ${NAME[step.worker]} builds instead (owner decision 2026-10-19); ${NAME[reassignedFrom]} verifies`);
     const worker = await workers.get(step.worker);
     // A limit hit during an earlier turn outlives that worker process (state.outUntil).
     const until = state.outUntil?.[step.worker] ?? 0;
