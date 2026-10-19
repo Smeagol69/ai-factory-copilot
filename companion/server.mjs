@@ -29,7 +29,10 @@ const BRIDGE_PACKAGE = JSON.parse(
   fs.readFileSync(new URL("./package.json", import.meta.url), "utf8"),
 );
 export const BRIDGE_VERSION = BRIDGE_PACKAGE.version;
-export const ACTION_CONTRACT_VERSION = 1;
+// beta.3 adds native export and client-only Build Gun preview actions.  A
+// mismatched bridge must fail closed instead of asking an older packaged mod
+// to interpret a new durable-file action.
+export const ACTION_CONTRACT_VERSION = 2;
 
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value ?? "", 10);

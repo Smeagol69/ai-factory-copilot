@@ -252,7 +252,12 @@ function resolveNativeBlueprintExportSelection(graph, proposedIds) {
       missingActors.push(actorId);
       continue;
     }
-    if (raw.kind !== "buildable") {
+    // A native Blueprint Proxy is a genuine dismantle-selection member even
+    // though it is not an AFGBuildable. The game executor expands it through
+    // CollectBuildables and rechecks its lightweight members before writing,
+    // so the bridge may carry its exact selected identity and bounds without
+    // pretending the proxy itself is serialisable buildable data.
+    if (raw.kind !== "buildable" && raw.kind !== "blueprint_proxy") {
       nonBuildables.push(actorId);
       continue;
     }

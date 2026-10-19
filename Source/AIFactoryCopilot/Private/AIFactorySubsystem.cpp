@@ -30,7 +30,9 @@
 
 namespace
 {
-    constexpr int32 SupportedActionContractVersion = 1;
+    // Keep this paired with companion/server.mjs. Version 2 adds the native
+    // whole-factory export and client-only Build Gun blueprint preview paths.
+    constexpr int32 SupportedActionContractVersion = 2;
 
     bool IsCommittedWorldWriteResult(const TSharedPtr<FJsonValue>& Value)
     {

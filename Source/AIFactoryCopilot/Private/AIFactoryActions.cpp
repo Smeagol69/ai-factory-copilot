@@ -6,11 +6,14 @@
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableConveyorBase.h"
 #include "Buildables/FGBuildableManufacturer.h"
+#include "Buildables/FGBuildableResourceExtractorBase.h"
 #include "CollisionQueryParams.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Equipment/FGBuildGun.h"
+#include "Equipment/FGBuildGunDismantle.h"
+#include "FGFactoryBlueprintTypes.h"
 #include "FGBlueprintProxy.h"
 #include "FGBlueprintSettings.h"
 #include "FGBlueprintSubsystem.h"
@@ -23,6 +26,8 @@
 #include "FGFactoryConnectionComponent.h"
 #include "FGInventoryComponent.h"
 #include "FGLightweightBuildableSubsystem.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
 #include "Hologram/FGBlueprintHologram.h"
@@ -2249,6 +2254,416 @@ FAIFactoryActionResult PlaceBlueprint(
     return Result;
 }
 
+FAIFactoryActionResult ExportNativeBlueprint(
+    const FAIFactoryActionContext& Context,
+    const FString& BlueprintName,
+    const TArray<FString>& SelectedActorIds)
+{
+    const FString Action = TEXT("export_native_blueprint");
+    const FString Blocked = CheckActionPreconditions(Context);
+    if (!Blocked.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(Action, Blocked);
+    }
+    if (!IsValid(Context.Player))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_player"));
+    }
+
+    AFGBlueprintSubsystem* Blueprints = AFGBlueprintSubsystem::Get(Context.World);
+    if (!IsValid(Blueprints))
+    {
+        return FAIFactoryActionResult::Refuse(Action, TEXT("no_blueprint_subsystem"));
+    }
+
+    const FString SanitizedName =
+        AFGBlueprintSubsystem::SanitizeBlueprintFileName(BlueprintName);
+    if (SanitizedName.IsEmpty())
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("blueprint_name_has_no_usable_filename"));
+    }
+    if (SanitizedName != BlueprintName.TrimStartAndEnd())
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("blueprint_name_is_not_a_native_safe_filename"));
+    }
+
+    // Export is deliberately selection-only. A radius around the crosshair is
+    // not a factory boundary, especially in a megabase with adjacent power,
+    // rail, and decorative systems. Re-read the live Build Gun state rather
+    // than trusting the snapshot that persuaded the bridge to propose this.
+    AFGBuildGun* BuildGun = Context.Player->GetBuildGun();
+    UFGBuildGunStateDismantle* Dismantle = IsValid(BuildGun)
+        ? Cast<UFGBuildGunStateDismantle>(
+            BuildGun->GetBuildGunStateFor(EBuildGunState::BGS_DISMANTLE))
+        : nullptr;
+    if (!IsValid(Dismantle))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_dismantle_state_unavailable"));
+    }
+
+    TSet<FString> RequestedIds;
+    for (const FString& RawId : SelectedActorIds)
+    {
+        const FString Id = RawId.TrimStartAndEnd();
+        if (Id.IsEmpty() || RequestedIds.Contains(Id))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("selected_actor_ids_must_be_unique_nonempty_strings"));
+        }
+        RequestedIds.Add(Id);
+    }
+    if (RequestedIds.Num() == 0)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("dismantle_selection_is_empty"));
+    }
+
+    const TArray<AActor*> LiveSelection = Dismantle->GetPendingDismantleActors();
+    TSet<FString> LiveIds;
+    for (AActor* Actor : LiveSelection)
+    {
+        if (!IsValid(Actor))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("native_blueprint_export_live_selection_contains_invalid_actor"));
+        }
+        const FString Id = Actor->GetPathName();
+        if (LiveIds.Contains(Id))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("native_blueprint_export_live_selection_has_duplicate_actor_ids"));
+        }
+        LiveIds.Add(Id);
+    }
+    if (LiveIds.Num() != RequestedIds.Num())
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_selection_changed"));
+    }
+    for (const FString& Id : RequestedIds)
+    {
+        if (!LiveIds.Contains(Id))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("native_blueprint_export_selection_changed"));
+        }
+    }
+
+    const FString BlueprintDirectory = Blueprints->GetSessionBlueprintPath();
+    const FString BlueprintPath = FPaths::Combine(
+        BlueprintDirectory,
+        SanitizedName + TEXT(".sbp"));
+    const FString ConfigPath = FPaths::Combine(
+        BlueprintDirectory,
+        SanitizedName + TEXT(".sbpcfg"));
+    if (IsValid(Blueprints->GetBlueprintDescriptorByNameString(SanitizedName)) ||
+        Blueprints->GetHeaderByName(SanitizedName) != nullptr ||
+        IFileManager::Get().FileExists(*BlueprintPath) ||
+        IFileManager::Get().FileExists(*ConfigPath))
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_name_already_exists"));
+    }
+
+    TArray<AFGBuildable*> Buildables;
+    TSet<AFGBuildable*> BuildableSet;
+    TSet<AFGBlueprintProxy*> SeenProxies;
+    int32 ProxyExpandedMembers = 0;
+    int32 ProxyLightweightMembers = 0;
+
+    const auto AddBuildable =
+        [&Buildables, &BuildableSet](AFGBuildable* Buildable)
+    {
+        if (IsValid(Buildable) && !BuildableSet.Contains(Buildable))
+        {
+            BuildableSet.Add(Buildable);
+            Buildables.Add(Buildable);
+            return true;
+        }
+        return false;
+    };
+
+    const auto ExpandProxy =
+        [&SeenProxies, &Buildables, &ProxyExpandedMembers, &ProxyLightweightMembers, &AddBuildable](
+            AFGBlueprintProxy* Proxy)
+    {
+        if (!IsValid(Proxy) || SeenProxies.Contains(Proxy))
+        {
+            return;
+        }
+        SeenProxies.Add(Proxy);
+        for (const FBuildableClassLightweightIndices& Entry :
+             Proxy->GetLightweightClassAndIndices())
+        {
+            ProxyLightweightMembers += Entry.Indices.Num();
+        }
+        TArray<AFGBuildable*> Members;
+        Proxy->CollectBuildables(Members);
+        for (AFGBuildable* Member : Members)
+        {
+            if (AddBuildable(Member))
+            {
+                ++ProxyExpandedMembers;
+            }
+        }
+    };
+
+    for (AActor* Actor : LiveSelection)
+    {
+        if (AFGBlueprintProxy* Proxy = Cast<AFGBlueprintProxy>(Actor); IsValid(Proxy))
+        {
+            // A dismantle selection may represent a whole existing blueprint
+            // by its proxy. Export the group as a group; never serialise a
+            // random fragment merely because one child happened to be marked.
+            ExpandProxy(Proxy);
+            continue;
+        }
+        AFGBuildable* Buildable = Cast<AFGBuildable>(Actor);
+        if (!IsValid(Buildable))
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("native_blueprint_selection_contains_non_buildable"));
+        }
+        AddBuildable(Buildable);
+    }
+
+    // A child can reveal a proxy after the first pass. Walk the growing array
+    // so every normal member of an existing native group stays together.
+    for (int32 Index = 0; Index < Buildables.Num(); ++Index)
+    {
+        if (AFGBlueprintProxy* Proxy = Buildables[Index]->GetBlueprintProxy(); IsValid(Proxy))
+        {
+            ExpandProxy(Proxy);
+        }
+    }
+    if (Buildables.Num() == 0)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_selection_has_no_buildables"));
+    }
+
+    AFGLightweightBuildableSubsystem* Lightweight =
+        AFGLightweightBuildableSubsystem::Get(Context.World);
+    int32 LightweightTemporaryMembers = 0;
+    int32 ExtractorMembers = 0;
+    for (AFGBuildable* Buildable : Buildables)
+    {
+        if (!Buildable->GetBuiltWithRecipe())
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("native_blueprint_export_member_has_no_build_recipe"));
+        }
+        if (IsValid(Lightweight) &&
+            Lightweight->GetRuntimeDataIndexForBuildable(Buildable) != INDEX_NONE)
+        {
+            ++LightweightTemporaryMembers;
+        }
+        if (Buildable->IsA<AFGBuildableResourceExtractorBase>())
+        {
+            ++ExtractorMembers;
+        }
+    }
+
+    // Native .sbp serialisation cannot faithfully carry either of these yet:
+    // a lightweight temporary is deliberately not saved by Satisfactory, and
+    // an extractor owns a reference to its original world resource. Refuse
+    // before WriteBlueprintToArchive rather than silently dropping either.
+    // The next layer is a resource-aware/lightweight sidecar restored through
+    // the native lightweight and extractor hologram paths.
+    if (ProxyLightweightMembers > 0 || LightweightTemporaryMembers > 0)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_requires_lightweight_sidecar"));
+    }
+    if (ExtractorMembers > 0)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_requires_resource_anchor_sidecar"));
+    }
+
+    FBox Bounds(ForceInit);
+    for (AFGBuildable* Buildable : Buildables)
+    {
+        FVector Origin;
+        FVector Extent;
+        Buildable->GetActorBounds(false, Origin, Extent, true);
+        if (Origin.ContainsNaN() || Extent.ContainsNaN() ||
+            Extent.X < 0.0 || Extent.Y < 0.0 || Extent.Z < 0.0)
+        {
+            return FAIFactoryActionResult::Refuse(
+                Action,
+                TEXT("native_blueprint_export_member_has_invalid_bounds"));
+        }
+        Bounds += Origin - Extent;
+        Bounds += Origin + Extent;
+    }
+    if (!Bounds.IsValid)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_bounds_unavailable"));
+    }
+
+    // This is the native Designer grid, not a Copilot cap. Dimensions are
+    // 800-cm cells on all three axes; X/Y are centred around their origin and
+    // Z rises from its base. The calculation only expresses the selected live
+    // bounds — no fixed max actor count or designer-volume ceiling is imposed.
+    constexpr double BlueprintGridCm = 800.0;
+    const FVector BoundsCenter = Bounds.GetCenter();
+    const FVector BlueprintOrigin(
+        FMath::GridSnap(BoundsCenter.X, BlueprintGridCm),
+        FMath::GridSnap(BoundsCenter.Y, BlueprintGridCm),
+        FMath::FloorToDouble(Bounds.Min.Z / BlueprintGridCm) * BlueprintGridCm);
+    const double HorizontalHalfX = FMath::Max(
+        FMath::Abs(Bounds.Min.X - BlueprintOrigin.X),
+        FMath::Abs(Bounds.Max.X - BlueprintOrigin.X));
+    const double HorizontalHalfY = FMath::Max(
+        FMath::Abs(Bounds.Min.Y - BlueprintOrigin.Y),
+        FMath::Abs(Bounds.Max.Y - BlueprintOrigin.Y));
+    const double VerticalSpan = Bounds.Max.Z - BlueprintOrigin.Z;
+    const auto DimensionForSpan = [BlueprintGridCm](const double SpanCm) -> int32
+    {
+        const double Cells = FMath::CeilToDouble(SpanCm / BlueprintGridCm);
+        if (!FMath::IsFinite(Cells) || Cells > static_cast<double>(MAX_int32))
+        {
+            return INDEX_NONE;
+        }
+        return FMath::Max(1, static_cast<int32>(Cells));
+    };
+    const FIntVector Dimensions(
+        DimensionForSpan(HorizontalHalfX * 2.0),
+        DimensionForSpan(HorizontalHalfY * 2.0),
+        DimensionForSpan(VerticalSpan));
+    if (Dimensions.X == INDEX_NONE ||
+        Dimensions.Y == INDEX_NONE ||
+        Dimensions.Z == INDEX_NONE)
+    {
+        return FAIFactoryActionResult::Refuse(
+            Action,
+            TEXT("native_blueprint_export_dimensions_overflow"));
+    }
+
+    TArray<UObject*> ObjectsToSerialize;
+    Blueprints->CollectObjects(Buildables, ObjectsToSerialize);
+
+    FAIFactoryActionResult Result;
+    Result.Action = Action;
+    Result.bAccepted = true;
+    Result.bDryRun = Context.bDryRun;
+    TSharedPtr<FJsonObject> Predicted = MakeShared<FJsonObject>();
+    Predicted->SetStringField(TEXT("blueprint_name"), SanitizedName);
+    Predicted->SetNumberField(TEXT("selected_actor_count"), LiveIds.Num());
+    Predicted->SetNumberField(TEXT("portable_buildable_count"), Buildables.Num());
+    Predicted->SetNumberField(TEXT("proxy_expanded_member_count"), ProxyExpandedMembers);
+    Predicted->SetNumberField(TEXT("serializable_object_count"), ObjectsToSerialize.Num());
+    Predicted->SetObjectField(TEXT("bounds_min_cm"), ActionVectorJson(Bounds.Min));
+    Predicted->SetObjectField(TEXT("bounds_max_cm"), ActionVectorJson(Bounds.Max));
+    Predicted->SetObjectField(TEXT("blueprint_origin_cm"), ActionVectorJson(BlueprintOrigin));
+    Predicted->SetObjectField(
+        TEXT("native_dimensions_cells"),
+        ActionVectorJson(FVector(Dimensions)));
+    Predicted->SetStringField(TEXT("dimension_grid"), TEXT("800cm_native_blueprint_designer_cells"));
+    Predicted->SetStringField(TEXT("archive_path"), BlueprintPath);
+    Predicted->SetStringField(TEXT("config_path"), ConfigPath);
+    Predicted->SetStringField(
+        TEXT("portable_content_contract"),
+        TEXT("persistent_buildables_only; lightweight_and_resource_anchor_members_are_refused"));
+    Result.Predicted = Predicted;
+    if (Context.bDryRun)
+    {
+        Result.Status = TEXT("dry_run");
+        return Result;
+    }
+
+    FBlueprintRecord Record;
+    Record.BlueprintName = SanitizedName;
+    Record.BlueprintDescription = FString::Printf(
+        TEXT("Native factory export: %d persistent buildable(s)."),
+        Buildables.Num());
+    Record.ConfigVersion = FBlueprintConfigVersion::LatestVersion;
+    Blueprints->AssignCategoryAndSubcategoryToBlueprintRecord(Record);
+
+    const FBlueprintHeader Header = Blueprints->WriteBlueprintToArchive(
+        Record,
+        FTransform(FRotator::ZeroRotator, BlueprintOrigin),
+        Buildables,
+        Dimensions);
+    if (!Header.IsValid() || !Blueprints->mStoredBlueprintData.IsValid())
+    {
+        Result.bAccepted = false;
+        Result.Status = TEXT("failed");
+        Result.Reason = TEXT("native_blueprint_export_archive_invalid");
+        return Result;
+    }
+
+    const bool bWroteBlueprint = Blueprints->WriteBlueprintToDisk(Record);
+    const bool bWroteConfig = bWroteBlueprint && Blueprints->WriteBlueprintConfigToDisk(Record);
+    if (!bWroteConfig)
+    {
+        // A `.sbp` without its matching config is not a completed native
+        // blueprint. Remove either half immediately; this action must never
+        // leave a misleading partial export behind.
+        IFileManager::Get().Delete(*BlueprintPath, false, true, true);
+        IFileManager::Get().Delete(*ConfigPath, false, true, true);
+        Result.bAccepted = false;
+        Result.Status = TEXT("failed");
+        Result.Reason = TEXT("native_blueprint_export_file_write_failed");
+        return Result;
+    }
+
+    Blueprints->RefreshBlueprintsAndDescriptors();
+    Blueprints->RefreshBlueprintRecipeRequirements();
+    UFGBlueprintDescriptor* Descriptor =
+        Blueprints->GetBlueprintDescriptorByNameString(SanitizedName);
+    FBlueprintHeader* RegisteredHeader = Blueprints->GetHeaderByName(SanitizedName);
+    if (!IsValid(Descriptor) || !RegisteredHeader || !RegisteredHeader->IsValid())
+    {
+        IFileManager::Get().Delete(*BlueprintPath, false, true, true);
+        IFileManager::Get().Delete(*ConfigPath, false, true, true);
+        Blueprints->RefreshBlueprintsAndDescriptors();
+        Result.bAccepted = false;
+        Result.Status = TEXT("failed");
+        Result.Reason = TEXT("native_blueprint_export_descriptor_readback_failed");
+        return Result;
+    }
+
+    TSharedPtr<FJsonObject> Observed = MakeShared<FJsonObject>();
+    Observed->SetStringField(TEXT("blueprint_name"), Descriptor->GetBlueprintNameAsString());
+    Observed->SetStringField(TEXT("archive_path"), BlueprintPath);
+    Observed->SetStringField(TEXT("config_path"), ConfigPath);
+    Observed->SetNumberField(TEXT("portable_buildable_count"), Buildables.Num());
+    Observed->SetNumberField(TEXT("serializable_object_count"), ObjectsToSerialize.Num());
+    Observed->SetObjectField(
+        TEXT("native_dimensions_cells"),
+        ActionVectorJson(FVector(RegisteredHeader->Dimensions)));
+    Observed->SetBoolField(TEXT("blueprint_descriptor_registered"), true);
+    Observed->SetBoolField(TEXT("blueprint_written"), true);
+    Result.Observed = Observed;
+    Result.bCommitted = true;
+    Result.Status = TEXT("committed");
+    Result.bUndoable = false;
+    Result.UndoDescription = TEXT("Native blueprint files cannot be undone by the Copilot.");
+    return Result;
+}
+
 FAIFactoryActionResult GiveItem(
     const FAIFactoryActionContext& Context,
     const FString& ItemClassPath,
@@ -3216,6 +3631,10 @@ namespace
             Kind == TEXT("teleport_player") ||
             Kind == TEXT("place_building") ||
             Kind == TEXT("place_blueprint") ||
+            // This is a durable player-blueprint-library write rather than a
+            // world actor mutation, but it must receive the identical
+            // server-side commit/revision gate.
+            Kind == TEXT("export_native_blueprint") ||
             Kind == TEXT("give_item") ||
             Kind == TEXT("place_belt") ||
             Kind == TEXT("dismantle") ||
@@ -3401,6 +3820,55 @@ namespace
                 Name,
                 FTransform(FRotator(0.0, Yaw, 0.0), Location));
         }
+        if (Kind == TEXT("export_native_blueprint"))
+        {
+            FString Name;
+            FString SelectionSource;
+            if (!Spec->TryGetStringField(TEXT("blueprint_name"), Name) || Name.IsEmpty())
+            {
+                return FAIFactoryActionResult::Refuse(Kind, TEXT("blueprint_name_is_required"));
+            }
+            if (!Spec->TryGetStringField(TEXT("selection_source"), SelectionSource) ||
+                SelectionSource != TEXT("dismantle_selection"))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("native_blueprint_export_requires_dismantle_selection"));
+            }
+
+            const TArray<TSharedPtr<FJsonValue>>* RawIds = nullptr;
+            if (!Spec->TryGetArrayField(TEXT("selected_actor_ids"), RawIds) || !RawIds)
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("selected_actor_ids_are_required"));
+            }
+            TArray<FString> SelectedActorIds;
+            SelectedActorIds.Reserve(RawIds->Num());
+            for (const TSharedPtr<FJsonValue>& Value : *RawIds)
+            {
+                FString ActorId;
+                if (!Value.IsValid() || !Value->TryGetString(ActorId) ||
+                    ActorId.TrimStartAndEnd().IsEmpty())
+                {
+                    return FAIFactoryActionResult::Refuse(
+                        Kind,
+                        TEXT("selected_actor_ids_must_be_unique_nonempty_strings"));
+                }
+                SelectedActorIds.Add(ActorId);
+            }
+
+            double CapturedCount = static_cast<double>(SelectedActorIds.Num());
+            if (Spec->TryGetNumberField(TEXT("selected_actor_count"), CapturedCount) &&
+                (!FMath::IsFinite(CapturedCount) ||
+                 CapturedCount != static_cast<double>(SelectedActorIds.Num())))
+            {
+                return FAIFactoryActionResult::Refuse(
+                    Kind,
+                    TEXT("selected_actor_count_does_not_match_selected_actor_ids"));
+            }
+            return ExportNativeBlueprint(Context, Name, SelectedActorIds);
+        }
         if (Kind == TEXT("place_belt"))
         {
             FString RecipeClass;
@@ -3491,6 +3959,7 @@ FString ExecutePlan(
     int32 WillCommitWrites = 0;
     int32 IrreversibleWrites = 0;
     int32 UndoWrites = 0;
+    int32 NativeBlueprintExportWrites = 0;
     FString PlanRefusal;
 
     for (int32 ActionIndex = 0; ActionIndex < Actions.Num(); ++ActionIndex)
@@ -3665,6 +4134,10 @@ FString ExecutePlan(
             {
                 ++UndoWrites;
             }
+            if (Item.Kind == TEXT("export_native_blueprint"))
+            {
+                ++NativeBlueprintExportWrites;
+            }
             FString ExpectedRevision;
             Item.Spec->TryGetStringField(TEXT("expect_world_revision"), ExpectedRevision);
             if (ExpectedRevision.IsEmpty() && PlanRefusal.IsEmpty())
@@ -3681,6 +4154,10 @@ FString ExecutePlan(
     if (UndoWrites > 0 && WillCommitWrites > 1)
     {
         PlanRefusal = TEXT("undo_must_be_a_standalone_commit");
+    }
+    if (NativeBlueprintExportWrites > 0 && WillCommitWrites > 1)
+    {
+        PlanRefusal = TEXT("native_blueprint_export_must_be_a_standalone_commit");
     }
 
     // Preflight every write before the first mutation. A malformed final step

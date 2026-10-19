@@ -8,7 +8,7 @@ different from both existing features:
 |---|---|---|---|
 | Saved design | Bridge snapshot | JSON replay list | Can describe an extractor placement, but is not a native `.sbp` |
 | `place_blueprint` | Existing `.sbp` | Native Blueprint Hologram placement | The game's loader owns its contents and internal wiring |
-| `export_native_blueprint` | Exact dismantle-tool selection | Request for the game to write a new native archive | The executor must preserve them or explicitly refuse; it must never silently drop them |
+| `export_native_blueprint` | Exact dismantle-tool selection, including a native Blueprint Proxy | Request for the game to write a new native archive | The executor must preserve them or explicitly refuse; it must never silently drop them |
 
 ## Player flow
 
@@ -24,7 +24,7 @@ There is intentionally no radius fallback and no “everything near the
 crosshair” mode. A radius is a guess at a factory boundary, which is especially
 unsafe for a megabase with adjacent power, train, and architecture systems.
 
-## Bridge action contract (v1)
+## Bridge/mod action contract (v2)
 
 The companion accepts this one typed write action. `commit` is false unless a
 caller explicitly sets it; the natural-language imperative above sets it true.
@@ -53,8 +53,10 @@ caller explicitly sets it; the natural-language imperative above sets it true.
 `selected_actor_ids` must be the complete, duplicate-free set reported by the
 current `interaction_context.dismantle_selection`. The bridge rejects a
 subset, addition, replacement, unavailable selection state, missing selected
-actor, non-buildable member, or member with uncaptured bounds. That prevents a
-model from turning “this factory” into an arbitrary actor list.
+actor, unrelated non-buildable member, or member with uncaptured bounds. A
+native `AFGBlueprintProxy` is accepted as a group witness; the executor expands
+its real buildables and rechecks its lightweight membership before serialising.
+That prevents a model from turning “this factory” into an arbitrary actor list.
 
 `captured_selection_bounds_cm` is **evidence only**. The bridge computes it as
 the union of the selected actors’ captured `GetActorBounds` boxes so a response
@@ -68,9 +70,9 @@ whole megabase. Transport, memory, archive, replication, and native serializer
 limits are real system constraints, but they must be measured and returned as
 an explicit game result rather than disguised as an arbitrary bridge cap.
 
-## Required game-side executor behaviour
+## Implemented game-side executor behaviour
 
-The companion **does not write files**. The native executor must:
+The companion **does not write files**. The native executor:
 
 1. Enforce the ordinary server/write/revision gates and parse every typed field.
 2. Re-read the live dismantle selection; resolve every submitted actor ID; and

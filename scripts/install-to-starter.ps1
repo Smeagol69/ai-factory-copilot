@@ -9,6 +9,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $sourceRoot = Split-Path -Parent $PSScriptRoot
+$sourceDescriptor = Join-Path $sourceRoot 'AIFactoryCopilot.uplugin'
 $resolvedStarter = (Resolve-Path -LiteralPath $StarterProjectPath).Path
 $uprojectPath = Join-Path $resolvedStarter 'FactoryGame.uproject'
 if (-not (Test-Path -LiteralPath $uprojectPath -PathType Leaf)) {
@@ -18,6 +19,9 @@ if (-not (Test-Path -LiteralPath $uprojectPath -PathType Leaf)) {
 $uproject = Get-Content -Raw -LiteralPath $uprojectPath | ConvertFrom-Json
 if ($uproject.EngineAssociation -ne '5.6.1-CSS') {
     throw "Expected EngineAssociation 5.6.1-CSS, found '$($uproject.EngineAssociation)'."
+}
+if (-not (Test-Path -LiteralPath $sourceDescriptor -PathType Leaf)) {
+    throw "Source plugin descriptor was not found at '$sourceDescriptor'."
 }
 
 $smlDescriptor = Join-Path $resolvedStarter 'Mods\SML\SML.uplugin'
@@ -55,6 +59,19 @@ $included = @(
 foreach ($name in $included) {
     $source = Join-Path $sourceRoot $name
     Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
+}
+
+# A clean Starter Project is a real copy, not a junction. Prove its descriptor
+# is the one from this checkout before a later package can accidentally deploy
+# an old DLL/metadata pair from a previous beta.
+$destinationDescriptor = Join-Path $destination 'AIFactoryCopilot.uplugin'
+if (-not (Test-Path -LiteralPath $destinationDescriptor -PathType Leaf)) {
+    throw "Source sync did not create the plugin descriptor at '$destinationDescriptor'."
+}
+$sourceDescriptorHash = (Get-FileHash -LiteralPath $sourceDescriptor -Algorithm SHA256).Hash
+$destinationDescriptorHash = (Get-FileHash -LiteralPath $destinationDescriptor -Algorithm SHA256).Hash
+if ($sourceDescriptorHash -ne $destinationDescriptorHash) {
+    throw "Starter plugin descriptor differs from this checkout after sync. Source=$sourceDescriptorHash Destination=$destinationDescriptorHash"
 }
 
 Write-Host "Installed AI Factory Copilot source to '$destination'."

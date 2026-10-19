@@ -26,6 +26,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "FGFactoryConnectionComponent.h"
+#include "FGBlueprintProxy.h"
 #include "FGCharacterPlayer.h"
 #include "Equipment/FGBuildGun.h"
 #include "Equipment/FGBuildGunDismantle.h"
@@ -141,6 +142,12 @@ namespace
             return TEXT("unknown");
         }
         if (Actor->IsA<AFGBuildable>()) return TEXT("buildable");
+        // A native blueprint can be selected as its proxy in the dismantle
+        // tool. It is not a buildable itself, but it owns the authoritative
+        // group membership and bounds needed by the native archive exporter.
+        // Preserve it as a first-class actor instead of dropping it as an
+        // unrelated vanilla world actor.
+        if (Actor->IsA<AFGBlueprintProxy>()) return TEXT("blueprint_proxy");
         if (Actor->IsA<AFGResourceNodeBase>()) return TEXT("resource_node");
         if (Actor->IsA<AFGCharacterPlayer>()) return TEXT("player");
         if (Actor->IsA<AFGVehicle>()) return TEXT("vehicle");

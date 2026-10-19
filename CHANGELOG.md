@@ -3,6 +3,22 @@
 All notable changes to AI Factory Copilot are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.0-beta.3 - 2026-08-17
+
+- Added a client-owned native Blueprint Build Gun preview: the Copilot can arm
+  an existing saved blueprint in the requesting player's own build gun without
+  placing anything or bypassing Satisfactory's hologram lifecycle.
+- Added the authoritative half of native whole-factory export. It rechecks the
+  exact live dismantle selection, expands existing blueprint proxies, derives
+  800 cm native dimensions from real bounds, writes through Satisfactory's
+  archive/config APIs, refreshes the descriptor library, and reads it back.
+- Removed arbitrary export size/count limits. The first portable export safely
+  refuses lightweight temporary architecture and resource-bound extractors
+  until their explicit sidecar and native re-placement paths are complete;
+  this avoids silently producing incomplete blueprints.
+- Bumped the bridge/mod action contract to v2 so a mixed beta.2/beta.3 install
+  fails closed instead of misinterpreting preview or export actions.
+
 ## 1.0.0-beta.2 - 2026-08-16
 
 - Rebuilt the native mod against Satisfactory 1.2.4 / FactoryGame CL 502094,

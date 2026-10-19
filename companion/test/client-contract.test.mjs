@@ -22,7 +22,7 @@ test("the game refuses stale or oversized action plans whole", () => {
     "utf8",
   );
 
-  assert.match(subsystem, /SupportedActionContractVersion\s*=\s*1/);
+  assert.match(subsystem, /SupportedActionContractVersion\s*=\s*2/);
   assert.match(subsystem, /unsupported action contract/);
   assert.match(subsystem, /bridge\/mod version mismatch/);
   assert.match(subsystem, /action plan contains %d steps/);
@@ -411,6 +411,51 @@ test("native blueprint placement retains a valid lightweight-only proxy", () => 
       cleanup < charge,
     "a valid lightweight proxy must pass readback before cost charging; only an unready proxy is cleaned up",
   );
+});
+
+test("native whole-factory export stays on Satisfactory's archive path and refuses lossy members", () => {
+  const actions = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const snapshot = fs.readFileSync(
+    new URL(
+      "../../Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const exporterStart = actions.indexOf("FAIFactoryActionResult ExportNativeBlueprint(");
+  const exporterEnd = actions.indexOf("FAIFactoryActionResult GiveItem(", exporterStart);
+  const exporter = actions.slice(exporterStart, exporterEnd);
+
+  assert.ok(exporterStart >= 0 && exporterEnd > exporterStart);
+  for (const needle of [
+    "GetPendingDismantleActors()",
+    "GetLightweightClassAndIndices()",
+    "CollectBuildables(Members)",
+    "GetRuntimeDataIndexForBuildable(Buildable)",
+    "AFGBuildableResourceExtractorBase",
+    "WriteBlueprintToArchive",
+    "WriteBlueprintToDisk",
+    "WriteBlueprintConfigToDisk",
+    "RefreshBlueprintsAndDescriptors",
+    "GetBlueprintDescriptorByNameString",
+    "native_blueprint_export_requires_lightweight_sidecar",
+    "native_blueprint_export_requires_resource_anchor_sidecar",
+    "800.0",
+  ]) {
+    assert.ok(exporter.includes(needle), needle);
+  }
+  assert.match(exporter, /IFileManager::Get\(\)\.Delete\(\*BlueprintPath/);
+  assert.match(exporter, /native_blueprint_export_selection_changed/);
+  assert.match(actions, /Kind == TEXT\("export_native_blueprint"\)/);
+  assert.match(actions, /NativeBlueprintExportWrites/);
+  assert.match(actions, /native_blueprint_export_must_be_a_standalone_commit/);
+  assert.match(snapshot, /Actor->IsA<AFGBlueprintProxy>\(\).*TEXT\("blueprint_proxy"\)/);
 });
 
 test("extractors report the current extractable interface, not deprecated node state", () => {

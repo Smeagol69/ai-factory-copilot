@@ -106,6 +106,35 @@ test("a model cannot replace, subset, or invent the player's export selection", 
   );
 });
 
+test("a selected native Blueprint Proxy is retained as a grouped export witness", () => {
+  const proxy = "/Game/FactoryGame/Map/GameLevel01.Persistent_Level.BlueprintProxy_42";
+  const snapshot = buildFactorySnapshot();
+  snapshot.actors.push({
+    actor_id: proxy,
+    name: "BlueprintProxy_42",
+    kind: "blueprint_proxy",
+    class_path: "/Script/FactoryGame.FGBlueprintProxy",
+    location: { x: 4_000, y: 2_000, z: 100 },
+    bounds: { origin: { x: 4_000, y: 2_000, z: 100 }, extent: { x: 800, y: 800, z: 600 } },
+  });
+  snapshot.interaction_context.dismantle_selection = {
+    available: true,
+    actor_ids: [proxy],
+    count: 1,
+  };
+  const result = validateAction(
+    buildGraph(snapshot),
+    exportProposal({ selected_actor_ids: [proxy] }),
+  );
+  assert.equal(result.valid, true, JSON.stringify(result));
+  assert.deepEqual(result.action.selected_actor_ids, [proxy]);
+  assert.deepEqual(result.action.captured_selection_bounds_cm, {
+    minimum: { x: 3_200, y: 1_200, z: -500 },
+    maximum: { x: 4_800, y: 2_800, z: 700 },
+    units: "unreal_centimeters",
+  });
+});
+
 test("export refuses missing selection evidence rather than guessing a radius or crosshair region", () => {
   const noSelectionSnapshot = buildFactorySnapshot();
   const noSelection = validateAction(buildGraph(noSelectionSnapshot), exportProposal());

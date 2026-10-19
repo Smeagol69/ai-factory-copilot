@@ -309,7 +309,7 @@ This source targets:
 - SML `3.12.0`
 - the Coffee Stain `5.6.1-CSS` Unreal build used by the official Starter Project
 
-The `1.0.0-beta.2` package is a Windows-client public beta. It does not claim
+The `1.0.0-beta.3` package is a Windows-client public beta. It does not claim
 dedicated-server or Linux compatibility until those targets pass the live test
 matrix. See [CHANGELOG.md](CHANGELOG.md) for the remaining beta limits.
 

@@ -74,6 +74,7 @@ function inventoryTotals(actor) {
 
 function classifyActor(actor) {
   if (actor?.kind === "resource_node") return "resource_node";
+  if (actor?.kind === "blueprint_proxy") return "blueprint_proxy";
   if (actor?.kind !== "buildable") return actor?.kind ?? "unknown";
   if (actor?.transport?.kind === "conveyor") return "conveyor";
   if (actor?.transport?.kind === "pipeline") return "pipeline";

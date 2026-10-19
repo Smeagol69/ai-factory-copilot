@@ -191,6 +191,22 @@ namespace AIFactoryActions
         const FTransform& Origin);
 
     /**
+     * Exports the exact current dismantle-tool selection as Satisfactory's own
+     * `.sbp` / `.sbpcfg` pair through AFGBlueprintSubsystem.
+     *
+     * The submitted actor list is a capture witness, not authority: the game
+     * reads the live Build Gun selection again, expands native proxy groups,
+     * recomputes bounds and dimensions, and refuses a changed selection, a
+     * filename collision, a lightweight temporary, or a resource-bound
+     * extractor rather than silently producing an incomplete portable file.
+     * This durable file write is intentionally not an undo transaction.
+     */
+    FAIFactoryActionResult ExportNativeBlueprint(
+        const FAIFactoryActionContext& Context,
+        const FString& BlueprintName,
+        const TArray<FString>& SelectedActorIds);
+
+    /**
      * Puts items into the player's inventory.
      *
      * The item class must resolve to a real `UFGItemDescriptor`, so an unknown
