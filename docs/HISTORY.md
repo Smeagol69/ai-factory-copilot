@@ -80,6 +80,12 @@ Anything marked superseded is one `git checkout archive/<branch>` away.
 
 ### After
 
-One folder, `Documents\satisfactory`, on branch `consolidate`. The old worktrees,
-the Lab folder and its review clone were removed (Recycle Bin) after checking
-nothing unique was left in them.
+One folder, `Documents\satisfactory`, on branch `consolidate`. After checking
+that every commit on every ref in each folder was in this repo, and copying the
+17 ignored blueprint reference sources from `satisfactory-claude` into
+`reference/blueprints/sources/`, these went to the Recycle Bin: the 19
+worktrees, `satisfactory-mcp-lab-review`, and the six extra Civ 6 clones (all
+contained in `civ6-copilot` master). The old `satisfactory-mcp-lab` folder
+(308 MB, tracked files and the nested clones only) was locked by an open
+process during cleanup and was left for the owner to delete. Nothing in it is
+needed.
