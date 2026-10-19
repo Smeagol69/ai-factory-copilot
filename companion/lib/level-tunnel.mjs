@@ -24,7 +24,7 @@ function foundationDimensions(graph,classPath){
  return samples[0];
 }
 
-export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,turn_degrees,fit_panel_lengths=false}={}){
+export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,turn_degrees,fit_panel_lengths=false,straight_collars=false}={}){
  const traits=reference?.reference_traits;
  if(reference?.available!==true||traits?.schema!=='aifactory.blueprint-reference-traits/v1'||
     !/^sha256:[a-f0-9]{64}$/.test(traits.source_fingerprint??'')||traits.poses_truncated!==false||
@@ -43,8 +43,8 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  // inside its plane in the second bay. Use its plane to identify repetition,
  // but keep the selected FIRST bay's complete quaternion in the output.
  const same=(a,b)=>a.class_path===b.class_path&&Math.abs(Math.abs(dot(normal(a.q),normal(b.q)))-1)<0.0001;
- // A valid axis must pair EVERY foundation uniquely. A decorative repeat or
- // just two nearby floor pivots can never establish the whole tunnel profile.
+ // Every foundation must belong to a complete, equal-length bay chain. A
+ // decorative repeat cannot establish an axis for the whole tunnel profile.
  const axes=new Map();
  for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){
   const a=parts[i],b=parts[j];if(!same(a,b)||Math.abs(a.p.z-b.p.z)>0.1)continue;
@@ -54,22 +54,27 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  }
  const candidates=[];
  for(const delta of axes.values()){
-  const selected=[],used=new Set();let good=true;
-  for(let i=0;i<parts.length;i++){
-   if(used.has(i))continue;
-   const matches=[];
-   for(let j=0;j<parts.length;j++)if(j!==i&&!used.has(j)&&same(parts[i],parts[j])){
+  const selected=[],used=new Set(),next=[],previous=[];let good=true,bays=0;
+  for(let i=0;i<parts.length&&good;i++){
+   const before=[],after=[];
+   for(let j=0;j<parts.length;j++)if(j!==i&&same(parts[i],parts[j])){
     const diff={x:parts[j].p.x-parts[i].p.x,y:parts[j].p.y-parts[i].p.y,z:parts[j].p.z-parts[i].p.z};
-    if(distance(diff,delta)<0.1||distance(diff,{x:-delta.x,y:-delta.y,z:0})<0.1)matches.push(j);
+    if(distance(diff,delta)<.1)after.push(j);
+    if(distance(diff,{x:-delta.x,y:-delta.y,z:0})<.1)before.push(j);
    }
-   if(matches.length!==1){good=false;break;}
-   const j=matches[0];used.add(i);used.add(j);
-   selected.push((parts[j].p.x-parts[i].p.x)*delta.x+(parts[j].p.y-parts[i].p.y)*delta.y>0?parts[i]:parts[j]);
+   if(before.length>1||after.length>1){good=false;break;}
+   previous[i]=before[0];next[i]=after[0];
   }
-  if(good&&used.size===parts.length)candidates.push({delta,selected});
+  for(let i=0;i<parts.length&&good;i++)if(previous[i]===undefined){
+   selected.push(parts[i]);let n=0;
+   for(let j=i;j!==undefined;j=next[j]){if(used.has(j)){good=false;break;}used.add(j);n++;}
+   if(n<2||(bays&&n!==bays))good=false;bays=n;
+  }
+  const length=Math.hypot(delta.x,delta.y),along=selected.map(p=>(p.p.x*delta.x+p.p.y*delta.y)/length);
+  if(good&&used.size===parts.length&&Math.max(...along)-Math.min(...along)<.1)candidates.push({delta,selected,bays});
  }
  if(candidates.length!==1)return failure('one_unambiguous_complete_repeated_bay_axis_required');
- const {delta,selected}=candidates[0],pitch=Math.hypot(delta.x,delta.y),ux=delta.x/pitch,uy=delta.y/pitch;
+ const {delta,selected,bays}=candidates[0],pitch=Math.hypot(delta.x,delta.y),ux=delta.x/pitch,uy=delta.y/pitch;
  const longitudinal=selected.map(p=>p.p.x*ux+p.p.y*uy);
  if(Math.max(...longitudinal)-Math.min(...longitudinal)>0.1)return failure('measured_profile_is_not_one_cross_section');
  const transverse=selected.map(p=>-p.p.x*uy+p.p.y*ux),center=(Math.min(...transverse)+Math.max(...transverse))/2;
@@ -77,7 +82,7 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
  const radii=transverse.map(t=>radius_cm-sign*(t-center));
  if(Math.min(...radii)<=pitch)return failure('inside_radius_must_exceed_measured_bay_pitch');
  const fitted=[];
- if(fit_panel_lengths){
+ if(fit_panel_lengths||straight_collars){
   for(const p of selected){
    const dimensions=foundationDimensions(graph,p.class_path);
    if(!dimensions)return failure('captured_foundation_dimensions_required');
@@ -95,7 +100,7 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
   ? Math.min(...fitted.map((f,i)=>2*Math.atan(f.longSize/(2*(radii[i]+f.radialHalfExtent)))))
   : 2*Math.atan(pitch/(2*Math.max(...radii)));
  const minimumCount=Math.max(1,Math.ceil(Math.abs(sweep)/coverageAngle));
- const stationBudget=Math.floor(512/selected.length);
+ const stationBudget=Math.floor(512/selected.length)-(straight_collars?2:0);
  if(minimumCount>stationBudget)return failure('generated_foundation_limit_exceeded');
  // Thick foundation panels expose large overlap ridges at coarse turns.
  // Refine their angle while keeping complete, aligned cross-sections and the
@@ -123,11 +128,20 @@ export function compileLevelTunnel(graph,{reference,blueprint_name,radius_cm,tur
     scale3d[f.longAxis===0?'x':'y']=scale;
    }
    buildables.push({part_id:`course-${i+1}-piece-${j+1}`,role,recipe_class:recipe[0].class_path,
-    relative_location:{x:sign*radial*Math.sin(a),y:sign*(radius_cm-radial*Math.cos(a)),z:p.p.z-floor},
+    relative_location:{x:(straight_collars?pitch:0)+sign*radial*Math.sin(a),y:sign*(radius_cm-radial*Math.cos(a)),z:p.p.z-floor},
     rotation_quat:rotateQ(p.q,a-heading),scale3d});
   }
+  if(straight_collars)for(const end of ['entry','exit']){
+   const a=end==='entry'?0:sweep,extra=end==='entry'?pitch/2:pitch;
+   const location=end==='entry'?{x:extra,y:offset,z:p.p.z-floor}:
+    {x:pitch+sign*r*Math.sin(a)+pitch/2*Math.cos(a),y:sign*(radius_cm-r*Math.cos(a))+pitch/2*Math.sin(a),z:p.p.z-floor};
+   const nz=normal(p.q).z,role=nz>.9999?'floor':nz<-.9999?'roof':Math.abs(nz)<.0001?'wall':'ramp';
+   buildables.push({part_id:`course-${i+1}-${end}`,role,recipe_class:recipe[0].class_path,relative_location:location,rotation_quat:rotateQ(p.q,a-heading),scale3d:{x:1,y:1,z:1}});
+  }
  }
- return {compiled:true,source_fingerprint:traits.source_fingerprint,measured_pitch_cm:pitch,profile_parts:selected.length,
+ const collar=straight_collars?pitch:0;
+ return {compiled:true,source_fingerprint:traits.source_fingerprint,measured_pitch_cm:pitch,measured_bays:bays,profile_parts:selected.length,
+  connection_frames:{entry:{location_cm:{x:0,y:0,z:0},yaw_degrees:0},exit:{location_cm:{x:collar+sign*radius_cm*Math.sin(sweep)+collar*Math.cos(sweep),y:sign*radius_cm*(1-Math.cos(sweep))+collar*Math.sin(sweep),z:0},yaw_degrees:turn_degrees}},
   reference_frame:{longitudinal:{x:ux,y:uy},heading_degrees:heading*180/Math.PI,transverse_center_cm:center,floor_cm:floor,highest_pivot_cm:Math.max(...selected.map(p=>p.p.z))},
   angular_stations:count,sampling_basis:'shared_stations_with_measured_cross_section_spacing',
   visual_sampling_step_degrees:Math.abs(turn_degrees)/count,

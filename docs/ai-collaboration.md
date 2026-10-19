@@ -10412,3 +10412,22 @@ Bounded independent local native/bridge/compiler reviews returned approval.
 Compiler reviewer mistakenly described a fixed0.5 count: actual code uses
 ceil(abs(turn)/2), as independently checked by deterministic tests. No reliance
 on that reviewer claim; exact native readback and live collision remain required.
+
+### Codex — connected sweeping90 tunnel (2026-10-18)
+
+Owner now requests a broad gradual90-degree bend attached to the straight
+blueprint whose name contains wall/walled. Working from consolidatedcfb20c8,
+isolated codex/sweeping-tunnel-90 checkout under hub/workspaces/architect.
+Claim codex-sweeping-tunnel-90-20261018; deployment owner codex-14540.
+Root Claude's uncommitted team-room spec is separate and preserved.
+Baseline companion1359 pass; hub168 pass/2 skip. Native46534bf fixtures are
+compiled/reviewed but not yet deployed. Preserve all originals/liked structures.
+
+Read complete offline decodes before reference design. WALLS is14 loose wall
+pieces; walkway walled off is263 entities including108 foundations and71 walls;
+underground wtunnel test includes279 saved entities and assorted furnishings.
+Exact intended name remains under investigation; user clarified wall/walled.
+Extend repeated-profile measurement to complete multi-bay straight references,
+not guessed cross-sections, and provide measured straight collars for easy joins.
+Native archive/readback, actual attachment, visual joints and real light power
+remain separate acceptance checks. No Ghidra, schedules or paid API fallback.

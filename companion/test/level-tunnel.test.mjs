@@ -122,6 +122,29 @@ test('visual sampling limits panel angle changes to two degrees when the part bu
  assert.ok(r.proposal.buildables.length<=512);
 });
 
+test('a complete six-bay straight supplies one measured profile for a collared ninety-degree sweep',()=>{
+ const ref=reference(),first=ref.reference_traits.poses.filter(p=>p.transform.translation_cm.x===0);
+ ref.reference_traits.poses=[];
+ for(let bay=0;bay<6;bay++)for(const p of first)ref.reference_traits.poses.push({...structuredClone(p),entity_index:ref.reference_traits.poses.length,transform:{...structuredClone(p.transform),translation_cm:{...p.transform.translation_cm,x:bay*800}}});
+ ref.reference_traits.entity_total=ref.reference_traits.poses.length;
+ const emitted=[];answerLocally('save level tunnel from "Reference" radius 64 m turn 90 degrees as "Collared90" with fitted panels and straight collars',graph(),{inspectBlueprint:()=>ref,actions:{emit:a=>emitted.push(...a)}});
+ assert.equal(emitted.length,1);assert.equal(emitted[0].buildables.filter(p=>p.part_id.endsWith('-entry')).length,first.length);
+ const args={reference:ref,blueprint_name:'Sweep90',radius_cm:6400,turn_degrees:90,fit_panel_lengths:true,straight_collars:true};
+ const r=compileLevelTunnel(graph(),args);assert.equal(r.compiled,true,r.reason);
+ assert.equal(r.measured_bays,6);assert.equal(r.profile_parts,first.length);
+ assert.equal(r.proposal.buildables.length,(r.angular_stations+2)*first.length);
+ assert.ok(r.proposal.buildables.length<=512);
+ assert.deepEqual(r.connection_frames.entry,{location_cm:{x:0,y:0,z:0},yaw_degrees:0});
+ assert.ok(Math.abs(r.connection_frames.exit.location_cm.x-7200)<1e-9);
+ assert.ok(Math.abs(r.connection_frames.exit.location_cm.y-7200)<1e-9);
+ assert.equal(r.connection_frames.exit.yaw_degrees,90);
+ const entry=r.proposal.buildables.filter(p=>p.part_id.endsWith('-entry'));
+ assert.equal(entry.length,first.length);assert.ok(entry.every(p=>p.relative_location.x===400&&p.scale3d.x===1));
+ assert.equal(validateAction(graph(),r.proposal).valid,true);
+ ref.reference_traits.poses[3].transform.translation_cm.x+=2;
+ assert.equal(compileLevelTunnel(graph(),{...args,reference:ref}).compiled,false);
+});
+
 test('visual sampling coarsens truthfully at the part cap instead of losing a previously valid turn',()=>{
  const ref=reference();
  const originals=[...ref.reference_traits.poses];

@@ -4,6 +4,7 @@ import {answerLocally} from '../lib/router.mjs';
 import {buildGraph} from '../lib/graph.mjs';
 import {buildFactorySnapshot} from './fixtures/factory.mjs';
 import {validateAction} from '../lib/actions.mjs';
+import {compileTunnelLighting} from '../lib/tunnel-lighting.mjs';
 const foundation='/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
 const lamp='/Game/FactoryGame/Buildable/Factory/CeilingLight/Build_CeilingLight.Build_CeilingLight_C';
 const beam='/SS_Mod/Builders/Beams/Build_EmissiveBeam_4x2.Build_EmissiveBeam_4x2_C';
@@ -46,6 +47,35 @@ test('fitted fixtures require measured roof thickness and a forward beam axis',(
   if(kind==='missing_roof')graph.snapshot.actors=graph.snapshot.actors.filter(a=>a.class_path!==foundation);
   else for(const p of reference.reference_traits.poses.filter(p=>p.class_path===beam))p.transform.rotation_quat={x:0,y:0,z:1,w:0};
   answerLocally(command+' with fitted fixtures',graph,services);assert.equal(emitted.length,0,kind);
+ }
+});
+test('fitted lighting continues over both straight connection collars',()=>{
+ const {graph,services,emitted}=setup();
+ answerLocally(command+' with fitted fixtures and straight collars',graph,services);
+ assert.equal(emitted.length,1);const a=emitted[0];
+ assert.equal(a.buildables.filter(p=>p.role==='beam').length,76);
+ assert.equal(a.buildables.filter(p=>p.part_id.startsWith('ceiling-')).length,12);
+ assert.equal(a.buildables.find(p=>p.part_id==='ceiling-1-entry').relative_location.x,400);
+ assert.equal(a.buildables.find(p=>p.part_id==='reveal-lower-1-entry-1').relative_location.x,0);
+ assert.equal(a.buildables.find(p=>p.part_id==='reveal-lower-1-entry-2').relative_location.x,400);
+ assert.equal(a.buildables.find(p=>p.part_id==='reveal-lower-1-1').relative_location.x,800);
+ assert.equal(validateAction(graph,a).valid,true);
+});
+test('short collars have one shortened beam per row and exactly two lamps per end in either turn',()=>{
+ for(const turn of [-90,90]){
+  const {graph,reference}=setup();
+  for(const p of reference.reference_traits.poses.filter(p=>p.class_path===foundation&&p.transform.translation_cm.x===400))p.transform.translation_cm.x=-100;
+  const r=compileTunnelLighting(graph,{reference,blueprint_name:'Short collars',radius_cm:5000,turn_degrees:turn,fit_fixtures:true,straight_collars:true});
+  assert.equal(r.compiled,true,r.reason);const parts=r.proposal.buildables;
+  const beams=parts.filter(p=>p.role==='beam'),lamps=parts.filter(p=>p.role==='standalone');
+  assert.equal(r.emissive_beams,beams.length);assert.equal(r.ceiling_lights,lamps.length);
+  assert.equal(new Set(parts.map(p=>p.part_id)).size,parts.length);
+  const collars=beams.filter(p=>/-entry-|-exit-/.test(p.part_id));assert.equal(collars.length,8);
+  assert.ok(collars.every(p=>p.scale3d.x===.75));
+  assert.ok(beams.filter(p=>p.part_id.includes('-entry-')).every(p=>p.relative_location.x===0));
+  const entry=lamps.filter(p=>p.part_id.endsWith('-entry'));assert.equal(entry.length,2);assert.ok(entry.every(p=>p.relative_location.x===150));
+  const exit=lamps.filter(p=>p.part_id.endsWith('-exit'));assert.equal(exit.length,2);
+  assert.ok(exit.every(p=>Math.abs(p.relative_location.y-Math.sign(turn)*5150)<1e-9));
  }
 });
 test('lighting uses the existing native generator with measured rows and no shell replacement',()=>{
