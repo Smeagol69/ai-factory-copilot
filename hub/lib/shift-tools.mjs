@@ -17,10 +17,12 @@ const TEST = /^(companion|hub)\/test\/[\w.-]+\.test\.mjs$/;
 // The local model has an 8K context. Bigger results make Ollama drop the
 // original request from the conversation and the step fails, so keep them small.
 const READ_CHARS = 3500;
+const MAX_CALLS = 5;
 const fail = message => { throw new Error(message); };
 
 export function createShiftTools({ worktree, node = process.execPath, onEvent = () => {}, focus = '' }) {
   const root = realpathSync(worktree);
+  let calls = 0;
   const literal = path => {
     if (typeof path !== 'string' || !path || path.length > 300 || /[\\:\x00-\x1f*?"<>|]/.test(path) ||
         path.split('/').some(p => !p || p === '.' || p === '..')) fail('Use a literal repo path with forward slashes, like companion/lib/level-tunnel.mjs');
@@ -101,6 +103,12 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
     async dispatch(name, args) {
       const handler = handlers[name];
       if (!handler) throw new Error('Unknown shift tool');
+      // The runner stops hard after 8 calls with no answer at all. Refusing from
+      // the 6th leaves room for the model to write its summary instead.
+      if (++calls > MAX_CALLS) {
+        onEvent({ kind: 'result', text: 'Tool budget used up; asked to finish', error: true });
+        return { error: 'Your tool budget for this step is used up. Do not call any more tools. Answer now with the two lines CHANGED: and REVIEW:.' };
+      }
       onEvent({ kind: 'tool', text: `${name}: ${args?.path ?? ''}`.trim() });
       try {
         const result = await handler(args ?? {});
@@ -122,7 +130,7 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
       });
       return [`Shift workspace: the repo on branch ${branch}. Recent commits:\n${log}`,
         related.length ? `Files that match the milestone:\n${related.join('\n')}` : `Top level: ${handlers.shift_list_files({}).entries.join(' ')}`,
-        'You have at most 7 tool calls in this step. Do not list folders you can already see, read only the lines you need (up to 80 at a time), and make your change early.'].join('\n\n');
+        'You have 5 tool calls in this step. Plan: read at most 2 files (only the lines you need), make ONE edit, run ONE test, then answer.'].join('\n\n');
     },
     async close() {},
   };

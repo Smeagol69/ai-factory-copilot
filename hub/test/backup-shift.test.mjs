@@ -50,12 +50,14 @@ test('shift tools stay inside the worktree and only edit source folders', async 
   assert.match((await t.dispatch('shift_read_file', { path: 'companion/node_modules/x.js' })).error, /not part of the shift workspace/);
   assert.match((await t.dispatch('shift_edit_file', { path: 'README.md', expected_sha256: null, content: 'x' })).error, /limited to text files under/);
   assert.match((await t.dispatch('shift_edit_file', { path: 'companion/lib/turn.mjs', expected_sha256: 'stale', old_text: '45', new_text: '90' })).error, /read it again/);
-  const edit = await t.dispatch('shift_edit_file', { path: 'companion/lib/turn.mjs', expected_sha256: read.sha256, old_text: '45', new_text: '90' });
+  // A fresh tool set: each step has a 5-call budget and the refusals above used it up.
+  const t2 = createShiftTools({ worktree: dir, onEvent: e => events.push(e) });
+  const edit = await t2.dispatch('shift_edit_file', { path: 'companion/lib/turn.mjs', expected_sha256: read.sha256, old_text: '45', new_text: '90' });
   assert.equal(edit.written, true);
   assert.equal(readFileSync(join(dir, 'companion/lib/turn.mjs'), 'utf8'), 'export const angle = 90;\n');
-  const ran = await t.dispatch('shift_run_test', { path: 'companion/test/turn.test.mjs' });
+  const ran = await t2.dispatch('shift_run_test', { path: 'companion/test/turn.test.mjs' });
   assert.equal(ran.passed, true);
-  assert.match((await t.dispatch('shift_run_test', { path: 'companion/lib/turn.mjs' })).error, /one test file/);
+  assert.match((await t2.dispatch('shift_run_test', { path: 'companion/lib/turn.mjs' })).error, /one test file/);
   assert.match(await t.context(), /branch master/);
   assert.ok(events.some(e => e.kind === 'tool' && e.text === 'shift_edit_file: companion/lib/turn.mjs'));
 });
@@ -124,5 +126,13 @@ test('reads stay small enough for the local model\'s 8K context', async () => {
   const focused = createShiftTools({ worktree: dir, focus: 'Big tunnel turn' });
   git(dir, 'add', '-A'); git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'big');
   assert.match(await focused.context(), /Files that match the milestone:\ncompanion\/lib\/turn\.mjs \(2 lines\)\ncompanion\/test\/turn\.test\.mjs/);
-  assert.match(await focused.context(), /at most 7 tool calls/);
+  assert.match(await focused.context(), /You have 5 tool calls/);
+});
+
+test('after 5 real calls the tools ask the model to finish instead of letting the runner fail', async () => {
+  const dir = repo(), events = [];
+  const t = createShiftTools({ worktree: dir, onEvent: e => events.push(e) });
+  for (let i = 0; i < 5; i++) assert.equal((await t.dispatch('shift_list_files', {})).error, undefined);
+  assert.match((await t.dispatch('shift_list_files', {})).error, /budget for this step is used up.*CHANGED:/);
+  assert.equal(events.at(-1).text, 'Tool budget used up; asked to finish');
 });
