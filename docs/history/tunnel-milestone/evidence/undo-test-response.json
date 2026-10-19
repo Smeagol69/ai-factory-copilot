@@ -1,0 +1,208 @@
+{
+	"schema": "aifactory.answer",
+	"schema_version": 1,
+	"bridge_version": "1.0.0-beta.2",
+	"action_contract_version": 1,
+	"reply": "Undoing the last thing I did. The mod reports what it actually reversed.\n\n— **free** (answered locally, no API call) · session $0 over 5",
+	"provider": "solvers",
+	"model": "deterministic",
+	"provider_error": null,
+	"provider_failure": null,
+	"provider_response_id": null,
+	"external_sources": [],
+	"world_revision": 311,
+	"snapshot_generated_at_utc": "2026-10-18T16:37:30.644Z",
+	"interaction_captured_at_utc": "2026-10-18T16:37:30.644Z",
+	"game_question_received_at_utc": "2026-10-18T16:37:30.644Z",
+	"bridge_received_at_utc": "2026-10-18T16:37:36.786Z",
+	"bridge_elapsed_ms": 1895,
+	"bridge_answered_at_utc": "2026-10-18T16:37:38.682Z",
+	"retained_history_messages": 10,
+	"omissions": [
+		"reflected_properties (bridge-side only; solvers read them)",
+		"content_catalog (all items and recipes; query it with find_recipes, get_item_balance, or get_machine_rates)",
+		"actors_beyond_the_nearest_21_of_4696 (every actor is still visible to the solvers)"
+	],
+	"payload_view": "lean",
+	"snapshot_cache":
+	{
+		"stored": true,
+		"save_id": "2f062482aa6cb93de8fbf60822eacbaeb604ea74e2dacb05a4d427374ee63f70",
+		"save_session_name": "bp builder",
+		"whole_world": true,
+		"slots_written": [
+			"latest",
+			"world"
+		],
+		"bytes": 5060790,
+		"actor_count": 4696
+	},
+	"terrain_cache":
+	{
+		"newly_measured": 0,
+		"re_measured": 5,
+		"restored_from_cache": 189,
+		"measured_live_this_capture": 5,
+		"total_remembered": 591
+	},
+	"solver_calls": [
+		{
+			"name": "undo_last",
+			"source": "local_route"
+		}
+	],
+	"vision":
+	{
+		"status": "not_requested",
+		"frames_attached": 0,
+		"frames_available": 0,
+		"frame_context": []
+	},
+	"cache": null,
+	"answered_by": "local_solver",
+	"cost":
+	{
+		"model": "deterministic",
+		"input_tokens": 0,
+		"output_tokens": 0,
+		"cache_read_input_tokens": 0,
+		"cache_creation_input_tokens": 0,
+		"total_input_tokens": 0,
+		"billed_input_tokens": 0,
+		"usd": 0,
+		"rate": null,
+		"rate_source": "No published rate is on file for \"deterministic\", so the cost is unknown rather than estimated."
+	},
+	"session_spend":
+	{
+		"usd": 0,
+		"answers": 5
+	},
+	"tier": null,
+	"local":
+	{
+		"routed": true,
+		"solver": "undo_last",
+		"elapsed_ms": 0,
+		"why": "Undo has one meaning and no arguments."
+	},
+	"action_plan_conflict": null,
+	"actions": [
+		{
+			"action": "undo_last",
+			"commit": true,
+			"expect_world_revision": "311",
+			"require_unchanged_world": false
+		}
+	],
+	"game_action_results": [
+		{
+			"action": "undo_last",
+			"status": "failed",
+			"accepted": true,
+			"committed": true,
+			"dry_run": false,
+			"reason": "undo_incomplete_journal_retained",
+			"predicted":
+			{
+				"undoes_action": "place_blueprint",
+				"description": "Dismantle the placed blueprint 'AI Level Tunnel 28deg'",
+				"buildings_to_remove": 66
+			},
+			"observed":
+			{
+				"buildings_removed": 0,
+				"buildings_remaining": 66,
+				"remaining_building_ids": [
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459771",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459770",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459769",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459768",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459767",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459766",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459765",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459764",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459763",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459762",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459761",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459760",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459759",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459758",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459757",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459756",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459755",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459754",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459753",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459752",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459751",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459750",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459749",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459748",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459747",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459746",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459745",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459744",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459743",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459742",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459741",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459740",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459739",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459738",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459737",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459736",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459735",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459734",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459733",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459732",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459731",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459730",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459729",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459728",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459727",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459726",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459725",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459724",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459723",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459722",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459721",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459720",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459719",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459718",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459717",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459716",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459715",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459714",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459713",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459712",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459711",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459710",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459709",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459708",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459707",
+					"/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147459706"
+				],
+				"removal_readback_complete": false,
+				"refund_item_units": 0,
+				"refund_added_to_player_inventory": 0,
+				"refund_dropped_on_ground": 0
+			},
+			"created_actor_ids": [],
+			"removed_actor_ids": [],
+			"warnings": [],
+			"undoable": false,
+			"undo_steps_available": 1,
+			"source": "executed_by_the_game_and_read_back"
+		}
+	],
+	"game_action_summary": "[actions] 1 committed, 0 previewed, 0 refused",
+	"game_write_actions_enabled": true,
+	"game_world_was_mutated": true,
+	"game_client_blueprint_preview_dispatched": false,
+	"game_actions_refused": false,
+	"game_actions_refusal_reason": "",
+	"game_actions_requested_count": 1,
+	"game_actions_executed_count": 1,
+	"game_actions_truncated": false,
+	"game_world_revision_after": "460",
+	"reply_with_game_outcome": "Undoing the last thing I did. The mod reports what it actually reversed.\n\n— **free** (answered locally, no API call) · session $0 over 5\n\n[actions] 1 committed, 0 previewed, 0 refused\n  1. undo_last: failed - undo_incomplete_journal_retained"
+}

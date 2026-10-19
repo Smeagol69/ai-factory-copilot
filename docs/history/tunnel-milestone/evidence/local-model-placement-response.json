@@ -1,0 +1,141 @@
+{
+  "schema": "aifactory.answer",
+  "schema_version": 1,
+  "bridge_version": "1.0.0-beta.2",
+  "action_contract_version": 1,
+  "reply": "The model's live-game claims were not backed by usable deterministic evidence, so I withheld its draft. No model-proposed action was kept. Verified current-state diagnostics follow; they may not answer the original question, but they contain no guessed game data.\n\nI received verified revision 281 with 4498 actors, 4045 recipes, 3697 items, and 52 loaded mods. Actor ownership includes FactoryGame: 3277, RefinedPower: 360, SS_Mod: 330, Factory_Prop_Mod: 234, ConcreteConstruction: 126. The bridge omitted reflected_properties (bridge-side only; solvers read them), content_catalog (all items and recipes; query it with find_recipes, get_item_balance, or get_machine_rates), actors_beyond_the_nearest_18_of_4498 (every actor is still visible to the solvers) to stay within its context limit. The player position is {\"x\":291025.9,\"y\":-152860.2,\"z\":16995.9} and the preferred target is /Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.AbstractInstanceManager_2147472643.\n\n**Your circuit is over capacity — 35 machines affected.**\nConsumption exceeds generation. It has not tripped yet, but it will the moment demand rises. Add generation before this becomes a trip.\nAffected: 18x PowerStorage_Mk2, 6x PipeHyperStart, 2x Constructor_Mk2, 2x TrainStation, and 5 other kinds.\n\n**6 machines have an input with nothing feeding it.**\nAn unfed input starves the machine no matter what else is correct. Belt or pipe the missing input.\nAffected: 3x Constructor_Mk2, 3x GeneratorBiomass_Automated_Mk2.\n\n**10 machines have an output going nowhere.**\nOutput backs up into the machine's own buffer, then the machine halts. It looks like a supply problem and is not. Belt the output away, or add a container to absorb it.\nAffected: 8x Constructor_Mk2, 2x MinerMk3.\n\n**3 machines are running below full rate.**\nThe machine works but is idle part of every cycle — normally an input arriving slower than it is consumed. Check the slowest input's belt tier and the rate feeding it.\nAffected: StorageIntegrated, StorageBlueprint, TradingPost.\n\n**18 machines report an error status.**\nThe game flagged these itself. Look at each one in game; the machine states its own complaint.\nAffected: 6x Constructor_Mk2, 3x PipeHyperStart, 3x GeneratorBiomass_Automated_Mk2, 2x GeneratorIntegratedBiomass, and 2 other kinds.\n\nAlso reported, with no interpretation available: input_starved. The solvers found these; nothing here knows what they mean yet.\n\nRead from 51 stalled machines across 5 power circuits, from captured state — not estimated. Diagnostic mode does not generate strategic advice. Set AI_PROVIDER=openai with OPENAI_API_KEY, or AI_PROVIDER=anthropic with ANTHROPIC_API_KEY and ANTHROPIC_MODEL, then restart the bridge. Your question was: \"Use perform_actions to place saved blueprint \"AI Level Tunnel 28deg\" at x=301025.9375 y=-142860.171875 z=16995.943359375 yaw=-60.582233048806295 commit=true. This is a separate test destination derived by offsetting my captured position 100 m on X and Y. Let the native hologram check clearance; do not override clearance or change existing buildings. Propose only this one placement.\"\n\n— 38.8k billed in · 38.8k in · 278 out · session $0 over 2",
+  "provider": "fallback",
+  "model": "deterministic-fallback",
+  "provider_error": "The model returned an ungrounded live-game answer without the required solver tool(s): list_blueprints or inspect_blueprint_layout or compare_blueprint_layouts or design_factory_layout or design_megabase_concept or design_structure_blueprint or manage_architect_revisions or plan_production; design_structure_blueprint or plan_structure; an appropriate deterministic solver. Its draft was withheld instead of presenting guesses as game data.",
+  "provider_failure": {
+    "kind": "solver_grounding_required",
+    "solver_calls": [],
+    "provider": "local",
+    "model": "copilot-hauhau-game:latest",
+    "response_id": "chatcmpl-670",
+    "usage": {
+      "input_tokens": 38750,
+      "output_tokens": 278,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    },
+    "cache": {
+      "input_tokens": 38750,
+      "output_tokens": 278,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "uncached_equivalent_input_tokens": 38750,
+      "effective_input_tokens": 38750,
+      "saved_input_tokens": 0,
+      "saved_percent": 0,
+      "note": "Cache reads bill at about a tenth of the uncached rate; writes at 1.25x."
+    },
+    "attempts": [],
+    "billing_state": "measured"
+  },
+  "provider_response_id": "chatcmpl-670",
+  "external_sources": [],
+  "world_revision": 281,
+  "snapshot_generated_at_utc": "2026-10-18T15:40:51.663Z",
+  "interaction_captured_at_utc": "2026-10-18T15:40:51.663Z",
+  "game_question_received_at_utc": "2026-10-18T15:40:51.663Z",
+  "bridge_received_at_utc": "2026-10-18T15:40:57.854Z",
+  "bridge_elapsed_ms": 58966,
+  "bridge_answered_at_utc": "2026-10-18T15:41:56.821Z",
+  "retained_history_messages": 4,
+  "omissions": [
+    "reflected_properties (bridge-side only; solvers read them)",
+    "content_catalog (all items and recipes; query it with find_recipes, get_item_balance, or get_machine_rates)",
+    "actors_beyond_the_nearest_18_of_4498 (every actor is still visible to the solvers)"
+  ],
+  "payload_view": "lean",
+  "snapshot_cache": {
+    "stored": true,
+    "save_id": "2f062482aa6cb93de8fbf60822eacbaeb604ea74e2dacb05a4d427374ee63f70",
+    "save_session_name": "bp builder",
+    "whole_world": true,
+    "slots_written": [
+      "latest",
+      "world"
+    ],
+    "bytes": 4695200,
+    "actor_count": 4498
+  },
+  "terrain_cache": {
+    "newly_measured": 0,
+    "re_measured": 5,
+    "restored_from_cache": 189,
+    "measured_live_this_capture": 5,
+    "total_remembered": 591
+  },
+  "solver_calls": [
+    {
+      "tool": "diagnose_bottlenecks",
+      "arguments": {},
+      "truncated": false,
+      "result_characters": 73071,
+      "evidence": {
+        "usable": false,
+        "reason": "target_mismatch",
+        "source": "deterministic_classification",
+        "certainty": "calculated",
+        "row_count": 51,
+        "target_match": false
+      }
+    },
+    {
+      "tool": "get_power_circuits",
+      "arguments": {},
+      "truncated": false,
+      "result_characters": 35763,
+      "evidence": {
+        "usable": true,
+        "reason": "usable",
+        "source": "authoritative_power_circuit_state",
+        "certainty": "calculated",
+        "row_count": 5,
+        "target_match": null
+      }
+    }
+  ],
+  "vision": {
+    "status": "no_recent_complete_frame",
+    "frames_attached": 0,
+    "frames_available": 0,
+    "frame_context": []
+  },
+  "cache": null,
+  "answered_by": "deterministic_fallback",
+  "cost": {
+    "model": "copilot-hauhau-game:latest",
+    "input_tokens": 38750,
+    "output_tokens": 278,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "total_input_tokens": 38750,
+    "billed_input_tokens": 38750,
+    "usd": null,
+    "rate": null,
+    "rate_source": "No published rate is on file for \"copilot-hauhau-game:latest\", so the cost is unknown rather than estimated."
+  },
+  "session_spend": {
+    "usd": 0,
+    "answers": 2
+  },
+  "tier": null,
+  "local": null,
+  "action_plan_conflict": null,
+  "actions": [],
+  "game_action_results": [],
+  "game_action_summary": "",
+  "game_write_actions_enabled": true,
+  "game_world_was_mutated": false,
+  "game_client_blueprint_preview_dispatched": false,
+  "game_actions_refused": false,
+  "game_actions_refusal_reason": "",
+  "game_actions_requested_count": 0,
+  "game_actions_executed_count": 0,
+  "game_actions_truncated": false,
+  "game_world_revision_after": "281",
+  "reply_with_game_outcome": "The model's live-game claims were not backed by usable deterministic evidence, so I withheld its draft. No model-proposed action was kept. Verified current-state diagnostics follow; they may not answer the original question, but they contain no guessed game data.\n\nI received verified revision 281 with 4498 actors, 4045 recipes, 3697 items, and 52 loaded mods. Actor ownership includes FactoryGame: 3277, RefinedPower: 360, SS_Mod: 330, Factory_Prop_Mod: 234, ConcreteConstruction: 126. The bridge omitted reflected_properties (bridge-side only; solvers read them), content_catalog (all items and recipes; query it with find_recipes, get_item_balance, or get_machine_rates), actors_beyond_the_nearest_18_of_4498 (every actor is still visible to the solvers) to stay within its context limit. The player position is {\"x\":291025.9,\"y\":-152860.2,\"z\":16995.9} and the preferred target is /Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.AbstractInstanceManager_2147472643.\n\n**Your circuit is over capacity — 35 machines affected.**\nConsumption exceeds generation. It has not tripped yet, but it will the moment demand rises. Add generation before this becomes a trip.\nAffected: 18x PowerStorage_Mk2, 6x PipeHyperStart, 2x Constructor_Mk2, 2x TrainStation, and 5 other kinds.\n\n**6 machines have an input with nothing feeding it.**\nAn unfed input starves the machine no matter what else is correct. Belt or pipe the missing input.\nAffected: 3x Constructor_Mk2, 3x GeneratorBiomass_Automated_Mk2.\n\n**10 machines have an output going nowhere.**\nOutput backs up into the machine's own buffer, then the machine halts. It looks like a supply problem and is not. Belt the output away, or add a container to absorb it.\nAffected: 8x Constructor_Mk2, 2x MinerMk3.\n\n**3 machines are running below full rate.**\nThe machine works but is idle part of every cycle — normally an input arriving slower than it is consumed. Check the slowest input's belt tier and the rate feeding it.\nAffected: StorageIntegrated, StorageBlueprint, TradingPost.\n\n**18 machines report an error status.**\nThe game flagged these itself. Look at each one in game; the machine states its own complaint.\nAffected: 6x Constructor_Mk2, 3x PipeHyperStart, 3x GeneratorBiomass_Automated_Mk2, 2x GeneratorIntegratedBiomass, and 2 other kinds.\n\nAlso reported, with no interpretation available: input_starved. The solvers found these; nothing here knows what they mean yet.\n\nRead from 51 stalled machines across 5 power circuits, from captured state — not estimated. Diagnostic mode does not generate strategic advice. Set AI_PROVIDER=openai with OPENAI_API_KEY, or AI_PROVIDER=anthropic with ANTHROPIC_API_KEY and ANTHROPIC_MODEL, then restart the bridge. Your question was: \"Use perform_actions to place saved blueprint \"AI Level Tunnel 28deg\" at x=301025.9375 y=-142860.171875 z=16995.943359375 yaw=-60.582233048806295 commit=true. This is a separate test destination derived by offsetting my captured position 100 m on X and Y. Let the native hologram check clearance; do not override clearance or change existing buildings. Propose only this one placement.\"\n\n— 38.8k billed in · 38.8k in · 278 out · session $0 over 2"
+}

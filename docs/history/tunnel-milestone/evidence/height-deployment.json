@@ -1,0 +1,26 @@
+{
+  "startedAt": "2026-10-18T16:08:02.361Z",
+  "commit": "dedf3b440b4cc7ad48bc0b464ee7f8ec9808ffca",
+  "deploymentOwner": "codex-14540",
+  "peerState": [
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-claude",
+      "head": "8891d2bbdc9124ebbe290450e21db665acaeb7a2"
+    },
+    {
+      "path": "%USERPROFILE%\\Documents\\satisfactory-mcp-lab\\workspaces\\architect\\claude-reference-traits",
+      "head": "69665af3a3e7dad9d626c993624ebda8e3b51f89"
+    },
+    {
+      "path": "%USERPROFILE%\\Documents\\satisfactory-mcp-lab\\workspaces\\architect\\integration",
+      "head": "d1f4569a411e5ae3a8a88e84bb39a89ec61f2f81"
+    }
+  ],
+  "newDll": "6f08e6029aceddab6c3167850adeedebd2f635f28cb7585a963b88832687f611",
+  "configSha256": "ad96a68caebb79d3e22827f300827310fb7f91fbcfb745954e9652de69beaae8",
+  "deployed": true,
+  "fullUatCookRelease": false,
+  "scheduledTasks": 0,
+  "companion": "{\"schema\":\"copilot.companion-deployment/v1\",\"commit\":\"dedf3b440b4cc7ad48bc0b464ee7f8ec9808ffca\",\"backup\":\"state\\\\companion\\\\deployments\\\\1792339683541\",\"changes\":[\"lib/actions.mjs\",\"lib/router.mjs\",\"lib/tools.mjs\"],\"startedAt\":\"2026-10-18T16:08:03.545Z\",\"modelCalls\":0,\"gameWrites\":0,\"scheduledTasks\":0,\"ok\":true,\"pid\":36868,\"runtimeSha256\":\"b334f31be672070dc123ca37386097c1a818867e73298ce736b19fc936b41801\",\"health\":{\"worldVerified\":false,\"operationalReady\":true,\"reachable\":true,\"status\":\"ok\",\"bridgeVersion\":\"1.0.0-beta.2\",\"provider\":\"local\"},\"worldVerified\":false,\"finishedAt\":\"2026-10-18T16:08:04.931Z\"}",
+  "finishedAt": "2026-10-18T16:08:04.940Z"
+}

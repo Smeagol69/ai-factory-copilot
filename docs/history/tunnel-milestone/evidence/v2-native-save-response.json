@@ -1,0 +1,1929 @@
+{
+	"schema": "aifactory.answer",
+	"schema_version": 1,
+	"bridge_version": "1.0.0-beta.2",
+	"action_contract_version": 1,
+	"reply": "Requested **AI Tunnel Matched Turn v2**: 72 foundations from your measured 18-piece profile, turning -29.5° with every course kept level. The game will report native save/readback success. 24 non-foundation reference objects were excluded. This is a faceted foundation shell; its panel joints and destination still need inspection.\n\n— **free** (answered locally, no API call) · session $0 over 1",
+	"provider": "solvers",
+	"model": "deterministic",
+	"provider_error": null,
+	"provider_failure": null,
+	"provider_response_id": null,
+	"external_sources": [],
+	"world_revision": 16,
+	"snapshot_generated_at_utc": "2026-10-18T21:14:43.873Z",
+	"interaction_captured_at_utc": "2026-10-18T21:14:43.874Z",
+	"game_question_received_at_utc": "2026-10-18T21:14:43.873Z",
+	"bridge_received_at_utc": "2026-10-18T21:14:49.971Z",
+	"bridge_elapsed_ms": 2037,
+	"bridge_answered_at_utc": "2026-10-18T21:14:52.010Z",
+	"retained_history_messages": 2,
+	"omissions": [
+		"reflected_properties (bridge-side only; solvers read them)",
+		"content_catalog (all items and recipes; query it with find_recipes, get_item_balance, or get_machine_rates)",
+		"actors_beyond_the_nearest_20_of_4627 (every actor is still visible to the solvers)"
+	],
+	"payload_view": "lean",
+	"snapshot_cache":
+	{
+		"stored": true,
+		"save_id": "2f062482aa6cb93de8fbf60822eacbaeb604ea74e2dacb05a4d427374ee63f70",
+		"save_session_name": "bp builder",
+		"whole_world": true,
+		"slots_written": [
+			"latest",
+			"world"
+		],
+		"bytes": 4925405,
+		"actor_count": 4627
+	},
+	"terrain_cache":
+	{
+		"newly_measured": 0,
+		"re_measured": 5,
+		"restored_from_cache": 184,
+		"measured_live_this_capture": 5,
+		"total_remembered": 591
+	},
+	"solver_calls": [
+		{
+			"name": "level_tunnel",
+			"source": "local_route"
+		}
+	],
+	"vision":
+	{
+		"status": "not_requested",
+		"frames_attached": 0,
+		"frames_available": 0,
+		"frame_context": []
+	},
+	"cache": null,
+	"answered_by": "local_solver",
+	"cost":
+	{
+		"model": "deterministic",
+		"input_tokens": 0,
+		"output_tokens": 0,
+		"cache_read_input_tokens": 0,
+		"cache_creation_input_tokens": 0,
+		"total_input_tokens": 0,
+		"billed_input_tokens": 0,
+		"usd": 0,
+		"rate": null,
+		"rate_source": "No published rate is on file for \"deterministic\", so the cost is unknown rather than estimated."
+	},
+	"session_spend":
+	{
+		"usd": 0,
+		"answers": 1
+	},
+	"tier": null,
+	"local":
+	{
+		"routed": true,
+		"solver": "level_tunnel",
+		"elapsed_ms": 268,
+		"why": "Exact saved poses and captured unlocked recipes; deterministic local geometry, no model call."
+	},
+	"action_plan_conflict": null,
+	"actions": [
+		{
+			"action": "generate_native_blueprint",
+			"blueprint_name": "AI Tunnel Matched Turn v2",
+			"description": "Level foundation shell from saved reference sha256:6048bb8aeecc4b941579833f44898af02f1723e25b50afdb6cdfe70fa7470650; -29.5 degree turn, 36.70707144503067m centerline radius. Native placement and joints require inspection.",
+			"layout_schema": "aifactory.generated-blueprint/v6",
+			"buildables": [
+				{
+					"part_id": "course-1-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 141.80180927828701,
+						"y": -1470.4564465697322,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": -0.26175175673580009,
+						"y": 0.27916416848445702,
+						"z": 0.6319246366069099,
+						"w": 0.67396192377725717
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-1-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 423.0592504411818,
+						"y": -1506.8606255727459,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": -0.24325551456275418,
+						"y": 0.29542066575428583,
+						"z": 0.58727075777443882,
+						"w": 0.71320857967031859
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-1-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 697.31697802761562,
+						"y": -1579.0666593753872,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": -0.2237520356109611,
+						"y": 0.31045392843358738,
+						"z": 0.54018519426926281,
+						"w": 0.74950208601750756
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-1-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 960.03726939653029,
+						"y": -1685.8798653071224,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": -0.20332207702727972,
+						"y": 0.32420170899180756,
+						"z": 0.49086291109102775,
+						"w": 0.78269216398757835
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-2-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 107.61528235664534,
+						"y": -2000.9075748176176,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": -0.26175175673580009,
+						"y": 0.27916416848445702,
+						"z": 0.6319246366069099,
+						"w": 0.67396192377725717
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-2-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 321.0653017865958,
+						"y": -2028.5351912938136,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": -0.24325551456275418,
+						"y": 0.29542066575428583,
+						"z": 0.58727075777443882,
+						"w": 0.71320857967031859
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-2-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 529.20314532273812,
+						"y": -2083.3333123831935,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": -0.2237520356109611,
+						"y": 0.31045392843358738,
+						"z": 0.54018519426926281,
+						"w": 0.74950208601750756
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-2-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 728.58507479445939,
+						"y": -2164.3952774897434,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": -0.20332207702727972,
+						"y": 0.32420170899180756,
+						"z": 0.49086291109102775,
+						"w": 0.78269216398757835
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-3-piece-1",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 91.483309994274393,
+						"y": -2251.2173813708609,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": -0.022750436964008414,
+						"y": -0.70674070872098183,
+						"z": -0.70674070872098183,
+						"w": -0.022750436964008414
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-3-piece-2",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 272.93629574289406,
+						"y": -2274.7035047833197,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": -0.06815707879291566,
+						"y": -0.70381433940770588,
+						"z": -0.70381433940770588,
+						"w": -0.06815707879291566
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-3-piece-3",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 449.87342255963085,
+						"y": -2321.2871626889846,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": -0.11328150578029894,
+						"y": -0.69797371884164594,
+						"z": -0.69797371884164594,
+						"w": -0.11328150578029894
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-3-piece-4",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 619.36718275503574,
+						"y": -2390.1976066351426,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": -0.15793687331314576,
+						"y": -0.68924303100833484,
+						"z": -0.68924303100833484,
+						"w": -0.15793687331314576
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-4-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 141.80180927828701,
+						"y": -1470.4564465697322,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.67396192377725717,
+						"y": -0.6319246366069099,
+						"z": -0.27916416848445702,
+						"w": 0.26175175673580009
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-4-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 423.0592504411818,
+						"y": -1506.8606255727459,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.71320857967031859,
+						"y": -0.58727075777443882,
+						"z": -0.29542066575428583,
+						"w": 0.24325551456275418
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-4-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 697.31697802761562,
+						"y": -1579.0666593753872,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.74950208601750756,
+						"y": -0.54018519426926281,
+						"z": -0.31045392843358738,
+						"w": 0.2237520356109611
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-4-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 960.03726939653029,
+						"y": -1685.8798653071224,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.78269216398757835,
+						"y": -0.49086291109102775,
+						"z": -0.32420170899180756,
+						"w": 0.20332207702727972
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-5-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 107.61528235664534,
+						"y": -2000.9075748176176,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.67396192377725717,
+						"y": -0.6319246366069099,
+						"z": -0.27916416848445702,
+						"w": 0.26175175673580009
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-5-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 321.0653017865958,
+						"y": -2028.5351912938136,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.71320857967031859,
+						"y": -0.58727075777443882,
+						"z": -0.29542066575428583,
+						"w": 0.24325551456275418
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-5-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 529.20314532273812,
+						"y": -2083.3333123831935,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.74950208601750756,
+						"y": -0.54018519426926281,
+						"z": -0.31045392843358738,
+						"w": 0.2237520356109611
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-5-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 728.58507479445939,
+						"y": -2164.3952774897434,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.78269216398757835,
+						"y": -0.49086291109102775,
+						"z": -0.32420170899180756,
+						"w": 0.20332207702727972
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-6-piece-1",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 91.483309994274393,
+						"y": -2251.2173813708609,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": -0.70674070872098183,
+						"y": 0.022750436964008414,
+						"z": -0.022750436964008414,
+						"w": 0.70674070872098183
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-6-piece-2",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 272.93629574289406,
+						"y": -2274.7035047833197,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": -0.70381433940770588,
+						"y": 0.06815707879291566,
+						"z": -0.06815707879291566,
+						"w": 0.70381433940770588
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-6-piece-3",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 449.87342255963085,
+						"y": -2321.2871626889846,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": -0.69797371884164594,
+						"y": 0.11328150578029894,
+						"z": -0.11328150578029894,
+						"w": 0.69797371884164594
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-6-piece-4",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 619.36718275503574,
+						"y": -2390.1976066351426,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": -0.68924303100833484,
+						"y": 0.15793687331314576,
+						"z": -0.15793687331314576,
+						"w": 0.68924303100833484
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-7-piece-1",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 187.84410210907228,
+						"y": -756.04675426055064,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.032173943549133333,
+						"w": 0.99948230325376919
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-7-piece-2",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 560.42433761971347,
+						"y": -804.27117644982491,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.096388632821665265,
+						"w": 0.99534379418557306
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-7-piece-3",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 923.73208980674224,
+						"y": -899.92212516160043,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.16020421017188125,
+						"w": 0.98708391143011032
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-7-piece-4",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1271.7562616364332,
+						"y": -1041.4170106200932,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.22335643741106143,
+						"w": 0.97473685629917628
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-8-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 330.35828839802377,
+						"y": 1455.2574557745247,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": 0.27916416848445702,
+						"y": 0.26175175673580009,
+						"z": -0.67396192377725717,
+						"w": 0.6319246366069099
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-8-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 985.60893248137313,
+						"y": 1370.4459690439926,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": 0.29542066575428583,
+						"y": 0.24325551456275418,
+						"z": -0.71320857967031859,
+						"w": 0.58727075777443882
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-8-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1624.5522148451132,
+						"y": 1202.2262413800318,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": 0.31045392843358738,
+						"y": 0.2237520356109611,
+						"z": -0.74950208601750756,
+						"w": 0.54018519426926281
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-8-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 2236.6165194248611,
+						"y": 953.38154701746953,
+						"z": 293.915771484375
+					},
+					"rotation_quat":
+					{
+						"x": 0.32420170899180756,
+						"y": 0.20332207702727972,
+						"z": -0.78269216398757835,
+						"w": 0.49086291109102775
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-9-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 364.54482269710081,
+						"y": 1985.7086984934976,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": 0.27916416848445702,
+						"y": 0.26175175673580009,
+						"z": -0.67396192377725717,
+						"w": 0.6319246366069099
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-9-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1087.6029031462022,
+						"y": 1892.1206473421698,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": 0.29542066575428583,
+						"y": 0.24325551456275418,
+						"z": -0.71320857967031859,
+						"w": 0.58727075777443882
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-9-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1792.6660838288715,
+						"y": 1706.4930032083284,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": 0.31045392843358738,
+						"y": 0.2237520356109611,
+						"z": -0.74950208601750756,
+						"w": 0.54018519426926281
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-9-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 2468.0687639741996,
+						"y": 1431.8970624634767,
+						"z": 824.32958984375
+					},
+					"rotation_quat":
+					{
+						"x": 0.32420170899180756,
+						"y": 0.20332207702727972,
+						"z": -0.78269216398757835,
+						"w": 0.49086291109102775
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-10-piece-1",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 380.67677896201758,
+						"y": 2236.0182552725319,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": 0.70674070872098183,
+						"y": -0.022750436964008414,
+						"z": -0.022750436964008414,
+						"w": 0.70674070872098183
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-10-piece-2",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1135.7318611638811,
+						"y": 2138.2887151900977,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": 0.70381433940770588,
+						"y": -0.06815707879291566,
+						"z": -0.06815707879291566,
+						"w": 0.70381433940770588
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-10-piece-3",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1871.9957274320009,
+						"y": 1944.4466160694283,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": 0.69797371884164594,
+						"y": -0.11328150578029894,
+						"z": -0.11328150578029894,
+						"w": 0.69797371884164594
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-10-piece-4",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 2577.2865470294287,
+						"y": 1657.6991662897044,
+						"z": 2228.5048828125
+					},
+					"rotation_quat":
+					{
+						"x": 0.68924303100833484,
+						"y": -0.15793687331314576,
+						"z": -0.15793687331314576,
+						"w": 0.68924303100833484
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-11-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 330.35828839802377,
+						"y": 1455.2574557745247,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.6319246366069099,
+						"y": 0.67396192377725717,
+						"z": -0.26175175673580009,
+						"w": -0.27916416848445702
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-11-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 985.60893248137313,
+						"y": 1370.4459690439926,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.58727075777443882,
+						"y": 0.71320857967031859,
+						"z": -0.24325551456275418,
+						"w": -0.29542066575428583
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-11-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1624.5522148451132,
+						"y": 1202.2262413800318,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.54018519426926281,
+						"y": 0.74950208601750756,
+						"z": -0.2237520356109611,
+						"w": -0.31045392843358738
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-11-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 2236.6165194248611,
+						"y": 953.38154701746953,
+						"z": 3454.356689453125
+					},
+					"rotation_quat":
+					{
+						"x": -0.49086291109102775,
+						"y": 0.78269216398757835,
+						"z": -0.20332207702727972,
+						"w": -0.32420170899180756
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-12-piece-1",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 364.54482269710081,
+						"y": 1985.7086984934976,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.6319246366069099,
+						"y": 0.67396192377725717,
+						"z": -0.26175175673580009,
+						"w": -0.27916416848445702
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-12-piece-2",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1087.6029031462022,
+						"y": 1892.1206473421698,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.58727075777443882,
+						"y": 0.71320857967031859,
+						"z": -0.24325551456275418,
+						"w": -0.29542066575428583
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-12-piece-3",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1792.6660838288715,
+						"y": 1706.4930032083284,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.54018519426926281,
+						"y": 0.74950208601750756,
+						"z": -0.2237520356109611,
+						"w": -0.31045392843358738
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-12-piece-4",
+					"role": "ramp",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 2468.0687639741996,
+						"y": 1431.8970624634767,
+						"z": 2923.94287109375
+					},
+					"rotation_quat":
+					{
+						"x": -0.49086291109102775,
+						"y": 0.78269216398757835,
+						"z": -0.20332207702727972,
+						"w": -0.32420170899180756
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-13-piece-1",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 380.67677896201758,
+						"y": 2236.0182552725319,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": 0.022750436964008414,
+						"y": 0.70674070872098183,
+						"z": -0.70674070872098183,
+						"w": -0.022750436964008414
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-13-piece-2",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1135.7318611638811,
+						"y": 2138.2887151900977,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": 0.06815707879291566,
+						"y": 0.70381433940770588,
+						"z": -0.70381433940770588,
+						"w": -0.06815707879291566
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-13-piece-3",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1871.9957274320009,
+						"y": 1944.4466160694283,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": 0.11328150578029894,
+						"y": 0.69797371884164594,
+						"z": -0.69797371884164594,
+						"w": -0.11328150578029894
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-13-piece-4",
+					"role": "wall",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 2577.2865470294287,
+						"y": 1657.6991662897044,
+						"z": 1519.767578125
+					},
+					"rotation_quat":
+					{
+						"x": 0.15793687331314576,
+						"y": 0.68924303100833484,
+						"z": -0.68924303100833484,
+						"w": -0.15793687331314576
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-14-piece-1",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 284.31599556723853,
+						"y": 740.84776346534363,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.032173943549133333,
+						"w": 0.99948230325376919
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-14-piece-2",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 848.24384530284146,
+						"y": 667.85651992107159,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.096388632821665265,
+						"w": 0.99534379418557306
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-14-piece-3",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1398.1371030659868,
+						"y": 523.081707166245,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.16020421017188125,
+						"w": 0.98708391143011032
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-14-piece-4",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1924.8975271849581,
+						"y": 308.91869233044054,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.22335643741106143,
+						"w": 0.97473685629917628
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-15-piece-1",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 239.29577952532205,
+						"y": 42.297002572450765,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.032173943549133333,
+						"w": 0.99948230325376919
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-15-piece-2",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 713.92807775142091,
+						"y": -19.136391238551369,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.096388632821665265,
+						"w": 0.99534379418557306
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-15-piece-3",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1176.7481013298388,
+						"y": -140.98673456756615,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.16020421017188125,
+						"w": 0.98708391143011032
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-15-piece-4",
+					"role": "floor",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1620.098276057621,
+						"y": -321.23795637582771,
+						"z": 0
+					},
+					"rotation_quat":
+					{
+						"x": 0,
+						"y": 0,
+						"z": -0.22335643741106143,
+						"w": 0.97473685629917628
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-16-piece-1",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 290.74745727721773,
+						"y": 840.64076461346122,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.68399026577746835,
+						"y": 0.72949110396446348,
+						"z": -8.6550777519492831e-17,
+						"w": -2.7861262539627373e-18
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-16-piece-2",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 867.43181888451272,
+						"y": 765.99839909456296,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.63565725733090339,
+						"y": 0.77197137618190037,
+						"z": -8.6192400550455443e-17,
+						"w": -8.3468362917702764e-18
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-16-piece-3",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1429.7641145034897,
+						"y": 617.94866097739668,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.58469221248667613,
+						"y": 0.8112551824790144,
+						"z": -8.5477130723145251e-17,
+						"w": -1.387298497332506e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-16-piece-4",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1968.4402927512238,
+						"y": 398.94110256653858,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.53130615983211338,
+						"y": 0.8471798622288399,
+						"z": -8.4407929722020223e-17,
+						"w": -1.9341690432179389e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-17-piece-1",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 187.84410210907228,
+						"y": -756.04675426055064,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.68399026577746835,
+						"y": 0.72949110396446348,
+						"z": -8.6550777519492831e-17,
+						"w": -2.7861262539627373e-18
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-17-piece-2",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 560.42433761971347,
+						"y": -804.27117644982491,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.63565725733090339,
+						"y": 0.77197137618190037,
+						"z": -8.6192400550455443e-17,
+						"w": -8.3468362917702764e-18
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-17-piece-3",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 923.73208980674224,
+						"y": -899.92212516160043,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.58469221248667613,
+						"y": 0.8112551824790144,
+						"z": -8.5477130723145251e-17,
+						"w": -1.387298497332506e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-17-piece-4",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1271.7562616364332,
+						"y": -1041.4170106200932,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": -0.53130615983211338,
+						"y": 0.8471798622288399,
+						"z": -8.4407929722020223e-17,
+						"w": -1.9341690432179389e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-18-piece-1",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 239.29577952532205,
+						"y": 42.297002572450765,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": 0.032173943549133333,
+						"y": 0.99948230325376919,
+						"z": -5.9230552855870169e-17,
+						"w": -6.317072708380033e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-18-piece-2",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 713.92807775142091,
+						"y": -19.136391238551369,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": 0.096388632821665265,
+						"y": 0.99534379418557306,
+						"z": -5.5045126512738313e-17,
+						"w": -6.6849332076727968e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-18-piece-3",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1176.7481013298388,
+						"y": -140.98673456756615,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": 0.16020421017188125,
+						"y": 0.98708391143011032,
+						"z": -5.0631777378157798e-17,
+						"w": -7.0251137154046726e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				},
+				{
+					"part_id": "course-18-piece-4",
+					"role": "roof",
+					"recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+					"relative_location":
+					{
+						"x": 1620.098276057621,
+						"y": -321.23795637582771,
+						"z": 3748.2724609375
+					},
+					"rotation_quat":
+					{
+						"x": 0.22335643741106143,
+						"y": 0.97473685629917628,
+						"z": -4.6008779601324371e-17,
+						"w": -7.3362056619922908e-17
+					},
+					"scale3d":
+					{
+						"x": 1,
+						"y": 1,
+						"z": 1
+					}
+				}
+			],
+			"conveyors": [],
+			"power_wires": [],
+			"commit": true,
+			"expect_world_revision": "16",
+			"require_unchanged_world": false
+		}
+	],
+	"game_action_results": [
+		{
+			"action": "generate_native_blueprint",
+			"status": "committed",
+			"accepted": true,
+			"committed": true,
+			"dry_run": false,
+			"predicted":
+			{
+				"blueprint_name": "AI Tunnel Matched Turn v2",
+				"layout_schema": "aifactory.generated-blueprint/v6",
+				"resolved_buildables": 72,
+				"configured_manufacturers": 0,
+				"requested_conveyors": 0,
+				"requested_power_wires": 0,
+				"requested_pipelines": 0,
+				"requested_resource_anchors": 0,
+				"requested_miners": 0,
+				"designer": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_BlueprintDesigner_Mk3_C_2147280572",
+				"designer_had_buildings": false,
+				"staging": "RF_Transient deferred native actors; destroyed before return",
+				"collision_validation": "native FFGClearanceData first, registered primitive bounds fallback; final site clearance belongs to the vanilla Blueprint hologram",
+				"native_bounds_sources":
+				{
+					"native_clearance_data": 72
+				},
+				"staged_conveyors": 0,
+				"staged_power_wires": 0,
+				"staged_pipelines": 0,
+				"allowed_structural_contact_pairs": 311,
+				"measured_native_size_cm":
+				{
+					"x": 5042.0518500813632,
+					"y": 4432.8519203313335,
+					"z": 3948.2724609375
+				},
+				"declared_dimension_x_cells": 8,
+				"declared_dimension_y_cells": 7,
+				"declared_dimension_z_cells": 6,
+				"adopted": 72
+			},
+			"observed":
+			{
+				"designer_left_empty": true,
+				"staged_buildables": 72,
+				"staged_conveyors": 0,
+				"staged_power_wires": 0,
+				"staged_pipelines": 0,
+				"staged_resource_anchors": 0,
+				"staged_miners": 0,
+				"exact_native_geometry_readback": true,
+				"native_readback_descriptor_resolved": true,
+				"expected_saved_part_transforms": 72,
+				"exact_saved_part_transforms": 72,
+				"native_readback_position_tolerance_cm": 0.10000000000000001,
+				"exact_saved_machine_clock_settings": 0,
+				"native_loaded_buildables": 72,
+				"native_loaded_configured_manufacturers": 0,
+				"native_loaded_conveyors": 0,
+				"native_loaded_exact_reciprocal_conveyor_links": 0,
+				"native_loaded_power_wires": 0,
+				"native_loaded_exact_reciprocal_power_wire_links": 0,
+				"native_loaded_pipelines": 0,
+				"native_loaded_exact_reciprocal_pipeline_links": 0,
+				"native_loaded_resource_anchors": 0,
+				"native_loaded_supported_vanilla_miners": 0,
+				"native_loaded_exact_anchor_miner_mappings": 0,
+				"native_loaded_uniquely_mapped_miners": 0,
+				"native_loaded_anchors_with_exactly_one_miner": 0,
+				"native_loaded_exact_anchor_configurations": true,
+				"native_loaded_exact_anchor_miner_pairings": true,
+				"subsystem_available": true,
+				"blueprint_readable_from_disc": true,
+				"exact_native_topology_readback": true,
+				"all_staging_is_transient": true
+			},
+			"created_actor_ids": [],
+			"removed_actor_ids": [],
+			"warnings": [],
+			"undoable": false,
+			"undo": "Generated blueprints are files; delete this one from the native blueprint menu.",
+			"undo_steps_available": 0,
+			"source": "executed_by_the_game_and_read_back"
+		}
+	],
+	"game_action_summary": "[actions] 1 committed, 0 previewed, 0 refused",
+	"game_write_actions_enabled": true,
+	"game_world_was_mutated": true,
+	"game_client_blueprint_preview_dispatched": false,
+	"game_actions_refused": false,
+	"game_actions_refusal_reason": "",
+	"game_actions_requested_count": 1,
+	"game_actions_executed_count": 1,
+	"game_actions_truncated": false,
+	"game_world_revision_after": "161",
+	"reply_with_game_outcome": "Requested **AI Tunnel Matched Turn v2**: 72 foundations from your measured 18-piece profile, turning -29.5° with every course kept level. The game will report native save/readback success. 24 non-foundation reference objects were excluded. This is a faceted foundation shell; its panel joints and destination still need inspection.\n\n— **free** (answered locally, no API call) · session $0 over 1\n\n[actions] 1 committed, 0 previewed, 0 refused\n  1. generate_native_blueprint: committed"
+}

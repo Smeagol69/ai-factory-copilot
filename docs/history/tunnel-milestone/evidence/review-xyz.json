@@ -1,0 +1,58 @@
+{
+  "files": [
+    {
+      "file": "companion/lib/router.mjs",
+      "sha256": "982cad408d2e56010c892cdc28e4cc9691b15ba328a3e30cbb3b0d86ec875ab4"
+    }
+  ],
+  "calls": [
+    {
+      "name": "pair_send_message",
+      "args": {
+        "body": "{\"verdict\":\"approve\",\"findings\":[],\"limitations\":[]}",
+        "channel": "review",
+        "project": "satisfactory-ai-architect",
+        "subject": "Tunnel coordinate route exact-source review",
+        "to": "codex-14540"
+      },
+      "completed": true
+    }
+  ],
+  "startedAt": "2026-10-18T15:44:25.784Z",
+  "policy": {
+    "maxRequests": 2,
+    "maxToolCalls": 1,
+    "maxOutputTokens": 2048
+  },
+  "result": {
+    "provider": "google",
+    "model": "gemini-3.5-flash",
+    "status": "failed",
+    "requests": 2,
+    "toolCalls": [
+      {
+        "name": "pair_send_message",
+        "status": "completed"
+      }
+    ],
+    "messages": [],
+    "usage": [
+      {
+        "promptTokenCount": 1663,
+        "candidatesTokenCount": 80,
+        "totalTokenCount": 1743,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1663
+          }
+        ],
+        "serviceTier": "standard"
+      }
+    ],
+    "observedModelVersion": "gemini-3.6-flash",
+    "error": "Google API HTTP 503: UNAVAILABLE",
+    "finishedAt": "2026-10-18T15:44:32.244Z"
+  },
+  "finishedAt": "2026-10-18T15:44:32.265Z"
+}

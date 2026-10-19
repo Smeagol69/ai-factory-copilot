@@ -1,0 +1,7 @@
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+const dir='state/live-architect/tunnel-milestone/',target=dir+'deploy-instance-native.mjs';if(existsSync(target))throw Error('No wrapper replacement');
+let text=readFileSync(dir+'deploy-capture-native.mjs','utf8').replaceAll('capture-native','instance-native').replace("startsWith('f84bb0c')","startsWith('18e7022')").replace('companion-lighting-suite.log','companion-instance-bounds-suite.log').replace("=== 'f7f4969e","=== 'f7f4969e");
+text=text.replace("==='f7f4969e311592466a57b76de8fc6a5c07a14b6cd4d7206a62ed9b95e109ea77'","==='f3310966a1b723cd90754063b4ccc7b9d54f8951fec82300d53332762b8a7db1'").replace("==='f3310966a1b723cd90754063b4ccc7b9d54f8951fec82300d53332762b8a7db1','Built DLL changed'","==='3668ba522fa121a14f3b6337ad31818035d84297e7d7f0a3914b02649aa1f702','Built DLL changed'");
+const begin=text.indexOf('for(const name of ['),end=text.indexOf('check(/ℹ pass',begin);if(begin<0||end<0)throw Error('Cannot isolate review guard');
+text=text.slice(0,begin)+`const review=JSON.parse(readFileSync(join(dir,'local-instance-bounds-review.json')));check(review.status==='completed'&&review.result.message.content.startsWith('{"verdict":"approve"'),'Native review missing');check(hash(join(source,review.file))===review.sha256,'Reviewed native source changed');\n`+text.slice(end);
+writeFileSync(target,text);console.log('Native instance deployment pinned to18e7022');

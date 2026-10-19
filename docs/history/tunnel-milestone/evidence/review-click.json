@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "file": "Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      "sha256": "154f87f7d07c8fac417bde3849ecfa1f7f02009b2cba1697f064048aea13a592"
+    }
+  ],
+  "calls": [],
+  "startedAt": "2026-10-18T15:50:02.773Z",
+  "result": {
+    "provider": "google",
+    "model": "gemini-3.5-flash",
+    "status": "failed",
+    "requests": 1,
+    "toolCalls": [],
+    "messages": [],
+    "usage": [],
+    "error": "Google API HTTP 503: UNAVAILABLE",
+    "finishedAt": "2026-10-18T15:50:04.151Z"
+  },
+  "finishedAt": "2026-10-18T15:50:04.169Z"
+}

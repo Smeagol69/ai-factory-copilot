@@ -1,5 +1,12 @@
 # AI Factory Copilot for Satisfactory
 
+**Picking this up (person or AI model)?** Start with [docs/STATUS.md](docs/STATUS.md):
+where the latest work is, what is verified and what comes next. Then
+[AGENTS.md](AGENTS.md) (rules and traps), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[hub/README.md](hub/README.md) (the model hub and MCP servers) and
+[docs/HISTORY.md](docs/HISTORY.md) (how it got here, with the Claude + Codex ledger).
+Everything is in this one repo; double-click `Start Copilot.cmd` to open the hub.
+
 AI Factory Copilot is an SML C++ mod plus a localhost companion process. The
 mod reads authoritative runtime state from Satisfactory and sends a bounded,
 evidence-bearing snapshot to a configurable AI provider. It never asks the

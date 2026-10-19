@@ -1,0 +1,90 @@
+{
+  "schema": "copilot.tunnel-source-review/v1",
+  "startedAt": "2026-10-18T15:28:25.587Z",
+  "policy": {
+    "maxRequests": 2,
+    "maxToolCalls": 1,
+    "maxOutputTokens": 3072,
+    "noFallback": true,
+    "noReplay": true,
+    "gameWrites": 0,
+    "ghidraAllowed": false
+  },
+  "files": [
+    {
+      "file": "companion/lib/level-tunnel.mjs",
+      "sha256": "b9097070145d20101949811650a4e308c015a63c833c1cce82154cd8dd50453c"
+    }
+  ],
+  "calls": [
+    {
+      "name": "pair_send_message",
+      "args": {
+        "body": "{\"verdict\":\"request_changes\",\"findings\":[{\"severity\":\"important\",\"location\":\"rotateQ function (lines 7 & 73)\",\"trigger\":\"Calling compileLevelTunnel with valid blueprint and orientation quaternions\",\"problem\":\"rotateQ performs 2D complex-number vector multiplication on (x,y) and (z,w) component pairs instead of 3D quaternion rotation around Z-axis (yaw). This corrupts x, y, z, w quaternion components, producing unnormalized, mathematically invalid 3D orientation quaternions.\",\"fix\":\"Implement proper quaternion multiplication for Z-axis rotation: rot_z = {x:0, y:0, z:sin((a-heading)/2), w:cos((a-heading)/2)}; output_q = rot_z * p.q (or p.q * rot_z depending on coordinate frame).\"},{\"severity\":\"important\",\"location\":\"candidates loop / repeated-profile matching (lines 31-41)\",\"trigger\":\"Input contains duplicate foundation pieces across cross-section (e.g. multiple identical 8x4 foundations at different transverse/vertical positions)\",\"problem\":\"The candidate matching logic assumes each foundation piece class_path is unique per cross-section position. If multiple foundations share the same class_path and orientation plane, line 34 (same(parts[i], parts[j])) will incorrectly pair cross-section duplicates with wrong bay pieces, failing validation or building corrupted profile geometry.\",\"fix\":\"Include distance/spatial offsets relative to initial candidate delta when matching paired bay pieces, or enforce strict unique spatial association between bay 1 and bay 2 items.\"}],\"limitations\":[\"Independent exact-source code review only; no live execution or binary analysis conducted.\",\"Rigid panel joint overlaps require visual clearance review in game as noted in source.\"]}\n",
+        "channel": "review",
+        "project": "satisfactory-ai-architect",
+        "subject": "Tunnel geometry exact-source review",
+        "to": "codex-14540"
+      },
+      "completed": true,
+      "result": {
+        "message": {
+          "id": 614,
+          "project": "satisfactory-ai-architect",
+          "sender": "google-tunnel-review-geometry-20261018",
+          "recipient": "codex-14540",
+          "subject": "Tunnel geometry exact-source review",
+          "body": "{\"verdict\":\"request_changes\",\"findings\":[{\"severity\":\"important\",\"location\":\"rotateQ function (lines 7 & 73)\",\"trigger\":\"Calling compileLevelTunnel with valid blueprint and orientation quaternions\",\"problem\":\"rotateQ performs 2D complex-number vector multiplication on (x,y) and (z,w) component pairs instead of 3D quaternion rotation around Z-axis (yaw). This corrupts x, y, z, w quaternion components, producing unnormalized, mathematically invalid 3D orientation quaternions.\",\"fix\":\"Implement proper quaternion multiplication for Z-axis rotation: rot_z = {x:0, y:0, z:sin((a-heading)/2), w:cos((a-heading)/2)}; output_q = rot_z * p.q (or p.q * rot_z depending on coordinate frame).\"},{\"severity\":\"important\",\"location\":\"candidates loop / repeated-profile matching (lines 31-41)\",\"trigger\":\"Input contains duplicate foundation pieces across cross-section (e.g. multiple identical 8x4 foundations at different transverse/vertical positions)\",\"problem\":\"The candidate matching logic assumes each foundation piece class_path is unique per cross-section position. If multiple foundations share the same class_path and orientation plane, line 34 (same(parts[i], parts[j])) will incorrectly pair cross-section duplicates with wrong bay pieces, failing validation or building corrupted profile geometry.\",\"fix\":\"Include distance/spatial offsets relative to initial candidate delta when matching paired bay pieces, or enforce strict unique spatial association between bay 1 and bay 2 items.\"}],\"limitations\":[\"Independent exact-source code review only; no live execution or binary analysis conducted.\",\"Rigid panel joint overlaps require visual clearance review in game as noted in source.\"]}",
+          "reply_to": null,
+          "created_at": 1792337313915,
+          "channel": "review"
+        },
+        "delivery": "Stored; a running coordinator relays it. This is not proof of a peer response."
+      }
+    }
+  ],
+  "result": {
+    "provider": "google",
+    "model": "gemini-3.5-flash",
+    "status": "completed",
+    "requests": 2,
+    "toolCalls": [
+      {
+        "name": "pair_send_message",
+        "status": "completed"
+      }
+    ],
+    "messages": [
+      "The exact-source code review has been completed and sent to `codex-14540` via `pair_send_message`.\n\n```json\n{\n  \"verdict\": \"request_changes\",\n  \"findings\": [\n    {\n      \"severity\": \"important\",\n      \"location\": \"rotateQ function (lines 7 & 73)\",\n      \"trigger\": \"Calling compileLevelTunnel with valid blueprint and orientation quaternions\",\n      \"problem\": \"rotateQ performs 2D complex-number vector multiplication on (x,y) and (z,w) component pairs instead of 3D quaternion rotation around Z-axis (yaw). This corrupts x, y, z, w quaternion components, producing unnormalized, mathematically invalid 3D orientation quaternions.\",\n      \"fix\": \"Implement proper quaternion multiplication for Z-axis rotation: rot\n_z = {x:0, y:0, z:sin((a-heading)/2), w:cos((a-heading)/2)}; output_q = rot_z * p.q (or p.q * rot_z depending on coordinate frame).\"\n    },\n    {\n      \"severity\": \"important\",\n      \"location\": \"candidates loop / repeated-profile matching (lines 31-41)\",\n      \"trigger\": \"Input contains duplicate foundation pieces across cross-section (e.g. multiple identical 8x4 foundations at different transverse/vertical positions)\",\n      \"problem\": \"The candidate matching logic assumes each foundation piece class_path is unique per cross-section position. If multiple foundations share the same class_path and orientation plane, line 34 (same(parts[i], parts[j])) will incorrectly pair cross-section duplicates with wrong bay pieces, failing validation or building corrupted profile geometry.\",\n      \"fix\": \"Include distance/spatial offsets relative to initial candidate delta when matching paired bay pieces, or enforce strict unique spatial association between bay 1 and bay 2 items.\"\n    }\n  ],\n  \"limitations\": [\n    \"Independent exact-source code review only; no live execution or binary analysis conducted.\",\n    \"Rigid panel joint overlaps require visual clearance review in game as noted in source.\"\n  ]\n}\n```"
+    ],
+    "usage": [
+      {
+        "promptTokenCount": 3136,
+        "candidatesTokenCount": 459,
+        "totalTokenCount": 3595,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 3136
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      {
+        "promptTokenCount": 4100,
+        "candidatesTokenCount": 483,
+        "totalTokenCount": 4583,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 4100
+          }
+        ],
+        "serviceTier": "standard"
+      }
+    ],
+    "observedModelVersion": "gemini-3.6-flash",
+    "finishedAt": "2026-10-18T15:28:38.267Z"
+  },
+  "finishedAt": "2026-10-18T15:28:38.286Z"
+}

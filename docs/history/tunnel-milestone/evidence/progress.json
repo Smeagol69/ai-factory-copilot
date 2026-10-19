@@ -1,0 +1,39 @@
+{
+  "goal": "One curved level tunnel, saved and placed with actual pose and visual verification",
+  "updatedAt": "2026-10-18T21:54:08.707Z",
+  "savedNativeBlueprint": {
+    "name": "AI Level Tunnel 28deg",
+    "pieces": 66,
+    "fingerprint": "sha256:cb1a1cec1636ee36c10608305cb6a70afba14336aa024abfdfb43dec57020ac8",
+    "exactNativeSavedPoseMatches": 66,
+    "positionToleranceCm": 0.1,
+    "receipt": "7b07eed5-9acf-4367-a0df-3dc7a6ab33e7"
+  },
+  "placementVerified": true,
+  "placedPieces": 270,
+  "visualJointsVerified": false,
+  "currentSourceCommit": "f84bb0c15df0316f6482dd9f584ae96f07d085ed",
+  "nativeDllSha256": "f3310966a1b723cd90754063b4ccc7b9d54f8951fec82300d53332762b8a7db1",
+  "tests": {
+    "pass": 1350,
+    "fail": 0
+  },
+  "models": {
+    "codex": "Implemented and verified source/game generation",
+    "google": "Approved native full-pose/geometry/integration/route changes; latest service503",
+    "hauhau": "Placement interpretation failed grounding; separate exact-source native click review approved via same-conversation schema repair",
+    "claude": "Earlier saved-reference helper integrated; no new Claude inference this batch"
+  },
+  "open": [
+    "Save complete current assembly with repaired native explicit member capture",
+    "Generate and place separate measured lighting add-on",
+    "Verify actual fixture poses, emissive reveals, ceiling coverage and power",
+    "Test opt-in v7 shortened panels separately"
+  ],
+  "lighting": {
+    "plannedCeilingLights": 6,
+    "plannedEmissiveBeams": 28,
+    "placed": false,
+    "power": "unknown; original source lamps captured no power"
+  }
+}

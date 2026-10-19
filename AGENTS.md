@@ -3,6 +3,14 @@
 Shared handoff notes for anyone — human or agent — picking this up. Read this
 before changing anything; it records the decisions and the traps.
 
+**Read [docs/STATUS.md](docs/STATUS.md) first**: the current state, what is
+verified and the next steps in order. Since 2026-10-18 this repo also contains
+the model hub (`hub/`, formerly the separate Satisfactory MCP Lab; its own rules
+are in [hub/AGENTS.md](hub/AGENTS.md)). Run both suites before committing:
+`cd companion; npm test` and `cd hub; runtime
+ode
+ode.exe --test --test-isolation=none test/*.test.mjs`.
+
 **Repo:** <https://github.com/Smeagol69/ai-factory-copilot> (public, default
 branch `master`). Claude and Codex collaborate here through git only — there is
 no shared chat memory between them, so anything the next agent needs must be in

@@ -1,0 +1,32 @@
+{
+  "startedAt": "2026-10-18T21:22:33.490Z",
+  "commit": "d89f7cffbf6b0cf69f0105e6ab51460ee8724243",
+  "nativeDllChanged": false,
+  "scheduledTasks": 0,
+  "companion": {
+    "schema": "copilot.companion-deployment/v1",
+    "commit": "d89f7cffbf6b0cf69f0105e6ab51460ee8724243",
+    "backup": "state\\companion\\deployments\\1792358554436",
+    "changes": [
+      "lib/level-tunnel.mjs"
+    ],
+    "startedAt": "2026-10-18T21:22:34.439Z",
+    "modelCalls": 0,
+    "gameWrites": 0,
+    "scheduledTasks": 0,
+    "ok": true,
+    "pid": 17156,
+    "runtimeSha256": "4e5a93e44d27e5b2007e615918ad1eba920e678c8af4a6ba2b510488031a9b9f",
+    "health": {
+      "worldVerified": false,
+      "operationalReady": true,
+      "reachable": true,
+      "status": "ok",
+      "bridgeVersion": "1.0.0-beta.2",
+      "provider": "local"
+    },
+    "worldVerified": false,
+    "finishedAt": "2026-10-18T21:22:36.706Z"
+  },
+  "finishedAt": "2026-10-18T21:22:36.723Z"
+}

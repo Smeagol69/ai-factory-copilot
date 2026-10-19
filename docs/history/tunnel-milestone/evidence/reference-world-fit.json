@@ -1,0 +1,1200 @@
+{
+  "capturedAt": "2026-10-18T21:35:48.809Z",
+  "sourceFingerprint": "sha256:6048bb8aeecc4b941579833f44898af02f1723e25b50afdb6cdfe70fa7470650",
+  "expected": 36,
+  "actorCandidates": 1587,
+  "best": [
+    {
+      "matched": 36,
+      "translation": {
+        "x": 289600.00002903276,
+        "y": -156000.0000062466,
+        "z": 14614.651989327236
+      },
+      "matches": [
+        {
+          "entity_index": 24,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:431",
+          "location": {
+            "x": 291409.2690720015,
+            "y": -155850.09900527005,
+            "z": 14908.567760811611
+          },
+          "rotation": {
+            "pitch": -45.00000058248963,
+            "yaw": 159.9999999999999,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 25,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:432",
+          "location": {
+            "x": 291908.7642216751,
+            "y": -156031.9003719116,
+            "z": 15438.981579170986
+          },
+          "rotation": {
+            "pitch": -45.00000058248963,
+            "yaw": 159.9999999999999,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 26,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:433",
+          "location": {
+            "x": 292144.46636278316,
+            "y": -156117.68893542772,
+            "z": 16843.156872139734
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000014,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 27,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:434",
+          "location": {
+            "x": 291409.2690720015,
+            "y": -155850.09900527005,
+            "z": 18069.00867878036
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.99999999999986,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 28,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:435",
+          "location": {
+            "x": 291908.7642216751,
+            "y": -156031.9003719116,
+            "z": 17538.594860420984
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.99999999999986,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 29,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:436",
+          "location": {
+            "x": 291135.65295734094,
+            "y": -156601.85310189877,
+            "z": 14908.567760811611
+          },
+          "rotation": {
+            "pitch": -45.00000058248963,
+            "yaw": 159.9999999999999,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 30,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:437",
+          "location": {
+            "x": 291635.14810701454,
+            "y": -156783.6544685403,
+            "z": 15438.981579170986
+          },
+          "rotation": {
+            "pitch": -45.00000058248963,
+            "yaw": 159.9999999999999,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 31,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:438",
+          "location": {
+            "x": 291870.85024812265,
+            "y": -156869.44303205647,
+            "z": 16843.156872139734
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000014,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 32,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:439",
+          "location": {
+            "x": 291135.65295734094,
+            "y": -156601.85310189877,
+            "z": 18069.00867878036
+          },
+          "rotation": {
+            "pitch": 45.000000582489655,
+            "yaw": 159.99999999999983,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 33,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:440",
+          "location": {
+            "x": 291635.14810701454,
+            "y": -156783.6544685403,
+            "z": 17538.594860420984
+          },
+          "rotation": {
+            "pitch": 45.000000582489655,
+            "yaw": 159.99999999999983,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 34,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:441",
+          "location": {
+            "x": 292144.46636278316,
+            "y": -156117.68893542772,
+            "z": 16134.419567452236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000014,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 35,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:442",
+          "location": {
+            "x": 291870.85024812265,
+            "y": -156869.44303205647,
+            "z": 16134.419567452236
+          },
+          "rotation": {
+            "pitch": 3.1805546814635168e-15,
+            "yaw": 69.99999999999991,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 36,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:443",
+          "location": {
+            "x": 290736.55078731343,
+            "y": -155605.249573597,
+            "z": 14614.651989327236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 69.99999999999991,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 37,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:444",
+          "location": {
+            "x": 290462.9346726529,
+            "y": -156357.0036702257,
+            "z": 14614.651989327236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 69.99999999999991,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 38,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:445",
+          "location": {
+            "x": 288380.67745678604,
+            "y": -155599.12402356416,
+            "z": 14908.567760811611
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.000000000000103,
+            "roll": -1.1244959030307699e-15
+          }
+        },
+        {
+          "entity_index": 39,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:446",
+          "location": {
+            "x": 287881.18230711244,
+            "y": -155417.32265692262,
+            "z": 15438.981579170986
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.000000000000103,
+            "roll": -1.1244959030307699e-15
+          }
+        },
+        {
+          "entity_index": 40,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:447",
+          "location": {
+            "x": 287645.48016600433,
+            "y": -155331.53409340646,
+            "z": 16843.156872139734
+          },
+          "rotation": {
+            "pitch": -3.1805546814635168e-15,
+            "yaw": 69.99999999999991,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 41,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:448",
+          "location": {
+            "x": 288380.67745678604,
+            "y": -155599.12402356416,
+            "z": 18069.00867878036
+          },
+          "rotation": {
+            "pitch": 45.00000058248963,
+            "yaw": -20.00000000000021,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 42,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:449",
+          "location": {
+            "x": 287881.18230711244,
+            "y": -155417.32265692262,
+            "z": 17538.594860420984
+          },
+          "rotation": {
+            "pitch": 45.00000058248963,
+            "yaw": -20.00000000000021,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 43,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:450",
+          "location": {
+            "x": 288654.29357144656,
+            "y": -154847.3699269354,
+            "z": 14908.567760811611
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.000000000000103,
+            "roll": -1.1244959030307699e-15
+          }
+        },
+        {
+          "entity_index": 44,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:451",
+          "location": {
+            "x": 288154.79842177295,
+            "y": -154665.56856029388,
+            "z": 15438.981579170986
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.000000000000103,
+            "roll": -1.1244959030307699e-15
+          }
+        },
+        {
+          "entity_index": 45,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:452",
+          "location": {
+            "x": 287919.0962806649,
+            "y": -154579.77999677774,
+            "z": 16843.156872139734
+          },
+          "rotation": {
+            "pitch": -3.1805546814635168e-15,
+            "yaw": 69.99999999999991,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 46,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:453",
+          "location": {
+            "x": 288654.29357144656,
+            "y": -154847.3699269354,
+            "z": 18069.00867878036
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": -20.000000000000092,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 47,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:454",
+          "location": {
+            "x": 288154.79842177295,
+            "y": -154665.56856029388,
+            "z": 17538.594860420984
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": -20.000000000000092,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 48,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:455",
+          "location": {
+            "x": 287645.48016600433,
+            "y": -155331.53409340646,
+            "z": 16134.419567452236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000014,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 49,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:456",
+          "location": {
+            "x": 287919.0962806649,
+            "y": -154579.77999677774,
+            "z": 16134.419567452236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000014,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 50,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:457",
+          "location": {
+            "x": 289327.0118561346,
+            "y": -155092.21935860848,
+            "z": 14614.651989327236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 69.99999999999991,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 51,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:458",
+          "location": {
+            "x": 289053.39574147406,
+            "y": -155843.9734552372,
+            "z": 14614.651989327236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 69.99999999999991,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 52,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:459",
+          "location": {
+            "x": 289984.79669068474,
+            "y": -155331.63345893644,
+            "z": 14614.651989327236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 69.99999999999991,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 53,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:460",
+          "location": {
+            "x": 289711.18057602417,
+            "y": -156083.3875555652,
+            "z": 14614.651989327236
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 69.99999999999991,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 54,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:461",
+          "location": {
+            "x": 288959.4264793955,
+            "y": -155809.77144090465,
+            "z": 18362.924450264734
+          },
+          "rotation": {
+            "pitch": 7.016709604711e-15,
+            "yaw": -20.000000000000103,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 55,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:462",
+          "location": {
+            "x": 289233.042594056,
+            "y": -155058.01734427593,
+            "z": 18362.924450264734
+          },
+          "rotation": {
+            "pitch": 7.016709604711e-15,
+            "yaw": -20.000000000000103,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 56,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:463",
+          "location": {
+            "x": 290462.9346726529,
+            "y": -156357.0036702257,
+            "z": 18362.924450264734
+          },
+          "rotation": {
+            "pitch": 7.016709604711e-15,
+            "yaw": -20.000000000000103,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 57,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:464",
+          "location": {
+            "x": 290736.55078731343,
+            "y": -155605.249573597,
+            "z": 18362.924450264734
+          },
+          "rotation": {
+            "pitch": 7.016709604711e-15,
+            "yaw": -20.000000000000103,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 58,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:465",
+          "location": {
+            "x": 289984.79669068474,
+            "y": -155331.63345893644,
+            "z": 18362.924450264734
+          },
+          "rotation": {
+            "pitch": 7.016709600473345e-15,
+            "yaw": -110.00000000000009,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 59,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:466",
+          "location": {
+            "x": 289711.18057602417,
+            "y": -156083.3875555652,
+            "z": 18362.924450264734
+          },
+          "rotation": {
+            "pitch": 7.016709600473345e-15,
+            "yaw": -110.00000000000009,
+            "roll": 180
+          }
+        }
+      ]
+    },
+    {
+      "matched": 24,
+      "translation": {
+        "x": 257986.1493740935,
+        "y": -135809.22820555116,
+        "z": 6030.410409057112
+      },
+      "matches": [
+        {
+          "entity_index": 24,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:366",
+          "location": {
+            "x": 259795.41841706226,
+            "y": -135659.3272045746,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 25,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:367",
+          "location": {
+            "x": 260294.9135667359,
+            "y": -135841.12857121613,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 26,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:368",
+          "location": {
+            "x": 260530.61570784394,
+            "y": -135926.9171347323,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 27,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:369",
+          "location": {
+            "x": 259795.41841706226,
+            "y": -135659.3272045746,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.99999999999997,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 28,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:370",
+          "location": {
+            "x": 260294.9135667359,
+            "y": -135841.12857121613,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.99999999999997,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 29,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:371",
+          "location": {
+            "x": 259521.80230240175,
+            "y": -136411.08130120335,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 30,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:372",
+          "location": {
+            "x": 260021.29745207535,
+            "y": -136592.88266784488,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 31,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:373",
+          "location": {
+            "x": 260256.99959318343,
+            "y": -136678.67123136102,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 32,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:374",
+          "location": {
+            "x": 259521.80230240175,
+            "y": -136411.08130120335,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.9999999999999,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 33,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:375",
+          "location": {
+            "x": 260021.29745207535,
+            "y": -136592.88266784488,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.9999999999999,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 34,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:396",
+          "location": {
+            "x": 260530.61570784394,
+            "y": -135926.9171347323,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 35,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:397",
+          "location": {
+            "x": 260256.99959318343,
+            "y": -136678.67123136102,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 70,
+            "roll": 90
+          }
+        },
+        {
+          "entity_index": 38,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:343",
+          "location": {
+            "x": 256766.82680184682,
+            "y": -135408.3522228687,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 39,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:344",
+          "location": {
+            "x": 256267.3316521732,
+            "y": -135226.55085622717,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 40,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:345",
+          "location": {
+            "x": 256031.62951106514,
+            "y": -135140.76229271104,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 70,
+            "roll": -90
+          }
+        },
+        {
+          "entity_index": 41,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:346",
+          "location": {
+            "x": 256766.82680184682,
+            "y": -135408.3522228687,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": -20.000000000000092,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 42,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:347",
+          "location": {
+            "x": 256267.3316521732,
+            "y": -135226.55085622717,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": -20.000000000000092,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 43,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:348",
+          "location": {
+            "x": 257040.44291650734,
+            "y": -134656.59812624,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 44,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:349",
+          "location": {
+            "x": 256540.94776683373,
+            "y": -134474.79675959845,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 45,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:350",
+          "location": {
+            "x": 256305.24562572566,
+            "y": -134389.00819608232,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 70,
+            "roll": -90
+          }
+        },
+        {
+          "entity_index": 46,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:351",
+          "location": {
+            "x": 257040.44291650734,
+            "y": -134656.59812624,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.000000582489655,
+            "yaw": -20.000000000000043,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 47,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:352",
+          "location": {
+            "x": 256540.94776683373,
+            "y": -134474.79675959845,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.000000582489655,
+            "yaw": -20.000000000000043,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 48,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:358",
+          "location": {
+            "x": 256031.62951106514,
+            "y": -135140.76229271104,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 49,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:359",
+          "location": {
+            "x": 256305.24562572566,
+            "y": -134389.00819608232,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": 90.00000000000001
+          }
+        }
+      ]
+    },
+    {
+      "matched": 23,
+      "translation": {
+        "x": 257712.533259433,
+        "y": -136560.9823021799,
+        "z": 6030.410409057112
+      },
+      "matches": [
+        {
+          "entity_index": 24,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:371",
+          "location": {
+            "x": 259521.80230240175,
+            "y": -136411.08130120335,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 25,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:372",
+          "location": {
+            "x": 260021.29745207535,
+            "y": -136592.88266784488,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 26,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:373",
+          "location": {
+            "x": 260256.99959318343,
+            "y": -136678.67123136102,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 27,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:374",
+          "location": {
+            "x": 259521.80230240175,
+            "y": -136411.08130120335,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.9999999999999,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 28,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:375",
+          "location": {
+            "x": 260021.29745207535,
+            "y": -136592.88266784488,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.9999999999999,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 29,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:376",
+          "location": {
+            "x": 259248.1861877412,
+            "y": -137162.83539783207,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 30,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:377",
+          "location": {
+            "x": 259747.6813374148,
+            "y": -137344.6367644736,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.000000582489676,
+            "yaw": 160,
+            "roll": 1.12449590303077e-15
+          }
+        },
+        {
+          "entity_index": 31,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:378",
+          "location": {
+            "x": 259983.38347852288,
+            "y": -137430.42532798974,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": -90.00000000000001
+          }
+        },
+        {
+          "entity_index": 32,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:379",
+          "location": {
+            "x": 259248.1861877412,
+            "y": -137162.83539783207,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.99999999999997,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 33,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:380",
+          "location": {
+            "x": 259747.6813374148,
+            "y": -137344.6367644736,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": 159.99999999999997,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 35,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:398",
+          "location": {
+            "x": 259983.38347852288,
+            "y": -137430.42532798974,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 70,
+            "roll": 90
+          }
+        },
+        {
+          "entity_index": 38,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:338",
+          "location": {
+            "x": 256493.21068718628,
+            "y": -136160.10631949743,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 39,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:339",
+          "location": {
+            "x": 255993.71553751267,
+            "y": -135978.3049528559,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 40,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:340",
+          "location": {
+            "x": 255758.0133964046,
+            "y": -135892.51638933975,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 70,
+            "roll": -90
+          }
+        },
+        {
+          "entity_index": 41,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:341",
+          "location": {
+            "x": 256493.21068718628,
+            "y": -136160.10631949743,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.000000582489655,
+            "yaw": -20.000000000000043,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 42,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:342",
+          "location": {
+            "x": 255993.71553751267,
+            "y": -135978.3049528559,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.000000582489655,
+            "yaw": -20.000000000000043,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 43,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:343",
+          "location": {
+            "x": 256766.82680184682,
+            "y": -135408.3522228687,
+            "z": 6324.326180541487
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 44,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:344",
+          "location": {
+            "x": 256267.3316521732,
+            "y": -135226.55085622717,
+            "z": 6854.739998900862
+          },
+          "rotation": {
+            "pitch": -45.00000058248969,
+            "yaw": -20.00000000000006,
+            "roll": 0
+          }
+        },
+        {
+          "entity_index": 45,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:345",
+          "location": {
+            "x": 256031.62951106514,
+            "y": -135140.76229271104,
+            "z": 8258.915291869613
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": 70,
+            "roll": -90
+          }
+        },
+        {
+          "entity_index": 46,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:346",
+          "location": {
+            "x": 256766.82680184682,
+            "y": -135408.3522228687,
+            "z": 9484.767098510238
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": -20.000000000000092,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 47,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:347",
+          "location": {
+            "x": 256267.3316521732,
+            "y": -135226.55085622717,
+            "z": 8954.353280150863
+          },
+          "rotation": {
+            "pitch": 45.00000058248965,
+            "yaw": -20.000000000000092,
+            "roll": 180
+          }
+        },
+        {
+          "entity_index": 48,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:357",
+          "location": {
+            "x": 255758.0133964046,
+            "y": -135892.51638933975,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": 90.00000000000001
+          }
+        },
+        {
+          "entity_index": 49,
+          "actor_id": "lightweight:Build_Foundation_Concrete_8x2_C:358",
+          "location": {
+            "x": 256031.62951106514,
+            "y": -135140.76229271104,
+            "z": 7550.177987182112
+          },
+          "rotation": {
+            "pitch": 0,
+            "yaw": -110.00000000000004,
+            "roll": 90.00000000000001
+          }
+        }
+      ]
+    }
+  ]
+}

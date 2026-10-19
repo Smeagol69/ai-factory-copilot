@@ -240,3 +240,20 @@ model proposal
 Blueprint compilation follows the same rule: generate a plan, validate it
 inside the designer volume, populate it through supported game systems, then
 read the resulting blueprint back and compare it with the plan.
+
+## The model hub (`hub/`, since 2026-10-18)
+
+```text
+Claude Code / Codex / local model
+  -> MCP servers launched from hub/scripts (agent_pair, superpowers, rea, local_model)
+  -> Agent Pair coordinator (127.0.0.1:8791): claims, messages, shared memory
+  -> hub portal (127.0.0.1:8795): model work, Architect drafts, local chat, REA
+  -> companion bridge (127.0.0.1:8142) -> the game
+local model: Ollama on 127.0.0.1:11436, HauhauCS Qwen3.5 9B, models in hub/models/ollama
+```
+
+The hub was the separate Satisfactory MCP Lab until the 2026-10-18 consolidation;
+its history is in this repo under `hub/`. It reads the game source and the
+Architect compiler from this repo (`companion/lib`), not from a separate checkout.
+`hub/scripts/configure-clients.mjs` writes the MCP launchers for the repo root and
+`hub/` on every hub start. See [hub/README.md](../hub/README.md).

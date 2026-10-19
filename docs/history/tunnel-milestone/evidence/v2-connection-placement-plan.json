@@ -1,0 +1,19 @@
+{
+  "curveStart": {
+    "x": 290049.35106947925,
+    "y": -155300.46223210264,
+    "z": 14614.651989327236
+  },
+  "requestedBlueprintOrigin": {
+    "x": 290587.94648559846,
+    "y": -154113.06382477033,
+    "z": 14713.651989327236
+  },
+  "yaw": 70.00000155774461,
+  "registrationBasis": "Provisional XY bounds registration from serialized mesh box, must fit actual placed poses before accepting",
+  "requestedTeleport": {
+    "x": 290186.1591165903,
+    "y": -154924.58518006877,
+    "z": 14914.651989327236
+  }
+}

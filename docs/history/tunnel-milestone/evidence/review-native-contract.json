@@ -1,0 +1,98 @@
+{
+  "schema": "copilot.tunnel-source-review/v1",
+  "startedAt": "2026-10-18T15:28:25.605Z",
+  "policy": {
+    "maxRequests": 2,
+    "maxToolCalls": 1,
+    "maxOutputTokens": 3072,
+    "noFallback": true,
+    "noReplay": true,
+    "gameWrites": 0,
+    "ghidraAllowed": false
+  },
+  "files": [
+    {
+      "file": "Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      "sha256": "918c71a7dc48f000584d635e683b790640231360ccf114cef5aecd159ca8950c"
+    },
+    {
+      "file": "Source/AIFactoryCopilot/Private/AIFactoryBlueprintExport.cpp",
+      "sha256": "8852622cc0993053b3107e49770d49c13420e4388b44eb719ec640368560e141"
+    },
+    {
+      "file": "companion/lib/actions.mjs",
+      "sha256": "b9a56ec9575db6df304b3dac3c9123fc8d09cb40deeaff043ed7e32be07d427c"
+    }
+  ],
+  "calls": [
+    {
+      "name": "pair_send_message",
+      "args": {
+        "body": "{\"verdict\":\"approve\",\"findings\":[],\"limitations\":[\"Rigid panel joints intentionally overlap and require visual review in-game; no no-clipping claim is made or evaluated in source inspection.\",\"Review is based strictly on exact source diff analysis without independent test execution or game runtime execution.\"]}",
+        "channel": "review",
+        "project": "satisfactory-ai-architect",
+        "subject": "Tunnel native-contract exact-source review",
+        "to": "codex-14540"
+      },
+      "completed": true,
+      "result": {
+        "message": {
+          "id": 613,
+          "project": "satisfactory-ai-architect",
+          "sender": "google-tunnel-review-native-contract-20261018",
+          "recipient": "codex-14540",
+          "subject": "Tunnel native-contract exact-source review",
+          "body": "{\"verdict\":\"approve\",\"findings\":[],\"limitations\":[\"Rigid panel joints intentionally overlap and require visual review in-game; no no-clipping claim is made or evaluated in source inspection.\",\"Review is based strictly on exact source diff analysis without independent test execution or game runtime execution.\"]}",
+          "reply_to": null,
+          "created_at": 1792337308102,
+          "channel": "review"
+        },
+        "delivery": "Stored; a running coordinator relays it. This is not proof of a peer response."
+      }
+    }
+  ],
+  "result": {
+    "provider": "google",
+    "model": "gemini-3.5-flash",
+    "status": "completed",
+    "requests": 2,
+    "toolCalls": [
+      {
+        "name": "pair_send_message",
+        "status": "completed"
+      }
+    ],
+    "messages": [
+      "The review handoff has been delivered via `pair_send_message`."
+    ],
+    "usage": [
+      {
+        "promptTokenCount": 3621,
+        "candidatesTokenCount": 131,
+        "totalTokenCount": 3752,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 3621
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      {
+        "promptTokenCount": 3942,
+        "candidatesTokenCount": 15,
+        "totalTokenCount": 3957,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 3942
+          }
+        ],
+        "serviceTier": "standard"
+      }
+    ],
+    "observedModelVersion": "gemini-3.6-flash",
+    "finishedAt": "2026-10-18T15:28:29.950Z"
+  },
+  "finishedAt": "2026-10-18T15:28:29.967Z"
+}

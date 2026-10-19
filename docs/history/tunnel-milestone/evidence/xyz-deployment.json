@@ -1,0 +1,25 @@
+{
+  "schema": "copilot.companion-deployment/v1",
+  "commit": "1d131e98da385b177c4ed9707a6ab4e20731a96f",
+  "backup": "state\\companion\\deployments\\1792338295031",
+  "changes": [
+    "lib/router.mjs"
+  ],
+  "startedAt": "2026-10-18T15:44:55.033Z",
+  "modelCalls": 0,
+  "gameWrites": 0,
+  "scheduledTasks": 0,
+  "ok": true,
+  "pid": 35372,
+  "runtimeSha256": "8669369d9fe8c04e45fe4426b12ed7bda01f352dce9495dfbec3f73c264c2625",
+  "health": {
+    "worldVerified": false,
+    "operationalReady": true,
+    "reachable": true,
+    "status": "ok",
+    "bridgeVersion": "1.0.0-beta.2",
+    "provider": "local"
+  },
+  "worldVerified": false,
+  "finishedAt": "2026-10-18T15:44:57.658Z"
+}

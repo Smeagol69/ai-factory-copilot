@@ -1,0 +1,3821 @@
+{
+  "at": "2026-10-18T21:35:48.809Z",
+  "revision": 1432,
+  "world": {
+    "map": "Persistent_Level",
+    "net_mode": "NM_ListenServer",
+    "session_name": "bp builder",
+    "scan_center": {
+      "x": 293726.51439171936,
+      "y": -152948.46426349535,
+      "z": 16015.580964045981
+    },
+    "scan_radius_meters": -1
+  },
+  "bounds": {
+    "minimum": {
+      "x": 287627,
+      "y": -157086.328125,
+      "z": 14604.651989327236
+    },
+    "maximum": {
+      "x": 292566.46875,
+      "y": -152111.71875,
+      "z": 18372.924450264734
+    },
+    "centre": {
+      "x": 290096.734375,
+      "y": -154599.0234375,
+      "z": 16488.788219795984
+    },
+    "size_m": {
+      "x": 50,
+      "y": 50,
+      "z": 38
+    }
+  },
+  "matched": 330,
+  "missing": [],
+  "wanted": [
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257956",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 292129.46875,
+        "y": -155899.390625,
+        "z": 16059.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147235555",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 291708.3125,
+        "y": -157076.328125,
+        "z": 16334.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257947",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 292135.84375,
+        "y": -155901.71875,
+        "z": 16334.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147234797",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 291708.3125,
+        "y": -157076.328125,
+        "z": 16056.8779296875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257942",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 292135.84375,
+        "y": -155901.71875,
+        "z": 16584.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147234036",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 291708.3125,
+        "y": -157076.328125,
+        "z": 16584.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257856",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 287637.03125,
+        "y": -155594.5,
+        "z": 16058.505859375
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257853",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 287637,
+        "y": -155594.5,
+        "z": 16335.283203125
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257848",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 287637,
+        "y": -155594.5,
+        "z": 16584.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257846",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 288065.125,
+        "y": -154418.25,
+        "z": 16062.060546875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257845",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 288064.53125,
+        "y": -154419.875,
+        "z": 16334.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147257844",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 288064.53125,
+        "y": -154419.875,
+        "z": 16584.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147156722",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 289368.03125,
+        "y": -155536.5,
+        "z": 18314.91796875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147158874",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 290411.8125,
+        "y": -155912.71875,
+        "z": 18314.91015625
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147161057",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 291466.6875,
+        "y": -156296.671875,
+        "z": 17800.95703125
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147155149",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 288318.625,
+        "y": -155152.703125,
+        "z": 17800.353515625
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147232581",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 291947.90625,
+        "y": -155833.3125,
+        "z": 16584.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147232048",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 291520.375,
+        "y": -157007.921875,
+        "z": 16334.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147231653",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 291941.5,
+        "y": -155830.984375,
+        "z": 16059.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147257843",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 287824.9375,
+        "y": -155662.90625,
+        "z": 16584.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147257842",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 288252.46875,
+        "y": -154488.28125,
+        "z": 16334.419921875
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147257841",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 287824.96875,
+        "y": -155662.90625,
+        "z": 16058.505859375
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_EmissiveBeam_4x2_C:18",
+      "class": "Build_EmissiveBeam_4x2_C",
+      "location": {
+        "x": 288493.72600479017,
+        "y": -156065.94143905502,
+        "z": 14615.416149483484
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_EmissiveBeam_4x2_C:19",
+      "class": "Build_EmissiveBeam_4x2_C",
+      "location": {
+        "x": 290748.98828690784,
+        "y": -156886.78980438036,
+        "z": 14615.416149483484
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:431",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291409.2690720015,
+        "y": -155850.09900527005,
+        "z": 14908.567760811611
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:432",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291908.7642216751,
+        "y": -156031.9003719116,
+        "z": 15438.981579170986
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:433",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292144.46636278316,
+        "y": -156117.68893542772,
+        "z": 16843.156872139734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:434",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291409.2690720015,
+        "y": -155850.09900527005,
+        "z": 18069.00867878036
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:435",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291908.7642216751,
+        "y": -156031.9003719116,
+        "z": 17538.594860420984
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:436",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291135.65295734094,
+        "y": -156601.85310189877,
+        "z": 14908.567760811611
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:437",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291635.14810701454,
+        "y": -156783.6544685403,
+        "z": 15438.981579170986
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:438",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291870.85024812265,
+        "y": -156869.44303205647,
+        "z": 16843.156872139734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:439",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291135.65295734094,
+        "y": -156601.85310189877,
+        "z": 18069.00867878036
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:440",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291635.14810701454,
+        "y": -156783.6544685403,
+        "z": 17538.594860420984
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:441",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292144.46636278316,
+        "y": -156117.68893542772,
+        "z": 16134.419567452236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:442",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291870.85024812265,
+        "y": -156869.44303205647,
+        "z": 16134.419567452236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:443",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290736.55078731343,
+        "y": -155605.249573597,
+        "z": 14614.651989327236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:444",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290462.9346726529,
+        "y": -156357.0036702257,
+        "z": 14614.651989327236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:445",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288380.67745678604,
+        "y": -155599.12402356416,
+        "z": 14908.567760811611
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:446",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287881.18230711244,
+        "y": -155417.32265692262,
+        "z": 15438.981579170986
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:447",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287645.48016600433,
+        "y": -155331.53409340646,
+        "z": 16843.156872139734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:448",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288380.67745678604,
+        "y": -155599.12402356416,
+        "z": 18069.00867878036
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:449",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287881.18230711244,
+        "y": -155417.32265692262,
+        "z": 17538.594860420984
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:450",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288654.29357144656,
+        "y": -154847.3699269354,
+        "z": 14908.567760811611
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:451",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288154.79842177295,
+        "y": -154665.56856029388,
+        "z": 15438.981579170986
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:452",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287919.0962806649,
+        "y": -154579.77999677774,
+        "z": 16843.156872139734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:453",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288654.29357144656,
+        "y": -154847.3699269354,
+        "z": 18069.00867878036
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:454",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288154.79842177295,
+        "y": -154665.56856029388,
+        "z": 17538.594860420984
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:455",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287645.48016600433,
+        "y": -155331.53409340646,
+        "z": 16134.419567452236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:456",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287919.0962806649,
+        "y": -154579.77999677774,
+        "z": 16134.419567452236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:457",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289327.0118561346,
+        "y": -155092.21935860848,
+        "z": 14614.651989327236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:458",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289053.39574147406,
+        "y": -155843.9734552372,
+        "z": 14614.651989327236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:459",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289984.79669068474,
+        "y": -155331.63345893644,
+        "z": 14614.651989327236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:460",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289711.18057602417,
+        "y": -156083.3875555652,
+        "z": 14614.651989327236
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:461",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288959.4264793955,
+        "y": -155809.77144090465,
+        "z": 18362.924450264734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:462",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289233.042594056,
+        "y": -155058.01734427593,
+        "z": 18362.924450264734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:463",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290462.9346726529,
+        "y": -156357.0036702257,
+        "z": 18362.924450264734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:464",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290736.55078731343,
+        "y": -155605.249573597,
+        "z": 18362.924450264734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:465",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289984.79669068474,
+        "y": -155331.63345893644,
+        "z": 18362.924450264734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "lightweight:Build_Foundation_Concrete_8x2_C:466",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289711.18057602417,
+        "y": -156083.3875555652,
+        "z": 18362.924450264734
+      },
+      "source": "reference"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455733",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291440.09375,
+        "y": -155766.375,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455732",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291468.40625,
+        "y": -155696.203125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455731",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291499.09375,
+        "y": -155627.03125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455730",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291532.15625,
+        "y": -155558.953125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455729",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291567.53125,
+        "y": -155492.046875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455728",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291605.15625,
+        "y": -155426.40625,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455727",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291645.03125,
+        "y": -155362.09375,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455726",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291687.09375,
+        "y": -155299.1875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455725",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291731.3125,
+        "y": -155237.75,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455724",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291777.59375,
+        "y": -155177.875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455723",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291825.875,
+        "y": -155119.625,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455722",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291876.15625,
+        "y": -155063.0625,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455721",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291928.34375,
+        "y": -155008.25,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455720",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291982.375,
+        "y": -154955.28125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455719",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292038.21875,
+        "y": -154904.1875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455718",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291936.375,
+        "y": -155956.734375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455717",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291957.875,
+        "y": -155903.46875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455716",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291981.15625,
+        "y": -155850.96875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455715",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292006.25,
+        "y": -155799.3125,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455714",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292033.09375,
+        "y": -155748.53125,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455713",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292061.65625,
+        "y": -155698.71875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455712",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292091.9375,
+        "y": -155649.90625,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455711",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292123.84375,
+        "y": -155602.15625,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455710",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292157.40625,
+        "y": -155555.546875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455709",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292192.53125,
+        "y": -155510.109375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455708",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292229.1875,
+        "y": -155465.890625,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455707",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292267.34375,
+        "y": -155422.96875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455706",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292306.9375,
+        "y": -155381.375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455705",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292347.9375,
+        "y": -155341.171875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455704",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292390.3125,
+        "y": -155302.390625,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455703",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292170.59375,
+        "y": -156046.546875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455702",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292188.84375,
+        "y": -156001.265625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455701",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292208.65625,
+        "y": -155956.640625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455700",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292229.96875,
+        "y": -155912.734375,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455699",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292252.8125,
+        "y": -155869.5625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455698",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292277.09375,
+        "y": -155827.21875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455697",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292302.8125,
+        "y": -155785.71875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455696",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292329.9375,
+        "y": -155745.140625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455695",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292358.46875,
+        "y": -155705.5,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455694",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292388.3125,
+        "y": -155666.875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455693",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292419.46875,
+        "y": -155629.296875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455692",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292451.90625,
+        "y": -155592.796875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455691",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292485.59375,
+        "y": -155557.453125,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455690",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292520.4375,
+        "y": -155523.265625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455689",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292556.46875,
+        "y": -155490.296875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455688",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291440.09375,
+        "y": -155766.375,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455687",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291468.40625,
+        "y": -155696.203125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455686",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291499.09375,
+        "y": -155627.03125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455685",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291532.15625,
+        "y": -155558.953125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455684",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291567.53125,
+        "y": -155492.046875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455683",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291605.15625,
+        "y": -155426.40625,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455682",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291645.03125,
+        "y": -155362.09375,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455681",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291687.09375,
+        "y": -155299.1875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455680",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291731.3125,
+        "y": -155237.75,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455679",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291777.59375,
+        "y": -155177.875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455678",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291825.875,
+        "y": -155119.625,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455677",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291876.15625,
+        "y": -155063.0625,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455676",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291928.34375,
+        "y": -155008.25,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455675",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291982.375,
+        "y": -154955.28125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455674",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292038.21875,
+        "y": -154904.1875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455673",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291936.375,
+        "y": -155956.734375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455672",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291957.875,
+        "y": -155903.46875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455671",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291981.15625,
+        "y": -155850.96875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455670",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292006.25,
+        "y": -155799.3125,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455669",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292033.09375,
+        "y": -155748.53125,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455668",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292061.65625,
+        "y": -155698.71875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455667",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292091.9375,
+        "y": -155649.90625,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455666",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292123.84375,
+        "y": -155602.15625,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455665",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292157.40625,
+        "y": -155555.546875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455664",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292192.53125,
+        "y": -155510.109375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455663",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292229.1875,
+        "y": -155465.890625,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455662",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292267.34375,
+        "y": -155422.96875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455661",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292306.9375,
+        "y": -155381.375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455660",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292347.9375,
+        "y": -155341.171875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455659",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292390.3125,
+        "y": -155302.390625,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455658",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292170.59375,
+        "y": -156046.546875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455657",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292188.84375,
+        "y": -156001.265625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455656",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292208.65625,
+        "y": -155956.640625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455655",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292229.96875,
+        "y": -155912.734375,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455654",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292252.8125,
+        "y": -155869.5625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455653",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292277.09375,
+        "y": -155827.21875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455652",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292302.8125,
+        "y": -155785.71875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455651",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292329.9375,
+        "y": -155745.140625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455650",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292358.46875,
+        "y": -155705.5,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455649",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292388.3125,
+        "y": -155666.875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455648",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292419.46875,
+        "y": -155629.296875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455647",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292451.90625,
+        "y": -155592.796875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455646",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292485.59375,
+        "y": -155557.453125,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455645",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292520.4375,
+        "y": -155523.265625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455644",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292556.46875,
+        "y": -155490.296875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455643",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290771.65625,
+        "y": -155510.015625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455642",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290809.15625,
+        "y": -155417.046875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455641",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290849.84375,
+        "y": -155325.421875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455640",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290893.625,
+        "y": -155235.25,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455639",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290940.46875,
+        "y": -155146.625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455638",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290990.34375,
+        "y": -155059.65625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455637",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291043.1875,
+        "y": -154974.46875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455636",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291098.90625,
+        "y": -154891.125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455635",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291157.4375,
+        "y": -154809.75,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455634",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291218.75,
+        "y": -154730.4375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455633",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291282.75,
+        "y": -154653.265625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455632",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291349.34375,
+        "y": -154578.34375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455631",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291418.46875,
+        "y": -154505.734375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455630",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291490.0625,
+        "y": -154435.5625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455629",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291564,
+        "y": -154367.875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455628",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288702.71875,
+        "y": -154716.515625,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455627",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288768.6875,
+        "y": -154553.015625,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455626",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288840.1875,
+        "y": -154391.875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455625",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288917.21875,
+        "y": -154233.28125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455624",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288999.625,
+        "y": -154077.421875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455623",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289087.3125,
+        "y": -153924.46875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455622",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289180.21875,
+        "y": -153774.640625,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455621",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289278.21875,
+        "y": -153628.078125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455620",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289381.1875,
+        "y": -153484.953125,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455619",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289489,
+        "y": -153345.46875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455618",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289601.53125,
+        "y": -153209.75,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455617",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289718.65625,
+        "y": -153077.984375,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455616",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289840.25,
+        "y": -152950.296875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455615",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289966.125,
+        "y": -152826.875,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455614",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290096.1875,
+        "y": -152707.84375,
+        "z": 14908.5673828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455613",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288206.4375,
+        "y": -154526.171875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455612",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288279.1875,
+        "y": -154345.75,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455611",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288358.125,
+        "y": -154167.921875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455610",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288443.09375,
+        "y": -153992.921875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455609",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288534.03125,
+        "y": -153820.9375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455608",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288630.8125,
+        "y": -153652.171875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455607",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288733.34375,
+        "y": -153486.828125,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455606",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288841.46875,
+        "y": -153325.09375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455605",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288955.09375,
+        "y": -153167.171875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455604",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289074.0625,
+        "y": -153013.234375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455603",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289198.25,
+        "y": -152863.484375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455602",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289327.5,
+        "y": -152718.0625,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455601",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289461.65625,
+        "y": -152577.1875,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455600",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289600.59375,
+        "y": -152440.984375,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455599",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289744.09375,
+        "y": -152309.625,
+        "z": 15438.9814453125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455598",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287972.21875,
+        "y": -154436.359375,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455597",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288048.21875,
+        "y": -154247.9375,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455596",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288130.625,
+        "y": -154062.25,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455595",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288219.375,
+        "y": -153879.5,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455594",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288314.34375,
+        "y": -153699.90625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455593",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288415.40625,
+        "y": -153523.671875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455592",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288522.46875,
+        "y": -153351,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455591",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288635.375,
+        "y": -153182.125,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455590",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288754.03125,
+        "y": -153017.203125,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455589",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288878.25,
+        "y": -152856.46875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455588",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289007.9375,
+        "y": -152700.078125,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455587",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289142.90625,
+        "y": -152548.234375,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455586",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289283,
+        "y": -152401.109375,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455585",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289428.09375,
+        "y": -152258.890625,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455584",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289577.9375,
+        "y": -152121.71875,
+        "z": 16843.15625
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455583",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288702.71875,
+        "y": -154716.515625,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455582",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288768.6875,
+        "y": -154553.015625,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455581",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288840.1875,
+        "y": -154391.875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455580",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288917.21875,
+        "y": -154233.28125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455579",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288999.625,
+        "y": -154077.421875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455578",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289087.3125,
+        "y": -153924.46875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455577",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289180.21875,
+        "y": -153774.640625,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455576",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289278.21875,
+        "y": -153628.078125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455575",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289381.1875,
+        "y": -153484.953125,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455574",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289489,
+        "y": -153345.46875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455573",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289601.53125,
+        "y": -153209.75,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455572",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289718.65625,
+        "y": -153077.984375,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455571",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289840.25,
+        "y": -152950.296875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455570",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289966.125,
+        "y": -152826.875,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455569",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290096.1875,
+        "y": -152707.84375,
+        "z": 18069.0078125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455568",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288206.4375,
+        "y": -154526.171875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455567",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288279.1875,
+        "y": -154345.75,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455566",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288358.125,
+        "y": -154167.921875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455565",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288443.09375,
+        "y": -153992.921875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455564",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288534.03125,
+        "y": -153820.9375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455563",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288630.8125,
+        "y": -153652.171875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455562",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288733.34375,
+        "y": -153486.828125,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455561",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288841.46875,
+        "y": -153325.09375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455560",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288955.09375,
+        "y": -153167.171875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455559",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289074.0625,
+        "y": -153013.234375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455558",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289198.25,
+        "y": -152863.484375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455557",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289327.5,
+        "y": -152718.0625,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455556",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289461.65625,
+        "y": -152577.1875,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455555",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289600.59375,
+        "y": -152440.984375,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455554",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289744.09375,
+        "y": -152309.625,
+        "z": 17538.595703125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455553",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 287972.21875,
+        "y": -154436.359375,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455552",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288048.21875,
+        "y": -154247.9375,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455551",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288130.625,
+        "y": -154062.25,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455550",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288219.375,
+        "y": -153879.5,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455549",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288314.34375,
+        "y": -153699.90625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455548",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288415.40625,
+        "y": -153523.671875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455547",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288522.46875,
+        "y": -153351,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455546",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288635.375,
+        "y": -153182.125,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455545",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288754.03125,
+        "y": -153017.203125,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455544",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 288878.25,
+        "y": -152856.46875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455543",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289007.9375,
+        "y": -152700.078125,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455542",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289142.90625,
+        "y": -152548.234375,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455541",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289283,
+        "y": -152401.109375,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455540",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289428.09375,
+        "y": -152258.890625,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455539",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289577.9375,
+        "y": -152121.71875,
+        "z": 16134.419921875
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455538",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289371.15625,
+        "y": -154972.875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455537",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289427.90625,
+        "y": -154832.15625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455536",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289489.4375,
+        "y": -154693.46875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455535",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289555.71875,
+        "y": -154556.984375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455534",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289626.65625,
+        "y": -154422.84375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455533",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289702.125,
+        "y": -154291.21875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455532",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289782.09375,
+        "y": -154162.265625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455531",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289866.4375,
+        "y": -154036.125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455530",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289955.03125,
+        "y": -153912.96875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455529",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290047.84375,
+        "y": -153792.90625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455528",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290144.6875,
+        "y": -153676.109375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455527",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290245.5,
+        "y": -153562.703125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455526",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290350.125,
+        "y": -153452.828125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455525",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290458.46875,
+        "y": -153346.59375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455524",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290570.40625,
+        "y": -153244.15625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455523",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290024.71875,
+        "y": -155223.546875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455522",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290072.5,
+        "y": -155105.109375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455521",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290124.3125,
+        "y": -154988.390625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455520",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290180.09375,
+        "y": -154873.5,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455519",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290239.78125,
+        "y": -154760.609375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455518",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290303.3125,
+        "y": -154649.828125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455517",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290370.59375,
+        "y": -154541.296875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455516",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290441.59375,
+        "y": -154435.125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455515",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290516.15625,
+        "y": -154331.46875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455514",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290594.25,
+        "y": -154230.421875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455513",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290675.78125,
+        "y": -154132.109375,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455512",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290760.625,
+        "y": -154036.671875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455511",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290848.6875,
+        "y": -153944.1875,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455510",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290939.875,
+        "y": -153854.78125,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455509",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291034.09375,
+        "y": -153768.5625,
+        "z": 14614.65234375
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455508",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289277.78125,
+        "y": -154937.0625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455507",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289335.8125,
+        "y": -154793.171875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455506",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289398.75,
+        "y": -154651.34375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455505",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289466.53125,
+        "y": -154511.765625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455504",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289539.0625,
+        "y": -154374.59375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455503",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289616.25,
+        "y": -154240,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455502",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289698.03125,
+        "y": -154108.125,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455501",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289784.25,
+        "y": -153979.125,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455500",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289874.875,
+        "y": -153853.171875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455499",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289969.78125,
+        "y": -153730.40625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455498",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290068.8125,
+        "y": -153610.96875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455497",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290171.90625,
+        "y": -153494.984375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455496",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290278.90625,
+        "y": -153382.625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455495",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290389.6875,
+        "y": -153274,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455494",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290504.15625,
+        "y": -153169.234375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455493",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290771.65625,
+        "y": -155510.015625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455492",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290809.15625,
+        "y": -155417.046875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455491",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290849.84375,
+        "y": -155325.421875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455490",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290893.625,
+        "y": -155235.25,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455489",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290940.46875,
+        "y": -155146.625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455488",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290990.34375,
+        "y": -155059.65625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455487",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291043.1875,
+        "y": -154974.46875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455486",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291098.90625,
+        "y": -154891.125,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455485",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291157.4375,
+        "y": -154809.75,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455484",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291218.75,
+        "y": -154730.4375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455483",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291282.75,
+        "y": -154653.265625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455482",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291349.34375,
+        "y": -154578.34375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455481",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291418.46875,
+        "y": -154505.734375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455480",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291490.0625,
+        "y": -154435.5625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455479",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291564,
+        "y": -154367.875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455478",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290024.71875,
+        "y": -155223.546875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455477",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290072.5,
+        "y": -155105.109375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455476",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290124.3125,
+        "y": -154988.390625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455475",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290180.09375,
+        "y": -154873.5,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455474",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290239.78125,
+        "y": -154760.609375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455473",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290303.3125,
+        "y": -154649.828125,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455472",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290370.59375,
+        "y": -154541.296875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455471",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290441.59375,
+        "y": -154435.125,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455470",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290516.15625,
+        "y": -154331.46875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455469",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290594.25,
+        "y": -154230.421875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455468",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290675.78125,
+        "y": -154132.109375,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455467",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290760.625,
+        "y": -154036.671875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455466",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290848.6875,
+        "y": -153944.1875,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455465",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290939.875,
+        "y": -153854.78125,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147455464",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291034.09375,
+        "y": -153768.5625,
+        "z": 18362.923828125
+      },
+      "source": "v3"
+    }
+  ],
+  "extra": [
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147141616",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 289564.65625,
+        "y": -152257.71875,
+        "z": 16059.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147141614",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 289560.25,
+        "y": -152252.546875,
+        "z": 16334.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147141612",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 289560.25,
+        "y": -152252.546875,
+        "z": 16584.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147141607",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 292372.71875,
+        "y": -155548.203125,
+        "z": 16062.060546875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147141606",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 292374.03125,
+        "y": -155547.078125,
+        "z": 16334.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_PipelineSupportWall_C_2147141605",
+      "class": "Build_PipelineSupportWall_C",
+      "location": {
+        "x": 292374.03125,
+        "y": -155547.078125,
+        "z": 16584.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147141604",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 291789.375,
+        "y": -153933.34375,
+        "z": 18314.91796875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147141603",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 291066.1875,
+        "y": -153091.921875,
+        "z": 18314.91015625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147141602",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 290337.125,
+        "y": -152238.296875,
+        "z": 17800.95703125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_CeilingLight_C_2147141601",
+      "class": "Build_CeilingLight_C",
+      "location": {
+        "x": 292513.75,
+        "y": -154784.125,
+        "z": 17800.353515625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141592",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290167.21875,
+        "y": -152655.25,
+        "z": 14908.5673828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141591",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289822,
+        "y": -152251.0625,
+        "z": 15438.9814453125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141589",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290167.21875,
+        "y": -152655.25,
+        "z": 18069.0078125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141588",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 289822,
+        "y": -152251.0625,
+        "z": 17538.595703125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141587",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290775.53125,
+        "y": -152135.6875,
+        "z": 14908.5673828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141584",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290775.53125,
+        "y": -152135.6875,
+        "z": 18069.0078125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141580",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290632.15625,
+        "y": -153199.625,
+        "z": 14614.65234375
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141579",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291240.46875,
+        "y": -152680.0625,
+        "z": 14614.65234375
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141572",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292416.46875,
+        "y": -155288.796875,
+        "z": 15438.9814453125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141571",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292579.375,
+        "y": -155479.53125,
+        "z": 16843.15625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141570",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292071.25,
+        "y": -154884.59375,
+        "z": 18069.0078125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141569",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292416.46875,
+        "y": -155288.796875,
+        "z": 17538.595703125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141567",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292579.375,
+        "y": -155479.53125,
+        "z": 16134.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141566",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291606.3125,
+        "y": -154340.234375,
+        "z": 14614.65234375
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141565",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292214.625,
+        "y": -153820.671875,
+        "z": 14614.65234375
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141564",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291151.6875,
+        "y": -153807.9375,
+        "z": 14614.65234375
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141563",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291760.03125,
+        "y": -153288.390625,
+        "z": 14614.65234375
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141562",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292279.59375,
+        "y": -153896.71875,
+        "z": 18362.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141561",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291671.25,
+        "y": -154416.265625,
+        "z": 18362.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141560",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291240.46875,
+        "y": -152680.0625,
+        "z": 18362.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141559",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 290632.15625,
+        "y": -153199.625,
+        "z": 18362.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141558",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291151.6875,
+        "y": -153807.9375,
+        "z": 18362.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147141557",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291760.03125,
+        "y": -153288.390625,
+        "z": 18362.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384293",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291816.2619916538,
+        "y": -152207.06930743982,
+        "z": 14612.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384292",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291934.1247296707,
+        "y": -152111.5124190792,
+        "z": 14612.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384278",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292266.36929136567,
+        "y": -152743.1695233268,
+        "z": 14612.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384277",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292365.56895385805,
+        "y": -152662.7436182736,
+        "z": 14612.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384276",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292467.47024158307,
+        "y": -152585.7694334123,
+        "z": 14612.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384275",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292571.95311427745,
+        "y": -152512.33764061116,
+        "z": 14612.923828125
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384263",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 291751.9609384159,
+        "y": -152130.48355115467,
+        "z": 18361.1962890625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384233",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292266.36929136567,
+        "y": -152743.1695233268,
+        "z": 18361.1962890625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384232",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292365.56895385805,
+        "y": -152662.7436182736,
+        "z": 18361.1962890625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384231",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292467.47024158307,
+        "y": -152585.7694334123,
+        "z": 18361.1962890625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2147384230",
+      "class": "Build_Foundation_Concrete_8x2_C",
+      "location": {
+        "x": 292571.95311427745,
+        "y": -152512.33764061116,
+        "z": 18361.1962890625
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147141600",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 289690.15625,
+        "y": -152404.640625,
+        "z": 16584.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147141598",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 289694.5625,
+        "y": -152409.796875,
+        "z": 16059.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147141596",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 292244.15625,
+        "y": -155395,
+        "z": 16334.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147141556",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 292244.15625,
+        "y": -155395,
+        "z": 16584.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147141554",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 292244.15625,
+        "y": -155395,
+        "z": 16334.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147141553",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 292242.84375,
+        "y": -155396.109375,
+        "z": 16062.060546875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147452747",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 288253.0625,
+        "y": -154486.65625,
+        "z": 16062.060546875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147450736",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 289690.15625,
+        "y": -152404.625,
+        "z": 16334.419921875
+      }
+    },
+    {
+      "id": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_Pipeline_NoIndicator_C_2147448448",
+      "class": "Build_Pipeline_NoIndicator_C",
+      "location": {
+        "x": 288252.46875,
+        "y": -154488.296875,
+        "z": 16584.419921875
+      }
+    }
+  ],
+  "boxCount": 345
+}

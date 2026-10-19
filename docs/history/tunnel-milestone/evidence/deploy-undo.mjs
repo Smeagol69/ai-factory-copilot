@@ -1,0 +1,18 @@
+import {readFileSync,writeFileSync,copyFileSync,mkdirSync,existsSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {join,resolve} from 'node:path';
+import {verifyStarterSync} from '../../../workspaces/architect/blueprint-force-save/scripts/verify-starter-sync.mjs';
+const root=resolve('.'),source=join(root,'workspaces/architect/blueprint-force-save'),sdk=join(root,'tools/satisfactory-sdk-513885/Mods/AIFactoryCopilot'),dir=join(root,'state/live-architect/tunnel-milestone'),out=join(dir,'undo-deployment.json');if(existsSync(out))throw Error('No deployment replay');
+const run=(exe,args,cwd=root)=>execFileSync(exe,args,{cwd,windowsHide:true,encoding:'utf8'}).trim(),git=(args,cwd=source)=>run('git',args,cwd),hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex'),check=(v,m)=>{if(!v)throw Error(m);};
+const noGame=()=>check(!run('powershell.exe',['-NoProfile','-NonInteractive','-Command','Get-Process FactoryGame* -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id']),'Game running');
+git(['fetch','origin','master']);check(!git(['status','--porcelain']),'Dirty source');git(['merge-base','--is-ancestor','origin/master','HEAD']);const commit=git(['rev-parse','HEAD']);check(commit.startsWith('df86f9b'),'Unreviewed commit');
+const prior=JSON.parse(readFileSync(join(dir,'height-deployment.json')));for(const p of prior.peerState)check(!git(['status','--porcelain'],p.path)&&git(['rev-parse','HEAD'],p.path)===p.head,'Peer changed since reviewed handoff');
+for(const name of ['local-undo-review-membership.json','local-undo-review-readback-followup.json']){const r=JSON.parse(readFileSync(join(dir,name)));check(r.result?.status==='completed'&&r.result.messages.some(m=>m.role==='assistant'&&JSON.parse(m.content).verdict==='approve'),'Missing review: '+name);for(const f of r.files)check(hash(join(source,f.file))===f.sha256,'Reviewed source changed');}
+check(/ℹ pass 1333[\s\S]*ℹ fail 0/.test(readFileSync(join(dir,'companion-undo-suite.log'),'utf8')),'Full tests missing');check(JSON.parse(readFileSync(join(root,'state/local-game-re/native-build/Shipping.json'))).exitCode===0,'Build failed');verifyStarterSync(source,sdk);
+const dll='Binaries/Win64/FactoryGameSteam-AIFactoryCopilot-Win64-Shipping.dll',installed='D:/SteamLibrary/steamapps/common/Satisfactory/FactoryGame/Mods/AIFactoryCopilot',config='D:/SteamLibrary/steamapps/common/Satisfactory/FactoryGame/Configs/AIFactoryCopilot.cfg';check(hash(join(installed,dll))===prior.newDll,'Installed DLL changed');
+noGame();mkdirSync(join(dir,'undo-backup'),{recursive:true});copyFileSync(join(installed,dll),join(dir,'undo-backup/previous.dll'));
+const r={startedAt:new Date().toISOString(),commit,deploymentOwner:'codex-14540',peerState:prior.peerState,newDll:hash(join(sdk,dll)),configSha256:hash(config),deployed:false,fullUatCookRelease:false,scheduledTasks:0,companionChanged:false};
+try{noGame();check(!git(['status','--porcelain']),'Source changed');for(const p of r.peerState)check(!git(['status','--porcelain'],p.path)&&git(['rev-parse','HEAD'],p.path)===p.head,'Peer changed before copy');verifyStarterSync(source,sdk);copyFileSync(join(sdk,dll),join(installed,dll));check(hash(join(installed,dll))===r.newDll&&hash(config)===r.configSha256,'Installed mismatch');r.deployed=true;}
+catch(error){copyFileSync(join(dir,'undo-backup/previous.dll'),join(installed,dll));r.error=error.message;r.rolledBack=true;}
+finally{r.finishedAt=new Date().toISOString();writeFileSync(out,JSON.stringify(r,null,2));}console.log(JSON.stringify(r));if(!r.deployed)process.exitCode=1;

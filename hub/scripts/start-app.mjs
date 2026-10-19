@@ -1,3 +1,6 @@
+// Every start rewrites the machine-specific MCP launchers, so a fresh clone or a
+// moved folder needs no manual setup before Claude Code or Codex connect.
+import './configure-clients.mjs';
 import { loadProject } from '../lib/project.mjs';
 import { ensureApp } from '../lib/start-app.mjs';
 import { startCompanion } from '../lib/companion.mjs';

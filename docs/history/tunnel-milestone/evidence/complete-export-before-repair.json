@@ -1,0 +1,30 @@
+{
+	"action": "export_native_blueprint",
+	"status": "failed",
+	"accepted": false,
+	"committed": false,
+	"dry_run": false,
+	"reason": "one_or_more_selected_buildables_could_not_be_adopted_by_the_designer",
+	"predicted":
+	{
+		"blueprint_name": "curve?",
+		"selected_buildables": 357,
+		"selected_lightweight_buildables": 65,
+		"designer": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_BlueprintDesigner_Mk3_C_2147280572",
+		"designer_had_buildings": false,
+		"lightweight_invalid_before_export": 0,
+		"lightweight_requested": 65,
+		"lightweight_materialised": 65,
+		"lightweight_missing": 0,
+		"adopted": 115,
+		"skipped": 307
+	},
+	"created_actor_ids": [],
+	"removed_actor_ids": [],
+	"warnings": [],
+	"undoable": false,
+	"undo_steps_available": 2,
+	"source": "in_game_force_save",
+	"blueprint_name": "curve?",
+	"captured_at_utc": "2026-10-18T21:29:40.885Z"
+}

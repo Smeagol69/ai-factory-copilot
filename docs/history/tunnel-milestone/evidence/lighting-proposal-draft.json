@@ -1,0 +1,406 @@
+{
+  "compiled": true,
+  "source_fingerprint": "sha256:6048bb8aeecc4b941579833f44898af02f1723e25b50afdb6cdfe70fa7470650",
+  "ceiling_lights": 6,
+  "emissive_beams": 28,
+  "reference_frame": {
+    "longitudinal": {
+      "x": 0.3420201575922453,
+      "y": 0.9396926155932992
+    },
+    "heading_degrees": 69.99999913012553,
+    "transverse_center_cm": -182.99587083476717,
+    "floor_cm": 0,
+    "highest_pivot_cm": 3748.2724609375
+  },
+  "limitations": [
+    "native_default_beam_length_is_not_visual_mesh_clearance",
+    "roof_reveal_mirrors_measured_lower_reveal",
+    "native_fixture_geometry_and_power_require_live_verification",
+    "angled_reference_side_lights_not_copied"
+  ],
+  "gamePlacementVerified": false,
+  "proposal": {
+    "action": "generate_native_blueprint",
+    "blueprint_name": "AI Tunnel Lighting v1",
+    "layout_schema": "aifactory.generated-blueprint/v1",
+    "description": "Measured tunnel lighting add-on; -29.5 degree turn. Separate from shell. Native placement, emissive reveals and power require live inspection.",
+    "buildables": [
+      {
+        "part_id": "ceiling-1-1",
+        "role": "standalone",
+        "recipe_class": "/Game/FactoryGame/Recipes/Buildings/Recipe_CeilingLight.Recipe_CeilingLight_C",
+        "relative_location": {
+          "x": 362.55743272018924,
+          "y": 543.9362961523502,
+          "z": 3700.26513671875
+        },
+        "yaw": 85.08333274422047
+      },
+      {
+        "part_id": "ceiling-1-2",
+        "role": "standalone",
+        "recipe_class": "/Game/FactoryGame/Recipes/Buildings/Recipe_CeilingLight.Recipe_CeilingLight_C",
+        "relative_location": {
+          "x": 1077.0194238329825,
+          "y": 420.09917999664685,
+          "z": 3700.26513671875
+        },
+        "yaw": 75.24999941088714
+      },
+      {
+        "part_id": "ceiling-1-3",
+        "role": "standalone",
+        "recipe_class": "/Game/FactoryGame/Recipes/Buildings/Recipe_CeilingLight.Recipe_CeilingLight_C",
+        "relative_location": {
+          "x": 1759.8358009409023,
+          "y": 176.06360218916052,
+          "z": 3700.26513671875
+        },
+        "yaw": 65.41666607755381
+      },
+      {
+        "part_id": "ceiling-2-1",
+        "role": "standalone",
+        "recipe_class": "/Game/FactoryGame/Recipes/Buildings/Recipe_CeilingLight.Recipe_CeilingLight_C",
+        "relative_location": {
+          "x": 267.46565808274164,
+          "y": -561.4828404215509,
+          "z": 3700.258056640625
+        },
+        "yaw": 85.08333274422047
+      },
+      {
+        "part_id": "ceiling-2-2",
+        "role": "standalone",
+        "recipe_class": "/Game/FactoryGame/Recipes/Buildings/Recipe_CeilingLight.Recipe_CeilingLight_C",
+        "relative_location": {
+          "x": 794.5381420043985,
+          "y": -652.8398856189024,
+          "z": 3700.258056640625
+        },
+        "yaw": 75.24999941088714
+      },
+      {
+        "part_id": "ceiling-2-3",
+        "role": "standalone",
+        "recipe_class": "/Game/FactoryGame/Recipes/Buildings/Recipe_CeilingLight.Recipe_CeilingLight_C",
+        "relative_location": {
+          "x": 1298.265041995417,
+          "y": -832.8696699324287,
+          "z": 3700.258056640625
+        },
+        "yaw": 65.41666607755381
+      },
+      {
+        "part_id": "reveal-lower-1-1",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 0,
+          "y": 1200.000123828282,
+          "z": 0.76416015625
+        },
+        "yaw": -2.107139519338428
+      },
+      {
+        "part_id": "reveal-lower-1-2",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 357.93297343647043,
+          "y": 1186.8306351032597,
+          "z": 0.76416015625
+        },
+        "yaw": -6.321425233624142
+      },
+      {
+        "part_id": "reveal-lower-1-3",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 713.9303781769389,
+          "y": 1147.3933846361879,
+          "z": 0.76416015625
+        },
+        "yaw": -10.535710947909855
+      },
+      {
+        "part_id": "reveal-lower-1-4",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1066.0671123626469,
+          "y": 1081.9016344429347,
+          "z": 0.76416015625
+        },
+        "yaw": -14.74999666219557
+      },
+      {
+        "part_id": "reveal-lower-1-5",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1412.4389512085506,
+          "y": 990.7095396053937,
+          "z": 0.76416015625
+        },
+        "yaw": -18.964282376481282
+      },
+      {
+        "part_id": "reveal-lower-1-6",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1751.1728443443246,
+          "y": 874.3102331322307,
+          "z": 0.76416015625
+        },
+        "yaw": -23.178568090766994
+      },
+      {
+        "part_id": "reveal-lower-1-7",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 2080.4370445757013,
+          "y": 733.3331592785589,
+          "z": 0.76416015625
+        },
+        "yaw": -27.39285380505271
+      },
+      {
+        "part_id": "reveal-lower-2-1",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 0,
+          "y": -1199.9999178694693,
+          "z": 0.76416015625
+        },
+        "yaw": -2.107139519338428
+      },
+      {
+        "part_id": "reveal-lower-2-2",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 181.5645111480713,
+          "y": -1206.6802517863812,
+          "z": 0.76416015625
+        },
+        "yaw": -6.321425233624142
+      },
+      {
+        "part_id": "reveal-lower-2-3",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 362.14718879611866,
+          "y": -1226.6851287702807,
+          "z": 0.76416015625
+        },
+        "yaw": -10.535710947909855
+      },
+      {
+        "part_id": "reveal-lower-2-4",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 540.7715088353406,
+          "y": -1259.906369869992,
+          "z": 0.76416015625
+        },
+        "yaw": -14.74999666219557
+      },
+      {
+        "part_id": "reveal-lower-2-5",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 716.4715372281624,
+          "y": -1306.1643269416263,
+          "z": 0.76416015625
+        },
+        "yaw": -18.964282376481282
+      },
+      {
+        "part_id": "reveal-lower-2-6",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 888.2971534210664,
+          "y": -1365.2088541190742,
+          "z": 0.76416015625
+        },
+        "yaw": -23.178568090766994
+      },
+      {
+        "part_id": "reveal-lower-2-7",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1055.319188243967,
+          "y": -1436.7206605100287,
+          "z": 0.76416015625
+        },
+        "yaw": -27.39285380505271
+      },
+      {
+        "part_id": "reveal-upper-1-1",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 0,
+          "y": 1200.000123828282,
+          "z": 3747.50830078125
+        },
+        "yaw": -2.107139519338428
+      },
+      {
+        "part_id": "reveal-upper-1-2",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 357.93297343647043,
+          "y": 1186.8306351032597,
+          "z": 3747.50830078125
+        },
+        "yaw": -6.321425233624142
+      },
+      {
+        "part_id": "reveal-upper-1-3",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 713.9303781769389,
+          "y": 1147.3933846361879,
+          "z": 3747.50830078125
+        },
+        "yaw": -10.535710947909855
+      },
+      {
+        "part_id": "reveal-upper-1-4",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1066.0671123626469,
+          "y": 1081.9016344429347,
+          "z": 3747.50830078125
+        },
+        "yaw": -14.74999666219557
+      },
+      {
+        "part_id": "reveal-upper-1-5",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1412.4389512085506,
+          "y": 990.7095396053937,
+          "z": 3747.50830078125
+        },
+        "yaw": -18.964282376481282
+      },
+      {
+        "part_id": "reveal-upper-1-6",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1751.1728443443246,
+          "y": 874.3102331322307,
+          "z": 3747.50830078125
+        },
+        "yaw": -23.178568090766994
+      },
+      {
+        "part_id": "reveal-upper-1-7",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 2080.4370445757013,
+          "y": 733.3331592785589,
+          "z": 3747.50830078125
+        },
+        "yaw": -27.39285380505271
+      },
+      {
+        "part_id": "reveal-upper-2-1",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 0,
+          "y": -1199.9999178694693,
+          "z": 3747.50830078125
+        },
+        "yaw": -2.107139519338428
+      },
+      {
+        "part_id": "reveal-upper-2-2",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 181.5645111480713,
+          "y": -1206.6802517863812,
+          "z": 3747.50830078125
+        },
+        "yaw": -6.321425233624142
+      },
+      {
+        "part_id": "reveal-upper-2-3",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 362.14718879611866,
+          "y": -1226.6851287702807,
+          "z": 3747.50830078125
+        },
+        "yaw": -10.535710947909855
+      },
+      {
+        "part_id": "reveal-upper-2-4",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 540.7715088353406,
+          "y": -1259.906369869992,
+          "z": 3747.50830078125
+        },
+        "yaw": -14.74999666219557
+      },
+      {
+        "part_id": "reveal-upper-2-5",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 716.4715372281624,
+          "y": -1306.1643269416263,
+          "z": 3747.50830078125
+        },
+        "yaw": -18.964282376481282
+      },
+      {
+        "part_id": "reveal-upper-2-6",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 888.2971534210664,
+          "y": -1365.2088541190742,
+          "z": 3747.50830078125
+        },
+        "yaw": -23.178568090766994
+      },
+      {
+        "part_id": "reveal-upper-2-7",
+        "role": "standalone",
+        "recipe_class": "/SS_Mod/Recipes/Beams/Recipe_SS_EmissveBeam_4x2.Recipe_SS_EmissveBeam_4x2_C",
+        "relative_location": {
+          "x": 1055.319188243967,
+          "y": -1436.7206605100287,
+          "z": 3747.50830078125
+        },
+        "yaw": -27.39285380505271
+      }
+    ],
+    "commit": true
+  }
+}

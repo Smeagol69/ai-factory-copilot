@@ -1,0 +1,94 @@
+{
+  "at": "2026-10-18T15:12:14.092Z",
+  "summaries": [
+    {
+      "name": "tunnel curve test v2",
+      "fingerprint": "sha256:a182e978f5eb61eebbde683687f61a4fa662468773ebd61da18e7b124f5c63cf",
+      "partCount": 54,
+      "classes": [
+        {
+          "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+          "class_name": "Foundation_Concrete_8x2",
+          "count": 54
+        }
+      ],
+      "poseTruncated": false,
+      "zPivotRange": [
+        100,
+        958.6414184570312
+      ],
+      "headerCells": {
+        "x": 7,
+        "y": 9,
+        "z": 2
+      },
+      "livePlacementVerified": false
+    },
+    {
+      "name": "tunnel curve test",
+      "fingerprint": "sha256:9888e71f28142790ccfb90b210a122192c12e2c0859c0a1b9903e68886efd865",
+      "partCount": 9,
+      "classes": [
+        {
+          "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+          "class_name": "Foundation_Concrete_8x2",
+          "count": 9
+        }
+      ],
+      "poseTruncated": false,
+      "zPivotRange": [
+        100,
+        391.9341125488281
+      ],
+      "headerCells": {
+        "x": 5,
+        "y": 5,
+        "z": 1
+      },
+      "livePlacementVerified": false
+    },
+    {
+      "name": "Tunnel Halfway",
+      "fingerprint": "sha256:6048bb8aeecc4b941579833f44898af02f1723e25b50afdb6cdfe70fa7470650",
+      "partCount": 60,
+      "classes": [
+        {
+          "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+          "class_name": "Foundation_Concrete_8x2",
+          "count": 36
+        },
+        {
+          "class_path": "/Game/FactoryGame/Buildable/Factory/PipelineSupportWall/Build_PipelineSupportWall.Build_PipelineSupportWall_C",
+          "class_name": "PipelineSupportWall",
+          "count": 12
+        },
+        {
+          "class_path": "/Game/FactoryGame/Buildable/Factory/Pipeline/Build_Pipeline_NoIndicator.Build_Pipeline_NoIndicator_C",
+          "class_name": "Pipeline_NoIndicator",
+          "count": 6
+        },
+        {
+          "class_path": "/Game/FactoryGame/Buildable/Factory/CeilingLight/Build_CeilingLight.Build_CeilingLight_C",
+          "class_name": "CeilingLight",
+          "count": 4
+        },
+        {
+          "class_path": "/SS_Mod/Builders/Beams/Build_EmissiveBeam_4x2.Build_EmissiveBeam_4x2_C",
+          "class_name": "EmissiveBeam_4x2",
+          "count": 2
+        }
+      ],
+      "poseTruncated": false,
+      "zPivotRange": [
+        0,
+        3748.2724609375
+      ],
+      "headerCells": {
+        "x": 7,
+        "y": 6,
+        "z": 6
+      },
+      "livePlacementVerified": false
+    }
+  ]
+}

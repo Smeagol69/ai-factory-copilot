@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const [placementFile, snapshotFile] = process.argv.slice(2);
+const placement = JSON.parse(readFileSync(placementFile));
+const snapshot = JSON.parse(readFileSync(snapshotFile));
+const ids = placement.game_action_results.flatMap(r => r.created_actor_ids ?? []);
+assert(ids.length > 0, 'Placement receipt must contain actual created actor IDs');
+const present = new Set(snapshot.actors.map(a => a.actor_id));
+const remaining = ids.filter(id => present.has(id));
+console.log(JSON.stringify({ capturedAt: snapshot.generated_at_utc, expectedRemoved: ids.length, remaining: remaining.length, remainingIds: remaining }));
+assert.equal(remaining.length, 0, 'Undo left placed actors in the authoritative world');

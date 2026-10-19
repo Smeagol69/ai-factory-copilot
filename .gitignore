@@ -18,3 +18,7 @@ DerivedDataCache/
 # repository is public. Only the derived catalog is committed; regenerate it
 # with scripts/ingest-blueprint-reference.mjs.
 reference/blueprints/sources/
+
+# Generated on every hub start by hub/scripts/configure-clients.mjs (machine paths)
+/.mcp.json
+/.codex/

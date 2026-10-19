@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-10-18T21:47:56.928Z",
+  "promptCharacters": 7119,
+  "files": [
+    {
+      "file": "Source/AIFactoryCopilot/Private/AIFactoryActions.cpp",
+      "sha256": "87e1b83bd2e3bfe6478302b0aea0d7698054dc1bf9b0a18129269170388ba8ea"
+    },
+    {
+      "file": "Source/AIFactoryCopilot/Private/AIFactoryBlueprintExport.cpp",
+      "sha256": "01c19c31dd68ac06349891ccbe814fbe90509ef986b312eae569b6dadc015fd2"
+    },
+    {
+      "file": "Source/AIFactoryCopilot/Public/AIFactoryFoundationPosePolicy.h",
+      "sha256": "16ef8f4c179e6ad4ce58f0fb1185a604a988f7a5d9e266818ae570aed87ef262"
+    }
+  ],
+  "status": "failed",
+  "error": "Invalid local model arguments",
+  "finishedAt": "2026-10-18T21:47:56.932Z"
+}

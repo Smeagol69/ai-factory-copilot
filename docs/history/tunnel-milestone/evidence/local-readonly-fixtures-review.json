@@ -1,0 +1,41 @@
+{
+  "startedAt": "2026-10-18T21:53:08.387Z",
+  "transport": "configured-local-openai-compatible-no-tools",
+  "model": "copilot-hauhau-game:latest",
+  "endpoint": "http://127.0.0.1:11436/v1/chat/completions",
+  "files": [
+    {
+      "file": "companion/lib/tunnel-lighting.mjs",
+      "sha256": "8ca2c58a6aba301daf22be3078e7c2a83d4bf9e545e2ac89a188a80e96b7fd0e"
+    }
+  ],
+  "priorFailure": "local-lighting-lighting-v2-review.json: redundant project_context exhausted tool context",
+  "status": "completed",
+  "result": {
+    "id": "chatcmpl-766",
+    "object": "chat.completion",
+    "created": 1792360433,
+    "model": "copilot-hauhau-game:latest",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "The user wants me to review a JavaScript/TypeScript code snippet that appears to be part of a game modding system (likely for Unreal Engine based on the class paths like `Build_CeilingLight`, `Build_EmissiveBeam_4x2_C`, etc.).\n\nThe function `compileTunnelLighting` is designed to:\n1.  Take a graph and args.\n2.  Call `compileLevelTunnel` to get a shell (reference frame, measurements).\n3.  Filter poses for specific lighting fixtures (LAMP and BEAM).\n4.  Validate fixture poses (translation, rotation, scale).\n5.  Validate that there are exactly 2 flat lamps and 2 flat beams.\n6.  Validate that the two rows of each type are distinct (separated longitudinally and vertically).\n7.  Extract evidence from the graph snapshot about beam lengths.\n8.  Validate beam length consistency.\n9.  Find build recipes for the fixtures.\n10. Calculate radii and counts for the new lighting parts.\n11. Generate a proposal with buildables.\n\nI need to check for concrete bugs, logical errors, or edge cases that could cause runtime failures or incorrect behavior.\n\n**Code Analysis:**\n\n1.  **Imports & Constants:**\n    *   `compileLevelTunnel` imported from `./level-tunnel.mjs`.\n    *   `LAMP` and `BEAM` constants defined with class paths.\n    *   `fail` helper function returns an object with `compiled: false`.\n\n2.  **Helper Functions:**\n    *   `flat(p)`: Checks if rotation is close to identity (flat) and scale is (1,1,1).\n        *   `Math.abs(q.x)<.0001&&Math.abs(q.y)<.0001`: Checks x and y components of quaternion.\n        *   `['x','y','z'].every(k=>s[k]===1)`: Checks scale.\n        *   Seems okay for \"flat\" (horizontal) check, though quaternion check `q.x` and `q.y` being near 0 implies rotation around Z axis (yaw).\n    *   `yaw(q)`: Calculates yaw from quaternion.\n        *   `Math.atan2(2*q.w*q.z, 1-2*q.z*q.z)`: This is the standard formula for yaw from quaternion (assuming x/y/z/w order).\n        *   Multiplies by `180/Math.PI` to get degrees.\n        *   Seems okay.\n\n3.  **`compileTunnelLighting` Function:**\n    *   `const shell=compileLevelTunnel(graph,{...args,fit_panel_lengths:false});`\n        *   Calls external function.\n    *   `if(!shell.compiled)return shell;`\n        *   Propagates failure.\n    *   `const poses=args.reference.reference_traits.poses;`\n        *   Assumes `args.reference.reference_traits.poses` exists.\n    *   `const fixtures=poses.filter(...)`\n    *   `const finite=(o,keys)=>...`\n        *   Helper to check if properties are numbers.\n    *   **Validation 1:** `if(fixtures.some(p=>!finite(p.transform?.translation_cm,...)||!finite(p.transform?.rotation_quat,...)||...))return fail(...);`\n        *   Checks translation, rotation, scale.\n        *   Rotation check: `Math.abs(Math.hypot(...['x','y','z','w'].map(k=>p.transform.rotation_quat[k]))-1)>.0001`.\n        *   `Math.hypot(x,y,z,w)` calculates magnitude of quaternion. A unit quaternion has magnitude 1.\n        *   Seems okay.\n    *   **Validation 2:** `const lamps=poses.filter(...); const beams=poses.filter(...);`\n        *   `if(lamps.length!==2||beams.length!==2||beams.some(p=>!flat(p)))return fail(...);`\n        *   Checks exactly 2 lamps and 2 beams, and beams must be flat.\n        *   Note: `flat(p)` checks rotation and scale.\n    *   **Validation 3:** `const f=shell.reference_frame,u=f.longitudinal;`\n        *   `const transverse=p=>-p.transform.translation_cm.x*u.y+p.transform.translation_cm.y*u.x-f.transverse_center_cm;`\n        *   Calculates transverse offset.\n    *   **Validation 4:** `for(const row of [lamps,beams])if(Math.abs(transverse(row[0])-transverse(row[1]))<1||Math.abs(row[0].transform.translation_cm.z-row[1].transform.translation_cm.z)>.1)return fail(...);`\n        *   Checks that the two rows of the same type are distinct (separated by at least 1cm in transverse direction, and within 0.1cm in Z).\n        *   Seems okay.\n    *   **Validation 5:** `const evidence=(graph.snapshot?.actors??[]).filter(a=>a.class_path===BEAM).map(...)`\n        *   Extracts beam properties from the graph snapshot.\n        *   `get` function looks for `mDefaultLength` and `mLength` in `reflected_properties`.\n        *   `reflected_properties` might be undefined or empty.\n        *   `a.reflected_properties?.find(...)`\n        *   If `reflected_properties` is undefined, `find` returns undefined.\n        *   `p?Number(p.value):NaN`.\n        *   If `p` is undefined, returns `NaN`.\n        *   Then `.filter(e=>Number.isFinite(e.length)...)` filters out NaNs.\n        *   Seems okay, but relies on `graph.snapshot.actors` having the beam data.\n    *   **Validation 6:** `if(!evidence.length||evidence.some(e=>!Number.isFinite(e.length)||e.length<=0||!Number.isFinite(e.current)||(e.current!==0&&Math.abs(e.current-e.length)>.01)||Math.abs(e.length-evidence[0].length)>.01))return fail(...);`\n        *   Checks consistency of beam lengths.\n    *   **Validation 7:** `const recipes=new Map(); for(const c of [LAMP,BEAM])...`\n        *   Finds recipes that produce the building class.\n        *   `if(matches.length!==1)return fail(...);`\n        *   Seems okay.\n    *   **Calculation:** `const radius=args.radius_cm,sweep=args.turn_degrees*Math.PI/180,sign=Math.sign(sweep);`\n        *   `Math.sign(0)` returns 0.\n        *   If `sweep` is 0, `sign` is 0.\n        *   `radii=[...lamps,...beams].map(p=>radius-sign*transverse(p));`\n        *   If `sign` is 0, `radii` = `radius`.\n        *   `if(Math.min(...radii)<=evidence[0].length)return fail(...);`\n        *   Seems okay.\n    *   **Calculation 2:** `const lampCount=...; const beamCount=...;`\n        *   `Math.max(1,Math.ceil(...))` ensures at least 1.\n        *   `shell.measured_pitch_cm` and `evidence[0].length` used.\n        *   Seems okay.\n    *   **Calculation 3:** `if(2*lampCount+4*beamCount>512)return fail(...);`\n        *   Part limit check.\n    *   **Generation:** `const buildables=[]; const add=(p,row,count,z,startAtJoint)=>{...}`\n        *   `for(let j=0;j<count;j++){...}`\n        *   `const a=(j+(startAtJoint?0:.5))*sweep/count,a`\n        *   `direction=(j+.5)*sweep/count;`\n        *   `buildables.push({part_id:`${row}-${j+1}`,role:'standalone',recipe_class:recipes.get(p.class_path),relative_location:{x:sign*r*Math.sin(a),y:"
+        },
+        "finish_reason": "length"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 1662,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens": 1800,
+      "total_tokens": 3462
+    }
+  },
+  "finishedAt": "2026-10-18T21:53:53.124Z"
+}

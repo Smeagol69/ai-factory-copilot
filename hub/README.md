@@ -1,5 +1,10 @@
 # Copilot — Satisfactory MCP Lab
 
+> Since 2026-10-18 the Lab lives inside the `ai-factory-copilot` repo as `hub/`.
+> Start it with **`Start Copilot.cmd`** at the repo root (or `hub/Copilot.exe`).
+> Current state and next steps: [../docs/STATUS.md](../docs/STATUS.md). Paths below are
+> relative to `hub/`; the game source it reads is the repo itself.
+
 **Open Copilot.exe in this folder** for the single Windows entry point. It opens
 the control room at <http://127.0.0.1:8795/> and reuses the same local server.
 Keep the executable here; make a shortcut instead of moving it by itself.

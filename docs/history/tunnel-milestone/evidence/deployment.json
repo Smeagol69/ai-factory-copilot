@@ -1,0 +1,146 @@
+{
+  "startedAt": "2026-10-18T15:35:02.408Z",
+  "commit": "6a52be294cc0b898fff8f95e5c9fa91783bf8cce",
+  "master": "3997694543047b2f23f953cfbc45745326b2d16b",
+  "deploymentOwner": "codex-14540",
+  "peerState": [
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-claude",
+      "head": "8891d2bbdc9124ebbe290450e21db665acaeb7a2"
+    },
+    {
+      "path": "%USERPROFILE%\\Documents\\satisfactory-mcp-lab\\workspaces\\architect\\claude-reference-traits",
+      "head": "69665af3a3e7dad9d626c993624ebda8e3b51f89"
+    },
+    {
+      "path": "%USERPROFILE%\\Documents\\satisfactory-mcp-lab\\workspaces\\architect\\integration",
+      "head": "d1f4569a411e5ae3a8a88e84bb39a89ec61f2f81"
+    }
+  ],
+  "checkouts": [
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory",
+      "head": "f722318801bbaceeda14afa0bd22d0f548383159",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-anchor-audit-fix",
+      "head": "cf0add9c4fa9b0ad150a93f0164b7de6b8369e16",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-claude",
+      "head": "8891d2bbdc9124ebbe290450e21db665acaeb7a2",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-ai-blueprint",
+      "head": "a284f22ae2830d01bca1527683b2d743cd6e43e1",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-blueprint-audit",
+      "head": "e521a5dc53413bc4d9ee6a926cb3054d86e7a6d5",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-blueprint-goal-validation",
+      "head": "2654b59805263c0f3f419ca600b2e93523478780",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-blueprint-miners",
+      "head": "668fce602cbd7dbb01f4b3e84c0673d76fa9ffd8",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-buildgun-contract",
+      "head": "54f41ac0fc711142828f5dd7b5e6f643ba6c97da",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-buildgun-preview",
+      "head": "af9d97950734c389feac236cfb88729d8646aaeb",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-creative-node-integration",
+      "head": "9f88fc6c8b22f7c10e6617fb56e10a22dd37a255",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-integrity",
+      "head": "19510e2adaa84a2436a9ac2a47ecd5640c2cf502",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-native-blueprint-export-contract",
+      "head": "3ccb4dfe5474db2044ec851ce5ab44ee56647b08",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-native-blueprints",
+      "head": "cccd601b9defa267f03c0b084d06e9aa5c2fa009",
+      "status": "M AIFactoryCopilot.uplugin\n M CHANGELOG.md\n M README.md\n M Source/AIFactoryCopilot/Private/AIFactoryActions.cpp\n M Source/AIFactoryCopilot/Private/AIFactorySnapshot.cpp\n M Source/AIFactoryCopilot/Private/AIFactorySubsystem.cpp\n M Source/AIFactoryCopilot/Public/AIFactoryActions.h\n M companion/lib/actions.mjs\n M companion/lib/graph.mjs\n M companion/package.json\n M companion/server.mjs\n M companion/test/client-contract.test.mjs\n M companion/test/native-blueprint-export.test.mjs\n M docs/NATIVE_BLUEPRINT_EXPORT.md\n M scripts/install-to-starter.ps1\n M scripts/validate.ps1"
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-planner-blueprint",
+      "head": "2e916f0653b690da8dff82937f2cfee5fe517d2c",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-preview-library",
+      "head": "fc826165866de16a63e7aea4ba906c3acf6ce12e",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-selection-overlay",
+      "head": "45fb230daf78543aeab3a0d0a712bc81eb4cca37",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-codex-terrain-integrity",
+      "head": "eb92b9a3e7cb85d4821f0f607ca0a5bbb14f1ad7",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-hud-axis-rotation",
+      "head": "53dea4f57f6b9fc606e351ac1ac215e16d04a4fb",
+      "status": "?? Config/AccessTransformers.ini\n?? Source/AIFactoryCopilot/Private/AIFactoryAxisRotationState.h\n?? Source/AIFactoryCopilot/Private/AIFactoryAxisRotationTests.cpp\n?? Source/AIFactoryCopilot/Private/AIFactoryBuildGunRotation.cpp\n?? Source/AIFactoryCopilot/Private/AIFactoryBuildGunRotation.h"
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-mcp-lab-review",
+      "head": "250099932ec5cbac75a4c0f0b47f1448d108ad72",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-package-latest",
+      "head": "e04a89807f6a7cc325911ea9da4bba934cb9e7a2",
+      "status": ""
+    },
+    {
+      "path": "%USERPROFILE%/Documents/satisfactory-verify",
+      "head": "65d9ba896b3bdd1a0b3e5db96c957e0e60659a8b",
+      "status": ""
+    }
+  ],
+  "fullUatCookRelease": false,
+  "scheduledTasks": 0,
+  "modelCalls": 0,
+  "configSha256": "ad96a68caebb79d3e22827f300827310fb7f91fbcfb745954e9652de69beaae8",
+  "previousDll": "3149792c3e9a833952aeee5eb79151c15dcc07c66c58228b60e16b6b7161c707",
+  "newDll": "9c70d1f64343a9335c750fae65883bcb812d6bb570e0078952982150521204cd",
+  "changes": [
+    "lib/actions.mjs",
+    "lib/blueprint-decode.mjs",
+    "lib/blueprint-reference-traits.mjs",
+    "lib/blueprints.mjs",
+    "lib/level-tunnel.mjs",
+    "lib/router.mjs",
+    "lib/tools.mjs"
+  ],
+  "deployed": true,
+  "companionPid": 16504,
+  "runtimeSha256": "799f0b94d7b862f975f0b8da7f6936468864e918449a5ccfbbac6c56cc3e0c89",
+  "finishedAt": "2026-10-18T15:35:04.499Z"
+}

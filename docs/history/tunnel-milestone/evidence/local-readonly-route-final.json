@@ -1,0 +1,24 @@
+{
+  "startedAt": "2026-10-18T21:56:29.745Z",
+  "file": "companion/lib/router.mjs",
+  "sourceCommit": "f84bb0c",
+  "status": "completed",
+  "result": {
+    "model": "copilot-hauhau-game:latest",
+    "created_at": "2026-10-18T21:56:31.8134068Z",
+    "message": {
+      "role": "assistant",
+      "content": "{verdict:approve,findings:[],limitations:[\"compileLevelTunnel failure handling may mask upstream errors if reason string is empty\",\"Date.now() usage assumes monotonic clock without timezone normalization\",\"localAnswer return paths do not explicitly handle null graph or services edge cases\"]}"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 2016798200,
+    "load_duration": 5502100,
+    "prompt_eval_count": 1066,
+    "prompt_eval_cached_count": 0,
+    "prompt_eval_duration": 797937000,
+    "eval_count": 56,
+    "eval_duration": 1117032000
+  },
+  "finishedAt": "2026-10-18T21:56:31.823Z"
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "copilot.tunnel-connection-anchor/v1",
+  "capturedAt": "2026-10-18T21:09:22.715Z",
+  "sourceFingerprint": "sha256:6048bb8aeecc4b941579833f44898af02f1723e25b50afdb6cdfe70fa7470650",
+  "matched": 36,
+  "measuredBayPitchCm": 799.999984343529,
+  "headingDegrees": 70.00000155774461,
+  "unitLongitudinal": {
+    "x": 0.34202011777751945,
+    "y": 0.939692630084674
+  },
+  "unitTransverse": {
+    "x": -0.939692630084674,
+    "y": 0.34202011777751945
+  },
+  "sourceReferenceTranslation": {
+    "x": 289600.00002903276,
+    "y": -156000.0000062466,
+    "z": 14614.651989327236
+  },
+  "referenceProfileCenterCm": -182.99586912587415,
+  "referenceEndLongitudinalCm": 1159.6674062245381,
+  "connectionFloorPivot": {
+    "x": 290168.58948144596,
+    "y": -154972.85735997924,
+    "z": 14614.651989327236
+  },
+  "limitations": [
+    "Reference center uses measured profile pivots, not mesh clearance",
+    "Future placement still requires native bounds registration and live joint inspection"
+  ]
+}

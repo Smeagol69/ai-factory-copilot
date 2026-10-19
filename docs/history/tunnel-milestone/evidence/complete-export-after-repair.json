@@ -1,0 +1,72 @@
+{
+	"action": "export_native_blueprint",
+	"status": "committed",
+	"accepted": true,
+	"committed": true,
+	"dry_run": false,
+	"predicted":
+	{
+		"blueprint_name": "AI Tunnel Work Area Preserved",
+		"selected_buildables": 463,
+		"selected_lightweight_buildables": 65,
+		"designer": "/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_BlueprintDesigner_Mk3_C_2147280572",
+		"designer_had_buildings": false,
+		"lightweight_invalid_before_export": 0,
+		"lightweight_requested": 65,
+		"lightweight_materialised": 65,
+		"lightweight_missing": 0,
+		"capture_dimensions_measured": false,
+		"capture_dimensions_source": "actor_origin_envelope_fallback_native_bounds_unknown",
+		"capture_dimensions_unknown_reason": "native_bounds_unavailable:/Game/FactoryGame/Map/GameLevel01/Persistent_Level.Persistent_Level:PersistentLevel.Build_EmissiveBeam_4x2_C_2147141594",
+		"blueprint_dimensions_cells":
+		{
+			"x": 9,
+			"y": 9,
+			"z": 6
+		},
+		"blueprint_dimension_unit_cm": 800,
+		"native_archive_may_have_written_file": true,
+		"blueprint_archive_path": "%USERPROFILE%/AppData/Local/FactoryGame/Saved/SaveGames/blueprints/bp builder/AI Tunnel Work Area Preserved.sbp",
+		"native_archive_return_dimensions_match_capture": true,
+		"native_archive_return_dimensions_cells": "X=9 Y=9 Z=6",
+		"native_write_to_disk_succeeded": true,
+		"recentred_on_selection": true,
+		"blueprint_origin_cm":
+		{
+			"x": 290400,
+			"y": -154400,
+			"z": 14612.923828125
+		},
+		"declared_dimensions_cells":
+		{
+			"x": 9,
+			"y": 9,
+			"z": 6
+		},
+		"adopted": 115,
+		"captured_with_existing_designer_flag_preserved": 413,
+		"skipped": 0
+	},
+	"observed":
+	{
+		"designer_left_empty": true,
+		"blueprint_readable_from_disc": true,
+		"subsystem_available": true,
+		"blueprint_archive_path": "%USERPROFILE%/AppData/Local/FactoryGame/Saved/SaveGames/blueprints/bp builder/AI Tunnel Work Area Preserved.sbp",
+		"disk_header_parsed_directly": true,
+		"blueprint_dimensions_match_capture": true,
+		"expected_dimensions_cells": "X=9 Y=9 Z=6",
+		"disk_dimensions_cells": "X=9 Y=9 Z=6"
+	},
+	"created_actor_ids": [],
+	"removed_actor_ids": [],
+	"warnings": [],
+	"undoable": false,
+	"undo": "Exported blueprints are files, not world changes; delete it from the blueprint menu.",
+	"undo_steps_available": 0,
+	"source": "in_game_force_save",
+	"blueprint_name": "AI Tunnel Work Area Preserved",
+	"captured_at_utc": "2026-10-18T21:56:43.145Z",
+	"archive_exists_after_attempt": true,
+	"archive_bytes_after_attempt": 19768
+}

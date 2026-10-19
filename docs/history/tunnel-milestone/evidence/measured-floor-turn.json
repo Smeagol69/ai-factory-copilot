@@ -1,0 +1,49 @@
+{
+  "schema": "copilot.measured-floor-turn/v1",
+  "basis": "Least-squares intersection of actual foundation cross-section normals; duplicate actor positions are not independent evidence",
+  "centerInReferenceFrame": {
+    "x": -348.6298196186405,
+    "y": -3670.707144503067
+  },
+  "radiusToReferenceProfileCenterCm": 3670.707144503067,
+  "curveStartLongitudinalCm": -348.6298196186405,
+  "turnDegrees": -29.5,
+  "maximumTangentResidualCm": 0.004332923368110642,
+  "crossSections": [
+    {
+      "degrees": -29.5,
+      "tangentResidualCm": 0.002196586548279811,
+      "radialDistancesCm": [
+        4413.808299214309,
+        2913.818250702181,
+        3613.8352888946547,
+        3613.8352888946547,
+        3613.8082992169852,
+        2813.808299221228,
+        4413.808299214309
+      ]
+    },
+    {
+      "degrees": -20,
+      "tangentResidualCm": -0.004332923368110642,
+      "radialDistancesCm": [
+        4413.80642489152,
+        3613.8064248951573,
+        2813.8064249009426
+      ]
+    },
+    {
+      "degrees": -10.5,
+      "tangentResidualCm": 0.0021965865472566293,
+      "radialDistancesCm": [
+        4413.804289404563,
+        3613.8042894091614,
+        2813.8042894163227
+      ]
+    }
+  ],
+  "limitations": [
+    "This fits captured floor orientations and pivots, not clearance or meshes",
+    "Existing floor row spacing differs from reference floor row spacing; do not claim exact floor-tile correspondence"
+  ]
+}

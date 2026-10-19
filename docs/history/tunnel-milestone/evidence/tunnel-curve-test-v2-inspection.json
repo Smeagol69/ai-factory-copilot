@@ -1,0 +1,3344 @@
+{
+  "available": true,
+  "blueprint_name": "tunnel curve test v2",
+  "source_fingerprint": "sha256:a182e978f5eb61eebbde683687f61a4fa662468773ebd61da18e7b124f5c63cf",
+  "reference_traits": {
+    "schema": "aifactory.blueprint-reference-traits/v1",
+    "source_fingerprint": "sha256:a182e978f5eb61eebbde683687f61a4fa662468773ebd61da18e7b124f5c63cf",
+    "entity_total": 54,
+    "eligible_entity_count": 54,
+    "missing_transform_count": 0,
+    "malformed_entity_count": 0,
+    "poses": [
+      {
+        "entity_index": 0,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1015.6736450195312,
+            "y": -2523.544677734375,
+            "z": 958.6414184570312
+          },
+          "rotation_quat": {
+            "x": 0.2128845453262329,
+            "y": 0.3180043697357178,
+            "z": 0.7677304744720459,
+            "w": 0.5139487981796265
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 1,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -797.3745727539062,
+            "y": -854.8156127929688,
+            "z": 391.9343566894531
+          },
+          "rotation_quat": {
+            "x": 0.2575502395629883,
+            "y": 0.2830450236797333,
+            "z": 0.6833311319351196,
+            "w": 0.6217812895774841
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 2,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1560.5687255859375,
+            "y": 676.59033203125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9681479334831238,
+            "w": 0.2503788471221924
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 3,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -720.3088989257812,
+            "y": -1476.78369140625,
+            "z": 392.8855895996094
+          },
+          "rotation_quat": {
+            "x": 0.2500532269477844,
+            "y": 0.28968948125839233,
+            "z": 0.6993722319602966,
+            "w": 0.6036819219589233
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 4,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -3.200664758682251,
+            "y": -1537.136962890625,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9931703805923462,
+            "w": 0.11667312681674957
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 5,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 688.7474975585938,
+            "y": -2009.28125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.977415144443512,
+            "w": 0.21132831275463104
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 6,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -492.6722717285156,
+            "y": -2307.976806640625,
+            "z": 392.9560241699219
+          },
+          "rotation_quat": {
+            "x": 0.2128845453262329,
+            "y": 0.3180043697357178,
+            "z": 0.7677304744720459,
+            "w": 0.5139487981796265
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 7,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1244.94970703125,
+            "y": -1554.255859375,
+            "z": 923.2156982421875
+          },
+          "rotation_quat": {
+            "x": 0.2500532567501068,
+            "y": 0.28968945145606995,
+            "z": 0.6993722319602966,
+            "w": 0.6036819219589233
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 8,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 455.6396789550781,
+            "y": -1328.4423828125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9931703805923462,
+            "w": 0.11667312681674957
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 9,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 411.5061950683594,
+            "y": 1640.76220703125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9681479334831238,
+            "w": 0.2503788471221924
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 10,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1381.0123291015625,
+            "y": -1048.624755859375,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9997806549072266,
+            "w": 0.020943613722920418
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 11,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 356.7265930175781,
+            "y": -615.6331787109375,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9997806549072266,
+            "w": 0.020943613722920418
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 12,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -63.19732666015625,
+            "y": -105.7414321899414,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9971851110458374,
+            "w": 0.07497873902320862
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 13,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 969.5741577148438,
+            "y": -1305.3843994140625,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9931703805923462,
+            "w": 0.11667312681674957
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 14,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 229.9071502685547,
+            "y": -2217.975830078125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.977415144443512,
+            "w": 0.21132831275463104
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 15,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -633.060791015625,
+            "y": -1966.7506103515625,
+            "z": 392.9148254394531
+          },
+          "rotation_quat": {
+            "x": 0.2295169085264206,
+            "y": 0.3060344159603119,
+            "z": 0.74383145570755,
+            "w": 0.5480690598487854
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 16,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -102.11371612548828,
+            "y": -824.3277587890625,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9997806549072266,
+            "w": 0.020943613722920418
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 17,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1479.9254150390625,
+            "y": -1761.43408203125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9931703805923462,
+            "w": 0.11667312681674957
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 18,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1208.5782470703125,
+            "y": -1983.88818359375,
+            "z": 942.5748291015625
+          },
+          "rotation_quat": {
+            "x": 0.2295169085264206,
+            "y": 0.3060344159603119,
+            "z": 0.74383145570755,
+            "w": 0.5480690598487854
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 19,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 395.64300537109375,
+            "y": 102.95317840576172,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9971851110458374,
+            "w": 0.07497873902320862
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 20,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -944.2620239257812,
+            "y": 1613.1600341796875,
+            "z": 923.2156982421875
+          },
+          "rotation_quat": {
+            "x": 0.3191142976284027,
+            "y": 0.21121713519096375,
+            "z": 0.5099232792854309,
+            "w": 0.7704100608825684
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 21,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1419.9287109375,
+            "y": -330.03851318359375,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9971851110458374,
+            "w": 0.07497873902320862
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 22,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 925.5590209960938,
+            "y": -255.27682495117188,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9971851110458374,
+            "w": 0.07497873902320862
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 23,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -456.0906066894531,
+            "y": 1405.943603515625,
+            "z": 392.8855895996094
+          },
+          "rotation_quat": {
+            "x": 0.3191142976284027,
+            "y": 0.21121715009212494,
+            "z": 0.5099232792854309,
+            "w": 0.7704100608825684
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 24,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -630.6403198242188,
+            "y": 2299.336181640625,
+            "z": 922.264404296875
+          },
+          "rotation_quat": {
+            "x": 0.3245335817337036,
+            "y": 0.20279189944267273,
+            "z": 0.48958295583724976,
+            "w": 0.7834933996200562
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 25,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -772.0472412109375,
+            "y": 6.612911224365234,
+            "z": 391.8638916015625
+          },
+          "rotation_quat": {
+            "x": 0.29012545943260193,
+            "y": 0.24954725801944733,
+            "z": 0.6024603843688965,
+            "w": 0.7004247903823853
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 26,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1137.0595703125,
+            "y": 1227.4971923828125,
+            "z": 942.5748291015625
+          },
+          "rotation_quat": {
+            "x": 0.3037670850753784,
+            "y": 0.23250943422317505,
+            "z": 0.5677726864814758,
+            "w": 0.7289026975631714
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 27,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -31.20121192932129,
+            "y": 278.2266845703125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9981350302696228,
+            "w": 0.061044950038194656
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 28,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 911.881591796875,
+            "y": 1579.8333740234375,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9681479334831238,
+            "w": 0.2503788471221924
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 29,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1140.5877685546875,
+            "y": -1804.8648681640625,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.977415144443512,
+            "w": 0.21132831275463104
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 30,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -831.8639526367188,
+            "y": -487.4536437988281,
+            "z": 391.89312744140625
+          },
+          "rotation_quat": {
+            "x": 0.2722306251525879,
+            "y": 0.26874813437461853,
+            "z": 0.6546513438224792,
+            "w": 0.6519942879676819
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 31,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1585.1580810546875,
+            "y": 1591.0487060546875,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9396926164627075,
+            "w": 0.3420201539993286
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 32,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1350.75634765625,
+            "y": -491.39691162109375,
+            "z": 915.2261352539062
+          },
+          "rotation_quat": {
+            "x": 0.2722306251525879,
+            "y": 0.26874813437461853,
+            "z": 0.6546513438224792,
+            "w": 0.6519942879676819
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 33,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1296.4144287109375,
+            "y": 85.91593170166016,
+            "z": 910.0619506835938
+          },
+          "rotation_quat": {
+            "x": 0.29012545943260193,
+            "y": 0.24954725801944733,
+            "z": 0.6024603843688965,
+            "w": 0.7004247903823853
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 34,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1334.7620849609375,
+            "y": -805.1698608398438,
+            "z": 922.264404296875
+          },
+          "rotation_quat": {
+            "x": 0.2575502395629883,
+            "y": 0.2830450236797333,
+            "z": 0.6833311319351196,
+            "w": 0.6217812895774841
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 35,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 624.928466796875,
+            "y": 919.8798217773438,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9876887202262878,
+            "w": 0.15643209218978882
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 36,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 819.1137084960938,
+            "y": 2233.836181640625,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9396926164627075,
+            "w": 0.3420201539993286
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 37,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -197.81874084472656,
+            "y": 1976.976806640625,
+            "z": 391.9343566894531
+          },
+          "rotation_quat": {
+            "x": 0.3245335817337036,
+            "y": 0.20279189944267273,
+            "z": 0.48958295583724976,
+            "w": 0.7834933996200562
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 38,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -636.8973999023438,
+            "y": 942.2747802734375,
+            "z": 392.9148254394531
+          },
+          "rotation_quat": {
+            "x": 0.3037670850753784,
+            "y": 0.23250943422317505,
+            "z": 0.5677726864814758,
+            "w": 0.7289026975631714
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 39,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -1253.572021484375,
+            "y": 666.3677368164062,
+            "z": 958.6414184570312
+          },
+          "rotation_quat": {
+            "x": 0.2909943163394928,
+            "y": 0.24853353202342987,
+            "z": 0.600013017654419,
+            "w": 0.7025224566459656
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 40,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -133.64442443847656,
+            "y": 3039.943603515625,
+            "z": 910.0619506835938
+          },
+          "rotation_quat": {
+            "x": 0.34682896733283997,
+            "y": 0.16172900795936584,
+            "z": 0.39044836163520813,
+            "w": 0.8373191952705383
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 41,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1319.4891357421875,
+            "y": 2172.907470703125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9396926164627075,
+            "w": 0.3420201539993286
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 42,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1273.6156005859375,
+            "y": 16.63676643371582,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9876887202262878,
+            "w": 0.15643209218978882
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 43,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1075.611083984375,
+            "y": 671.7962036132812,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9876887202262878,
+            "w": 0.15643209218978882
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 44,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1286.1270751953125,
+            "y": 1155.95458984375,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9681479334831238,
+            "w": 0.2503788471221924
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 45,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 272.61199951171875,
+            "y": 2699.053955078125,
+            "z": 391.8638916015625
+          },
+          "rotation_quat": {
+            "x": 0.34682896733283997,
+            "y": 0.16172900795936584,
+            "z": 0.39044836163520813,
+            "w": 0.8373191952705383
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 46,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -480.8135681152344,
+            "y": 2575.490478515625,
+            "z": 915.2261352539062
+          },
+          "rotation_quat": {
+            "x": 0.33479753136634827,
+            "y": 0.18505586683750153,
+            "z": 0.45379748940467834,
+            "w": 0.8048184514045715
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 47,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 469.1741943359375,
+            "y": 217.2978973388672,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9981350302696228,
+            "w": 0.061044950038194656
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 48,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 124.55303955078125,
+            "y": 980.8086547851562,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9876887202262878,
+            "w": 0.15643209218978882
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 49,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -694.850830078125,
+            "y": 577.8770751953125,
+            "z": 392.9560241699219
+          },
+          "rotation_quat": {
+            "x": 0.2909943163394928,
+            "y": 0.24853353202342987,
+            "z": 0.600013017654419,
+            "w": 0.7025224566459656
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 50,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": -35.858028411865234,
+            "y": 2308.50830078125,
+            "z": 391.89312744140625
+          },
+          "rotation_quat": {
+            "x": 0.33479753136634827,
+            "y": 0.18505588173866272,
+            "z": 0.45379748940467834,
+            "w": 0.8048184514045715
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 51,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 1968.1761474609375,
+            "y": 1269.6644287109375,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9396926164627075,
+            "w": 0.3420201539993286
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 52,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 897.009033203125,
+            "y": -782.44970703125,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": -0.9997806549072266,
+            "w": 0.020943613722920418
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      },
+      {
+        "entity_index": 53,
+        "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+        "transform": {
+          "translation_cm": {
+            "x": 961.3458251953125,
+            "y": 156.36447143554688,
+            "z": 100
+          },
+          "rotation_quat": {
+            "x": 0,
+            "y": 0,
+            "z": 0.9981350302696228,
+            "w": 0.061044950038194656
+          },
+          "scale3d": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "appearance": {
+          "swatch_descriptor": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "color_slot": 18,
+          "swatch_state": "recorded",
+          "color_slot_state": "recorded"
+        }
+      }
+    ],
+    "poses_truncated": false,
+    "appearance": {
+      "row_count": 54,
+      "swatches": [
+        {
+          "descriptor_class": "/Game/FactoryGame/Buildable/-Shared/Customization/Swatches/SwatchDesc_Concrete.SwatchDesc_Concrete_C",
+          "count": 54
+        }
+      ],
+      "color_slots": [
+        {
+          "slot": 18,
+          "count": 54
+        }
+      ],
+      "swatch_missing_count": 0,
+      "swatch_malformed_count": 0,
+      "color_slot_missing_count": 0,
+      "color_slot_malformed_count": 0,
+      "rows_truncated": false
+    }
+  },
+  "entity_page": null,
+  "parser": {
+    "package": "@etothepii/satisfactory-file-parser",
+    "version": "4.1.2",
+    "mode": "read_only"
+  },
+  "header": {
+    "blueprint_header_version": 2,
+    "factory_save_custom_version": 60,
+    "game_changelist": 513885,
+    "designer_dimensions": {
+      "x": 7,
+      "y": 9,
+      "z": 2
+    },
+    "description": "Exported from a dismantle selection by AI Factory Copilot.",
+    "build_cost": [
+      {
+        "item_class": "/Game/FactoryGame/Resource/Parts/Cement/Desc_Cement.Desc_Cement_C",
+        "item_level_name": "",
+        "item_name": "Cement",
+        "amount": 378
+      }
+    ],
+    "recipe_references": [
+      {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    ]
+  },
+  "decoded": {
+    "object_count": 54,
+    "entity_count": 54,
+    "component_count": 0,
+    "buildable_count": 54,
+    "entities_outside_buildable_naming_convention": 0,
+    "complete_entity_inspection": "Call inspect_blueprint_layout with entity_offset=0, then its entity_page.next_offset and expected_source_fingerprint=source_fingerprint until next_offset is null. This includes nonstandard modded actors omitted from buildables.",
+    "buildable_identification": "SaveEntity class-path basename matches the native Build_*_C convention.",
+    "buildable_identification_caveat": "The standalone blueprint file does not include runtime class hierarchy data, so a modded buildable that breaks this naming convention may not be counted here.",
+    "buildables_with_finite_transform": 54,
+    "objects_with_opaque_trailing_data": 0,
+    "opaque_property_data_note": null
+  },
+  "buildable_classes": [
+    {
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "count": 54
+    }
+  ],
+  "distinct_buildable_classes": 1,
+  "buildable_classes_truncated": 0,
+  "pivot_bounds_cm": {
+    "minimum_cm": {
+      "x": -1350.75634765625,
+      "y": -2523.544677734375,
+      "z": 100
+    },
+    "maximum_cm": {
+      "x": 1968.1761474609375,
+      "y": 3039.943603515625,
+      "z": 958.6414184570312
+    },
+    "span_cm": {
+      "x": 3318.9324951171875,
+      "y": 5563.48828125,
+      "z": 858.6414184570312
+    },
+    "caveat": "These are saved buildable pivot locations, not collision or visual extents."
+  },
+  "buildables": [
+    {
+      "entity_index": 0,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811749",
+      "transform": {
+        "translation_cm": {
+          "x": -1015.6736450195312,
+          "y": -2523.544677734375,
+          "z": 958.6414184570312
+        },
+        "rotation_quat": {
+          "x": 0.2128845453262329,
+          "y": 0.3180043697357178,
+          "z": 0.7677304744720459,
+          "w": 0.5139487981796265
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 1,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811748",
+      "transform": {
+        "translation_cm": {
+          "x": -797.3745727539062,
+          "y": -854.8156127929688,
+          "z": 391.9343566894531
+        },
+        "rotation_quat": {
+          "x": 0.2575502395629883,
+          "y": 0.2830450236797333,
+          "z": 0.6833311319351196,
+          "w": 0.6217812895774841
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 2,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811747",
+      "transform": {
+        "translation_cm": {
+          "x": 1560.5687255859375,
+          "y": 676.59033203125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9681479334831238,
+          "w": 0.2503788471221924
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 3,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811746",
+      "transform": {
+        "translation_cm": {
+          "x": -720.3088989257812,
+          "y": -1476.78369140625,
+          "z": 392.8855895996094
+        },
+        "rotation_quat": {
+          "x": 0.2500532269477844,
+          "y": 0.28968948125839233,
+          "z": 0.6993722319602966,
+          "w": 0.6036819219589233
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 4,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811745",
+      "transform": {
+        "translation_cm": {
+          "x": -3.200664758682251,
+          "y": -1537.136962890625,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9931703805923462,
+          "w": 0.11667312681674957
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 5,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811744",
+      "transform": {
+        "translation_cm": {
+          "x": 688.7474975585938,
+          "y": -2009.28125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.977415144443512,
+          "w": 0.21132831275463104
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 6,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811743",
+      "transform": {
+        "translation_cm": {
+          "x": -492.6722717285156,
+          "y": -2307.976806640625,
+          "z": 392.9560241699219
+        },
+        "rotation_quat": {
+          "x": 0.2128845453262329,
+          "y": 0.3180043697357178,
+          "z": 0.7677304744720459,
+          "w": 0.5139487981796265
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 7,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811742",
+      "transform": {
+        "translation_cm": {
+          "x": -1244.94970703125,
+          "y": -1554.255859375,
+          "z": 923.2156982421875
+        },
+        "rotation_quat": {
+          "x": 0.2500532567501068,
+          "y": 0.28968945145606995,
+          "z": 0.6993722319602966,
+          "w": 0.6036819219589233
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 8,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811741",
+      "transform": {
+        "translation_cm": {
+          "x": 455.6396789550781,
+          "y": -1328.4423828125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9931703805923462,
+          "w": 0.11667312681674957
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 9,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811740",
+      "transform": {
+        "translation_cm": {
+          "x": 411.5061950683594,
+          "y": 1640.76220703125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9681479334831238,
+          "w": 0.2503788471221924
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 10,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811739",
+      "transform": {
+        "translation_cm": {
+          "x": 1381.0123291015625,
+          "y": -1048.624755859375,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9997806549072266,
+          "w": 0.020943613722920418
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 11,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811738",
+      "transform": {
+        "translation_cm": {
+          "x": 356.7265930175781,
+          "y": -615.6331787109375,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9997806549072266,
+          "w": 0.020943613722920418
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 12,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811737",
+      "transform": {
+        "translation_cm": {
+          "x": -63.19732666015625,
+          "y": -105.7414321899414,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9971851110458374,
+          "w": 0.07497873902320862
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 13,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811736",
+      "transform": {
+        "translation_cm": {
+          "x": 969.5741577148438,
+          "y": -1305.3843994140625,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9931703805923462,
+          "w": 0.11667312681674957
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 14,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811735",
+      "transform": {
+        "translation_cm": {
+          "x": 229.9071502685547,
+          "y": -2217.975830078125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.977415144443512,
+          "w": 0.21132831275463104
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 15,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811734",
+      "transform": {
+        "translation_cm": {
+          "x": -633.060791015625,
+          "y": -1966.7506103515625,
+          "z": 392.9148254394531
+        },
+        "rotation_quat": {
+          "x": 0.2295169085264206,
+          "y": 0.3060344159603119,
+          "z": 0.74383145570755,
+          "w": 0.5480690598487854
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 16,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811733",
+      "transform": {
+        "translation_cm": {
+          "x": -102.11371612548828,
+          "y": -824.3277587890625,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9997806549072266,
+          "w": 0.020943613722920418
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 17,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811732",
+      "transform": {
+        "translation_cm": {
+          "x": 1479.9254150390625,
+          "y": -1761.43408203125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9931703805923462,
+          "w": 0.11667312681674957
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 18,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811731",
+      "transform": {
+        "translation_cm": {
+          "x": -1208.5782470703125,
+          "y": -1983.88818359375,
+          "z": 942.5748291015625
+        },
+        "rotation_quat": {
+          "x": 0.2295169085264206,
+          "y": 0.3060344159603119,
+          "z": 0.74383145570755,
+          "w": 0.5480690598487854
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 19,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146811730",
+      "transform": {
+        "translation_cm": {
+          "x": 395.64300537109375,
+          "y": 102.95317840576172,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9971851110458374,
+          "w": 0.07497873902320862
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 20,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796167",
+      "transform": {
+        "translation_cm": {
+          "x": -944.2620239257812,
+          "y": 1613.1600341796875,
+          "z": 923.2156982421875
+        },
+        "rotation_quat": {
+          "x": 0.3191142976284027,
+          "y": 0.21121713519096375,
+          "z": 0.5099232792854309,
+          "w": 0.7704100608825684
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 21,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796166",
+      "transform": {
+        "translation_cm": {
+          "x": 1419.9287109375,
+          "y": -330.03851318359375,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9971851110458374,
+          "w": 0.07497873902320862
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 22,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796165",
+      "transform": {
+        "translation_cm": {
+          "x": 925.5590209960938,
+          "y": -255.27682495117188,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9971851110458374,
+          "w": 0.07497873902320862
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 23,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796164",
+      "transform": {
+        "translation_cm": {
+          "x": -456.0906066894531,
+          "y": 1405.943603515625,
+          "z": 392.8855895996094
+        },
+        "rotation_quat": {
+          "x": 0.3191142976284027,
+          "y": 0.21121715009212494,
+          "z": 0.5099232792854309,
+          "w": 0.7704100608825684
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 24,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796163",
+      "transform": {
+        "translation_cm": {
+          "x": -630.6403198242188,
+          "y": 2299.336181640625,
+          "z": 922.264404296875
+        },
+        "rotation_quat": {
+          "x": 0.3245335817337036,
+          "y": 0.20279189944267273,
+          "z": 0.48958295583724976,
+          "w": 0.7834933996200562
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 25,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796162",
+      "transform": {
+        "translation_cm": {
+          "x": -772.0472412109375,
+          "y": 6.612911224365234,
+          "z": 391.8638916015625
+        },
+        "rotation_quat": {
+          "x": 0.29012545943260193,
+          "y": 0.24954725801944733,
+          "z": 0.6024603843688965,
+          "w": 0.7004247903823853
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 26,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796161",
+      "transform": {
+        "translation_cm": {
+          "x": -1137.0595703125,
+          "y": 1227.4971923828125,
+          "z": 942.5748291015625
+        },
+        "rotation_quat": {
+          "x": 0.3037670850753784,
+          "y": 0.23250943422317505,
+          "z": 0.5677726864814758,
+          "w": 0.7289026975631714
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 27,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796160",
+      "transform": {
+        "translation_cm": {
+          "x": -31.20121192932129,
+          "y": 278.2266845703125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9981350302696228,
+          "w": 0.061044950038194656
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 28,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796159",
+      "transform": {
+        "translation_cm": {
+          "x": 911.881591796875,
+          "y": 1579.8333740234375,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9681479334831238,
+          "w": 0.2503788471221924
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 29,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146796158",
+      "transform": {
+        "translation_cm": {
+          "x": 1140.5877685546875,
+          "y": -1804.8648681640625,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.977415144443512,
+          "w": 0.21132831275463104
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 30,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793280",
+      "transform": {
+        "translation_cm": {
+          "x": -831.8639526367188,
+          "y": -487.4536437988281,
+          "z": 391.89312744140625
+        },
+        "rotation_quat": {
+          "x": 0.2722306251525879,
+          "y": 0.26874813437461853,
+          "z": 0.6546513438224792,
+          "w": 0.6519942879676819
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 31,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793279",
+      "transform": {
+        "translation_cm": {
+          "x": 1585.1580810546875,
+          "y": 1591.0487060546875,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9396926164627075,
+          "w": 0.3420201539993286
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 32,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793278",
+      "transform": {
+        "translation_cm": {
+          "x": -1350.75634765625,
+          "y": -491.39691162109375,
+          "z": 915.2261352539062
+        },
+        "rotation_quat": {
+          "x": 0.2722306251525879,
+          "y": 0.26874813437461853,
+          "z": 0.6546513438224792,
+          "w": 0.6519942879676819
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 33,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793277",
+      "transform": {
+        "translation_cm": {
+          "x": -1296.4144287109375,
+          "y": 85.91593170166016,
+          "z": 910.0619506835938
+        },
+        "rotation_quat": {
+          "x": 0.29012545943260193,
+          "y": 0.24954725801944733,
+          "z": 0.6024603843688965,
+          "w": 0.7004247903823853
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 34,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793276",
+      "transform": {
+        "translation_cm": {
+          "x": -1334.7620849609375,
+          "y": -805.1698608398438,
+          "z": 922.264404296875
+        },
+        "rotation_quat": {
+          "x": 0.2575502395629883,
+          "y": 0.2830450236797333,
+          "z": 0.6833311319351196,
+          "w": 0.6217812895774841
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 35,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793275",
+      "transform": {
+        "translation_cm": {
+          "x": 624.928466796875,
+          "y": 919.8798217773438,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9876887202262878,
+          "w": 0.15643209218978882
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 36,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793274",
+      "transform": {
+        "translation_cm": {
+          "x": 819.1137084960938,
+          "y": 2233.836181640625,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9396926164627075,
+          "w": 0.3420201539993286
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 37,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793273",
+      "transform": {
+        "translation_cm": {
+          "x": -197.81874084472656,
+          "y": 1976.976806640625,
+          "z": 391.9343566894531
+        },
+        "rotation_quat": {
+          "x": 0.3245335817337036,
+          "y": 0.20279189944267273,
+          "z": 0.48958295583724976,
+          "w": 0.7834933996200562
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 38,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793272",
+      "transform": {
+        "translation_cm": {
+          "x": -636.8973999023438,
+          "y": 942.2747802734375,
+          "z": 392.9148254394531
+        },
+        "rotation_quat": {
+          "x": 0.3037670850753784,
+          "y": 0.23250943422317505,
+          "z": 0.5677726864814758,
+          "w": 0.7289026975631714
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 39,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793271",
+      "transform": {
+        "translation_cm": {
+          "x": -1253.572021484375,
+          "y": 666.3677368164062,
+          "z": 958.6414184570312
+        },
+        "rotation_quat": {
+          "x": 0.2909943163394928,
+          "y": 0.24853353202342987,
+          "z": 0.600013017654419,
+          "w": 0.7025224566459656
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 40,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793217",
+      "transform": {
+        "translation_cm": {
+          "x": -133.64442443847656,
+          "y": 3039.943603515625,
+          "z": 910.0619506835938
+        },
+        "rotation_quat": {
+          "x": 0.34682896733283997,
+          "y": 0.16172900795936584,
+          "z": 0.39044836163520813,
+          "w": 0.8373191952705383
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 41,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793211",
+      "transform": {
+        "translation_cm": {
+          "x": 1319.4891357421875,
+          "y": 2172.907470703125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9396926164627075,
+          "w": 0.3420201539993286
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 42,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793210",
+      "transform": {
+        "translation_cm": {
+          "x": 1273.6156005859375,
+          "y": 16.63676643371582,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9876887202262878,
+          "w": 0.15643209218978882
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 43,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793209",
+      "transform": {
+        "translation_cm": {
+          "x": 1075.611083984375,
+          "y": 671.7962036132812,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9876887202262878,
+          "w": 0.15643209218978882
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 44,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146793208",
+      "transform": {
+        "translation_cm": {
+          "x": 1286.1270751953125,
+          "y": 1155.95458984375,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9681479334831238,
+          "w": 0.2503788471221924
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 45,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794951",
+      "transform": {
+        "translation_cm": {
+          "x": 272.61199951171875,
+          "y": 2699.053955078125,
+          "z": 391.8638916015625
+        },
+        "rotation_quat": {
+          "x": 0.34682896733283997,
+          "y": 0.16172900795936584,
+          "z": 0.39044836163520813,
+          "w": 0.8373191952705383
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 46,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794950",
+      "transform": {
+        "translation_cm": {
+          "x": -480.8135681152344,
+          "y": 2575.490478515625,
+          "z": 915.2261352539062
+        },
+        "rotation_quat": {
+          "x": 0.33479753136634827,
+          "y": 0.18505586683750153,
+          "z": 0.45379748940467834,
+          "w": 0.8048184514045715
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 47,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794949",
+      "transform": {
+        "translation_cm": {
+          "x": 469.1741943359375,
+          "y": 217.2978973388672,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9981350302696228,
+          "w": 0.061044950038194656
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 48,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794948",
+      "transform": {
+        "translation_cm": {
+          "x": 124.55303955078125,
+          "y": 980.8086547851562,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9876887202262878,
+          "w": 0.15643209218978882
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 49,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794947",
+      "transform": {
+        "translation_cm": {
+          "x": -694.850830078125,
+          "y": 577.8770751953125,
+          "z": 392.9560241699219
+        },
+        "rotation_quat": {
+          "x": 0.2909943163394928,
+          "y": 0.24853353202342987,
+          "z": 0.600013017654419,
+          "w": 0.7025224566459656
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 50,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794946",
+      "transform": {
+        "translation_cm": {
+          "x": -35.858028411865234,
+          "y": 2308.50830078125,
+          "z": 391.89312744140625
+        },
+        "rotation_quat": {
+          "x": 0.33479753136634827,
+          "y": 0.18505588173866272,
+          "z": 0.45379748940467834,
+          "w": 0.8048184514045715
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 51,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794944",
+      "transform": {
+        "translation_cm": {
+          "x": 1968.1761474609375,
+          "y": 1269.6644287109375,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9396926164627075,
+          "w": 0.3420201539993286
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 52,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794943",
+      "transform": {
+        "translation_cm": {
+          "x": 897.009033203125,
+          "y": -782.44970703125,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": -0.9997806549072266,
+          "w": 0.020943613722920418
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    },
+    {
+      "entity_index": 53,
+      "class_path": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C",
+      "class_name": "Foundation_Concrete_8x2",
+      "instance_name": "Persistent_Level:PersistentLevel.Build_Foundation_Concrete_8x2_C_2146794942",
+      "transform": {
+        "translation_cm": {
+          "x": 961.3458251953125,
+          "y": 156.36447143554688,
+          "z": 100
+        },
+        "rotation_quat": {
+          "x": 0,
+          "y": 0,
+          "z": 0.9981350302696228,
+          "w": 0.061044950038194656
+        },
+        "scale3d": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "built_with_recipe": {
+        "recipe_class": "/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Recipe_Foundation_Concrete_8x2.Recipe_Foundation_Concrete_8x2_C",
+        "recipe_level_name": "",
+        "recipe_name": "Foundation_Concrete_8x2"
+      }
+    }
+  ],
+  "buildables_returned": 54,
+  "buildables_truncated": 0,
+  "transform_coverage_caveat": "Only native Build_* entities with finite saved transforms are listed. The blueprint file does not prove terrain clearance, hologram validity, or external connections at a destination.",
+  "connection_topology": {
+    "status": "decoded",
+    "scope": "reciprocal_conveyor_and_pipe_component_references",
+    "connection_component_count": 0,
+    "m_connected_component_record_count": 0,
+    "supported_connection_reference_record_count": 0,
+    "unsupported_connection_component_record_count": 0,
+    "reciprocal_connection_reference_count": 0,
+    "reciprocal_connection_pair_count": 0,
+    "reciprocal_connection_pairs_by_kind": {
+      "conveyor": 0,
+      "pipe": 0,
+      "mixed": 0
+    },
+    "endpoint_owner_resolution": {
+      "both": 0,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_component_reference_count": 0,
+    "unresolved_component_reference_count": 0,
+    "ambiguous_component_reference_count": 0,
+    "nonreciprocal_component_reference_count": 0,
+    "unsupported_target_component_reference_count": 0,
+    "self_component_reference_count": 0,
+    "connections": [],
+    "connections_returned": 0,
+    "connections_truncated": 0,
+    "power_wire_property_records_not_interpreted": 0,
+    "flow_direction": "not_inferred_from_component_references",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact reciprocal mConnectedComponent links on native conveyor/pipe connection components are decoded. This does not prove item/fluid flow direction, rate, power wiring, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_blueprint_component_references",
+    "certainty": "authoritative_for_decoded_reciprocal_component_links"
+  },
+  "power_wire_topology": {
+    "status": "decoded",
+    "scope": "native_power_wire_edges_inverted_from_exact_m_wires_membership",
+    "native_power_connection_component_count": 0,
+    "m_wires_property_record_count": 0,
+    "supported_m_wires_property_record_count": 0,
+    "unsupported_m_wires_property_record_count": 0,
+    "power_wire_entity_count": 0,
+    "referenced_power_wire_entity_count": 0,
+    "saved_power_wire_reference_count": 0,
+    "verified_power_wire_count": 0,
+    "endpoint_owner_resolution": {
+      "both": 0,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_power_wire_entity_record_count": 0,
+    "malformed_power_connection_component_record_count": 0,
+    "ambiguous_power_connection_component_record_count": 0,
+    "malformed_m_wires_property_count": 0,
+    "malformed_m_wires_reference_count": 0,
+    "duplicate_m_wires_reference_count": 0,
+    "unresolved_power_wire_reference_count": 0,
+    "ambiguous_power_wire_reference_count": 0,
+    "unsupported_power_wire_target_count": 0,
+    "duplicate_power_wire_entity_name_count": 0,
+    "duplicate_power_wire_endpoint_reference_count": 0,
+    "incomplete_power_wire_endpoint_count": 0,
+    "overconnected_power_wire_endpoint_count": 0,
+    "unreferenced_power_wire_entity_count": 0,
+    "unresolved_power_wire_endpoint_owner_count": 0,
+    "power_wires": [],
+    "power_wires_returned": 0,
+    "power_wires_truncated": 0,
+    "electricity_direction": "not_inferred_from_saved_power_wire_edges",
+    "voltage_load_and_capacity": "not_inferred_from_saved_power_wire_edges",
+    "hidden_circuit_connections": "not_counted_as_physical_power_wires",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact mWires membership on native FGPowerConnectionComponent records is inverted into physical native power-wire edges. This does not prove electricity direction, voltage, load, capacity, live circuit state, wire length, terrain clearance, Build Gun validity, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_blueprint_power_connection_m_wires",
+    "certainty": "authoritative_for_verified_native_power_wire_edges"
+  },
+  "rail_topology": {
+    "status": "decoded",
+    "scope": "saved_native_railroad_track_spline_records",
+    "native_rail_track_entity_count": 0,
+    "rail_track_records_returned": 0,
+    "rail_track_records_truncated": 0,
+    "rail_tracks": [],
+    "total_spline_point_count": 0,
+    "returned_spline_point_count": 0,
+    "spline_points_truncated": 0,
+    "track_graph_ids": [],
+    "finite_transform_count": 0,
+    "malformed_rail_track_entity_record_count": 0,
+    "missing_track_graph_id_count": 0,
+    "malformed_track_graph_id_count": 0,
+    "missing_spline_data_count": 0,
+    "malformed_spline_data_count": 0,
+    "malformed_spline_point_count": 0,
+    "rail_connectivity": "not_proven_from_saved_spline_points_or_m_track_graph_id",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "terrain_clearance_and_destination_fit": "not_proven_by_the_saved_blueprint",
+    "caveat": "Track transforms and mSplineData points/tangents are exact saved native observations. Chord length is the straight-line lower bound between saved points, not the curved spline length. mTrackGraphID is retained metadata; it does not prove cross-segment joins after placement, terrain excavation, collision clearance, signals, power, or external rail hookups.",
+    "source": "decoded_from_saved_native_railroad_track_m_spline_data",
+    "certainty": "authoritative_for_saved_native_rail_spline_records"
+  },
+  "hypertube_topology": {
+    "status": "decoded",
+    "scope": "reciprocal_native_hypertube_component_references_and_saved_pipe_hyper_splines",
+    "native_hypertube_connection_component_count": 0,
+    "m_connected_component_record_count": 0,
+    "supported_connection_reference_record_count": 0,
+    "unsupported_linked_component_record_count": 0,
+    "reciprocal_connection_reference_count": 0,
+    "reciprocal_connection_pair_count": 0,
+    "endpoint_owner_resolution": {
+      "both": 0,
+      "one": 0,
+      "neither": 0
+    },
+    "malformed_component_reference_count": 0,
+    "unresolved_component_reference_count": 0,
+    "ambiguous_component_reference_count": 0,
+    "nonreciprocal_component_reference_count": 0,
+    "unsupported_target_component_reference_count": 0,
+    "self_component_reference_count": 0,
+    "connections": [],
+    "connections_returned": 0,
+    "connections_truncated": 0,
+    "native_hypertube_entity_count": 0,
+    "hypertube_buildable_classes": [],
+    "hypertube_pipe_entity_count": 0,
+    "pipe_records_returned": 0,
+    "pipe_records_truncated": 0,
+    "pipe_hyper_records": [],
+    "total_spline_point_count": 0,
+    "returned_spline_point_count": 0,
+    "spline_points_truncated": 0,
+    "missing_spline_data_count": 0,
+    "malformed_spline_data_count": 0,
+    "malformed_spline_point_count": 0,
+    "finite_pipe_transform_count": 0,
+    "missing_passthrough_property_count": 0,
+    "malformed_passthrough_property_count": 0,
+    "blank_passthrough_reference_count": 0,
+    "malformed_passthrough_reference_count": 0,
+    "traversal_direction": "not_inferred_from_component_references_or_spline_order",
+    "speed_and_throughput": "not_inferred_from_saved_hypertube_records",
+    "cross_blueprint_joins": "not_proven_from_saved_component_references",
+    "external_connections": "not_proven_by_the_saved_blueprint",
+    "terrain_clearance_and_destination_fit": "not_proven_by_the_saved_blueprint",
+    "caveat": "Only exact reciprocal mConnectedComponent links on native FGPipeConnectionComponentHyper records and exact Build_PipeHyper mSplineData are decoded. This does not prove travel direction, speed, throughput, junction behavior, underground excavation, collision clearance, Build Gun validity, cross-blueprint joins, or hookups outside the Blueprint.",
+    "source": "decoded_from_saved_native_hypertube_component_and_pipe_hyper_records",
+    "certainty": "authoritative_for_verified_native_hypertube_records"
+  },
+  "source": "decoded_from_saved_native_blueprint",
+  "certainty": "authoritative_for_decoded_entities"
+}
