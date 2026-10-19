@@ -57,17 +57,21 @@ Proof files: [history/tunnel-milestone/](history/tunnel-milestone/README.md).
 | Undo of a placed blueprint actually removes its pieces | **Yes.** 72 removed, a fresh capture contained 0 |
 | Curve refined (v2 had visible joint ridges, v3 "Fine Turn" fixed them within the piece budget) | **Partly.** All 270 v3 poses verified. `visualJointsVerified` is still **false**: nobody has formally inspected the joints. The owner's screenshots look clean |
 | `AI Tunnel Work Area Preserved.sbp`: whole area re-saved (528 members) | **Yes.** 330/330 wanted members (60 original + 270 generated) at exact class and position (max error 0.00014 cm). It also caught 198 nearby test pieces |
-| Lighting add-on: 6 ceiling lights + 28 emissive beams along measured rows, separately undoable | **No.** The first two native saves refused safely (missing instance bounds, then real lamp overlap). Both are fixed in commit `46534bf` (v8 fitted fixtures, 1352 tests), but that build is **not deployed to the game yet** |
+| `AI Walled Sweep 90.sbp`: gradual64m-radius turn with straight connection sections | **Owner approved.** All504 placed class/position/rotation poses match the actual archive. The attempted v7 fitted-size readback failed because the archive retained unit scales; the owner likes that actual unit-scale shell. Preserve it. Physical attachment to the straight is not yet verified. |
+| Lighting and industrial pedestrian-tunnel decoration | **In progress.** Native5454D8EF and companion aa6aa24 are deployed. Live checks found a missed outer v8 dispatch gate and lost scaled poses. A reviewed native repair is built, not yet installed. Exact prop calibration comes before decoration. No railway; preserve a clear walking route and future beltway space. |
 
 Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\Bp Builder\`.
 
 ## What to do next, in order
 
-1. **Deploy the fitted-fixtures build (`46534bf`)** with a fresh save backup and
-   source/hash checks (see AGENTS.md release rule). The game currently runs the
-   instance-bounds build (`18e7022`).
-2. **Save and load the lighting add-on**: exact 66 fixture poses and scales read
-   back, then place it onto the curve and look: reveals, spacing, ceiling coverage.
+1. **Install and test the reviewed native stage repair** with a fresh save backup
+   and peer/source checks. Reapply validated scaled poses after construction,
+   report before/staged/requested scale and retain exact saved-geometry checks.
+   Do not overwrite the approved504-piece unit-scale shell.
+2. **Test the lights and real Factory Props palette**. The bridge's old
+   BP_BuildGun-only producer filter excluded815 unlocked props using native
+   `/Script/FactoryGame.FGBuildGun`; its regression test and fix pass. Seven
+   calibration props need native save/place/bounds readback before decoration.
 3. **Verify the lights get power** in the game (the original source lamps
    captured no power).
 4. **Save a clean finished tunnel** without the 198 nearby prototype pieces.

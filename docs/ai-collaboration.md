@@ -10440,3 +10440,38 @@ is an ancestor. Companion1362 pass; combined hub188 pass/2 skip. Shipping152
 inputs compile from the consolidated isolated checkout. Owner's shared active
 milestone explicitly names gradual90 sweep joined to walled tunnel; only owner
 marks it complete. Runtime deployment/save/attachment/visual verification pending.
+
+Owner confirmed walkway walled off and approved AI Walled Sweep90 as an amazing
+milestone. Archive fingerprint f230966989591300379eac9a46c6086927bf7bcd25acf54919217fa1b6763ff4
+contains504 unit-scale pieces, despite the v7 requested shortening. Native exact
+readback correctly failed that planned-scale contract; do not erase this failure.
+The owner manually placed the actual saved shell: all504 class/XYZ/rotation poses
+match under yaw30.4500011079deg and archive translation
+(360839.24156588694,-118701.91369111228,-22127.75390625). Actual archive and unit
+scales are backed up in hub/state/live-architect/tunnel-milestone/liked-sweep-baseline.
+Preserve that liked geometry; world scale and physical straight attachment are
+not independently certified by this pose fitter.
+
+New owner direction: match pipes/lights, industrial sci-fi depth using Factory
+Props/foliage/decor. The supplied reference images are inspiration, not exact
+copies. Pedestrian tunnel, NO railway; clear central route for future beltways.
+Local model produced an attributed palette proposal; root retained useful fan/
+console/greenery ideas and discarded its incorrect pipe-as-light role.
+
+Live native v8 was refused by an omitted outer dispatch allowlist (root bug).
+Repair adds v8 to that same512cap, reapplies only validated scaled v7/v8 actor
+poses after construction, verifies retained transform and reports construction,
+staged and requested scales. Exact native archive reload remains mandatory.
+FActorSaveHeader stores full actor transforms; exact SDK AActor setter verified.
+Repair is compiled/reviewed, not yet live verified. No claim scale support works.
+
+Actual816 unlocked FactoryProps recipes use the native FGBuildGun producer; only
+5 passed the old BP-only filter. Exact native producer now accepted alongside
+legacy BP producers, while manufacturer producers remain refused. New palette
+route saves seven exact unlocked named props through native v1, preserves names
+and states it has not placed or measured anything. Both changes independently
+reviewed by configured local model. Companion1365tests pass; current hub suite
+197pass/2skip after latest backup-budget changes. Latest Claude41b5b19, backup
+shift0a28cf4 and local-shift23f4b2f worktrees reviewed clean; no native/bridge
+overlap. Merged all latest master changes in3324908. Codex-14540 is sole native/bridge operator; source isolated, native
+claim codex-scaled-stage-repair-20261018. No Ghidra or paid gameplay inference.

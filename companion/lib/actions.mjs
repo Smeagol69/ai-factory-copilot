@@ -830,7 +830,7 @@ export function validateAction(graph, proposal) {
           recipe_class: buildRecipe.class_path ?? requestedBuildRecipe,
         });
       }
-      if (!(buildRecipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun"))) {
+      if (!(buildRecipe.produced_in ?? []).some((producer) => producer === "/Script/FactoryGame.FGBuildGun" || String(producer).includes("BP_BuildGun"))) {
         return reject(kind, "generated_recipe_is_not_a_build_gun_recipe", {
           part: index + 1,
           part_id: partId,
@@ -1193,7 +1193,7 @@ export function validateAction(graph, proposal) {
             recipe_class: buildRecipe.class_path ?? requestedRecipe,
           });
         }
-        if (!(buildRecipe.produced_in ?? []).some((producer) => String(producer).includes("BP_BuildGun"))) {
+        if (!(buildRecipe.produced_in ?? []).some((producer) => producer === "/Script/FactoryGame.FGBuildGun" || String(producer).includes("BP_BuildGun"))) {
           return reject(kind, "generated_topology_recipe_is_not_a_build_gun_recipe", {
             topology: topologyKind,
             link: index + 1,

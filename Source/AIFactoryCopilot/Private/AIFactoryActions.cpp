@@ -4454,7 +4454,8 @@ namespace
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v4") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v5") &&
                  LayoutSchema != TEXT("aifactory.generated-blueprint/v6") &&
-                 LayoutSchema != TEXT("aifactory.generated-blueprint/v7")))
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v7") &&
+                 LayoutSchema != TEXT("aifactory.generated-blueprint/v8")))
             {
                 return FAIFactoryActionResult::Refuse(
                     Kind,
@@ -4472,7 +4473,8 @@ namespace
 
             TArray<FAIFactoryGeneratedBlueprintPart> Parts;
             if ((LayoutSchema == TEXT("aifactory.generated-blueprint/v6") ||
-                 LayoutSchema == TEXT("aifactory.generated-blueprint/v7")) && Values->Num() > 512)
+                 LayoutSchema == TEXT("aifactory.generated-blueprint/v7") ||
+                 LayoutSchema == TEXT("aifactory.generated-blueprint/v8")) && Values->Num() > 512)
             {
                 return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
             }

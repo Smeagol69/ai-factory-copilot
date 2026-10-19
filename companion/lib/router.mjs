@@ -48,6 +48,7 @@ import { resolveCurrentSessionBlueprint } from "./blueprint-session.mjs";
 import { validatePlan } from "./actions.mjs";
 import { compileLevelTunnel } from "./level-tunnel.mjs";
 import { compileTunnelLighting } from "./tunnel-lighting.mjs";
+import { compileTunnelDecorPalette } from "./tunnel-decor.mjs";
 import {
   baseBuildActions,
   enclosedFactoryActions,
@@ -3166,6 +3167,15 @@ export function explainRoutingMiss(question) {
 export const LOCAL_COMMAND_CAPABILITIES = Object.freeze(["saved_base_transfer"]);
 
 export function answerLocally(question, graph, services) {
+  const decorPalette=String(question??'').trim().match(/^save tunnel decor palette as "([^"\r\n]{1,240})"[.!]?$/i);
+  if(decorPalette){
+    const started=Date.now(),name=decorPalette[1];
+    if((services?.listBlueprints?.()??[]).some(b=>String(b.name).trim().toLocaleLowerCase()===name.trim().toLocaleLowerCase()))return localAnswer('That blueprint already exists; use a new name to preserve it.','tunnel_decor_palette',started,'Existing file preserved.');
+    const compiled=compileTunnelDecorPalette(graph,{blueprint_name:name});
+    if(!compiled.compiled)return localAnswer(`The decor palette stayed unsaved: ${compiled.reason}${compiled.asset?' ('+compiled.asset+')':''}.`,'tunnel_decor_palette',started,'Missing or ambiguous unlocked native asset; no action emitted.');
+    const plan=emitValidatedPlan(graph,services,[compiled.proposal]);
+    return localAnswer(plan?`Requested **${name}** with ${compiled.assets.length} exact Factory Props for native save/readback. These are not yet placed or measured in the tunnel.`:describePlanRejection()??'No action sink is available.','tunnel_decor_palette',started,'Calibration props only; actual dimensions and pivots remain unverified.');
+  }
   const blueprintXYZ = String(question ?? "").trim().match(/^place blueprint "([^"\r\n]{1,240})" at x=(-?\d+(?:\.\d+)?) y=(-?\d+(?:\.\d+)?) z=(-?\d+(?:\.\d+)?) yaw=(-?\d+(?:\.\d+)?)$/i);
   if (blueprintXYZ) {
     const started = Date.now(), library = typeof services?.listBlueprints === "function" ? services.listBlueprints() : [];

@@ -641,6 +641,7 @@ namespace
         AFGBuildable* Buildable = nullptr;
         FBox CollisionBounds = FBox(ForceInit);
         FString BoundsSource;
+        FVector ConstructionScale = FVector::OneVector;
     };
 
     bool ResolveGeneratedTopologyRecipe(
@@ -1184,6 +1185,21 @@ namespace
                     return false;
                 }
 
+                // Blueprint construction can replace a root component and
+                // restore its template scale. Reapply only explicitly scaled,
+                // already validated v7/v8 poses after construction, then prove
+                // the live actor retained the complete requested transform.
+                const FVector ConstructionScale = Buildable->GetActorScale3D();
+                if (!WorldTransform.GetScale3D().Equals(FVector::OneVector, 0.0001))
+                {
+                    Buildable->SetActorTransform(WorldTransform);
+                    if (!Buildable->GetActorTransform().Equals(WorldTransform, 0.0001))
+                    {
+                        Failure = TEXT("generated_scaled_pose_not_retained_after_construction:") + Part.Source.PartId;
+                        return false;
+                    }
+                }
+
                 if (Part.Source.Role == TEXT("resource_anchor"))
                 {
                     AAIFactoryBlueprintResourceAnchor* Anchor =
@@ -1338,6 +1354,7 @@ namespace
                 FStagedGeneratedPart& Staged = StagedParts.AddDefaulted_GetRef();
                 Staged.Resolved = Part;
                 Staged.Buildable = Buildable;
+                Staged.ConstructionScale = ConstructionScale;
                 if (!ResolveGeneratedNativeBounds(
                         Buildable,
                         Staged.CollisionBounds,
@@ -3266,7 +3283,7 @@ FAIFactoryActionResult GenerateLayout(
     Predicted->SetObjectField(TEXT("native_bounds_sources"), BoundsSources);
     // Bounded measured evidence survives a refused preflight, so subsequent
     // fixture fitting can use real native geometry instead of guessed sizes.
-    if (bSchemaV8)
+    if (bSchemaV8 || bSchemaV7)
     {
         TArray<TSharedPtr<FJsonValue>> PartBounds;
         const auto VectorJson = [](const FVector& V)
@@ -3283,6 +3300,9 @@ FAIFactoryActionResult GenerateLayout(
             J->SetStringField(TEXT("source"), Part.BoundsSource);
             J->SetObjectField(TEXT("minimum_cm"), VectorJson(Part.CollisionBounds.Min));
             J->SetObjectField(TEXT("maximum_cm"), VectorJson(Part.CollisionBounds.Max));
+            J->SetObjectField(TEXT("construction_scale3d"), VectorJson(Part.ConstructionScale));
+            J->SetObjectField(TEXT("staged_scale3d"), VectorJson(Part.Buildable->GetActorScale3D()));
+            J->SetObjectField(TEXT("requested_scale3d"), VectorJson(Part.Resolved.Source.RelativeTransform.GetScale3D()));
             PartBounds.Add(MakeShared<FJsonValueObject>(J));
         }
         Predicted->SetArrayField(TEXT("native_part_bounds"), PartBounds);

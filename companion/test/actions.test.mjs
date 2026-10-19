@@ -24,6 +24,16 @@ const graphOf = (blueprintNames = ["Copper Module"]) => {
 };
 const HERE = { x: 1000, y: 2000, z: 300 };
 
+test('native FGBuildGun recipes used by Factory Props are valid generated build recipes',()=>{
+ const graph=graphOf(),recipe=[...graph.recipesByClass.values()].find(r=>(r.produced_in??[]).some(v=>String(v).includes('BP_BuildGun')));
+ assert.ok(recipe);
+ const proposal={action:'generate_native_blueprint',blueprint_name:'Native producer prop',layout_schema:'aifactory.generated-blueprint/v1',buildables:[{part_id:'prop',role:'standalone',recipe_class:recipe.class_path,relative_location:HERE,yaw:0}],commit:true};
+ recipe.produced_in=['/Script/FactoryGame.FGBuildGun'];
+ assert.equal(validateAction(graph,proposal).valid,true);
+ recipe.produced_in=['/Script/FactoryGame.FGBuildableManufacturer'];
+ assert.equal(validateAction(graph,proposal).valid,false);
+});
+
 /* ---------------- validation refuses before the game is asked ---------------- */
 
 test("refuses an action the mod cannot execute", () => {
