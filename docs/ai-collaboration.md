@@ -10431,3 +10431,12 @@ Extend repeated-profile measurement to complete multi-bay straight references,
 not guessed cross-sections, and provide measured straight collars for easy joins.
 Native archive/readback, actual attachment, visual joints and real light power
 remain separate acceptance checks. No Ghidra, schedules or paid API fallback.
+
+Predeployment combined checkpoint: merged Claude9dab6fd (Team room) with
+Codex5e0ba4f (sweeping tunnel) as e75bf9c; deployment owner codex-14540.
+Read latest Claude commit, current handoff, clean main worktree and full prior
+uncommitted spec; no overlapping native/companion changes. Remote master3997694
+is an ancestor. Companion1362 pass; combined hub188 pass/2 skip. Shipping152
+inputs compile from the consolidated isolated checkout. Owner's shared active
+milestone explicitly names gradual90 sweep joined to walled tunnel; only owner
+marks it complete. Runtime deployment/save/attachment/visual verification pending.
