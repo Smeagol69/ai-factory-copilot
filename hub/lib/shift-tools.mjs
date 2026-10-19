@@ -17,10 +17,12 @@ const TEST = /^(companion|hub)\/test\/[\w.-]+\.test\.mjs$/;
 // The local model has an 8K context. Bigger results make Ollama drop the
 // original request from the conversation and the step fails, so keep them small.
 const READ_CHARS = 3500;
+const MAX_CALLS = 5;
 const fail = message => { throw new Error(message); };
 
-export function createShiftTools({ worktree, node = process.execPath, onEvent = () => {} }) {
+export function createShiftTools({ worktree, node = process.execPath, onEvent = () => {}, focus = '' }) {
   const root = realpathSync(worktree);
+  let calls = 0;
   const literal = path => {
     if (typeof path !== 'string' || !path || path.length > 300 || /[\\:\x00-\x1f*?"<>|]/.test(path) ||
         path.split('/').some(p => !p || p === '.' || p === '..')) fail('Use a literal repo path with forward slashes, like companion/lib/level-tunnel.mjs');
@@ -44,7 +46,8 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
     shift_read_file({ path, start = 1, end = 60 }) {
       const file = literal(path);
       if (!TEXT.test(path)) fail('Only text source files can be read');
-      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end - start >= 80) fail('Read 1..80 numbered lines at once');
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) fail('Give whole line numbers with start ≥ 1 and end ≥ start');
+      end = Math.min(end, start + 79); // too wide a range is clipped, not refused: no wasted tool call
       if (!existsSync(file)) return { path, exists: false, sha256: null };
       const data = readFileSync(file);
       if (data.length > 524288) fail('File exceeds the read limit');
@@ -100,6 +103,12 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
     async dispatch(name, args) {
       const handler = handlers[name];
       if (!handler) throw new Error('Unknown shift tool');
+      // The runner stops hard after 8 calls with no answer at all. Refusing from
+      // the 6th leaves room for the model to write its summary instead.
+      if (++calls > MAX_CALLS) {
+        onEvent({ kind: 'result', text: 'Tool budget used up; asked to finish', error: true });
+        return { error: 'Your tool budget for this step is used up. Do not call any more tools. Answer now with the two lines CHANGED: and REVIEW:.' };
+      }
       onEvent({ kind: 'tool', text: `${name}: ${args?.path ?? ''}`.trim() });
       try {
         const result = await handler(args ?? {});
@@ -111,9 +120,17 @@ export function createShiftTools({ worktree, node = process.execPath, onEvent = 
       }
     },
     async context() {
-      const git = async args => (await exec('git', args, { cwd: root, windowsHide: true, timeout: 10000 })).stdout.trim();
-      const [branch, log] = await Promise.all([git(['branch', '--show-current']), git(['log', '-5', '--format=%h %s'])]);
-      return `Shift workspace: the repo on branch ${branch}. Recent commits:\n${log}\nTop level: ${handlers.shift_list_files({}).entries.join(' ')}`;
+      const git = async args => (await exec('git', args, { cwd: root, windowsHide: true, timeout: 10000, maxBuffer: 8 * 1024 * 1024 })).stdout.trim();
+      const [branch, log, files] = await Promise.all([git(['branch', '--show-current']), git(['log', '-5', '--format=%h %s']), git(['ls-files', 'companion/lib', 'companion/test', 'docs'])]);
+      // Hand the small model the files that match the milestone so it doesn't
+      // spend its few tool calls listing folders.
+      const words = String(focus ?? '').toLowerCase().match(/[a-z]{4,}/g)?.filter(w => !['with', 'that', 'into', 'from', 'joined', 'gradual'].includes(w)) ?? [];
+      const related = files.split('\n').filter(f => TEXT.test(f) && words.some(w => f.toLowerCase().includes(w))).slice(0, 10).map(f => {
+        try { return `${f} (${readFileSync(join(root, f), 'utf8').split('\n').length} lines)`; } catch { return f; }
+      });
+      return [`Shift workspace: the repo on branch ${branch}. Recent commits:\n${log}`,
+        related.length ? `Files that match the milestone:\n${related.join('\n')}` : `Top level: ${handlers.shift_list_files({}).entries.join(' ')}`,
+        'You have 5 tool calls in this step. Plan: read at most 2 files (only the lines you need), make ONE edit, run ONE test, then answer.'].join('\n\n');
     },
     async close() {},
   };

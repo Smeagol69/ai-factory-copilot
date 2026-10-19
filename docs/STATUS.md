@@ -77,9 +77,14 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
    session log (Codex rollouts, Claude Code transcripts, the hub's local chats), with
    working / idle / out-of-usage status and reset times, plus the owner's milestone strip.
    Milestones are published to shared memory (`pair_recall`, key `milestones`). The old
-   page is at `/workshop`. **Phase 2, not built yet:** the backup shift, where HauhauCS
-   takes the next step on its own branch when every subscription model is out of usage,
-   and the others review it. Design: [superpowers/specs/2026-10-18-team-room-design.md](superpowers/specs/2026-10-18-team-room-design.md).
+   page is at `/workshop`. **Phase 2, the backup shift, is built and on:** when Codex and
+   Claude are both out of usage and a milestone is active, HauhauCS takes one small step at a
+   time in `hub/workspaces/local-shift` (branch `local/shift`, 5 tool calls, no game, no push),
+   commits it and posts "Review requested" to Agent Pair. Its steps show as "needs review"
+   in its column until a reviewer merges them into `master`. Verified live 2026-10-18: the
+   loop works end to end; the 9B model mostly reads and reports, so expect small steps.
+   Claude's usage percentage is not in its logs; the Team room only sees when it hits the limit.
+   Design: [superpowers/specs/2026-10-18-team-room-design.md](superpowers/specs/2026-10-18-team-room-design.md).
 7. **Creative Architect research** (project 3): look for design-focused models or
    MCP tools that make the Architect better at layouts; add only what earns its place.
 

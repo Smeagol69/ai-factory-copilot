@@ -67,7 +67,7 @@ export function createBackupShift({ root, repo, runnerFor, readColumns, readMile
     event({ kind: 'turn', text: `Backup shift started on: ${milestone.title}` });
     try {
       await ensureWorktree();
-      const run = runnerFor({ worktree, onEvent: event });
+      const run = runnerFor({ worktree, onEvent: event, milestone });
       event({ kind: 'prompt', text: `One step toward "${milestone.title}"` });
       const result = await run({ messages: [{ role: 'user', content: stepPrompt(milestone, state.steps.filter(s => s.commit).slice(-3)) }], signal: controller.signal, conversationId: `shift-${id.slice(0, 8)}` });
       const summary = parseSummary(result.content);

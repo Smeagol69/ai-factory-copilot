@@ -22,6 +22,12 @@ never in another model's checkout.
 Only the owner marks a milestone complete; say what you verified and what is
 still unverified in your handoff instead. The Team room shows every model's
 live work from its own session log, so keep your steps visible and honest.
+
+**Reviewing the backup shift.** A message "Review requested: local/shift <sha>" comes from
+HauhauCS (local) working alone while you were out of usage. Check that commit on branch
+`local/shift` (worktree `hub/workspaces/local-shift`) like any peer change: read the diff,
+run its tests, then merge it into `master` or leave it out and say why in a reply. Never
+assume it ran in the game; it has no game access.
 Before changing the Satisfactory mod or
 companion, read its current `AGENTS.md` and `docs/ai-collaboration.md`, fetch
 master, claim the actual game files there, and work in a separate checkout.
