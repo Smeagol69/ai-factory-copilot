@@ -27,12 +27,13 @@ the game exists: bases, factories, tunnels.**
 
 ## The one line
 
-- Everything is on **`master`** (consolidated on branch `consolidate`). Every
+- Everything is on **`master`**, on GitHub too (pushed 2026-10-18). Branch from
+  `master` in your own worktree; old branches are gone. Every
   earlier branch is either in master's history, an identical rebase of commits
   that are, or recorded as superseded in [HISTORY.md](HISTORY.md#consolidation-2026-10-18).
   Each old branch tip is kept as a tag `archive/<branch>` (`archive/local/<branch>`
-  where the local copy differed), so every hash quoted in the ledger and in
-  `docs/ai-collaboration.md` still resolves.
+  where the local copy differed), on GitHub as well, so every hash quoted in the
+  ledger and in `docs/ai-collaboration.md` still resolves.
 - Tests, no game needed:
   - `cd companion; npm install; npm test`: **1359 pass, 0 fail**
   - `cd hub; runtime\node\node.exe --test --test-isolation=none test/*.test.mjs`:
@@ -84,8 +85,6 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
 
 ## Owner decisions pending
 
-- Push `consolidate` → `master` and the `archive/*` tags to GitHub, then delete the
-  merged remote branches (not done; waiting for the owner's yes).
 - The 13 GB Wwise download cache at `hub/state/local-game-re/wwise-cache`: keep or
   delete (it can be downloaded again).
 
