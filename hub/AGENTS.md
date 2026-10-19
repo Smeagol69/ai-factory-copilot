@@ -11,10 +11,17 @@ in this project's memory. Claims are advisory; never replace another owner's
 claim just because its lease expired. Preserve all working features.
 
 The reviewed runtime is bundled under runtime/agent-pair, with an exact commit
-pin; preserve its clean tracked source. Its original repository and the game
-mod installation remain external; the active game checkout is now inside
-workspaces/architect/integration with its separate game-project claim.
-Do not edit its files under this lab's setup claim.
+pin; preserve its clean tracked source. Since 2026-10-18 the hub lives inside
+the game repo as `hub/` (repo root `..`, start at `../docs/STATUS.md`). Work in
+your own git worktree (for example under `hub/workspaces/`) on an author branch,
+never in another model's checkout.
+
+**Milestones.** The owner sets the team's milestones in the Team room
+(http://127.0.0.1:8795/). Read them with `pair_recall` (project
+`satisfactory-mcp-lab`, key `milestones`). Work toward the one marked ACTIVE.
+Only the owner marks a milestone complete; say what you verified and what is
+still unverified in your handoff instead. The Team room shows every model's
+live work from its own session log, so keep your steps visible and honest.
 Before changing the Satisfactory mod or
 companion, read its current `AGENTS.md` and `docs/ai-collaboration.md`, fetch
 master, claim the actual game files there, and work in a separate checkout.
