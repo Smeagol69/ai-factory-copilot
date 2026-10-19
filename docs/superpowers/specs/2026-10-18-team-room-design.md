@@ -127,3 +127,30 @@ script.
 
 Exact visual styling (matching the existing hub theme), event summarising rules,
 the polling cadence (around 2 s), and the review-request message wording.
+
+## Phase 2: the backup shift (decisions, 2026-10-18)
+
+- **When:** the shift is on (owner toggle in the local column, off by default),
+  a milestone is ACTIVE, and every subscription column (Codex, Claude) shows
+  "out of usage" (from its own log, or the owner's manual mark). Checked every
+  60 s; at most one step at a time, a 15-minute pause between steps and 8
+  steps per outage, so a stuck model can't loop all night.
+- **Where:** a persistent git worktree `hub/workspaces/local-shift` on branch
+  `local/shift`, cut from `master` the first time. The local model can only:
+  read text files in the worktree; make one exact replacement (or create a new
+  file) under `companion/`, `hub/`, `docs/`, `scripts/` or `Source/` with text
+  extensions; run `node --test` on one test file under `companion/test` or
+  `hub/test`. No game access, no network, no push, no other branch.
+- **One step:** the model gets the active milestone, its notes, the last steps'
+  summaries and the worktree's recent commits, and is asked for ONE small,
+  verifiable step that needs no game (a focused test, a small fix, a write-up of
+  a finding), ending with what changed and what a reviewer should check. The
+  existing local runner's limits apply (10 requests, 8 tool calls, 4 minutes).
+- **After a step:** if files changed, the engine commits them on `local/shift`
+  as "HauhauCS (local)" and posts an Agent Pair message "Review requested:
+  local/shift <sha>" with the summary. A step is "merged" once its commit is in
+  `master`; until then it shows as **needs review** in the Team room. Reviewers
+  merge or discard it; the shift never merges itself.
+- **Seen live:** every model request, tool call and result goes to
+  `state/team/local-events.jsonl` and streams into the local model's column.
+  **Stop** aborts the running step and turns the shift off.

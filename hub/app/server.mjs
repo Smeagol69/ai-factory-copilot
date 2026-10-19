@@ -18,6 +18,8 @@ import { createReInvestigation } from '../lib/re-investigation.mjs';
 import { createReGameAdapter } from '../lib/re-game-adapter.mjs';
 import { runReModels } from '../lib/re-models.mjs';
 import { createTeamRoom, attachTeamRoom } from '../lib/team-http.mjs';
+import { createBackupShift } from '../lib/backup-shift.mjs';
+import { createShiftTools } from '../lib/shift-tools.mjs';
 
 const context = await runtimeContext();
 const localModel = createLocalModelService({root:context.root});
@@ -84,8 +86,20 @@ try {
   // Models work in the main checkout and in worktrees of it; both count as this project.
   let mainCheckout=dirname(context.root);
   try{mainCheckout=dirname(resolve(context.root,execFileSync('git',['rev-parse','--git-common-dir'],{cwd:context.root,encoding:'utf8',windowsHide:true,timeout:5000}).trim()));}catch{/* not a git checkout: the repo folder alone */}
+  // The local model's backup shift: one small step at a time in its own worktree,
+  // only while every subscription model is out of usage; reviewed before merging.
+  let latestColumns=[],teamState=null;
+  const shift=createBackupShift({root:context.root,repo:mainCheckout,
+    readColumns:()=>latestColumns,readMilestones:()=>teamState?.milestones()??[],
+    runnerFor:({worktree,onEvent})=>createOllamaRunner({ensure:options=>localModel.ensure(options),openMcp:async()=>createShiftTools({worktree,onEvent})}),
+    postReview:async review=>{
+      const author=new PairStore(context.database,'hauhaucs-local',Date.now,'coordinator');
+      try{author.send({project:context.config.project,subject:`Review requested: ${review.branch} ${review.commit.slice(0,7)} (local backup shift)`,
+        body:`HauhauCS worked alone while Claude and Codex were out of usage.\nMilestone: ${review.milestone}\nChanged: ${review.changed}\nPlease check: ${review.review}\nCommit ${review.commit} on branch ${review.branch} (worktree hub/workspaces/local-shift). Merge into master only after review; discard it otherwise.`});}
+      finally{author.close();}
+    }});
   const room=createTeamRoom({root:context.root,roots:[...new Set([dirname(context.root),mainCheckout])],codexHome:join(homedir(),'.codex'),claudeHome:join(homedir(),'.claude'),
-    defaultLocal:['copilot-hauhau-game:latest'],
+    defaultLocal:['copilot-hauhau-game:latest'],shift,
     readLedger:()=>store.db.prepare('SELECT sender, subject, created_at AS t FROM messages WHERE project IN (?, ?) ORDER BY id DESC LIMIT 60').all(...projects),
     publishMilestones:async value=>{
       const author=new PairStore(context.database,'copilot-team-room',Date.now,'coordinator');
@@ -95,7 +109,10 @@ try {
       }finally{author.close();}
     }});
   attachTeamRoom(server,room);
-  server.on('close', () => store.close());
+  teamState=room.state;
+  // Checking costs no model calls; a step only starts when shouldRun says so.
+  const shiftTimer=setInterval(async()=>{try{latestColumns=(await room.view()).columns;await shift.tick();}catch{/* next minute */}},60000);
+  server.on('close', () => { clearInterval(shiftTimer); store.close(); });
   process.once('SIGINT', () => server.close()); process.once('SIGTERM', () => server.close());
   console.log(`Copilot: http://127.0.0.1:${server.address().port}/`);
 } catch (error) { store.close(); throw error; }

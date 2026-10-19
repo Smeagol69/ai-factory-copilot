@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createFeedReader, readLocalChats, columnStatus, redact } from './team-feeds.mjs';
+import { createFeedReader, readLocalChats, readLocalEvents, columnStatus, redact } from './team-feeds.mjs';
 import { createTeamState, milestonesForMemory } from './team-state.mjs';
 
 const publicFile = name => fileURLToPath(new URL(`../app/public/${name}`, import.meta.url));
@@ -22,7 +22,7 @@ async function readBody(req) {
 }
 
 export function createTeamRoom({ root, roots, codexHome, claudeHome, localModelUrl = 'http://127.0.0.1:11436', defaultLocal = [],
-  readLedger = () => [], publishMilestones = async () => ({ published: false }), fetchImpl = globalThis.fetch, now = Date.now } = {}) {
+  readLedger = () => [], publishMilestones = async () => ({ published: false }), fetchImpl = globalThis.fetch, now = Date.now, shift = null } = {}) {
   const reader = createFeedReader({ codexHome, claudeHome, roots });
   const state = createTeamState(root, { now, defaultLocal });
   let installed = { at: 0, models: null };
@@ -48,7 +48,10 @@ export function createTeamRoom({ root, roots, codexHome, claudeHome, localModelU
         .map(m => ({ t: m.t, kind: 'message', text: redact(m.subject).slice(0, 200), session: m.sender }));
       const roster = state.roster();
       const local = readLocalChats(join(root, 'state/local-worker/chats'), { since: t - DAY2 });
-      const sub = (id, name, app, feed) => {
+      // Backup-shift steps are local-model work too; they belong in the same column.
+      local.events = [...local.events, ...readLocalEvents(join(root, 'state/team/local-events.jsonl'), { since: t - DAY2 })].sort((a, b) => a.t - b.t).slice(-80);
+      const shiftStatus = shift ? await shift.status() : null;
+      const sub =(id, name, app, feed) => {
         const events = withMessages(feed.events, messagesFor(id));
         const lastAt = Math.max(feed.lastAt ?? 0, events.at(-1)?.t ?? 0) || null;
         return { id, name, app, kind: 'subscription', canStop: false, sessions: feed.sessions, usage: feed.usage,
@@ -60,11 +63,14 @@ export function createTeamRoom({ root, roots, codexHome, claudeHome, localModelU
         ...roster.local.map((m, i) => {
           const events = local.events.filter(e => e.model ? e.model === m.model : i === 0);
           const lastAt = events.at(-1)?.t ?? null;
+          const onShift = m.role === 'backup worker' && !!shiftStatus?.running;
           return { id: `local:${m.model}`, name: m.model.replace(/:latest$/, ''), app: 'Ollama on this PC · free', kind: 'local', role: m.role,
-            canStop: false, sessions: [], status: columnStatus({ lastAt, standby: m.role === 'backup worker' }, t), lastAt, events };
+            canStop: onShift, sessions: [], lastAt, events, shift: m.role === 'backup worker' ? shiftStatus : null,
+            status: onShift ? { state: 'working', detail: `On a backup shift: ${shiftStatus.running.milestone}`, resetsAt: null }
+              : columnStatus({ lastAt, standby: m.role === 'backup worker' }, t) };
         }),
       ];
-      return { observedAt: new Date(t).toISOString(), columns, milestones: state.milestones(), roster,
+      return { observedAt: new Date(t).toISOString(), columns, milestones: state.milestones(), roster, shift: shiftStatus,
         installedLocal: await installedModels(), modelCalls: 0,
         connect: { repo: join(root, '..'), servers: ['agent_pair', 'superpowers', 'rea', 'local_model'] } };
     },
@@ -75,6 +81,13 @@ export function createTeamRoom({ root, roots, codexHome, claudeHome, localModelU
       return { milestones: items, shared };
     },
     async changeRoster(args) { return { roster: state.changeRoster(args) }; },
+    async changeShift(args) {
+      if (!shift) throw Object.assign(Error('The backup shift is not available'), { statusCode: 503 });
+      if (args?.action === 'on') return { shift: await shift.set(true) };
+      if (args?.action === 'off') return { shift: await shift.set(false) };
+      if (args?.action === 'stop') return { shift: await shift.stop() };
+      throw Object.assign(Error('Unknown shift action'), { statusCode: 400 });
+    },
   };
 }
 
@@ -95,6 +108,7 @@ export function attachTeamRoom(server, room) {
       if (req.method === 'GET' && req.url === '/api/team') { json(200, await room.view()); return; }
       if (req.method === 'POST' && req.url === '/api/team/milestones') { json(200, await room.changeMilestones(await readBody(req))); return; }
       if (req.method === 'POST' && req.url === '/api/team/models') { json(200, await room.changeRoster(await readBody(req))); return; }
+      if (req.method === 'POST' && req.url === '/api/team/shift') { json(200, await room.changeShift(await readBody(req))); return; }
       req.resume(); json(404, { error: 'Unknown Team room route' });
     })().catch(error => { if (!res.writableEnded) json(error.statusCode ?? 503, { error: redact(error?.message ?? 'Team room unavailable').slice(0, 300) }); });
   });
