@@ -22,7 +22,7 @@ async function readBody(req) {
 }
 
 export function createTeamRoom({ root, roots, codexHome, claudeHome, localModelUrl = 'http://127.0.0.1:11436', defaultLocal = [],
-  readLedger = () => [], publishMilestones = async () => ({ published: false }), fetchImpl = globalThis.fetch, now = Date.now, shift = null } = {}) {
+  readLedger = () => [], publishMilestones = async () => ({ published: false }), fetchImpl = globalThis.fetch, now = Date.now, shift = null, liveUsage = () => null } = {}) {
   const reader = createFeedReader({ codexHome, claudeHome, roots });
   const state = createTeamState(root, { now, defaultLocal });
   let installed = { at: 0, models: null };
@@ -51,11 +51,13 @@ export function createTeamRoom({ root, roots, codexHome, claudeHome, localModelU
       // Backup-shift steps are local-model work too; they belong in the same column.
       local.events = [...local.events, ...readLocalEvents(join(root, 'state/team/local-events.jsonl'), { since: t - DAY2 })].sort((a, b) => a.t - b.t).slice(-80);
       const shiftStatus = shift ? await shift.status() : null;
-      const sub =(id, name, app, feed) => {
+      const sub = (id, name, app, feed) => {
+        // A model's own client report (e.g. the conductor's Claude worker) fills in usage its logs lack.
+        const usage = feed.usage ?? liveUsage(id);
         const events = withMessages(feed.events, messagesFor(id));
         const lastAt = Math.max(feed.lastAt ?? 0, events.at(-1)?.t ?? 0) || null;
-        return { id, name, app, kind: 'subscription', canStop: false, sessions: feed.sessions, usage: feed.usage,
-          status: columnStatus({ lastAt, usage: feed.usage, limitAt: feed.limitAt, manualOut: state.manualOut(id) }, t), lastAt, events };
+        return { id, name, app, kind: 'subscription', canStop: false, sessions: feed.sessions, usage,
+          status: columnStatus({ lastAt, usage, limitAt: feed.limitAt, manualOut: state.manualOut(id) }, t), lastAt, events };
       };
       const columns = [
         sub('codex', 'Codex', 'Codex app · ChatGPT subscription', feeds.codex),

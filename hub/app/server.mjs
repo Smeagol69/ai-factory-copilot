@@ -20,6 +20,10 @@ import { runReModels } from '../lib/re-models.mjs';
 import { createTeamRoom, attachTeamRoom } from '../lib/team-http.mjs';
 import { createBackupShift } from '../lib/backup-shift.mjs';
 import { createShiftTools } from '../lib/shift-tools.mjs';
+import { createStudioStore } from '../lib/studio-store.mjs';
+import { createConductor } from '../lib/conductor.mjs';
+import { createWorkerPool, worktreeOf } from '../lib/conductor-pool.mjs';
+import { createStudioApi, attachStudio } from '../lib/studio-http.mjs';
 
 const context = await runtimeContext();
 const localModel = createLocalModelService({root:context.root});
@@ -84,6 +88,7 @@ try {
   // and the owner's milestones, published to shared memory for every model.
   const projects=[context.config.project,context.config.architectProject??context.config.project];
   // Models work in the main checkout and in worktrees of it; both count as this project.
+  const liveUsage={}; // usage reported by the conductor's own workers
   let mainCheckout=dirname(context.root);
   try{mainCheckout=dirname(resolve(context.root,execFileSync('git',['rev-parse','--git-common-dir'],{cwd:context.root,encoding:'utf8',windowsHide:true,timeout:5000}).trim()));}catch{/* not a git checkout: the repo folder alone */}
   // The local model's backup shift: one small step at a time in its own worktree,
@@ -99,7 +104,7 @@ try {
       finally{author.close();}
     }});
   const room=createTeamRoom({root:context.root,roots:[...new Set([dirname(context.root),mainCheckout])],codexHome:join(homedir(),'.codex'),claudeHome:join(homedir(),'.claude'),
-    defaultLocal:['copilot-hauhau-game:latest'],shift,
+    defaultLocal:['copilot-hauhau-game:latest'],shift,liveUsage:id=>liveUsage[id]??null,
     readLedger:()=>store.db.prepare('SELECT sender, subject, created_at AS t FROM messages WHERE project IN (?, ?) ORDER BY id DESC LIMIT 60').all(...projects),
     publishMilestones:async value=>{
       const author=new PairStore(context.database,'copilot-team-room',Date.now,'coordinator');
@@ -112,7 +117,18 @@ try {
   teamState=room.state;
   // Checking costs no model calls; a step only starts when shouldRun says so.
   const shiftTimer=setInterval(async()=>{try{latestColumns=(await room.view()).columns;await shift.tick();}catch{/* next minute */}},60000);
-  server.on('close', () => { clearInterval(shiftTimer); store.close(); });
+  // The conductor: runs Design studio jobs by starting Codex and Claude worker
+  // turns itself (scoped permissions, owner supervising). Off until switched on.
+  const studioStore=createStudioStore(context.root);
+  const pool=createWorkerPool({root:context.root,repo:mainCheckout,runtimeDir:context.runtime,node:join(context.root,'runtime/node/node.exe'),
+    onUsage:(name,u)=>{liveUsage[name]=u;}});
+  const conductor=createConductor({root:context.root,store:studioStore,workers:pool,
+    worktrees:{codex:worktreeOf(mainCheckout,'codex'),claude:worktreeOf(mainCheckout,'claude')}});
+  let pumping=false;
+  const pump=()=>{if(pumping)return;pumping=true;(async()=>{try{while(await conductor.tick());}catch{/* next pump */}finally{pumping=false;}})();};
+  attachStudio(server,createStudioApi({root:context.root,store:studioStore,conductor,workerStatus:()=>pool.status(),pump}));
+  const conductorTimer=setInterval(pump,30000);
+  server.on('close', () => { clearInterval(shiftTimer); clearInterval(conductorTimer); pool.stopAll(); store.close(); });
   process.once('SIGINT', () => server.close()); process.once('SIGTERM', () => server.close());
   console.log(`Copilot: http://127.0.0.1:${server.address().port}/`);
 } catch (error) { store.close(); throw error; }

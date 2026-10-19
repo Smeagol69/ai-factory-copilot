@@ -1,0 +1,42 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createStudioStore } from '../lib/studio-store.mjs';
+import { createStudioApi, attachStudio } from '../lib/studio-http.mjs';
+
+const F = '/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
+const pieces = [{ class_path: F, transform: { translation_cm: { x: 0, y: 0, z: 0 }, rotation_quat: { x: 0, y: 0, z: 0, w: 1 }, scale3d: { x: 1, y: 1, z: 1 } } }];
+
+test('the studio page and API: brief, conductor switch, game handoff, renders, owner actions', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'studio-http-')), store = createStudioStore(root);
+  let enabled = false, pumps = 0;
+  const conductor = { status: () => ({ enabled, running: null, waiting: null }), set: v => { enabled = v; return { enabled }; }, stop: async () => { enabled = false; return { enabled }; } };
+  const server = createServer((req, res) => res.end('underlying'));
+  attachStudio(server, createStudioApi({ root, store, conductor, pump: () => pumps++ }));
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`, post = (p, b, h = {}) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(b) });
+  try {
+    assert.match(await (await fetch(base + '/studio')).text(), /Design studio/);
+    assert.equal(await (await fetch(base + '/api/status')).text(), 'underlying');
+    const job = await (await post('/api/studio/jobs', { brief: 'Sweeping 90 joined to the walled tunnel' })).json();
+    assert.deepEqual(job.next, { worker: 'codex', kind: 'candidate' });
+    assert.equal(pumps, 1, 'a new brief wakes the conductor');
+    store.addCandidate(job.id, 'codex', { title: 'Sweep', rationale: 'r', pieces });
+    writeFileSync(join(store.dirOf(job.id), 'candidate-1.png'), Buffer.alloc(2000)); store.setRender(job.id, 1, 'candidate-1.png');
+    const full = await (await fetch(`${base}/api/studio/jobs/${job.id}`)).json();
+    assert.equal(full.candidates[0].renderUrl, `/api/studio/render/${job.id}/candidate-1.png`);
+    const png = await fetch(base + full.candidates[0].renderUrl);
+    assert.equal(png.headers.get('content-type'), 'image/png');
+    assert.equal((await fetch(`${base}/api/studio/render/${job.id}/..%2Fjob.json`)).status, 404);
+    assert.equal((await (await post(`/api/studio/jobs/${job.id}`, { action: 'pick', candidate: 1 })).json()).status, 'agreed');
+    assert.equal((await (await post('/api/studio/conductor', { action: 'on' })).json()).enabled, true);
+    assert.equal((await (await post('/api/studio/operator', { conductor: true })).json()).conductorMayOperateGame, true);
+    const o = await (await fetch(base + '/api/studio')).json();
+    assert.equal(o.jobs.length, 1); assert.equal(o.conductorMayOperateGame, true);
+    assert.equal((await post('/api/studio/jobs', { brief: 'x' }, { Origin: 'http://evil.example' })).status, 403);
+    assert.equal((await post('/api/studio/jobs', { brief: '' })).status, 400);
+  } finally { server.close(); }
+});
