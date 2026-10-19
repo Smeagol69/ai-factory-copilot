@@ -25,7 +25,7 @@ export function createTeamState(root, { now = Date.now, defaultLocal = [] } = {}
   const dir = join(root, 'state/team');
   const file = name => join(dir, name);
   const load = (name, fallback) => {
-    try { if (existsSync(file(name))) { const v = JSON.parse(readFileSync(file(name), 'utf8').replace(/^﻿/, '')); // tolerate a BOM from hand edits if (v && typeof v === 'object') return v; } } catch { /* corrupt → start empty, never guess */ }
+    try { if (existsSync(file(name))) { const v = JSON.parse(readFileSync(file(name), 'utf8').replace(/^﻿/, '')) /* a BOM from hand edits is fine */; if (v && typeof v === 'object') return v; } } catch { /* corrupt → start empty, never guess */ }
     return fallback;
   };
   const save = (name, value) => {
