@@ -137,17 +137,23 @@ export function createStudioStore(root, { now = Date.now } = {}) {
       if (job.status !== 'building') throw bad('The job is not building', 409);
       // Unknown stays unknown (Codex #652): nothing is assumed from a missing field.
       if (typeof built !== 'boolean') throw bad('Say built: true (with game receipts) or built: false (with what stopped you)');
-      const committed = evidence.filter(r => r.operation === 'askall' && r.outcome === 'completed' && r.committedActions > 0);
+      // Evidence is the hub's own receipt for generating exactly the bound proposal (Codex #656).
+      const generated = evidence.filter(r => r.operation === 'generate' && r.outcome === 'completed' && r.committedActions > 0 && r.matchesProposal === true);
       if (built) {
         if (!job.agreedHash) throw bad('No pinned piece list for this job; it needs a new review', 409);
         // Only the exact agreed piece list may be reported as built (Codex #647).
         if (candidate_sha256 !== job.agreedHash) throw bad(`candidate_sha256 must be the agreed piece list's hash ${job.agreedHash}; anything else needs a new review`, 409);
         if (hashOf(id, job.agreedCandidate) !== job.agreedHash) throw bad('The agreed piece file changed after agreement; it needs a new review', 409);
-        if (!committed.length) throw bad('built: true needs a committed game receipt (game_ask under your game lease); none was recorded. Report built: false with what happened instead', 409);
+        if (typeof blueprint_name !== 'string' || !blueprint_name.trim()) throw bad('built: true needs the blueprint_name the game reported');
+        const receipt = generated.find(r => r.blueprintName === blueprint_name);
+        if (!receipt) throw bad(`built: true needs a committed game_generate receipt for exactly the agreed proposal, named "${blueprint_name}"; none was recorded. Report built: false with what happened instead`, 409);
+        if (saved === true && !receipt.savedReadback) throw bad('saved: true needs the native save readback in the generation receipt', 409);
+        // Placement is the player's Build Gun click; the hub has no receipt that proves it yet.
+        if (placed === true) throw bad('placed: true cannot be checked yet (no world-capture comparison with the agreed poses); leave placed out', 409);
       }
       const tri = v => built && v === true ? true : built && v === false ? false : null;
       job.build = { author, built, saved: tri(saved), placed: tri(placed), candidate_sha256: built ? candidate_sha256 : null,
-        receipts: evidence.map(r => ({ id: r.id, operation: r.operation, outcome: r.outcome, committedActions: r.committedActions ?? null, worldMutationObserved: r.worldMutationObserved ?? null })),
+        receipts: evidence.map(r => ({ id: r.id, operation: r.operation, outcome: r.outcome, committedActions: r.committedActions ?? null, matchesProposal: r.matchesProposal ?? null, blueprintName: r.blueprintName ?? null, savedReadback: r.savedReadback ?? null })),
         summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
       log(job, author, `Build reported: ${job.build.summary.slice(0, 200)}`);
       return save(job);

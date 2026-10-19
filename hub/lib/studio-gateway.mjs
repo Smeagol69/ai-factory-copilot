@@ -1,8 +1,9 @@
 // The named tools the conductor's Claude and Codex workers get through the
 // "studio" MCP server: design (candidates, critiques, renders, saved references)
-// and three game actions (status, capture/look, ask the in-game Copilot). Every
-// game request is logged, and anything that could change the world is preceded
-// by a copy of the newest save. The game itself validates and reads back actions.
+// and the game: status, capture/look, and typed generation of the agreed design.
+// Every game request is logged, and generation is preceded by a copy of the newest
+// save. There is no free-text game request: a question to the in-game model cannot
+// be bound to what was agreed (Codex #656). The game validates and reads back.
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -42,7 +43,32 @@ export function newestSave(dir = SAVE_DIR) {
   return best?.p ?? null;
 }
 
-export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root), lease = null, milestones = null }) {
+// The typed proposal must be the agreed piece list, piece for piece: the same
+// buildable (Recipe_X for Build_X), position, rotation and scale, in order.
+const recipeOf = cls => String(cls ?? '').replace(/\/Build_([^/.]+)\.Build_\1_C$/, '/Recipe_$1.Recipe_$1_C');
+const near = (a, b, tol) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tol;
+export function proposalMismatch(proposal, pieces) {
+  if (proposal?.action !== 'generate_native_blueprint' || !Array.isArray(proposal.buildables)) return 'it must be a typed generate_native_blueprint action with buildables';
+  if (!String(proposal.layout_schema ?? '').startsWith('aifactory.generated-blueprint/')) return 'layout_schema must be an aifactory.generated-blueprint schema';
+  if (proposal.commit !== true) return 'commit must be true';
+  if (typeof proposal.blueprint_name !== 'string' || !proposal.blueprint_name.trim() || proposal.blueprint_name.length > 200) return 'blueprint_name is required';
+  for (const k of ['conveyors', 'power_wires', 'pipes']) if (Array.isArray(proposal[k]) && proposal[k].length) return `${k} are not part of the agreed piece list`;
+  if (proposal.buildables.length !== pieces.length) return `it has ${proposal.buildables.length} buildables but the agreed piece list has ${pieces.length}`;
+  for (const [i, b] of proposal.buildables.entries()) {
+    const p = pieces[i], t = p.transform ?? {}, n = i + 1;
+    if (b?.recipe_class !== recipeOf(p.class_path)) return `buildable ${n} is ${b?.recipe_class}, not the agreed ${p.class_path}`;
+    const at = b.relative_location ?? {}, want = t.translation_cm ?? {};
+    if (!['x', 'y', 'z'].every(k => near(at[k], want[k], 0.01))) return `buildable ${n} is not at the agreed position`;
+    const q = b.rotation_quat ?? {}, r = t.rotation_quat ?? {};
+    const dot = ['x', 'y', 'z', 'w'].reduce((sum, k) => sum + q[k] * r[k], 0);
+    if (!near(Math.abs(dot), 1, 1e-6)) return `buildable ${n} is not at the agreed rotation`;
+    const sc = b.scale3d ?? { x: 1, y: 1, z: 1 }, sw = t.scale3d ?? { x: 1, y: 1, z: 1 };
+    if (!['x', 'y', 'z'].every(k => near(sc[k], sw[k], 1e-6))) return `buildable ${n} is not at the agreed scale`;
+  }
+  return null;
+}
+
+export function createStudioGateway({ root, repo, worker, playtest = null, typedRoute = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root), lease = null, milestones = null }) {
   const work = milestones ?? createMilestoneWork(root, { now });
   const openWork = id => id ? work.get(id) : work.open() ?? (() => { throw bad('No open milestone job'); })();
   // Game requests need the game lease, which belongs to this gateway's own session
@@ -71,6 +97,7 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
     }
     return l;
   };
+  const readJson = file => JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
   const studio = join(root, 'state/studio');
   const readPieces = ({ pieces, pieces_file }) => {
     if (Array.isArray(pieces)) return pieces;
@@ -113,13 +140,19 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       return { status: job.status, agreedCandidate: job.agreedCandidate, next: nextStep(job) };
     },
     studio_report_build({ job_id, summary, blueprint_name, built, saved, placed, candidate_sha256 }) {
-      // Saved/placed claims are checked against the receipts recorded under this session's lease.
+      // Claims are checked against the receipts the hub recorded under this session's
+      // lease for this job and its bound proposal, never against the model's word.
+      const id = activeId(job_id);
       let evidence = [];
-      try { evidence = leaseToken ? gameLease.receipts(session, leaseToken) : []; } catch { evidence = []; }
-      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name, built, saved, placed, candidate_sha256, evidence });
-      // The report closes the build transaction (readback is done): free the game.
-      if (leaseToken && gameLease.release(session, leaseToken)) { gameLog({ operation: 'lease-release', reason: 'build reported' }); leaseToken = null; }
-      return { status: job.status, stage: job.stage, next: nextStep(job) };
+      if (leaseToken) {
+        const l = gameLease.require(session, leaseToken);
+        if (l.job === id) evidence = l.requests.filter(r => r.proposalHash && r.proposalHash === l.proposalHash);
+      }
+      const job = store.reportBuild(id, worker, { summary, blueprint_name, built, saved, placed, candidate_sha256, evidence });
+      // The report closes the transaction; an unknown outcome leaves it for the owner.
+      let transaction = null;
+      if (leaseToken) { transaction = gameLease.close(session, leaseToken); gameLog({ operation: 'lease-close', result: transaction }); leaseToken = null; }
+      return { status: job.status, stage: job.stage, next: nextStep(job), transaction };
     },
     studio_milestone({ job_id } = {}) {
       const job = openWork(job_id);
@@ -165,7 +198,7 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
     },
     game_lease({ action, purpose, job_id, proposal_file }) {
       if (action === 'acquire') {
-        let job = null, agreedHash = null, proposalFile = null, proposalHash = null;
+        let job = null, agreedHash = null, proposalFile = null, proposalHash = null, blueprintName = null;
         if (job_id) {
           job = store.get(job_id);
           if (job.status !== 'building' || !job.agreedHash) throw bad(`Job ${job_id} is ${job.status}; a build lease needs an agreed design that is building`);
@@ -173,19 +206,26 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
           if (proposal_file) {
             proposalFile = isAbsolute(proposal_file) ? proposal_file : resolve(repo, proposal_file);
             if (!existsSync(proposalFile) || statSync(proposalFile).size > 5 * 1024 * 1024) throw bad('proposal_file is missing or larger than 5 MB');
-            const proposal = JSON.parse(readFileSync(proposalFile, 'utf8').replace(/^﻿/, ''));
-            const count = store.piecesOf(job_id, job.agreedCandidate).length;
-            if (proposal?.action !== 'generate_native_blueprint' || !Array.isArray(proposal.buildables)) throw bad('proposal_file must be a typed generate_native_blueprint action with buildables');
-            if (proposal.buildables.length !== count) throw bad(`The proposal has ${proposal.buildables.length} buildables but the agreed piece list has ${count}`);
-            proposalHash = fileHash(proposalFile);
+            // Hash first, then check those exact bytes: what is pinned is what was checked.
+            const bytes = readFileSync(proposalFile);
+            let proposal; try { proposal = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')); } catch { throw bad('proposal_file is not JSON'); }
+            if (store.currentHash(job_id) !== job.agreedHash) throw bad('The agreed piece list changed since agreement; it needs a new review');
+            const mismatch = proposalMismatch(proposal, store.piecesOf(job_id, job.agreedCandidate));
+            if (mismatch) throw bad(`The proposal is not the agreed design: ${mismatch}`);
+            proposalHash = 'sha256:' + createHash('sha256').update(bytes).digest('hex');
+            blueprintName = proposal.blueprint_name;
           }
         }
-        const l = gameLease.acquire({ session, worker, purpose, job: job?.id ?? null, agreedHash, proposalHash, proposalFile });
+        const l = gameLease.acquire({ session, worker, purpose, job: job?.id ?? null, agreedHash, proposalHash, proposalFile, blueprintName });
         leaseToken = l.token;
         gameLog({ operation: 'lease-acquire', purpose: l.purpose, job: l.job, agreedHash, proposalHash });
         return { worker, job: l.job, agreedHash, proposalHash, expiresAt: l.expiresAt };
       }
-      if (action === 'release') { const released = !!leaseToken && gameLease.release(session, leaseToken); if (released) { gameLog({ operation: 'lease-release' }); leaseToken = null; } return { released }; }
+      if (action === 'release') {
+        const result = leaseToken ? gameLease.release(session, leaseToken) : false;
+        if (result) { gameLog({ operation: 'lease-release', result }); leaseToken = null; }
+        return result === 'unresolved' ? { released: false, unresolved: true, reason: 'World requests were made; only a build report closes them. The owner must check the game and resolve it' } : { released: result === true };
+      }
       throw bad('action is acquire or release');
     },
     async game_capture({ operation = 'capture' } = {}) {
@@ -193,21 +233,33 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       if (!['capture', 'look'].includes(operation)) throw bad('operation is capture or look');
       const job = await playtest.submit({ operation });
       gameLease.record(session, leaseToken, { id: job.id, operation, outcome: 'submitted' }); gameLog({ operation, id: job.id });
-      const r = await playtest.wait(job);
+      let r;
+      try { r = await playtest.wait(job); }
+      catch (e) { gameLease.record(session, leaseToken, { id: job.id, operation, outcome: 'completed', failed: e.message }); throw e; }
       gameLease.record(session, leaseToken, { id: job.id, operation, outcome: 'completed', completed: r.pipelineCompleted }); gameLog({ operation, id: job.id, completed: r.pipelineCompleted });
       return r;
     },
-    async game_ask({ question }) {
-      gameGate('write');
-      if (typeof question !== 'string' || !question.trim() || question.length > 4000) throw bad('question is 1–4000 characters');
+    // Generate the native blueprint of exactly the bound proposal. The request text
+    // comes from the companion's deterministic typed route, never from a model.
+    async game_generate() {
+      const l = gameGate('write');
+      if (!typedRoute) throw bad('No deterministic typed-generation route exists in the companion yet, so no request can be bound to the agreed proposal. World-changing requests stay off; the validated proposal waits for that route (Codex\'s scope)');
+      const proposal = readJson(l.proposalFile);
+      const question = typedRoute.question({ proposal, proposalFile: l.proposalFile, proposalHash: l.proposalHash });
       const backupFile = backup();
-      const job = await playtest.submit({ operation: 'askall', question });
-      // Recorded before waiting: if this turn dies now, the request stays unresolved for the owner.
-      gameLease.record(session, leaseToken, { id: job.id, operation: 'askall', outcome: 'submitted' }); gameLog({ operation: 'askall', id: job.id, question, backupFile });
-      const r = await playtest.wait(job, { timeoutMs: 120000 });
-      gameLease.record(session, leaseToken, { id: job.id, operation: 'askall', outcome: 'completed', committedActions: r.committedActions ?? 0, worldMutationObserved: r.worldMutationObserved ?? null });
-      gameLog({ operation: 'askall', id: job.id, committedActions: r.committedActions, worldMutationObserved: r.worldMutationObserved });
-      return { ...r, saveBackup: backupFile };
+      const base = { operation: 'generate', proposalHash: l.proposalHash };
+      let job;
+      try { job = await playtest.submit({ operation: 'askall', question }); }
+      catch (e) { gameLease.unknown(session, leaseToken, { id: null, ...base }, `Submitting the generation failed (${e.message}); it may or may not have reached the game`); throw bad(`The generation submission failed and its outcome is unknown: ${e.message}. The transaction is unresolved; do not retry`); }
+      // Recorded before waiting: if this turn dies now, the request stays open for the owner.
+      gameLease.record(session, leaseToken, { id: job.id, ...base, outcome: 'submitted' }); gameLog({ operation: 'generate', id: job.id, proposalHash: l.proposalHash, backupFile });
+      let r;
+      try { r = await playtest.wait(job, { timeoutMs: 120000 }); }
+      catch (e) { gameLease.unknown(session, leaseToken, { id: job.id, ...base }, `Generation request ${job.id}: ${e.message}; its outcome is unknown`); gameLog({ operation: 'generate', id: job.id, unknown: e.message }); throw bad(`The generation outcome is unknown (${e.message}). The transaction is unresolved for the owner; do not retry`); }
+      const v = typedRoute.verify(r, proposal) ?? {};
+      const receipt = { id: job.id, ...base, outcome: 'completed', committedActions: r.committedActions ?? 0, matchesProposal: v.matchesProposal === true, blueprintName: v.blueprintName ?? null, savedReadback: v.savedReadback === true };
+      gameLease.record(session, leaseToken, receipt); gameLog(receipt);
+      return { ...r, ...receipt, saveBackup: backupFile };
     },
   };
   return {
