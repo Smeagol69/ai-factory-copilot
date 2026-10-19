@@ -35,7 +35,8 @@ export async function ensureApp({ root, project, port }) {
     child.unref();
   } finally { closeSync(stdout); closeSync(stderr); }
   try {
-    for (let attempt = 0; attempt < 40; attempt++) {
+    // Up to 30 s: the first start after boot also starts the local Ollama, which can take a while.
+    for (let attempt = 0; attempt < 150; attempt++) {
       await new Promise(resolve => setTimeout(resolve, 200));
       const ready = await probe();
       if (ready) {
