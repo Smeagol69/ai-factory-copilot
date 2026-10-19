@@ -116,7 +116,7 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
    writes a brief. Then: a candidate piece list (rendered offline in three views, with measured
    native sizes where known), a critique by the other model, both agree (or the owner picks), build,
    verify. Workers live in `hub/workspaces/auto-claude` and `auto-codex`, with the `agent_pair` and
-   `studio` MCP servers. Game actions belong to Codex; the conductor's game tools stay off until
+   `studio` MCP servers. Codex and Claude may both build agreed designs (owner, 2026-10-19; the other verifies); the conductor's game tools stay off until
    Codex's live session hands off (`hub/state/studio/game-operator.json`). Usage is the only
    brake. **First run (00:37–00:45):** Codex's worker designed "AI Walled Straight — 2 Bays"
    (36 pieces); Claude's worker verified the join against the sweep byte for byte and agreed. The
