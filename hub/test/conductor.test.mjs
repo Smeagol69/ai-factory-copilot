@@ -260,3 +260,29 @@ test('a build turn that ended with an unknown game outcome hands the job to the 
   assert.equal(await c.tick(), null, 'no second turn is spent');
   assert.equal(prompts.length, 1);
 });
+
+test('a build waiting for game control does not hold up the next design or the milestone', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const { createMilestoneWork } = await import('../lib/milestone-work.mjs');
+  const work = createMilestoneWork(root);
+  const straight = store.create({ brief: 'Straight (agreed, waiting for the game)' });
+  store.addCandidate(straight.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(straight.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  const refine = store.create({ brief: 'Refinement', firstDesigner: 'claude' });
+  const { prompts, workers } = fakes(store, async (name, prompt, s) => {
+    if (/Make the first candidate/.test(prompt)) s.addCandidate(refine.id, name, { title: 'Bay', rationale: 'r', pieces });
+    else if (/Critique candidate/.test(prompt)) s.addCritique(refine.id, name, { candidate: 1, verdict: 'revise', critique: 'needs the rib grid' });
+    else if (/ACTIVE MILESTONE/.test(prompt)) work.reportStep(work.open().id, name, { summary: 'step', commit: '1234567', branch: `${name}/auto` });
+  });
+  const c = createConductor({ root, store, workers, worktrees, mayOperate: () => false, work, readMilestones: () => [{ id: 'm1', title: 'Lighting', status: 'active' }] });
+  c.set(true);
+  const first = await c.tick();
+  assert.deepEqual([first.worker, first.kind], ['claude', 'candidate'], 'the newer design runs');
+  assert.match(c.status().waiting.reason, /waits for game control/, 'the waiting build stays visible');
+  assert.equal((await c.tick()).kind, 'critique');
+  // The refinement now waits on Claude's revision (a design step); store it as needing the owner to see the milestone run.
+  store.needsOwner(refine.id, 'owner looks');
+  const next = await c.tick();
+  assert.equal(next.kind, 'work', 'with every design blocked or waiting, milestone work goes on');
+  assert.equal(prompts.filter(p => /Both of you agreed/.test(p.prompt)).length, 0, 'no build turn was spent');
+});

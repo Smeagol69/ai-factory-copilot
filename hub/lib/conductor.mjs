@@ -97,8 +97,15 @@ export function createConductor({ readMail = null, root, store, workers, worktre
   // Peer requests come first, then design jobs; with none open, the models work on the owner's
   // ACTIVE milestone in build → review cycles (milestone-work.mjs).
   function pick() {
-    const job = store.list().filter(j => ['designing', 'agreed', 'building'].includes(j.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-    if (job) { const step = nextStep(job); if (step) return { source: 'design', job, step }; }
+    // Oldest first, but a job whose build waits for game control does not hold up
+    // the others: it waits without spending a turn while the next design goes on.
+    const open = store.list().filter(j => ['designing', 'agreed', 'building'].includes(j.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const job of open) {
+      const step = nextStep(job);
+      if (!step) continue;
+      if (step.kind === 'build' && !mayOperate()) { waiting ??= { job: job.id, worker: step.worker, reason: "The build waits for game control: Codex's live session has not handed off yet" }; continue; }
+      return { source: 'design', job, step };
+    }
     if (!work || !readMilestones) return null;
     const active = readMilestones().find(m => m.status === 'active') ?? null;
     let mj = work.open();

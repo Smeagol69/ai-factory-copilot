@@ -23,6 +23,8 @@ function renderControls() {
   $('op-state').textContent = (overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates') + (l ? l.unresolved ? ` · UNRESOLVED game transaction (${l.worker}): ${l.unresolvedReason}` : ` · leased to ${l.worker} (${l.purpose}) until ${new Date(l.expiresAt).toLocaleTimeString()}` : '');
   $('op-resolve').hidden = !l?.unresolved;
   $('op-toggle').textContent = overview.conductorMayOperateGame ? 'Take game control back' : 'Hand game to conductor';
+  // Peer requests the conductor handed to a model (newest last).
+  $('mail').replaceChildren(...(c.mail ?? []).slice(-4).map(m => el('div', `${new Date(m.t).toLocaleTimeString()} · ${NAME[m.who] ?? m.who}: ${m.text}`)));
   $('workers').replaceChildren(...['codex', 'claude'].map(n => { const w = overview.workers[n] ?? {}; const u = w.usage;
     return el('div', `${NAME[n]}: ${w.running ? (w.busy ? 'in a turn' : 'ready') : 'not started'}${u?.usedPercent != null ? ` · ${Math.round(u.usedPercent)}% used` : ''}${u?.out ? ' · out of usage' : ''}`); }));
 }
