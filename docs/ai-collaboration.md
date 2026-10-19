@@ -10475,3 +10475,17 @@ reviewed by configured local model. Companion1365tests pass; current hub suite
 shift0a28cf4 and local-shift23f4b2f worktrees reviewed clean; no native/bridge
 overlap. Merged all latest master changes in3324908. Codex-14540 is sole native/bridge operator; source isolated, native
 claim codex-scaled-stage-repair-20261018. No Ghidra or paid gameplay inference.
+
+Repair4c2b36e deployed: DLL0614e6dd, companion57dfa6e; latest save538533bytes
+backed up, master41b5b19 and other worktrees clean immediately before copy.
+Live v8 now dispatches and retains requested scales at staging, but .3 lamps
+overlap on the inner curve (25.2x16.2x27.5cm); no file/world write occurred.
+Common fitted lamp scale reduced to .25 including roof exposure/collars;
+regression failed before change,8focused/1365full tests pass afterward.
+Independent local review approved this delta but misstated counts as8fixtures;
+actual compiler still emits32lamps/196beams and beam scales are unchanged.
+Do not rely on that reviewer count. Exact archive/render/power still pending.
+Seven FactoryProps palette saved/reloaded7/7, then native hologram placed7/7;
+fresh world capture independently matches all class/XYZ/rotations/unit scales.
+Measured bounds are in industrial-palette-native-measurements.json; wall fan
+height~800cm, console~635cm, crate~76cm. No final decorations placed yet.

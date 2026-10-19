@@ -29,7 +29,9 @@ test('fitted fixtures retain roof exposure and use chord-length beams on shared 
  assert.equal(emitted.length,1);
  const a=emitted[0];assert.equal(a.layout_schema,'aifactory.generated-blueprint/v8');
  const lamps=a.buildables.filter(p=>p.recipe_class==='Recipe_Lighting_1');
- assert.equal(lamps.length,8);assert.ok(lamps.every(p=>p.relative_location.z===1915&&p.scale3d.x===.3&&p.scale3d.y===.3&&p.scale3d.z===.3));
+ // Live 90-degree native bounds at .3 overlapped by 25.2 x 16.2 cm.
+ // A .25 fixture keeps the exposed fraction and clears that measured envelope.
+ assert.equal(lamps.length,8);assert.ok(lamps.every(p=>p.relative_location.z===1912.5&&p.scale3d.x===.25&&p.scale3d.y===.25&&p.scale3d.z===.25));
  const beams=a.buildables.filter(p=>p.role==='beam');assert.equal(beams.length,60);
  const first=beams[0];assert.ok(Math.abs(first.scale3d.x-2*5400*Math.sin(Math.PI/180)/400)<1e-12);
  assert.ok(beams.every(p=>p.scale3d.x>0&&p.scale3d.x<1&&p.scale3d.y===1&&p.scale3d.z===1));

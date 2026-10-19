@@ -1,6 +1,9 @@
 import {compileLevelTunnel} from './level-tunnel.mjs';
 const LAMP='/Game/FactoryGame/Buildable/Factory/CeilingLight/Build_CeilingLight.Build_CeilingLight_C';
 const BEAM='/SS_Mod/Builders/Beams/Build_EmissiveBeam_4x2.Build_EmissiveBeam_4x2_C';
+// Native .3-scale fixture bounds overlapped on the inner row of the 64 m sweep.
+// Keep a smaller intentional fixture, including its measured roof exposure.
+const FITTED_LAMP_SCALE=.25;
 const fail=reason=>({compiled:false,reason,gamePlacementVerified:false});
 const flat=p=>{const q=p.transform.rotation_quat,s=p.transform.scale3d;return Math.abs(q.x)<.0001&&Math.abs(q.y)<.0001&&['x','y','z'].every(k=>s[k]===1);};
 const yaw=q=>Math.atan2(2*q.w*q.z,1-2*q.z*q.z)*180/Math.PI;
@@ -56,7 +59,7 @@ export function compileTunnelLighting(graph,args={}){
   for(let j=0;j<count;j++){
    const a=(j+(startAtJoint?0:.5))*sweep/count,direction=(j+.5)*sweep/count;
    const heading=yaw(p.transform.rotation_quat)-f.heading_degrees+direction*180/Math.PI;
-   const scale=startAtJoint?{x:2*r*Math.sin(Math.abs(sweep/count)/2)/evidence[0].length,y:1,z:1}:{x:.3,y:.3,z:.3};
+   const scale=startAtJoint?{x:2*r*Math.sin(Math.abs(sweep/count)/2)/evidence[0].length,y:1,z:1}:{x:FITTED_LAMP_SCALE,y:FITTED_LAMP_SCALE,z:FITTED_LAMP_SCALE};
    buildables.push({part_id:`${row}-${j+1}`,role:fitted&&startAtJoint?'beam':'standalone',recipe_class:recipes.get(p.class_path),relative_location:{x:(collars?shell.measured_pitch_cm:0)+sign*r*Math.sin(a),y:sign*(radius-r*Math.cos(a)),z},
     ...(fitted?{rotation_quat:{x:0,y:0,z:Math.sin(heading*Math.PI/360),w:Math.cos(heading*Math.PI/360)},scale3d:scale}:{yaw:heading})});
   }
@@ -68,11 +71,11 @@ export function compileTunnelLighting(graph,args={}){
      {x:shell.measured_pitch_cm+sign*r*Math.sin(sweep)+t*Math.cos(sweep),y:sign*(radius-r*Math.cos(sweep))+t*Math.sin(sweep),z};
     buildables.push({part_id:`${row}-${end}${startAtJoint?'-'+(j+1):''}`,role:startAtJoint?'beam':'standalone',recipe_class:recipes.get(p.class_path),relative_location,
      rotation_quat:{x:0,y:0,z:Math.sin(heading*Math.PI/360),w:Math.cos(heading*Math.PI/360)},
-     scale3d:startAtJoint?{x:shell.measured_pitch_cm/n/evidence[0].length,y:1,z:1}:{x:.3,y:.3,z:.3}});
+     scale3d:startAtJoint?{x:shell.measured_pitch_cm/n/evidence[0].length,y:1,z:1}:{x:FITTED_LAMP_SCALE,y:FITTED_LAMP_SCALE,z:FITTED_LAMP_SCALE}});
    }
   }
  };
- lamps.forEach((p,i)=>add(p,`ceiling-${i+1}`,lampCount,(fitted?roofPlane+.3*(p.transform.translation_cm.z-roofPlane):p.transform.translation_cm.z)-f.floor_cm,false));
+ lamps.forEach((p,i)=>add(p,`ceiling-${i+1}`,lampCount,(fitted?roofPlane+FITTED_LAMP_SCALE*(p.transform.translation_cm.z-roofPlane):p.transform.translation_cm.z)-f.floor_cm,false));
  for(const level of ['lower','upper'])beams.forEach((p,i)=>add(p,`reveal-${level}-${i+1}`,beamCount,level==='lower'?p.transform.translation_cm.z-f.floor_cm:f.highest_pivot_cm-p.transform.translation_cm.z,true));
  return {compiled:true,source_fingerprint:shell.source_fingerprint,ceiling_lights:2*lampCount+(collars?4:0),emissive_beams:4*beamCount+8*collarBeamCount,reference_frame:f,
   limitations:['native_default_beam_length_is_not_visual_mesh_clearance','roof_reveal_mirrors_measured_lower_reveal','native_fixture_geometry_and_power_require_live_verification','angled_reference_side_lights_not_copied'],gamePlacementVerified:false,
