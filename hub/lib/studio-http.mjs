@@ -56,6 +56,8 @@ export function createStudioApi({ root, store, conductor, workerStatus = () => (
       if (args.action === 'on') { const r = conductor.set(true); pump(); return r; }
       if (args.action === 'off') return conductor.set(false);
       if (args.action === 'stop') return conductor.stop();
+      // The owner checked the game after an unresolved transaction and clears it.
+      if (args.action === 'resolve-game') { if (conductor.status().running) throw Object.assign(Error('Wait for the running turn to end first'), { statusCode: 409 }); return { resolved: createGameLease(root).resolve() }; }
       throw Object.assign(Error('Unknown conductor action'), { statusCode: 400 });
     },
     setOperator(args) {

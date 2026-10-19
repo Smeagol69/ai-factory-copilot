@@ -5,7 +5,7 @@
 // by a copy of the newest save. The game itself validates and reads back actions.
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createStudioStore, nextStep } from './studio-store.mjs';
 import { renderPng, boundsFromMeasurements } from './design-render.mjs';
 import { createGameLease } from './game-lease.mjs';
@@ -45,17 +45,32 @@ export function newestSave(dir = SAVE_DIR) {
 export function createStudioGateway({ root, repo, worker, playtest = null, render = renderPng, inspectSaved = null, saveDir = SAVE_DIR, blueprintDir = BLUEPRINT_DIR, now = Date.now, bounds = () => loadMeasuredBounds(root), mayOperate = () => conductorMayOperate(root), lease = null, milestones = null }) {
   const work = milestones ?? createMilestoneWork(root, { now });
   const openWork = id => id ? work.get(id) : work.open() ?? (() => { throw bad('No open milestone job'); })();
-  // Game requests: the Codex worker only, and only after the live operator hands off.
-  const holder = `conductor-${worker}`;
+  // Game requests need the game lease, which belongs to this gateway's own session
+  // and is proven by a token that never leaves this process.
+  const session = `conductor-${worker}:${randomUUID()}`;
+  let leaseToken = null;
   const gameLease = lease ?? createGameLease(root, { now, mayOperate });
-  // World-changing requests are Codex's; read-only capture/look is open to either
-  // worker. Both need the game lease, held for the whole build/verify transaction.
+  const store = createStudioStore(root, { now });
+  const fileHash = f => 'sha256:' + createHash('sha256').update(readFileSync(f)).digest('hex');
+  // World-changing requests are Codex's, and only for the agreed design that is
+  // building, with its piece list and typed proposal unchanged since they were
+  // pinned; checked before every submission. Read-only capture/look is open to
+  // either worker holding the lease.
   const gameGate = (kind = 'read') => {
     if (!playtest) throw new Error('Game mailbox unavailable');
     if (kind === 'write' && worker !== 'codex') throw new Error('Game actions that change the world belong to Codex; post your findings for it instead');
-    return gameLease.require(holder);
+    if (!mayOperate()) throw bad("Codex's live session is operating the game; conductor game requests wait for its handoff");
+    const l = gameLease.require(session, leaseToken);
+    if (kind === 'write') {
+      if (!l.job) throw bad('World-changing requests need a lease tied to the agreed design job (game_lease acquire with job_id and proposal_file)');
+      const job = store.get(l.job);
+      if (job.status !== 'building' || !job.agreedHash) throw bad(`Job ${l.job} is ${job.status}; only an agreed design that is building may change the world`);
+      if (l.agreedHash !== job.agreedHash || store.currentHash(l.job) !== job.agreedHash) throw bad('The agreed piece list changed since agreement; it needs a new review before anything is built');
+      if (!l.proposalHash || !l.proposalFile) throw bad('Bind the typed generation proposal first: game_lease acquire with proposal_file');
+      if (!existsSync(l.proposalFile) || fileHash(l.proposalFile) !== l.proposalHash) throw bad('The typed proposal changed since the lease was taken; it needs a new review');
+    }
+    return l;
   };
-  const store = createStudioStore(root, { now });
   const studio = join(root, 'state/studio');
   const readPieces = ({ pieces, pieces_file }) => {
     if (Array.isArray(pieces)) return pieces;
@@ -98,9 +113,12 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       return { status: job.status, agreedCandidate: job.agreedCandidate, next: nextStep(job) };
     },
     studio_report_build({ job_id, summary, blueprint_name, built, saved, placed, candidate_sha256 }) {
-      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name, built, saved, placed, candidate_sha256 });
+      // Saved/placed claims are checked against the receipts recorded under this session's lease.
+      let evidence = [];
+      try { evidence = leaseToken ? gameLease.receipts(session, leaseToken) : []; } catch { evidence = []; }
+      const job = store.reportBuild(activeId(job_id), worker, { summary, blueprint_name, built, saved, placed, candidate_sha256, evidence });
       // The report closes the build transaction (readback is done): free the game.
-      if (gameLease.release(holder)) gameLog({ operation: 'lease-release', reason: 'build reported' });
+      if (leaseToken && gameLease.release(session, leaseToken)) { gameLog({ operation: 'lease-release', reason: 'build reported' }); leaseToken = null; }
       return { status: job.status, stage: job.stage, next: nextStep(job) };
     },
     studio_milestone({ job_id } = {}) {
@@ -145,24 +163,49 @@ export function createStudioGateway({ root, repo, worker, playtest = null, rende
       if (!playtest) throw new Error('Game mailbox unavailable');
       return { ...(await playtest.status()), conductorMayOperate: mayOperate(), lease: gameLease.current(), worker };
     },
-    game_lease({ action, purpose, job_id }) {
-      if (action === 'acquire') { const l = gameLease.acquire(holder, { purpose, job: job_id ?? null }); gameLog({ operation: 'lease-acquire', purpose: l.purpose }); return { holder: l.owner, expiresAt: l.expiresAt }; }
-      if (action === 'release') { const released = gameLease.release(holder); if (released) gameLog({ operation: 'lease-release' }); return { released }; }
+    game_lease({ action, purpose, job_id, proposal_file }) {
+      if (action === 'acquire') {
+        let job = null, agreedHash = null, proposalFile = null, proposalHash = null;
+        if (job_id) {
+          job = store.get(job_id);
+          if (job.status !== 'building' || !job.agreedHash) throw bad(`Job ${job_id} is ${job.status}; a build lease needs an agreed design that is building`);
+          agreedHash = job.agreedHash;
+          if (proposal_file) {
+            proposalFile = isAbsolute(proposal_file) ? proposal_file : resolve(repo, proposal_file);
+            if (!existsSync(proposalFile) || statSync(proposalFile).size > 5 * 1024 * 1024) throw bad('proposal_file is missing or larger than 5 MB');
+            const proposal = JSON.parse(readFileSync(proposalFile, 'utf8').replace(/^﻿/, ''));
+            const count = store.piecesOf(job_id, job.agreedCandidate).length;
+            if (proposal?.action !== 'generate_native_blueprint' || !Array.isArray(proposal.buildables)) throw bad('proposal_file must be a typed generate_native_blueprint action with buildables');
+            if (proposal.buildables.length !== count) throw bad(`The proposal has ${proposal.buildables.length} buildables but the agreed piece list has ${count}`);
+            proposalHash = fileHash(proposalFile);
+          }
+        }
+        const l = gameLease.acquire({ session, worker, purpose, job: job?.id ?? null, agreedHash, proposalHash, proposalFile });
+        leaseToken = l.token;
+        gameLog({ operation: 'lease-acquire', purpose: l.purpose, job: l.job, agreedHash, proposalHash });
+        return { worker, job: l.job, agreedHash, proposalHash, expiresAt: l.expiresAt };
+      }
+      if (action === 'release') { const released = !!leaseToken && gameLease.release(session, leaseToken); if (released) { gameLog({ operation: 'lease-release' }); leaseToken = null; } return { released }; }
       throw bad('action is acquire or release');
     },
     async game_capture({ operation = 'capture' } = {}) {
       gameGate('read');
       if (!['capture', 'look'].includes(operation)) throw bad('operation is capture or look');
-      const job = await playtest.submit({ operation }); gameLog({ operation, id: job.id });
-      const r = await playtest.wait(job); gameLog({ operation, id: job.id, completed: r.pipelineCompleted });
+      const job = await playtest.submit({ operation });
+      gameLease.record(session, leaseToken, { id: job.id, operation, outcome: 'submitted' }); gameLog({ operation, id: job.id });
+      const r = await playtest.wait(job);
+      gameLease.record(session, leaseToken, { id: job.id, operation, outcome: 'completed', completed: r.pipelineCompleted }); gameLog({ operation, id: job.id, completed: r.pipelineCompleted });
       return r;
     },
     async game_ask({ question }) {
       gameGate('write');
       if (typeof question !== 'string' || !question.trim() || question.length > 4000) throw bad('question is 1–4000 characters');
       const backupFile = backup();
-      const job = await playtest.submit({ operation: 'askall', question }); gameLog({ operation: 'askall', id: job.id, question, backupFile });
+      const job = await playtest.submit({ operation: 'askall', question });
+      // Recorded before waiting: if this turn dies now, the request stays unresolved for the owner.
+      gameLease.record(session, leaseToken, { id: job.id, operation: 'askall', outcome: 'submitted' }); gameLog({ operation: 'askall', id: job.id, question, backupFile });
       const r = await playtest.wait(job, { timeoutMs: 120000 });
+      gameLease.record(session, leaseToken, { id: job.id, operation: 'askall', outcome: 'completed', committedActions: r.committedActions ?? 0, worldMutationObserved: r.worldMutationObserved ?? null });
       gameLog({ operation: 'askall', id: job.id, committedActions: r.committedActions, worldMutationObserved: r.worldMutationObserved });
       return { ...r, saveBackup: backupFile };
     },

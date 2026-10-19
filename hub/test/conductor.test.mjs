@@ -9,6 +9,7 @@ import { normaliseUsage } from '../lib/conductor-workers.mjs';
 
 const F = '/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
 const pieces = [{ class_path: F, transform: { translation_cm: { x: 0, y: 0, z: 0 }, rotation_quat: { x: 0, y: 0, z: 0, w: 1 }, scale3d: { x: 1, y: 1, z: 1 } } }];
+const RECEIPT = [{ id: 'j1', operation: 'askall', outcome: 'completed', committedActions: 1 }];
 const worktrees = { codex: { worktree: 'C:/w/codex', branch: 'codex/auto' }, claude: { worktree: 'C:/w/claude', branch: 'claude/auto' } };
 
 // Fake workers act like the models would, through the store.
@@ -27,7 +28,7 @@ test('the conductor runs a whole design without anyone prompting: candidate, cri
   const { prompts, workers } = fakes(store, async (name, prompt, s) => {
     if (/YOUR STEP: Make the first candidate/.test(prompt)) s.addCandidate(job.id, name, { title: 'Sweep', rationale: 'r', pieces });
     else if (/YOUR STEP: Critique candidate/.test(prompt)) s.addCritique(job.id, name, { candidate: 1, verdict: 'agree', critique: 'good' });
-    else if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'saved and placed', blueprint_name: 'AI Sweep', candidate_sha256: s.get(job.id).agreedHash });
+    else if (/YOUR STEP: Both of you agreed/.test(prompt)) s.reportBuild(job.id, name, { summary: 'saved and placed', blueprint_name: 'AI Sweep', built: true, candidate_sha256: s.get(job.id).agreedHash, evidence: RECEIPT });
     else if (/YOUR STEP: .* reported building/.test(prompt)) s.addCritique(job.id, name, { candidate: 'build', verdict: 'agree', critique: 'matches' });
   });
   const c = createConductor({ root, store, workers, worktrees });
@@ -93,7 +94,7 @@ test('a build waits for game control without spending a turn', async () => {
   store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
   store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
   let handedOff = false;
-  const { prompts, workers } = fakes(store, async (name, prompt, s) => s.reportBuild(job.id, name, { summary: 'built', blueprint_name: 'X', candidate_sha256: s.get(job.id).agreedHash }));
+  const { prompts, workers } = fakes(store, async (name, prompt, s) => s.reportBuild(job.id, name, { summary: 'built', blueprint_name: 'X', built: true, candidate_sha256: s.get(job.id).agreedHash, evidence: RECEIPT }));
   const c = createConductor({ root, store, workers, worktrees, mayOperate: () => handedOff });
   c.set(true);
   assert.equal(await c.tick(), null);
@@ -139,4 +140,52 @@ test('a design job always comes before milestone work', async () => {
   c.set(true);
   assert.equal((await c.tick()).kind, 'candidate');
   assert.equal(work.list().length, 0);
+});
+
+test('a stopped build turn ends the worker and leaves its game transaction unresolved for the owner (Codex #652)', async () => {
+  const { createGameLease } = await import('../lib/game-lease.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Straight' });
+  store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  const lease = createGameLease(root, { mayOperate: () => true });
+  let entered;
+  const inTurn = new Promise(r => { entered = r; });
+  const { w, workers } = fakes(store, async () => {
+    // The worker submits a world-changing request, then hangs before readback.
+    const l = lease.acquire({ session: 'conductor-codex:t', worker: 'codex', purpose: 'build', job: job.id });
+    lease.record('conductor-codex:t', l.token, { id: 'j9', operation: 'askall', outcome: 'submitted' });
+    entered(); await new Promise(() => {});
+  });
+  const forgotten = [];
+  workers.forget = name => forgotten.push(name);
+  const c = createConductor({ root, store, workers, worktrees, lease });
+  c.set(true);
+  const turn = c.tick();
+  await inTurn;
+  await c.stop();
+  assert.equal((await turn).kind, 'build');
+  assert.equal(w.codex.stopped, true, 'the worker process was ended');
+  assert.deepEqual(forgotten, ['codex']);
+  assert.equal(lease.current().unresolved, true);
+  assert.match(lease.current().unresolvedReason, /Stopped by the owner; 1 game request/);
+  assert.equal(store.get(job.id).status, 'needs-owner');
+  assert.throws(() => lease.acquire({ session: 'conductor-claude:x', worker: 'claude', purpose: 'verify' }), /unresolved game transaction/);
+  assert.equal(lease.resolve(), true, 'the owner resolves it after checking the game');
+  assert.equal(lease.current(), null);
+});
+
+test('an unused lease is simply released when a turn ends', async () => {
+  const { createGameLease } = await import('../lib/game-lease.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'cond-')), store = createStudioStore(root);
+  const job = store.create({ brief: 'Straight' });
+  store.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces });
+  store.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  const lease = createGameLease(root, { mayOperate: () => true });
+  const { workers } = fakes(store, async () => { lease.acquire({ session: 'conductor-codex:t', worker: 'codex', purpose: 'build' }); });
+  const c = createConductor({ root, store, workers, worktrees, lease });
+  c.set(true);
+  await c.tick();
+  assert.equal(lease.current(), null);
+  assert.match(store.get(job.id).events.map(e => e.text).join(' | '), /Released Codex's unused game lease/);
 });

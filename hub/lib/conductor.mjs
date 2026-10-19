@@ -22,7 +22,7 @@ export function stepPrompt(job, step, { worktree, branch }) {
       ? `Your candidate ${step.revising} got a "revise" critique. Read it with studio_job, then post an improved candidate with studio_post_candidate that answers every point.`
       : 'Make the first candidate design for the brief. Build the piece list with the project\'s own compilers (companion/lib, e.g. level-tunnel.mjs for tunnels; see how Codex built "AI Walled Sweep 90" in docs/history and git log). Read reference blueprints with studio_read_blueprint. Render drafts with studio_render and look at them before posting. Post with studio_post_candidate: a short title, and a rationale saying what you checked.',
     critique: `Critique candidate ${step.candidate} by ${NAME[other(step.worker)]}. Open its render PNG and piece file (paths in studio_job). Check proportions, joints and seams, clashes and gaps, fit to the brief and to any reference, and that it only uses buildable pieces. Then studio_post_critique with verdict "agree" if it should be built, or "revise" with concrete changes. If you have a better concrete variant, post it with studio_post_candidate after your critique.`,
-    build: `Both of you agreed on candidate ${step.candidate} (pinned ${job.agreedHash ?? 'hash in studio_job'}). Build exactly that piece list. First take the game lease (game_lease acquire) and keep it until readback is done. Generate the native blueprint and place it with game_ask (the newest save is backed up automatically), check the result with game_capture / game_ask readback and studio_read_blueprint, then studio_report_build with candidate_sha256, saved/placed, and the receipts you observed. Never replay a world-changing request whose outcome is unknown; report it instead. If the game refuses something or you cannot build, call studio_report_build with built: false and report exactly what it said.`,
+    build: `Both of you agreed on candidate ${step.candidate} (pinned ${job.agreedHash ?? 'hash in studio_job'}). Build exactly that piece list. Write the typed generate_native_blueprint action for exactly those pieces to a file in your worktree, then take the game lease with game_lease acquire, job_id ${job.id} and proposal_file (that file), and keep it until readback is done; every game_ask is refused if the pieces or the proposal changed. Generate the native blueprint and place it with game_ask (the newest save is backed up automatically), check the result with game_capture / game_ask readback and studio_read_blueprint, then studio_report_build with built: true, candidate_sha256, and saved/placed only where the game receipts show it (the hub checks them against what it recorded under your lease). The other model verifies; you cannot verify your own build. Never replay a world-changing request whose outcome is unknown; report it instead. If the game refuses something or you cannot build, call studio_report_build with built: false and report exactly what it said.`,
     verify: `${NAME[other(step.worker)]} reported building candidate ${step.candidate}. Verify it: compare the saved blueprint (studio_read_blueprint) against the agreed candidate's piece file. For a fresh world capture, take the game lease first (game_lease acquire), use game_capture, then release it. Then studio_post_critique with candidate "build", verdict "agree" if it matches, or "revise" with exactly what differs.`,
   }[step.kind];
   return `${head}\n\nYOUR STEP: ${body}\n\nEnd your turn when the step is posted.`;
@@ -98,16 +98,29 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
     let timer;
     // Stop must end the wait even if the worker never answers.
     const stopped = new Promise((_, reject) => { running.abort = reject; });
+    let settledTurn; running.settled = new Promise(r => { settledTurn = r; });
+    let ended = 'turn ended';
     try {
       const result = await Promise.race([worker.run(prompt), stopped, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Turn timed out')), TURN_TIMEOUT_MS); })]);
       S.log(job.id, step.worker, `Turn ${result.status}: ${String(result.text ?? '').replace(/\s+/g, ' ').slice(0, 300)}`);
     } catch (error) {
+      ended = `turn ended: ${error.message}`;
       S.log(job.id, step.worker, `Turn failed: ${error.message}`);
+      // A timed-out or stopped turn may still be running: end the worker process before
+      // anything else may touch the game (Codex #652).
+      await worker.stop?.().catch(() => {}); workers.forget?.(step.worker);
     } finally {
       clearTimeout(timer);
       running = null;
-      // A turn never leaves the game leased behind it.
-      if (lease?.release(`conductor-${step.worker}`)) S.log(job.id, 'studio', `Released ${NAME[step.worker]}'s game lease at the end of its turn`);
+    }
+    // A turn never leaves the game leased behind it. A lease with game requests whose
+    // readback was not reported stays as an unresolved transaction for the owner.
+    const settled = lease?.settleAfterTurn(step.worker, `${NAME[step.worker]}'s ${ended}`);
+    settledTurn();
+    if (settled === 'released') S.log(job.id, 'studio', `Released ${NAME[step.worker]}'s unused game lease at the end of its turn`);
+    if (settled === 'unresolved') {
+      S.needsOwner(job.id, `${NAME[step.worker]}'s game transaction is unresolved (${ended}). Check the game, then resolve it in the Design studio; nothing is replayed automatically`);
+      stale.delete(job.id); log({ job: job.id, step }); return step;
     }
     // A turn that leaves the same next step has not moved the job forward.
     const again = JSON.stringify(S.next(S.get(job.id)));
@@ -125,7 +138,9 @@ export function createConductor({ root, store, workers, worktrees, now = Date.no
     set(enabled) { state.enabled = !!enabled; save(); return { enabled: state.enabled }; },
     async stop() {
       state.enabled = false; save();
-      if (running) { const r = running, w = await workers.get(r.worker); await w.stop().catch(() => {}); workers.forget?.(r.worker); r.abort?.(new Error('Stopped by the owner')); }
+      // Aborting the wait makes tick() stop the worker and settle its game lease.
+      // Stop returns once the worker has ended and its lease is settled.
+      if (running) { const r = running; r.abort?.(new Error('Stopped by the owner')); await r.settled; }
       return { enabled: false };
     },
   };

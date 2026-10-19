@@ -115,7 +115,10 @@ export function createStudioStore(root, { now = Date.now } = {}) {
       if (!WORKERS.includes(author)) throw bad('Unknown author');
       if (!['agree', 'revise'].includes(verdict)) throw bad('Verdict is agree or revise');
       const job = load(id);
-      if (candidate === 'build') { if (job.status !== 'building' || !job.build) throw bad('There is no build to verify yet', 409); }
+      if (candidate === 'build') {
+        if (job.status !== 'building' || !job.build?.built) throw bad('There is no build to verify yet', 409);
+        if (job.build.author === author) throw bad('The model that built it cannot verify its own build', 409);
+      }
       else {
         const c = job.candidates.find(x => x.n === Number(candidate));
         if (!c) throw bad('Unknown candidate', 404);
@@ -127,17 +130,25 @@ export function createStudioStore(root, { now = Date.now } = {}) {
       return save(settle(job));
     },
     startBuild(id) { const job = load(id); if (job.status !== 'agreed') throw bad('Nothing agreed yet', 409); if (!job.agreedHash) pin(job, job.agreedCandidate); job.status = 'building'; log(job, 'studio', 'Build started'); return save(job); },
-    reportBuild(id, author, { summary, blueprint_name, built = true, saved, placed, candidate_sha256 }) {
+    // The current bytes of the agreed piece file, for the check before every world-changing request.
+    currentHash(id) { const job = load(id); if (!job.agreedCandidate) throw bad('Nothing agreed yet', 409); return hashOf(id, job.agreedCandidate); },
+    reportBuild(id, author, { summary, blueprint_name, built, saved, placed, candidate_sha256, evidence = [] }) {
       const job = load(id);
       if (job.status !== 'building') throw bad('The job is not building', 409);
-      if (built !== false) {
+      // Unknown stays unknown (Codex #652): nothing is assumed from a missing field.
+      if (typeof built !== 'boolean') throw bad('Say built: true (with game receipts) or built: false (with what stopped you)');
+      const committed = evidence.filter(r => r.operation === 'askall' && r.outcome === 'completed' && r.committedActions > 0);
+      if (built) {
         if (!job.agreedHash) throw bad('No pinned piece list for this job; it needs a new review', 409);
         // Only the exact agreed piece list may be reported as built (Codex #647).
         if (candidate_sha256 !== job.agreedHash) throw bad(`candidate_sha256 must be the agreed piece list's hash ${job.agreedHash}; anything else needs a new review`, 409);
         if (hashOf(id, job.agreedCandidate) !== job.agreedHash) throw bad('The agreed piece file changed after agreement; it needs a new review', 409);
+        if (!committed.length) throw bad('built: true needs a committed game receipt (game_ask under your game lease); none was recorded. Report built: false with what happened instead', 409);
       }
-      const ok = built !== false;
-      job.build = { author, built: ok, saved: ok && saved !== false, placed: ok && placed !== false, candidate_sha256: ok ? candidate_sha256 : null, summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
+      const tri = v => built && v === true ? true : built && v === false ? false : null;
+      job.build = { author, built, saved: tri(saved), placed: tri(placed), candidate_sha256: built ? candidate_sha256 : null,
+        receipts: evidence.map(r => ({ id: r.id, operation: r.operation, outcome: r.outcome, committedActions: r.committedActions ?? null, worldMutationObserved: r.worldMutationObserved ?? null })),
+        summary: text(summary, 4000, 'Summary'), blueprint_name: typeof blueprint_name === 'string' ? blueprint_name.slice(0, 200) : null, at: now() };
       log(job, author, `Build reported: ${job.build.summary.slice(0, 200)}`);
       return save(job);
     },

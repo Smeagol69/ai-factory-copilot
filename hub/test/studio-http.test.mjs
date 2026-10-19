@@ -36,6 +36,14 @@ test('the studio page and API: brief, conductor switch, game handoff, renders, o
     assert.equal((await (await post('/api/studio/operator', { conductor: true })).json()).conductorMayOperateGame, true);
     const o = await (await fetch(base + '/api/studio')).json();
     assert.equal(o.jobs.length, 1); assert.equal(o.conductorMayOperateGame, true);
+    // An unresolved game transaction shows in the overview until the owner resolves it.
+    const { createGameLease } = await import('../lib/game-lease.mjs');
+    const lease = createGameLease(root, { mayOperate: () => true }), l = lease.acquire({ session: 'conductor-codex:s', worker: 'codex', purpose: 'build' });
+    lease.record('conductor-codex:s', l.token, { id: 'j1', operation: 'askall', outcome: 'submitted' });
+    assert.equal(lease.settleAfterTurn('codex', 'Turn timed out'), 'unresolved');
+    assert.equal((await (await fetch(base + '/api/studio')).json()).gameLease.unresolved, true);
+    assert.equal((await (await post('/api/studio/conductor', { action: 'resolve-game' })).json()).resolved, true);
+    assert.equal((await (await fetch(base + '/api/studio')).json()).gameLease, null);
     assert.equal((await post('/api/studio/jobs', { brief: 'x' }, { Origin: 'http://evil.example' })).status, 403);
     assert.equal((await post('/api/studio/jobs', { brief: '' })).status, 400);
   } finally { server.close(); }

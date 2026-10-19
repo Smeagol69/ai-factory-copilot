@@ -7,6 +7,8 @@ import { createStudioStore, nextStep, validatePieces, MAX_ROUNDS } from '../lib/
 
 const F = '/Game/FactoryGame/Buildable/Building/Foundation/ConcreteSet/Build_Foundation_Concrete_8x2.Build_Foundation_Concrete_8x2_C';
 const pieces = n => Array.from({ length: n }, (_, i) => ({ class_path: F, transform: { translation_cm: { x: i * 800, y: 0, z: 0 }, rotation_quat: { x: 0, y: 0, z: 0, w: 1 }, scale3d: { x: 1, y: 1, z: 1 } } }));
+// A committed askall receipt as the gateway records it under the game lease.
+const RECEIPT = [{ id: 'j1', operation: 'askall', outcome: 'completed', committedActions: 2, worldMutationObserved: true }];
 const store = () => { let t = 1000; return createStudioStore(mkdtempSync(join(tmpdir(), 'studio-')), { now: () => ++t }); };
 
 test('piece lists are checked before they become candidates', () => {
@@ -31,8 +33,10 @@ test('the design runs candidate → critique by the other model → agree → bu
   assert.deepEqual(nextStep(job), { worker: 'codex', kind: 'build', candidate: 2 });
   assert.throws(() => s.addCandidate(job.id, 'codex', { title: 'x', rationale: 'y', pieces: pieces(1) }), /closed/);
   s.startBuild(job.id);
-  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'Saved and placed', blueprint_name: 'AI Sweep B' }), /candidate_sha256 must be the agreed/);
-  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 4 pieces', blueprint_name: 'AI Sweep B', candidate_sha256: s.get(job.id).agreedHash });
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'Saved and placed', blueprint_name: 'AI Sweep B', built: true }), /candidate_sha256 must be the agreed/);
+  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 4 pieces', blueprint_name: 'AI Sweep B', built: true, saved: true, placed: true, candidate_sha256: s.get(job.id).agreedHash, evidence: RECEIPT });
+  assert.equal(s.get(job.id).build.receipts[0].committedActions, 2);
+  assert.throws(() => s.addCritique(job.id, 'codex', { candidate: 'build', verdict: 'agree', critique: 'I checked my own build' }), /cannot verify its own build/);
   assert.equal(s.get(job.id).stage, 'placed');
   assert.deepEqual(nextStep(s.get(job.id)), { worker: 'claude', kind: 'verify', candidate: 2 });
   job = s.addCritique(job.id, 'claude', { candidate: 'build', verdict: 'agree', critique: 'Placed poses match the agreed candidate' });
@@ -83,7 +87,7 @@ test('a blocked build does not go to verification; the build step comes back', (
   s.reportBuild(job.id, 'codex', { summary: 'BUILD BLOCKED: no game control', built: false });
   assert.deepEqual(nextStep(s.get(job.id)), { worker: 'codex', kind: 'build', candidate: 1 });
   assert.equal(s.get(job.id).build.built, false);
-  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 36 pieces', blueprint_name: 'AI Walled Straight 2 Bays', candidate_sha256: s.get(job.id).agreedHash });
+  s.reportBuild(job.id, 'codex', { summary: 'Saved and placed 36 pieces', blueprint_name: 'AI Walled Straight 2 Bays', built: true, candidate_sha256: s.get(job.id).agreedHash, evidence: RECEIPT });
   assert.deepEqual(nextStep(s.get(job.id)), { worker: 'claude', kind: 'verify', candidate: 1 });
 });
 
@@ -99,7 +103,25 @@ test('the agreed piece list is pinned by hash; a changed file needs a new review
   assert.equal(agreed.stage, 'agreed');
   s.startBuild(job.id);
   writeFileSync(join(s.dirOf(job.id), 'candidate-1.json'), JSON.stringify(pieces(3)));
-  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'built', candidate_sha256: agreed.agreedHash }), /changed after agreement/);
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'built', built: true, candidate_sha256: agreed.agreedHash, evidence: RECEIPT }), /changed after agreement/);
   s.reportBuild(job.id, 'codex', { summary: 'BLOCKED: no game control', built: false });
   assert.equal(s.get(job.id).stage, 'agreed', 'a blocked build is not saved or placed');
+});
+
+test('a build report claims only what the game receipts show (Codex #652)', () => {
+  const s = store(), job = s.create({ brief: 'Straight' });
+  s.addCandidate(job.id, 'codex', { title: 'A', rationale: 'r', pieces: pieces(1) });
+  s.addCritique(job.id, 'claude', { candidate: 1, verdict: 'agree', critique: 'ok' });
+  s.startBuild(job.id);
+  const hash = s.get(job.id).agreedHash;
+  assert.equal(s.currentHash(job.id), hash);
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'done', candidate_sha256: hash }), /Say built: true/);
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'done', built: true, saved: true, placed: true, candidate_sha256: hash }), /needs a committed game receipt/);
+  const submittedOnly = [{ id: 'j1', operation: 'askall', outcome: 'submitted' }, { id: 'j2', operation: 'askall', outcome: 'completed', committedActions: 0 }];
+  assert.throws(() => s.reportBuild(job.id, 'codex', { summary: 'done', built: true, candidate_sha256: hash, evidence: submittedOnly }), /needs a committed game receipt/);
+  s.reportBuild(job.id, 'codex', { summary: 'generated', built: true, candidate_sha256: hash, evidence: RECEIPT });
+  const b = s.get(job.id).build;
+  assert.equal(b.saved, null, 'not said is unknown, never true');
+  assert.equal(b.placed, null);
+  assert.equal(s.get(job.id).stage, 'agreed');
 });

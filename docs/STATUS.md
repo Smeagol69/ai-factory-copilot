@@ -99,7 +99,14 @@ Saved blueprints live in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames\blueprints\
    Codex's live session hands off (`hub/state/studio/game-operator.json`). Usage is the only
    brake. **First run (00:37–00:45):** Codex's worker designed "AI Walled Straight — 2 Bays"
    (36 pieces); Claude's worker verified the join against the sweep byte for byte and agreed. The
-   build waits for the game hand-off (job `1c963dbd`). Design:
+   build waits for the game hand-off (job `1c963dbd`). **Game safeguards (Codex review #652–653,
+   repaired 2026-10-19):** one game lease per worker session, taken atomically and proven by a
+   token that never leaves the session; every `game_ask` is checked first against the pinned agreed
+   hash and the bound typed proposal (`game_lease acquire` with `job_id` and `proposal_file`); each
+   request is recorded as a receipt. A build report needs explicit `built` and a committed receipt;
+   saved/placed are never assumed. The builder cannot verify its own build. A timed-out or stopped
+   turn ends its worker; a lease with unreported requests becomes an **unresolved transaction**
+   that blocks game work until the owner checks the game and presses "resolve" in the studio. Design:
    [superpowers/specs/2026-10-18-conductor-design.md](superpowers/specs/2026-10-18-conductor-design.md).
 8. **Creative Architect research** (project 3): look for design-focused models or
    MCP tools that make the Architect better at layouts; add only what earns its place.

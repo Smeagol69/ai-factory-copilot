@@ -20,7 +20,8 @@ function renderControls() {
     : c.waiting ? c.waiting.reason : on ? 'Waiting: no design open and no milestone step due' : 'Off: designs wait until you turn it on';
   $('cond-toggle').textContent = on ? 'Turn off' : 'Turn on';
   const l = overview.gameLease;
-  $('op-state').textContent = (overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates') + (l ? ` · leased to ${l.owner} (${l.purpose}) until ${new Date(l.expiresAt).toLocaleTimeString()}` : '');
+  $('op-state').textContent = (overview.conductorMayOperateGame ? 'conductor may operate' : 'Codex session operates') + (l ? l.unresolved ? ` · UNRESOLVED game transaction (${l.worker}): ${l.unresolvedReason}` : ` · leased to ${l.worker} (${l.purpose}) until ${new Date(l.expiresAt).toLocaleTimeString()}` : '');
+  $('op-resolve').hidden = !l?.unresolved;
   $('op-toggle').textContent = overview.conductorMayOperateGame ? 'Take game control back' : 'Hand game to conductor';
   $('workers').replaceChildren(...['codex', 'claude'].map(n => { const w = overview.workers[n] ?? {}; const u = w.usage;
     return el('div', `${NAME[n]}: ${w.running ? (w.busy ? 'in a turn' : 'ready') : 'not started'}${u?.usedPercent != null ? ` · ${Math.round(u.usedPercent)}% used` : ''}${u?.out ? ' · out of usage' : ''}`); }));
@@ -99,6 +100,7 @@ $('brief-form').addEventListener('submit', async e => {
 });
 $('cond-toggle').onclick = () => act('/api/studio/conductor', { action: overview?.conductor.enabled ? 'off' : 'on' });
 $('cond-stop').onclick = () => act('/api/studio/conductor', { action: 'stop' }, 'Conductor stopped; the running turn was ended.');
+$('op-resolve').onclick = () => { if (confirm('Did you check the game? Resolving clears the unresolved transaction; nothing is replayed.')) act('/api/studio/conductor', { action: 'resolve-game' }, 'Game transaction resolved.'); };
 $('op-toggle').onclick = () => act('/api/studio/operator', { conductor: !overview?.conductorMayOperateGame });
 
 async function poll() {
