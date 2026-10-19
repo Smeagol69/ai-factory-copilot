@@ -721,6 +721,7 @@ export function validateAction(graph, proposal) {
       "aifactory.generated-blueprint/v5",
       "aifactory.generated-blueprint/v6",
       "aifactory.generated-blueprint/v7",
+      "aifactory.generated-blueprint/v8",
     ]);
     if (!generatedSchemas.has(proposal.layout_schema)) {
       return reject(kind, "unsupported_generated_blueprint_schema", {
@@ -731,7 +732,8 @@ export function validateAction(graph, proposal) {
       return reject(kind, "generated_blueprint_needs_at_least_one_buildable");
     }
     const shortenedFoundation = proposal.layout_schema === "aifactory.generated-blueprint/v7";
-    const fullPose = proposal.layout_schema === "aifactory.generated-blueprint/v6" || shortenedFoundation;
+    const fittedFixture = proposal.layout_schema === "aifactory.generated-blueprint/v8";
+    const fullPose = proposal.layout_schema === "aifactory.generated-blueprint/v6" || shortenedFoundation || fittedFixture;
     if (fullPose && (proposal.buildables.length > 512 ||
         ["conveyors", "power_wires", "pipelines"].some(k => proposal[k] !== undefined && (!Array.isArray(proposal[k]) || proposal[k].length)))) {
       return reject(kind, "generated_v6_requires_at_most_512_foundations_without_topology");
@@ -765,7 +767,7 @@ export function validateAction(graph, proposal) {
       ids.add(partId);
 
       const role = String(proposedPart.role ?? "standalone").trim().toLowerCase();
-      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner", "splitter"].includes(role)) {
+      if (!["floor", "pillar", "wall", "roof", "ramp", "machine", "standalone", "resource_anchor", "miner", "splitter"].includes(role) && !(fittedFixture && role==='beam')) {
         return reject(kind, "generated_blueprint_part_role_is_unsupported", {
           part: index + 1,
           part_id: partId,
@@ -785,20 +787,24 @@ export function validateAction(graph, proposal) {
       if (fullPose) {
         const numeric = (v, keys) => v && typeof v === "object" && !Array.isArray(v) &&
           keys.every(k => typeof v[k] === "number" && Number.isFinite(v[k]));
-        const scaleAllowed = numeric(scale,["x","y","z"]) && numeric(q,["x","y","z","w"]) &&
+        const scaleAllowed = numeric(scale,["x","y","z"]) && numeric(q,["x","y","z","w"]) && (fittedFixture
+          ? role==='beam'
+            ? scale.x>=.01&&scale.x<=1&&scale.y===1&&scale.z===1&&Math.abs(2*(q.x*q.z-q.w*q.y))<=.0001
+            : role==='standalone'&&scale.x>=.05&&scale.x<=1&&scale.x===scale.y&&scale.x===scale.z
+          :
           scale.z===1 && scale.x>=.01 && scale.x<=1 && scale.y>=.01 && scale.y<=1 &&
           (scale.x===1 || scale.y===1) &&
           (shortenedFoundation
             ? (scale.x===1 || Math.abs(2*(q.x*q.z-q.w*q.y))<=.0001) &&
               (scale.y===1 || Math.abs(2*(q.y*q.z+q.w*q.x))<=.0001)
-            : scale.x===1 && scale.y===1);
+            : scale.x===1 && scale.y===1));
         if (!numeric(q, ["x", "y", "z", "w"]) ||
             Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1) > 0.0001 ||
             !scaleAllowed ||
             ["yaw","pitch","roll"].some(k => Object.hasOwn(proposedPart,k))) {
-          return reject(kind, shortenedFoundation ? "generated_v7_requires_one_shortened_horizontal_axis_and_unit_quaternion" : "generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation");
+          return reject(kind, fittedFixture ? "generated_v8_requires_bounded_fixture_scale_and_unit_quaternion_without_euler" : shortenedFoundation ? "generated_v7_requires_one_shortened_horizontal_axis_and_unit_quaternion" : "generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation");
         }
-        if (!["floor","wall","roof","ramp","pillar","standalone"].includes(role) ||
+        if (!(fittedFixture?["beam","standalone"]:["floor","wall","roof","ramp","pillar","standalone"]).includes(role) ||
             ["production_recipe_class","clock_percent","sort_rules","resource_class","resource_purity","resource_anchor_part_id"].some(k => Object.hasOwn(proposedPart,k))) {
           return reject(kind, "generated_v6_accepts_only_unconfigured_foundations");
         }
@@ -836,7 +842,12 @@ export function validateAction(graph, proposal) {
         ? findItemInCatalog(graph, String(buildProduct.item_class))
         : null;
       const nativeBuilding = buildItem?.building;
-      if (fullPose && !String(nativeBuilding?.class_path ?? "").startsWith("/Game/FactoryGame/Buildable/Building/Foundation/")) {
+      if (fittedFixture && nativeBuilding?.class_path !== (role==='beam'
+          ? '/SS_Mod/Builders/Beams/Build_EmissiveBeam_4x2.Build_EmissiveBeam_4x2_C'
+          : '/Game/FactoryGame/Buildable/Factory/CeilingLight/Build_CeilingLight.Build_CeilingLight_C')) {
+        return reject(kind, "generated_v8_requires_exact_native_fixture_class_and_role");
+      }
+      if (fullPose && !fittedFixture && !String(nativeBuilding?.class_path ?? "").startsWith("/Game/FactoryGame/Buildable/Building/Foundation/")) {
         return reject(kind, "generated_v6_requires_captured_vanilla_foundation_class");
       }
       const requestedResourceClass = String(proposedPart.resource_class ?? "").trim();

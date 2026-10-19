@@ -10392,3 +10392,23 @@ with AbstractInstance mesh bounding boxes transformed through native relative
 instance and actor frames, as confirmed in exact SDK manager source. Reject
 unknown meshes and nonzero random offsets/scales. All1350 tests still pass;
 Shipping builds. The next live run must verify this path, not waive clearance.
+
+Actual second lighting run verified28 AbstractInstance beam mesh bounds and6
+native lamp component bounds. It then refused overlapping full-size ceiling
+lights before a file/world write. Opt-in generated v8 therefore fits only the
+exact vanilla CeilingLight (uniform .05..1 shrink) and SS_Mod EmissiveBeam_4x2
+(horizontal local X .01..1, Y/Z unchanged). Typed beam role is v8-only; legitimate
+structural beam joints remain recorded while lamp collisions remain checked.
+No configuration/topology and at most512 fixtures. V1-v7 remain unchanged.
+
+The explicit lighting command accepts `with fitted fixtures`: shared <=2-degree
+beam stations use measured radius/chord/native default length; lamps use .3
+uniform scale and measured native roof thickness to preserve exposure beneath
+the inner roof face. Per-piece native bounds are retained even on a refused
+v8 preflight. Actual fit, archive scale persistence, rendering and power are
+still separate live checks. All1352 companion tests and30 compiled pose-policy
+cases pass; exact Shipping152-input source synchronization/build passes.
+Bounded independent local native/bridge/compiler reviews returned approval.
+Compiler reviewer mistakenly described a fixed0.5 count: actual code uses
+ceil(abs(turn)/2), as independently checked by deterministic tests. No reliance
+on that reviewer claim; exact native readback and live collision remain required.

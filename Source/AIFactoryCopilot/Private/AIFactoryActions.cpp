@@ -1,5 +1,6 @@
 #include "AIFactoryActions.h"
 #include "AIFactoryFoundationPosePolicy.h"
+#include "AIFactoryFixturePosePolicy.h"
 #include "AIFactoryBaseRestore.h"
 #include "AIFactoryWaypointDisplay.h"
 
@@ -4572,7 +4573,8 @@ namespace
                             Index + 1));
                 }
                 const bool bShortenedFoundation = LayoutSchema == TEXT("aifactory.generated-blueprint/v7");
-                const bool bFullPose = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bShortenedFoundation;
+                const bool bFittedFixture = LayoutSchema == TEXT("aifactory.generated-blueprint/v8");
+                const bool bFullPose = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bShortenedFoundation || bFittedFixture;
                 if (bFullPose)
                 {
                     const TSharedPtr<FJsonObject>* Quaternion = nullptr;
@@ -4595,8 +4597,10 @@ namespace
                         !(*Quaternion)->TryGetNumberField(TEXT("w"), Qw) ||
                         !FMath::IsFinite(Qx) || !FMath::IsFinite(Qy) || !FMath::IsFinite(Qz) || !FMath::IsFinite(Qw) ||
                         !TryReadActionVector(*Object, TEXT("scale3d"), true, Scale) ||
-                        !AIFactoryFoundationPosePolicy::AllowsScale(Scale.X, Scale.Y, Scale.Z,
-                            2.0*(Qx*Qz-Qw*Qy), 2.0*(Qy*Qz+Qw*Qx), bShortenedFoundation) ||
+                        !(bFittedFixture
+                            ? AIFactoryFixturePosePolicy::AllowsScale(Scale.X, Scale.Y, Scale.Z, 2.0*(Qx*Qz-Qw*Qy), Part.Role == TEXT("beam"))
+                            : AIFactoryFoundationPosePolicy::AllowsScale(Scale.X, Scale.Y, Scale.Z,
+                                2.0*(Qx*Qz-Qw*Qy), 2.0*(Qy*Qz+Qw*Qx), bShortenedFoundation)) ||
                         !FMath::IsNearlyEqual(Qx*Qx+Qy*Qy+Qz*Qz+Qw*Qw, 1.0, 0.0002))
                     {
                         return FAIFactoryActionResult::Refuse(Kind, TEXT("generated_v6_requires_unit_quaternion_and_unit_scale_without_euler_rotation"));

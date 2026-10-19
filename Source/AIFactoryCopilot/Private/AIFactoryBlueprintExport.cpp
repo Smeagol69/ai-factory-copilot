@@ -1,5 +1,6 @@
 #include "AIFactoryBlueprintExport.h"
 #include "AIFactoryFoundationPosePolicy.h"
+#include "AIFactoryFixturePosePolicy.h"
 
 #include "AIFactoryActions.h"
 #include "AIFactoryBlueprintResourceAnchor.h"
@@ -410,7 +411,7 @@ namespace
             Part.Role != TEXT("ramp") && Part.Role != TEXT("machine") &&
             Part.Role != TEXT("standalone") &&
             Part.Role != TEXT("resource_anchor") && Part.Role != TEXT("miner") &&
-            Part.Role != TEXT("splitter"))
+            Part.Role != TEXT("splitter") && Part.Role != TEXT("beam"))
         {
             OutReason = TEXT("generated_part_role_is_unsupported:") + Part.PartId;
             return false;
@@ -1890,7 +1891,7 @@ namespace
     bool IsGeneratedStructuralRole(const FString& Role)
     {
         return Role == TEXT("floor") || Role == TEXT("pillar") ||
-            Role == TEXT("wall") || Role == TEXT("roof") || Role == TEXT("ramp");
+            Role == TEXT("wall") || Role == TEXT("roof") || Role == TEXT("ramp") || Role == TEXT("beam");
     }
 
     /**
@@ -2775,16 +2776,17 @@ FAIFactoryActionResult GenerateLayout(
     const bool bSchemaV5 = LayoutSchema == TEXT("aifactory.generated-blueprint/v5");
     // v6 is deliberately foundation-only: full saved poses without new topology.
     const bool bSchemaV7 = LayoutSchema == TEXT("aifactory.generated-blueprint/v7");
+    const bool bSchemaV8 = LayoutSchema == TEXT("aifactory.generated-blueprint/v8");
     const bool bSchemaV6 = LayoutSchema == TEXT("aifactory.generated-blueprint/v6") || bSchemaV7;
     // v5 retains every v4 topology feature and adds explicit saved clocks.
     const bool bSchemaV4 = LayoutSchema == TEXT("aifactory.generated-blueprint/v4") || bSchemaV5;
-    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4 && !bSchemaV6)
+    if (!bSchemaV1 && !bSchemaV2 && !bSchemaV3 && !bSchemaV4 && !bSchemaV6 && !bSchemaV8)
     {
         return FAIFactoryActionResult::Refuse(
             Action,
             TEXT("unsupported_generated_blueprint_schema"));
     }
-    if (bSchemaV6 && (Parts.Num() > 512 || Conveyors.Num() || PowerWires.Num() || Pipelines.Num()))
+    if ((bSchemaV6 || bSchemaV8) && (Parts.Num() > 512 || Conveyors.Num() || PowerWires.Num() || Pipelines.Num()))
     {
         return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v6_requires_at_most_512_foundations_without_topology"));
     }
@@ -2853,6 +2855,24 @@ FAIFactoryActionResult GenerateLayout(
         if (!ResolveGeneratedPart(Part, Context.World, Entry, Failure))
         {
             return FAIFactoryActionResult::Refuse(Action, Failure);
+        }
+        if (!bSchemaV8 && Part.Role == TEXT("beam"))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_beam_role_requires_v8"));
+        }
+        if (bSchemaV8 &&
+            ((Part.Role != TEXT("beam") && Part.Role != TEXT("standalone")) ||
+             Entry.BuildableClass->GetPathName() != (Part.Role == TEXT("beam")
+                ? TEXT("/SS_Mod/Builders/Beams/Build_EmissiveBeam_4x2.Build_EmissiveBeam_4x2_C")
+                : TEXT("/Game/FactoryGame/Buildable/Factory/CeilingLight/Build_CeilingLight.Build_CeilingLight_C")) ||
+             !Part.ProductionRecipeClassPath.IsEmpty() || !Part.ResourceClassPath.IsEmpty() ||
+             !Part.ResourcePurity.IsEmpty() || !Part.ResourceAnchorPartId.IsEmpty() || Part.SortRules.Num() ||
+             Part.bHasClockPercent || !Part.RelativeTransform.GetRotation().IsNormalized() ||
+             !AIFactoryFixturePosePolicy::AllowsScale(Part.RelativeTransform.GetScale3D().X,
+                Part.RelativeTransform.GetScale3D().Y, Part.RelativeTransform.GetScale3D().Z,
+                Part.RelativeTransform.GetRotation().GetAxisX().Z, Part.Role == TEXT("beam"))))
+        {
+            return FAIFactoryActionResult::Refuse(Action, TEXT("generated_v8_requires_exact_unconfigured_fixture_class_role_and_bounded_scale"));
         }
         if (bSchemaV6 &&
             (!Entry.BuildableClass->GetPathName().StartsWith(TEXT("/Game/FactoryGame/Buildable/Building/Foundation/")) ||
@@ -3244,6 +3264,29 @@ FAIFactoryActionResult GenerateLayout(
         BoundsSources->SetNumberField(Entry.Key, Entry.Value);
     }
     Predicted->SetObjectField(TEXT("native_bounds_sources"), BoundsSources);
+    // Bounded measured evidence survives a refused preflight, so subsequent
+    // fixture fitting can use real native geometry instead of guessed sizes.
+    if (bSchemaV8)
+    {
+        TArray<TSharedPtr<FJsonValue>> PartBounds;
+        const auto VectorJson = [](const FVector& V)
+        {
+            const TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
+            J->SetNumberField(TEXT("x"), V.X); J->SetNumberField(TEXT("y"), V.Y); J->SetNumberField(TEXT("z"), V.Z);
+            return J;
+        };
+        for (const FStagedGeneratedPart& Part : Staging.Get())
+        {
+            const TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
+            J->SetStringField(TEXT("part_id"), Part.Resolved.Source.PartId);
+            J->SetStringField(TEXT("class_path"), Part.Resolved.BuildableClass->GetPathName());
+            J->SetStringField(TEXT("source"), Part.BoundsSource);
+            J->SetObjectField(TEXT("minimum_cm"), VectorJson(Part.CollisionBounds.Min));
+            J->SetObjectField(TEXT("maximum_cm"), VectorJson(Part.CollisionBounds.Max));
+            PartBounds.Add(MakeShared<FJsonValueObject>(J));
+        }
+        Predicted->SetArrayField(TEXT("native_part_bounds"), PartBounds);
+    }
     Predicted->SetNumberField(TEXT("staged_conveyors"), Staging.NumConveyors());
     Predicted->SetNumberField(TEXT("staged_power_wires"), Staging.NumPowerWires());
     Predicted->SetNumberField(TEXT("staged_pipelines"), Staging.NumPipelines());

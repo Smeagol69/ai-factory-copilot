@@ -3176,11 +3176,11 @@ export function answerLocally(question, graph, services) {
     return localAnswer(plan ? `Requested **${matches[0].name}** at the explicit height, XY and heading. The native hologram checks snapping, clearance and cost; the game will report the actual placement. Say undo to reverse a successful placement.`
       : describePlanRejection() ?? "No action sink is available; no placement action was sent.","blueprint_place_coordinates",started,"Explicit requested coordinates; existing native validated placement and undo, no model call or clearance override.");
   }
-  const lighting=String(question??'').trim().match(/^save tunnel lighting from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"[.!]?$/i);
+  const lighting=String(question??'').trim().match(/^save tunnel lighting from "([^"\r\n]{1,240})" radius (\d+(?:\.\d+)?)\s*m turn (-?\d+(?:\.\d+)?) degrees as "([^"\r\n]{1,240})"(?: (with fitted fixtures))?[.!]?$/i);
   if(lighting){
     const started=Date.now();
     const reference=services?.inspectBlueprint?.(lighting[1],{includeReferenceTraits:true,maximumBuildables:512,maximumEntities:512});
-    const compiled=compileTunnelLighting(graph,{reference,blueprint_name:lighting[4],radius_cm:Number(lighting[2])*100,turn_degrees:Number(lighting[3])});
+    const compiled=compileTunnelLighting(graph,{reference,blueprint_name:lighting[4],radius_cm:Number(lighting[2])*100,turn_degrees:Number(lighting[3]),fit_fixtures:!!lighting[5]});
     if(!compiled.compiled)return localAnswer(`Lighting stayed unsaved: ${compiled.reason}.`,'tunnel_lighting',started,'No guessed fixtures or action emitted.');
     const existing=services?.listBlueprints?.()??[];
     if(existing.some(b=>String(b.name).toLocaleLowerCase()===lighting[4].toLocaleLowerCase()))return localAnswer('That blueprint already exists. Use a new name to preserve it.','tunnel_lighting',started,'Existing file preserved.');

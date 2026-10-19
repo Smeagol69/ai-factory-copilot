@@ -34,19 +34,33 @@ export function compileTunnelLighting(graph,args={}){
  const radii=[...lamps,...beams].map(p=>radius-sign*transverse(p));
  if(Math.min(...radii)<=evidence[0].length)return fail('lighting_inside_radius_too_small');
  const lampCount=Math.max(1,Math.ceil(Math.abs(sweep)*Math.max(...lamps.map(p=>radius-sign*transverse(p)))/shell.measured_pitch_cm));
- const beamCount=Math.max(1,Math.ceil(Math.abs(sweep)*Math.max(...beams.map(p=>radius-sign*transverse(p)))/evidence[0].length));
+ const fitted=args.fit_fixtures===true;
+ const beamCount=fitted?Math.ceil(Math.abs(args.turn_degrees)/2):Math.max(1,Math.ceil(Math.abs(sweep)*Math.max(...beams.map(p=>radius-sign*transverse(p)))/evidence[0].length));
+ let roofPlane;
+ if(fitted){
+  // Measured native thickness, not an assumed 2 m roof. Keep the original
+  // fixture's exposed fraction when shrinking it about its saved pivot.
+  const top=poses.filter(p=>p.class_path.startsWith('/Game/FactoryGame/Buildable/Building/Foundation/')&&Math.abs(p.transform.translation_cm.z-f.highest_pivot_cm)<.1);
+  const heights=top.map(p=>(graph.snapshot?.actors??[]).filter(a=>a.class_path===p.class_path).flatMap(a=>(a.reflected_properties??[]).filter(v=>v.name==='mHeight'&&v.declared_by==='/Script/FactoryGame.FGBuildableFoundation'&&v.source==='unreal_reflection'&&v.certainty==='authoritative').map(v=>Number(v.value)))).flat();
+  if(!top.length||!heights.length||heights.some(v=>!Number.isFinite(v)||v<=0||Math.abs(v-heights[0])>.01))return fail('consistent_native_roof_thickness_required');
+  roofPlane=f.highest_pivot_cm-heights[0]/2;
+  if(beams.some(p=>Math.cos((yaw(p.transform.rotation_quat)-f.heading_degrees)*Math.PI/180)<.9999))return fail('forward_longitudinal_beam_axis_required');
+ }
  if(2*lampCount+4*beamCount>512)return fail('lighting_part_limit_exceeded');
  const buildables=[];
  const add=(p,row,count,z,startAtJoint)=>{
   const r=radius-sign*transverse(p);
   for(let j=0;j<count;j++){
    const a=(j+(startAtJoint?0:.5))*sweep/count,direction=(j+.5)*sweep/count;
-   buildables.push({part_id:`${row}-${j+1}`,role:'standalone',recipe_class:recipes.get(p.class_path),relative_location:{x:sign*r*Math.sin(a),y:sign*(radius-r*Math.cos(a)),z},yaw:yaw(p.transform.rotation_quat)-f.heading_degrees+direction*180/Math.PI});
+   const heading=yaw(p.transform.rotation_quat)-f.heading_degrees+direction*180/Math.PI;
+   const scale=startAtJoint?{x:2*r*Math.sin(Math.abs(sweep/count)/2)/evidence[0].length,y:1,z:1}:{x:.3,y:.3,z:.3};
+   buildables.push({part_id:`${row}-${j+1}`,role:fitted&&startAtJoint?'beam':'standalone',recipe_class:recipes.get(p.class_path),relative_location:{x:sign*r*Math.sin(a),y:sign*(radius-r*Math.cos(a)),z},
+    ...(fitted?{rotation_quat:{x:0,y:0,z:Math.sin(heading*Math.PI/360),w:Math.cos(heading*Math.PI/360)},scale3d:scale}:{yaw:heading})});
   }
  };
- lamps.forEach((p,i)=>add(p,`ceiling-${i+1}`,lampCount,p.transform.translation_cm.z-f.floor_cm,false));
+ lamps.forEach((p,i)=>add(p,`ceiling-${i+1}`,lampCount,(fitted?roofPlane+.3*(p.transform.translation_cm.z-roofPlane):p.transform.translation_cm.z)-f.floor_cm,false));
  for(const level of ['lower','upper'])beams.forEach((p,i)=>add(p,`reveal-${level}-${i+1}`,beamCount,level==='lower'?p.transform.translation_cm.z-f.floor_cm:f.highest_pivot_cm-p.transform.translation_cm.z,true));
  return {compiled:true,source_fingerprint:shell.source_fingerprint,ceiling_lights:2*lampCount,emissive_beams:4*beamCount,reference_frame:f,
   limitations:['native_default_beam_length_is_not_visual_mesh_clearance','roof_reveal_mirrors_measured_lower_reveal','native_fixture_geometry_and_power_require_live_verification','angled_reference_side_lights_not_copied'],gamePlacementVerified:false,
-  proposal:{action:'generate_native_blueprint',blueprint_name:args.blueprint_name.trim(),layout_schema:'aifactory.generated-blueprint/v1',description:`Measured tunnel lighting add-on; ${args.turn_degrees} degree turn. Separate from shell. Native placement, emissive reveals and power require live inspection.`,buildables,commit:true}};
+  proposal:{action:'generate_native_blueprint',blueprint_name:args.blueprint_name.trim(),layout_schema:`aifactory.generated-blueprint/v${fitted?8:1}`,description:`Measured tunnel lighting add-on; ${args.turn_degrees} degree turn. Separate from shell. Native placement, emissive reveals and power require live inspection.`,buildables,commit:true}};
 }

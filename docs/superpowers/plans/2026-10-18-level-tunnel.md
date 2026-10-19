@@ -46,3 +46,15 @@ Lighting design call: mirror measured lower beam reveals at the highest profile
 pivot and use the two flat roof fixtures as rows. Angled side lights are not
 copied in this first pass. Native beam default length is nominal evidence, not
 mesh fit; visual gaps/overshoot and power must be measured before claiming done.
+
+Superseding lighting checkpoint: complete528-member work-area archive contains
+all330 wanted original+fine-curve members (and198 nearby test pieces). Both native
+lighting saves refused safely: first missing instance bounds, then genuine
+ceiling-lamp overlap. Instance bounds repair is live-verified28/28 beams.
+
+- [x] Opt-in v8 exact-class fitted fixtures, bridge/native checks and bounds diagnostics.
+- [x] Failing regression then1352 full tests,30 compiled policy cases,152 synced Shipping inputs.
+- [x] Bounded local review; root corrected reviewer count misconception against code/tests.
+- [ ] Deploy fitted build with latest save backup and peer/source/hash verification.
+- [ ] Native save/load exact66 fixture poses/scales, then connect to curve and inspect visually.
+- [ ] Verify real light power and save a clean finished assembly without nearby prototypes.
