@@ -9,10 +9,10 @@ const REPO = 'C:\\Users\\owner\\Documents\\satisfactory';
 const STOP = new Date(2026, 9, 19, 8, 48, 45);
 const ev = (t, payload, ordinal) => JSON.stringify({ timestamp: new Date(t).toISOString(), ordinal, type: 'event_msg', payload });
 // A Codex rollout like the owner's: working on the project, then stopped by the usage limit.
-function rollout(sessions, id, { cwd = join(REPO, 'hub', 'workspaces', 'auto-codex'), stopped = true, message = "You've hit your usage limit. Upgrade to Pro or try again at 10:47 AM.", limits = null } = {}) {
+function rollout(sessions, id, { cwd = join(REPO, 'hub', 'workspaces', 'auto-codex'), parent = null, stopped = true, message = "You've hit your usage limit. Upgrade to Pro or try again at 10:47 AM.", limits = null } = {}) {
   const dir = join(sessions, '2026', '10', '19'); mkdirSync(dir, { recursive: true });
   const f = join(dir, `rollout-2026-10-19T00-37-13-${id}.jsonl`);
-  const rows = [JSON.stringify({ timestamp: new Date(STOP - 3600000).toISOString(), type: 'session_meta', payload: { id, cwd, originator: 'copilot_conductor' } }),
+  const rows = [JSON.stringify({ timestamp: new Date(STOP - 3600000).toISOString(), type: 'session_meta', payload: { id, cwd, originator: 'copilot_conductor', ...(parent ? { parent_thread_id: parent, thread_source: 'subagent' } : {}) } }),
     ev(STOP - 600000, { type: 'task_started' }, 10)];
   if (limits) rows.push(ev(STOP - 1000, { type: 'token_count', rate_limits: limits }, 11));
   rows.push(stopped ? ev(STOP, { type: 'task_complete', last_agent_message: null, error: { message, codex_error_info: 'usage_limit_exceeded' } }, 12) : ev(STOP, { type: 'task_complete', last_agent_message: 'done' }, 12));
@@ -25,10 +25,11 @@ test('finds project Codex threads stopped by the usage limit, with the reset fro
   rollout(sessions, 'stalled-1');
   rollout(sessions, 'finished-2', { stopped: false });
   rollout(sessions, 'elsewhere-3', { cwd: 'C:\\Users\\owner\\Documents\\other-project' });
+  rollout(sessions, 'subagent-5', { parent: 'stalled-1' });
   rollout(sessions, 'weekly-4', { message: "You've hit your usage limit.", limits: { primary: { used_percent: 12, resets_at: 1 }, secondary: { used_percent: 100, resets_at: Math.floor(new Date(2026, 9, 23, 9, 0) / 1000) } } });
   const now = new Date(2026, 9, 19, 9, 0).getTime();
   const found = Object.fromEntries(findStalled({ repo: REPO, sessionsDir: sessions, now }).map(t => [t.threadId, t]));
-  assert.deepEqual(Object.keys(found).sort(), ['stalled-1', 'weekly-4'], 'finished and other-project threads are left alone');
+  assert.deepEqual(Object.keys(found).sort(), ['stalled-1', 'weekly-4'], 'finished, other-project and sub-agent threads are left alone');
   assert.equal(new Date(found['stalled-1'].resetsAt).getHours(), 10);
   assert.equal(new Date(found['stalled-1'].resetsAt).getMinutes(), 47);
   assert.equal(new Date(found['weekly-4'].resetsAt).getDate(), 23, 'a full weekly window waits for the weekly reset');

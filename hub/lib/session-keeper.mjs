@@ -31,6 +31,8 @@ export function stalledThread(file, { repo, now = Date.now() } = {}) {
   let head; try { head = lines(readFileSync(file, 'utf8').slice(0, 64 * 1024))[0]; } catch { return null; }
   const meta = head?.type === 'session_meta' ? head.payload : null;
   if (!meta?.id || !meta.cwd || !inside(meta.cwd, repo)) return null;
+  // Sub-agent threads belong to their parent: resuming the parent relaunches them.
+  if (meta.parent_thread_id || meta.thread_source === 'subagent' || (meta.source && typeof meta.source === 'object' && meta.source.subagent)) return null;
   const size = statSync(file).size, text = readFileSync(file, 'utf8');
   const tail = lines(size > TAIL_BYTES ? text.slice(-TAIL_BYTES) : text);
   let last = null, limits = null;
